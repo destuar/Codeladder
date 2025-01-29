@@ -1,7 +1,7 @@
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useAuth } from '../auth/AuthContext';
 import { api } from '../../lib/api';
 import { Button } from '../../components/ui/button';
@@ -11,7 +11,7 @@ import React from 'react';
 
 const profileSchema = z.object({
   name: z.string().min(2, 'Name must be at least 2 characters').optional(),
-  avatar: z.string().url('Must be a valid URL').optional(),
+  avatar: z.string().url('Must be a valid URL').nullish(),
 }).partial();
 
 type ProfileFormData = z.infer<typeof profileSchema>;
@@ -28,6 +28,7 @@ export default function ProfilePage() {
     handleSubmit,
     formState: { errors },
     watch,
+    reset,
   } = useForm<ProfileFormData>({
     resolver: zodResolver(profileSchema),
     defaultValues: {
@@ -35,6 +36,32 @@ export default function ProfilePage() {
       avatar: user?.avatar || '',
     },
   });
+
+  // Initial profile load
+  useEffect(() => {
+    const loadProfile = async () => {
+      if (!token) return;
+      
+      try {
+        setIsLoading(true);
+        const userData = await api.get('/profile/me', token);
+        setUser(userData);
+        
+        // Update form with new data
+        reset({
+          name: userData.name || '',
+          avatar: userData.avatar || '',
+        });
+      } catch (err) {
+        console.error('Error loading profile:', err);
+        setError('Failed to load profile data');
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    loadProfile();
+  }, [token, setUser, reset]);
 
   // Watch for avatar changes
   const avatarUrl = watch('avatar');
