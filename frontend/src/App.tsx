@@ -2,7 +2,9 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-d
 import { AuthProvider } from './features/auth/AuthContext';
 import LoginPage from './features/auth/LoginPage';
 import RegisterPage from './features/auth/RegisterPage';
+import ProfilePage from './features/profile/ProfilePage';
 import ProtectedRoute from './components/ProtectedRoute';
+import { Navigation } from './components/Navigation';
 
 // Placeholder components - you'll create these later
 const DashboardPage = () => (
@@ -29,38 +31,52 @@ function App() {
   return (
     <Router>
       <AuthProvider>
-        <Routes>
-          {/* Public routes */}
-          <Route path="/login" element={<LoginPage />} />
-          <Route path="/register" element={<RegisterPage />} />
-          <Route path="/unauthorized" element={<UnauthorizedPage />} />
+        <div className="min-h-screen bg-background">
+          <Navigation />
+          <main>
+            <Routes>
+              {/* Public routes */}
+              <Route path="/login" element={<LoginPage />} />
+              <Route path="/register" element={<RegisterPage />} />
+              <Route path="/unauthorized" element={<UnauthorizedPage />} />
 
-          {/* Protected routes */}
-          <Route
-            path="/dashboard"
-            element={
-              <ProtectedRoute>
-                <DashboardPage />
-              </ProtectedRoute>
-            }
-          />
+              {/* Protected routes */}
+              <Route
+                path="/dashboard"
+                element={
+                  <ProtectedRoute>
+                    <DashboardPage />
+                  </ProtectedRoute>
+                }
+              />
 
-          {/* Admin/Developer routes */}
-          <Route
-            path="/admin"
-            element={
-              <ProtectedRoute allowedRoles={['ADMIN', 'DEVELOPER']}>
-                <AdminDashboard />
-              </ProtectedRoute>
-            }
-          />
+              <Route
+                path="/profile"
+                element={
+                  <ProtectedRoute>
+                    <ProfilePage />
+                  </ProtectedRoute>
+                }
+              />
 
-          {/* Redirect root to dashboard or login */}
-          <Route
-            path="/"
-            element={<Navigate to="/dashboard" replace />}
-          />
-        </Routes>
+              {/* Admin/Developer routes */}
+              <Route
+                path="/admin"
+                element={
+                  <ProtectedRoute allowedRoles={['ADMIN', 'DEVELOPER']}>
+                    <AdminDashboard />
+                  </ProtectedRoute>
+                }
+              />
+
+              {/* Redirect root to dashboard or login */}
+              <Route
+                path="/"
+                element={<Navigate to="/dashboard" replace />}
+              />
+            </Routes>
+          </main>
+        </div>
       </AuthProvider>
     </Router>
   );

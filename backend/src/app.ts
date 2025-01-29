@@ -3,6 +3,7 @@ import cors from 'cors';
 import helmet from 'helmet';
 import env from './config/env';
 import authRoutes from './api/auth/route';
+import profileRoutes from './api/profile/route';
 import cookieParser from 'cookie-parser';
 
 const app = express();
@@ -20,6 +21,7 @@ app.use(express.json());
 
 // Routes
 app.use('/api/auth', authRoutes);
+app.use('/api/profile', profileRoutes);
 
 // Root endpoint
 app.get('/', (req, res) => {
@@ -28,6 +30,7 @@ app.get('/', (req, res) => {
     version: '1.0.0',
     endpoints: {
       auth: '/api/auth',
+      profile: '/api/profile',
       health: '/health',
     }
   });

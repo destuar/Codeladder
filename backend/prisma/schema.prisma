@@ -8,14 +8,24 @@ datasource db {
 }
 
 model User {
-  id        String   @id @default(cuid())
-  email     String   @unique
-  password  String
-  name      String?
-  role      Role     @default(USER)
-  tokenVersion Int      @default(0)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id            String   @id @default(cuid())
+  email         String   @unique
+  password      String
+  name          String?
+  role          Role     @default(USER)
+  tokenVersion  Int      @default(0)
+  
+  // Profile fields
+  avatar        String?
+  bio           String?  @db.Text
+  location      String?
+  website       String?
+  phoneNumber   String?
+  dateOfBirth   DateTime?
+  
+  // Timestamps
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 }
 
 enum Role {
