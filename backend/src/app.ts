@@ -5,6 +5,7 @@ import env from './config/env';
 import authRoutes from './api/auth/route';
 import profileRoutes from './api/profile/route';
 import cookieParser from 'cookie-parser';
+import adminRoutes from './api/admin/route';
 
 const app = express();
 
@@ -23,6 +24,7 @@ app.use(express.json());
 // Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/profile', profileRoutes);
+app.use('/api/admin', adminRoutes);
 
 // Root endpoint
 app.get('/', (req, res) => {

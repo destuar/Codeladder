@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom';
 import { useAuth } from '@/features/auth/AuthContext';
 import { Button } from './ui/button';
+import { AdminToggle } from './AdminToggle';
 
 export function Navigation() {
   const { user, logout } = useAuth();
@@ -21,11 +22,7 @@ export function Navigation() {
               <Link to="/profile" className="text-sm font-medium">
                 Profile
               </Link>
-              {(user.role === 'ADMIN' || user.role === 'DEVELOPER') && (
-                <Link to="/admin" className="text-sm font-medium">
-                  Admin
-                </Link>
-              )}
+              <AdminToggle />
               <Button variant="ghost" onClick={logout}>
                 Logout
               </Button>
