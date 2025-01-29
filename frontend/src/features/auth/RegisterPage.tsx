@@ -25,7 +25,7 @@ export default function RegisterPage() {
   });
 
   const onSubmit = async (data: RegisterFormData) => {
-    await registerUser(data.email, data.password, data.name);
+    await registerUser(data.email, data.password, data.name ?? '');
     navigate('/dashboard');
   };
 

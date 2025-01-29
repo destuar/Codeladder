@@ -1,22 +1,17 @@
-import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { jwtDecode } from 'jwt-decode';
 import { api } from '../../lib/api';
-
-interface User {
-  id: string;
-  email: string;
-  name?: string;
-  role: 'USER' | 'ADMIN' | 'DEVELOPER';
-}
+import { User } from '../../types/user';
 
 interface AuthContextType {
   user: User | null;
   token: string | null;
   login: (email: string, password: string) => Promise<void>;
-  register: (email: string, password: string, name?: string) => Promise<void>;
-  logout: () => Promise<void>;
+  register: (email: string, password: string, name: string) => Promise<void>;
+  logout: () => void;
   isLoading: boolean;
   error: string | null;
+  setUser: (user: User | null) => void;
 }
 
 const AuthContext = createContext<AuthContextType | null>(null);
@@ -36,9 +31,21 @@ interface AuthProviderProps {
 export const AuthProvider = ({ children }: AuthProviderProps) => {
   const [user, setUser] = useState<User | null>(null);
   const [token, setToken] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [refreshTimeout, setRefreshTimeout] = useState<NodeJS.Timeout>();
+
+  // Load user profile
+  const loadUserProfile = async (accessToken: string) => {
+    try {
+      const userData = await api.get('/profile/me', accessToken);
+      console.log('Loaded user profile:', userData);
+      setUser(userData);
+    } catch (err) {
+      console.error('Error loading user profile:', err);
+      setError('Failed to load user profile');
+    }
+  };
 
   const setupRefreshToken = (accessToken: string) => {
     if (refreshTimeout) {
@@ -51,7 +58,17 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
 
       if (!exp) return;
 
+      // Refresh 1 minute before expiration
       const timeUntilRefresh = (exp * 1000) - Date.now() - (60 * 1000);
+      
+      // Don't set up refresh if token is already expired
+      if (timeUntilRefresh <= 0) {
+        console.log('Token already expired, refreshing now...');
+        refreshToken();
+        return;
+      }
+
+      console.log('Setting up refresh timeout for', timeUntilRefresh, 'ms');
       const timeout = setTimeout(refreshToken, timeUntilRefresh);
       setRefreshTimeout(timeout);
     } catch (err) {
@@ -60,16 +77,20 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   };
 
   const refreshToken = async () => {
-    if (!user) return;
-    
     try {
+      console.log('Refreshing token...');
       const data = await api.post('/auth/refresh', {});
+      console.log('Token refreshed successfully');
       setToken(data.accessToken);
-      setUser(data.user);
+      await loadUserProfile(data.accessToken);
       setupRefreshToken(data.accessToken);
     } catch (err) {
-      if (user) {
-        await logout();
+      console.error('Error refreshing token:', err);
+      if (err instanceof Error && err.message === 'Unauthorized') {
+        if (user) {
+          console.log('Unauthorized during refresh, logging out');
+          await logout();
+        }
       }
     }
   };
@@ -79,7 +100,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       try {
         await refreshToken();
       } catch (err) {
-        // Ignore refresh errors on initial load
+        console.error('Error checking session:', err);
       } finally {
         setIsLoading(false);
       }
@@ -111,7 +132,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     }
   };
 
-  const register = async (email: string, password: string, name?: string) => {
+  const register = async (email: string, password: string, name: string) => {
     try {
       setError(null);
       setIsLoading(true);
@@ -146,7 +167,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
 
   return (
     <AuthContext.Provider
-      value={{ user, token, login, register, logout, isLoading, error }}
+      value={{ user, token, login, register, logout, isLoading, error, setUser }}
     >
       {children}
     </AuthContext.Provider>
