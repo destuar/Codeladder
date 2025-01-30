@@ -1,6 +1,7 @@
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from './features/auth/AuthContext';
 import { AdminProvider } from './features/admin/AdminContext';
+import { ProfileProvider } from './features/profile/ProfileContext';
 import LoginPage from './features/auth/LoginPage';
 import RegisterPage from './features/auth/RegisterPage';
 import ProfilePage from './features/profile/ProfilePage';
@@ -83,46 +84,48 @@ function App() {
     <Router>
       <AuthProvider>
         <AdminProvider>
-          <div className="min-h-screen bg-background text-foreground">
-            <Navigation />
-            <main>
-              <Routes>
-                {/* Public routes */}
-                <Route path="/login" element={<LoginPage />} />
-                <Route path="/register" element={<RegisterPage />} />
-                <Route path="/unauthorized" element={<UnauthorizedPage />} />
+          <ProfileProvider>
+            <div className="min-h-screen bg-background text-foreground">
+              <Navigation />
+              <main>
+                <Routes>
+                  {/* Public routes */}
+                  <Route path="/login" element={<LoginPage />} />
+                  <Route path="/register" element={<RegisterPage />} />
+                  <Route path="/unauthorized" element={<UnauthorizedPage />} />
 
-                {/* Protected routes */}
-                <Route
-                  path="/dashboard"
-                  element={
-                    <ProtectedRoute>
-                      <AdminViewWrapper>
-                        <DashboardPage />
-                      </AdminViewWrapper>
-                    </ProtectedRoute>
-                  }
-                />
+                  {/* Protected routes */}
+                  <Route
+                    path="/dashboard"
+                    element={
+                      <ProtectedRoute>
+                        <AdminViewWrapper>
+                          <DashboardPage />
+                        </AdminViewWrapper>
+                      </ProtectedRoute>
+                    }
+                  />
 
-                <Route
-                  path="/profile"
-                  element={
-                    <ProtectedRoute>
-                      <AdminViewWrapper>
-                        <ProfilePage />
-                      </AdminViewWrapper>
-                    </ProtectedRoute>
-                  }
-                />
+                  <Route
+                    path="/profile"
+                    element={
+                      <ProtectedRoute>
+                        <AdminViewWrapper>
+                          <ProfilePage />
+                        </AdminViewWrapper>
+                      </ProtectedRoute>
+                    }
+                  />
 
-                {/* Redirect root to dashboard */}
-                <Route
-                  path="/"
-                  element={<Navigate to="/dashboard" replace />}
-                />
-              </Routes>
-            </main>
-          </div>
+                  {/* Redirect root to dashboard */}
+                  <Route
+                    path="/"
+                    element={<Navigate to="/dashboard" replace />}
+                  />
+                </Routes>
+              </main>
+            </div>
+          </ProfileProvider>
         </AdminProvider>
       </AuthProvider>
     </Router>

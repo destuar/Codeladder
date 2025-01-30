@@ -1,177 +1,167 @@
-import { useForm } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
-import { z } from 'zod';
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useAuth } from '../auth/AuthContext';
-import { api } from '../../lib/api';
-import { Button } from '../../components/ui/button';
-import { Input } from '../../components/ui/input';
-import { Avatar, AvatarImage, AvatarFallback } from '../../components/ui/avatar';
-import React from 'react';
-
-const profileSchema = z.object({
-  name: z.string().min(2, 'Name must be at least 2 characters').optional(),
-  avatar: z.string().url('Must be a valid URL').nullish(),
-}).partial();
-
-type ProfileFormData = z.infer<typeof profileSchema>;
+import { useProfile } from './ProfileContext';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
+import { Pencil, X, Check } from 'lucide-react';
+import { api } from '@/lib/api';
 
 export default function ProfilePage() {
-  const { user, token, setUser } = useAuth();
+  const { user, setUser, token } = useAuth();
+  const { profile, updateProfile } = useProfile();
+  const [isEditing, setIsEditing] = useState(false);
+  const [newName, setNewName] = useState(user?.name || '');
   const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [successMessage, setSuccessMessage] = useState<string | null>(null);
-  const [previewAvatar, setPreviewAvatar] = useState(user?.avatar || '');
 
-  const {
-    register,
-    handleSubmit,
-    formState: { errors },
-    watch,
-    reset,
-  } = useForm<ProfileFormData>({
-    resolver: zodResolver(profileSchema),
-    defaultValues: {
-      name: user?.name || '',
-      avatar: user?.avatar || '',
-    },
-  });
+  const handleAvatarClick = () => {
+    if (!isEditing) return;
+    
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = 'image/*';
+    input.onchange = async (e) => {
+      const file = (e.target as HTMLInputElement).files?.[0];
+      if (!file) return;
 
-  // Initial profile load
-  useEffect(() => {
-    const loadProfile = async () => {
-      if (!token) return;
-      
+      if (!file.type.startsWith('image/')) {
+        alert('Please upload an image file');
+        return;
+      }
+
+      setIsLoading(true);
       try {
-        setIsLoading(true);
-        const userData = await api.get('/profile/me', token);
-        setUser(userData);
-        
-        // Update form with new data
-        reset({
-          name: userData.name || '',
-          avatar: userData.avatar || '',
+        const formData = new FormData();
+        formData.append('avatar', file);
+
+        const response = await fetch('/api/profile/avatar', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+          },
+          body: formData,
         });
-      } catch (err) {
-        console.error('Error loading profile:', err);
-        setError('Failed to load profile data');
+
+        if (!response.ok) throw new Error('Failed to upload avatar');
+
+        const data = await response.json();
+        updateProfile({
+          ...profile,
+          avatarUrl: data.avatarUrl,
+        });
+      } catch (error) {
+        console.error('Error uploading avatar:', error);
+        alert('Failed to upload avatar');
       } finally {
         setIsLoading(false);
       }
     };
+    input.click();
+  };
 
-    loadProfile();
-  }, [token, setUser, reset]);
-
-  // Watch for avatar changes
-  const avatarUrl = watch('avatar');
-  
-  // Update preview when avatar URL changes
-  React.useEffect(() => {
-    setPreviewAvatar(avatarUrl || '');
-  }, [avatarUrl]);
-
-  const onSubmit = async (data: ProfileFormData) => {
+  const handleSave = async () => {
+    if (!token) return;
+    
+    setIsLoading(true);
     try {
-      setIsLoading(true);
-      setError(null);
-      setSuccessMessage(null);
+      const updatedUser = await api.put('/profile/me', {
+        name: newName,
+      }, token);
 
-      // Convert empty strings to null for all fields
-      const cleanData = Object.fromEntries(
-        Object.entries(data).map(([key, value]) => [
-          key,
-          value === '' ? null : value
-        ])
-      );
-
-      console.log('Updating profile with:', cleanData);
-      const response = await api.put('/profile/me', cleanData, token);
-      console.log('Profile update response:', response);
-      
-      // Update the user state with the response data
-      setUser(response);
-      setSuccessMessage('Profile updated successfully');
-    } catch (err: any) {
-      console.error('Profile update error:', err);
-      
-      if (err?.message === 'Unauthorized') {
-        setError('Your session has expired. Please log in again.');
-        return;
-      }
-      
-      if (err?.errors) {
-        setError(err.errors.map((e: any) => e.message).join(', '));
-      } else if (err?.error) {
-        setError(Array.isArray(err.error) ? err.error.join(', ') : err.error);
-      } else if (typeof err === 'string') {
-        setError(err);
-      } else {
-        setError('Failed to update profile. Please try again.');
-      }
+      setUser(updatedUser);
+      setIsEditing(false);
+    } catch (error) {
+      console.error('Error updating profile:', error);
+      alert('Failed to update profile');
     } finally {
       setIsLoading(false);
     }
   };
 
-  const getInitials = (name: string) => {
-    return name
-      .split(' ')
-      .map(part => part[0])
-      .join('')
-      .toUpperCase();
+  const handleCancel = () => {
+    setNewName(user?.name || '');
+    setIsEditing(false);
   };
 
   return (
     <div className="min-h-screen bg-background py-8">
       <div className="container max-w-2xl">
         <div className="space-y-6">
-          <div className="flex items-center space-x-4">
-            <Avatar className="h-20 w-20">
-              <AvatarImage src={previewAvatar} alt={user?.name || 'User'} />
-              <AvatarFallback>{user?.name ? getInitials(user.name) : 'U'}</AvatarFallback>
-            </Avatar>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-4">
+              <div className="relative group">
+                <Avatar 
+                  className={`h-20 w-20 transition-all duration-200 ${
+                    isEditing ? 'cursor-pointer hover:opacity-75' : ''
+                  }`}
+                  onClick={handleAvatarClick}
+                >
+                  <AvatarImage src={profile?.avatarUrl} alt={user?.name || 'User'} />
+                  <AvatarFallback>{user?.name?.[0] || user?.email?.[0]}</AvatarFallback>
+                  {isEditing && (
+                    <div className="absolute inset-0 flex items-center justify-center bg-black/40 opacity-0 group-hover:opacity-100 rounded-full transition-opacity">
+                      <Pencil className="w-6 h-6 text-white" />
+                    </div>
+                  )}
+                </Avatar>
+                {isLoading && (
+                  <div className="absolute inset-0 flex items-center justify-center bg-black/20 rounded-full">
+                    <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  </div>
+                )}
+              </div>
+              <div>
+                {isEditing ? (
+                  <Input
+                    value={newName}
+                    onChange={(e) => setNewName(e.target.value)}
+                    placeholder="Enter your name"
+                    className="text-lg font-semibold mb-1"
+                  />
+                ) : (
+                  <h1 className="text-2xl font-bold">{user?.name || 'Profile Settings'}</h1>
+                )}
+                <p className="text-muted-foreground">
+                  {user?.email}
+                </p>
+              </div>
+            </div>
+            
             <div>
-              <h1 className="text-3xl font-bold">{user?.name || 'Profile Settings'}</h1>
-              <p className="text-muted-foreground">
-                Update your personal information and profile settings
-              </p>
+              {isEditing ? (
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    onClick={handleCancel}
+                    disabled={isLoading}
+                  >
+                    <X className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    size="icon"
+                    onClick={handleSave}
+                    disabled={isLoading}
+                  >
+                    <Check className="h-4 w-4" />
+                  </Button>
+                </div>
+              ) : (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setIsEditing(true)}
+                >
+                  Edit Profile
+                </Button>
+              )}
             </div>
           </div>
 
-          <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
-            <div className="space-y-4">
-              <div className="space-y-2">
-                <label htmlFor="name" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
-                  Name
-                </label>
-                <Input id="name" {...register('name')} />
-                {errors.name && <p className="text-sm text-destructive">{errors.name.message}</p>}
-              </div>
-
-              <div className="space-y-2">
-                <label htmlFor="avatar" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
-                  Avatar URL
-                </label>
-                <Input id="avatar" type="url" {...register('avatar')} />
-                {errors.avatar && <p className="text-sm text-destructive">{errors.avatar.message}</p>}
-              </div>
-            </div>
-
-            {error && <div className="text-sm text-destructive text-center">{error}</div>}
-            {successMessage && <div className="text-sm text-green-600 text-center">{successMessage}</div>}
-
-            <Button type="submit" className="w-full" disabled={isLoading}>
-              {isLoading ? (
-                <>
-                  <div className="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-background border-t-foreground" />
-                  Saving...
-                </>
-              ) : (
-                'Save Changes'
-              )}
-            </Button>
-          </form>
+          <div className="space-y-1">
+            <h2 className="text-sm font-medium text-muted-foreground">Role</h2>
+            <p className="capitalize">{user?.role.toLowerCase()}</p>
+          </div>
         </div>
       </div>
     </div>

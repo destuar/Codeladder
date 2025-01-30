@@ -3,10 +3,13 @@ import { useAuth } from '@/features/auth/AuthContext';
 import { useAdmin } from '@/features/admin/AdminContext';
 import { Button } from '@/components/ui/button';
 import { ThemeToggle } from './ThemeToggle';
+import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
+import { useProfile } from '@/features/profile/ProfileContext';
 
 export function Navigation() {
   const { user, logout } = useAuth();
   const { isAdminView, setIsAdminView, canAccessAdmin } = useAdmin();
+  const { profile } = useProfile();
 
   return (
     <nav className="border-b">
@@ -16,14 +19,9 @@ export function Navigation() {
             SmarterStruct
           </Link>
           {user && (
-            <>
-              <Link to="/dashboard" className="text-sm font-medium text-muted-foreground hover:text-foreground">
-                Dashboard
-              </Link>
-              <Link to="/profile" className="text-sm font-medium text-muted-foreground hover:text-foreground">
-                Profile
-              </Link>
-            </>
+            <Link to="/dashboard" className="text-sm font-medium text-muted-foreground hover:text-foreground">
+              Dashboard
+            </Link>
           )}
         </div>
         <div className="flex items-center gap-4">
@@ -41,6 +39,12 @@ export function Navigation() {
               <Button variant="outline" onClick={logout}>
                 Logout
               </Button>
+              <Link to="/profile">
+                <Avatar className="h-9 w-9 transition-transform hover:scale-105">
+                  <AvatarImage src={profile?.avatarUrl} />
+                  <AvatarFallback>{user.name?.[0] || user.email?.[0]}</AvatarFallback>
+                </Avatar>
+              </Link>
             </div>
           ) : (
             <div className="flex items-center gap-4">
