@@ -3,7 +3,7 @@ import { Badge } from "@/components/ui/badge";
 
 interface Topic {
   name: string;
-  description?: string;
+  progress?: number; // 0 to 100
 }
 
 interface Level {
@@ -15,61 +15,76 @@ const levels: Level[] = [
   {
     level: "I",
     topics: [
-      { name: "Methodology", description: "Programming fundamentals and best practices" },
-      { name: "Syntax", description: "Language syntax and basic constructs" }
+      { name: "Methodology", progress: 0 },
+      { name: "Syntax", progress: 0 }
     ]
   },
   {
     level: "L3",
     topics: [
-      { name: "Arrays", description: "Array manipulation and algorithms" }
+      { name: "Arrays", progress: 0 }
     ]
   },
   {
     level: "L4",
     topics: [
-      { name: "Hashing", description: "Hash tables and collision resolution" },
-      { name: "Linked List", description: "Singly and doubly linked lists" }
+      { name: "Hashing", progress: 0 },
+      { name: "Linked List", progress: 0 }
     ]
   },
   {
     level: "L5",
     topics: [
-      { name: "Stack/Queue", description: "LIFO and FIFO data structures" },
-      { name: "Binary Search", description: "Search algorithms and implementations" },
-      { name: "Binary Tree", description: "Tree traversal and operations" }
+      { name: "Stack/Queue", progress: 0 },
+      { name: "Binary Search", progress: 0 },
+      { name: "Binary Tree", progress: 0 }
     ]
   },
   {
     level: "L6",
     topics: [
-      { name: "Backtracking", description: "Recursive problem-solving strategies" },
-      { name: "Tries", description: "Prefix trees and string operations" }
+      { name: "Backtracking", progress: 0 },
+      { name: "Tries", progress: 0 }
     ]
   },
   {
     level: "L7",
     topics: [
-      { name: "Heap/Priority Queue", description: "Priority-based data structures" },
-      { name: "Graphs", description: "Graph algorithms and traversals" },
-      { name: "Dynamic Programming", description: "Optimization and memoization" }
+      { name: "Heap/Priority Queue", progress: 0 },
+      { name: "Graphs", progress: 0 },
+      { name: "Dynamic Programming", progress: 0 }
     ]
   }
 ];
 
+function ProgressBar({ progress = 0 }: { progress?: number }) {
+  return (
+    <div className="w-full h-2 bg-primary/10 rounded-full overflow-hidden mt-2">
+      <div 
+        className="h-full bg-primary transition-all duration-500 ease-out rounded-full"
+        style={{ 
+          width: `${progress}%`,
+          boxShadow: progress > 0 ? '0 0 8px rgba(var(--primary), 0.3)' : 'none'
+        }}
+      />
+    </div>
+  );
+}
+
 export function LevelSystem() {
   return (
     <div className="space-y-12">
-      <div className="flex justify-between items-center">
+      {/* <div className="flex justify-between items-center">
         <div>
-          <h2 className="text-3xl font-bold bg-gradient-to-r from-primary to-primary/60 bg-clip-text text-transparent">
+          <h2 className="text-4xl font-bold bg-gradient-to-r from-primary to-primary/60 bg-clip-text text-transparent"
+              style={{ fontFamily: "'Patrick Hand', cursive" }}>
             Learning Path System
           </h2>
-          <p className="text-muted-foreground mt-2">
+          <p className="text-muted-foreground mt-2 text-lg" style={{ fontFamily: "'Patrick Hand', cursive" }}>
             Structured progression through programming concepts
           </p>
         </div>
-      </div>
+      </div> */}
 
       <div className="grid gap-8">
         {levels.map((level) => (
@@ -83,27 +98,27 @@ export function LevelSystem() {
             <div className="relative flex items-start gap-6">
               <Badge 
                 variant="outline" 
-                className="text-lg px-4 py-2 font-bold bg-background shadow-sm"
+                className="text-2xl px-4 py-2 font-bold bg-background shadow-sm"
+                style={{ fontFamily: "'Patrick Hand', cursive" }}
               >
                 {level.level}
               </Badge>
 
               <div className="flex-1">
-                <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
                   {level.topics.map((topic) => (
                     <div
                       key={topic.name}
                       className="relative rounded-lg border bg-card p-4 transition-all duration-300
-                        hover:shadow-md hover:scale-[1.02] hover:border-primary/50"
+                        hover:shadow-md hover:scale-[1.02] hover:border-primary/50 flex flex-col items-center justify-center"
                     >
-                      <h3 className="font-semibold mb-2 text-foreground/90 group-hover:text-primary transition-colors duration-300">
+                      <h3 
+                        className="text-xl font-semibold mb-4 text-center text-foreground/90 group-hover:text-primary transition-colors duration-300"
+                        style={{ fontFamily: "'Patrick Hand', cursive" }}
+                      >
                         {topic.name}
                       </h3>
-                      {topic.description && (
-                        <p className="text-sm text-muted-foreground leading-relaxed">
-                          {topic.description}
-                        </p>
-                      )}
+                      <ProgressBar progress={topic.progress} />
                     </div>
                   ))}
                 </div>
