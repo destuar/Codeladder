@@ -9,6 +9,8 @@ import ProtectedRoute from './components/ProtectedRoute';
 import { Navigation } from './components/Navigation';
 import { AdminDashboard } from './features/admin/AdminDashboard';
 import { useAdmin } from './features/admin/AdminContext';
+import { LevelSystem } from "@/components/LevelSystem";
+import { Navbar } from "@/components/Navbar";
 
 // Regular components
 const UnauthorizedPage = () => (
@@ -81,7 +83,46 @@ function App() {
     <Router>
       <AuthProvider>
         <AdminProvider>
-          <MainContent />
+          <div className="min-h-screen bg-background text-foreground">
+            <Navigation />
+            <main>
+              <Routes>
+                {/* Public routes */}
+                <Route path="/login" element={<LoginPage />} />
+                <Route path="/register" element={<RegisterPage />} />
+                <Route path="/unauthorized" element={<UnauthorizedPage />} />
+
+                {/* Protected routes */}
+                <Route
+                  path="/dashboard"
+                  element={
+                    <ProtectedRoute>
+                      <AdminViewWrapper>
+                        <DashboardPage />
+                      </AdminViewWrapper>
+                    </ProtectedRoute>
+                  }
+                />
+
+                <Route
+                  path="/profile"
+                  element={
+                    <ProtectedRoute>
+                      <AdminViewWrapper>
+                        <ProfilePage />
+                      </AdminViewWrapper>
+                    </ProtectedRoute>
+                  }
+                />
+
+                {/* Redirect root to dashboard */}
+                <Route
+                  path="/"
+                  element={<Navigate to="/dashboard" replace />}
+                />
+              </Routes>
+            </main>
+          </div>
         </AdminProvider>
       </AuthProvider>
     </Router>

@@ -3,25 +3,13 @@ import { useAuth } from '../auth/AuthContext';
 
 interface AdminContextType {
   isAdminView: boolean;
-  toggleAdminView: () => void;
+  setIsAdminView: (value: boolean) => void;
   canAccessAdmin: boolean;
 }
 
-const AdminContext = createContext<AdminContextType | null>(null);
+const AdminContext = createContext<AdminContextType | undefined>(undefined);
 
-export const useAdmin = () => {
-  const context = useContext(AdminContext);
-  if (!context) {
-    throw new Error('useAdmin must be used within an AdminProvider');
-  }
-  return context;
-};
-
-interface AdminProviderProps {
-  children: ReactNode;
-}
-
-export const AdminProvider = ({ children }: AdminProviderProps) => {
+export function AdminProvider({ children }: { children: React.ReactNode }) {
   const { user } = useAuth();
   const canAccessAdmin = user?.role === 'ADMIN' || user?.role === 'DEVELOPER';
   
@@ -60,11 +48,19 @@ export const AdminProvider = ({ children }: AdminProviderProps) => {
     <AdminContext.Provider
       value={{
         isAdminView,
-        toggleAdminView,
+        setIsAdminView,
         canAccessAdmin,
       }}
     >
       {children}
     </AdminContext.Provider>
   );
-}; 
+}
+
+export function useAdmin() {
+  const context = useContext(AdminContext);
+  if (context === undefined) {
+    throw new Error('useAdmin must be used within an AdminProvider');
+  }
+  return context;
+} 

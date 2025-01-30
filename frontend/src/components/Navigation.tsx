@@ -1,41 +1,56 @@
 import { Link } from 'react-router-dom';
 import { useAuth } from '@/features/auth/AuthContext';
-import { Button } from './ui/button';
-import { AdminToggle } from './AdminToggle';
+import { useAdmin } from '@/features/admin/AdminContext';
+import { Button } from '@/components/ui/button';
+import { ThemeToggle } from './ThemeToggle';
 
 export function Navigation() {
   const { user, logout } = useAuth();
+  const { isAdminView, setIsAdminView, canAccessAdmin } = useAdmin();
 
   return (
     <nav className="border-b">
-      <div className="container flex h-16 items-center px-4">
-        <Link to="/" className="font-bold text-xl">
-          SmarterStruct
-        </Link>
-
-        <div className="ml-auto flex items-center space-x-4">
-          {user ? (
+      <div className="container flex items-center justify-between h-16">
+        <div className="flex items-center gap-6">
+          <Link to="/" className="text-xl font-bold" style={{ fontFamily: "'Patrick Hand', cursive" }}>
+            SmarterStruct
+          </Link>
+          {user && (
             <>
-              <AdminToggle />
-              <Link to="/dashboard" className="text-sm font-medium">
+              <Link to="/dashboard" className="text-sm font-medium text-muted-foreground hover:text-foreground">
                 Dashboard
               </Link>
-              <Link to="/profile" className="text-sm font-medium">
+              <Link to="/profile" className="text-sm font-medium text-muted-foreground hover:text-foreground">
                 Profile
               </Link>
-              <Button variant="ghost" onClick={logout}>
+            </>
+          )}
+        </div>
+        <div className="flex items-center gap-4">
+          <ThemeToggle />
+          {user ? (
+            <div className="flex items-center gap-4">
+              {canAccessAdmin && (
+                <Button
+                  variant="outline"
+                  onClick={() => setIsAdminView(!isAdminView)}
+                >
+                  {isAdminView ? 'Exit Admin' : 'Admin View'}
+                </Button>
+              )}
+              <Button variant="outline" onClick={logout}>
                 Logout
               </Button>
-            </>
+            </div>
           ) : (
-            <>
+            <div className="flex items-center gap-4">
               <Link to="/login">
-                <Button variant="ghost">Login</Button>
+                <Button variant="outline">Login</Button>
               </Link>
               <Link to="/register">
-                <Button>Sign Up</Button>
+                <Button>Register</Button>
               </Link>
-            </>
+            </div>
           )}
         </div>
       </div>
