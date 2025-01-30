@@ -4,18 +4,13 @@ import { AdminProvider } from './features/admin/AdminContext';
 import LoginPage from './features/auth/LoginPage';
 import RegisterPage from './features/auth/RegisterPage';
 import ProfilePage from './features/profile/ProfilePage';
+import DashboardPage from './features/dashboard/DashboardPage';
 import ProtectedRoute from './components/ProtectedRoute';
 import { Navigation } from './components/Navigation';
 import { AdminDashboard } from './features/admin/AdminDashboard';
 import { useAdmin } from './features/admin/AdminContext';
 
 // Regular components
-const DashboardPage = () => (
-  <div className="p-8">
-    <h1 className="text-2xl font-bold">Dashboard</h1>
-  </div>
-);
-
 const UnauthorizedPage = () => (
   <div className="min-h-screen flex items-center justify-center">
     <div className="text-xl text-destructive">
