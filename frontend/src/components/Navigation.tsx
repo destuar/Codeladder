@@ -16,13 +16,13 @@ export function Navigation() {
         <div className="ml-auto flex items-center space-x-4">
           {user ? (
             <>
+              <AdminToggle />
               <Link to="/dashboard" className="text-sm font-medium">
                 Dashboard
               </Link>
               <Link to="/profile" className="text-sm font-medium">
                 Profile
               </Link>
-              <AdminToggle />
               <Button variant="ghost" onClick={logout}>
                 Logout
               </Button>
