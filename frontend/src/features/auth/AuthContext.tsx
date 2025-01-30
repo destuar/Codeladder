@@ -7,7 +7,8 @@ interface AuthContextType {
   user: User | null;
   token: string | null;
   login: (email: string, password: string) => Promise<void>;
-  register: (email: string, password: string, name: string) => Promise<void>;
+  loginWithProvider: (provider: 'google' | 'github' | 'apple') => Promise<void>;
+  register: (email: string, password: string, name?: string) => Promise<void>;
   logout: () => void;
   isLoading: boolean;
   error: string | null;
@@ -34,6 +35,17 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [refreshTimeout, setRefreshTimeout] = useState<NodeJS.Timeout>();
+
+  // Load saved auth state
+  useEffect(() => {
+    const savedToken = localStorage.getItem('token');
+    const savedUser = localStorage.getItem('user');
+    
+    if (savedToken && savedUser) {
+      setToken(savedToken);
+      setUser(JSON.parse(savedUser));
+    }
+  }, []);
 
   // Load user profile
   const loadUserProfile = async (accessToken: string) => {
@@ -115,34 +127,110 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     };
   }, []);
 
-  const login = async (email: string, password: string) => {
-    try {
-      setError(null);
-      setIsLoading(true);
+  const handleAuthSuccess = (userData: User, authToken: string) => {
+    setUser(userData);
+    setToken(authToken);
+    localStorage.setItem('token', authToken);
+    localStorage.setItem('user', JSON.stringify(userData));
+    setError(null);
+  };
 
-      const data = await api.post('/auth/login', { email, password });
-      setToken(data.accessToken);
-      setUser(data.user);
-      setupRefreshToken(data.accessToken);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Login failed');
+  const login = async (email: string, password: string) => {
+    setIsLoading(true);
+    setError(null);
+    
+    try {
+      const response = await api.post('/auth/login', { email, password });
+      handleAuthSuccess(response.user, response.token);
+    } catch (err: any) {
+      setError(err.message || 'Failed to login');
       throw err;
     } finally {
       setIsLoading(false);
     }
   };
 
-  const register = async (email: string, password: string, name: string) => {
-    try {
-      setError(null);
-      setIsLoading(true);
+  const loginWithProvider = async (provider: 'google' | 'github' | 'apple') => {
+    setIsLoading(true);
+    setError(null);
 
-      const data = await api.post('/auth/register', { email, password, name });
-      setToken(data.accessToken);
-      setUser(data.user);
-      setupRefreshToken(data.accessToken);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Registration failed');
+    try {
+      // Get the OAuth URL from your backend
+      const response = await api.get(`/auth/${provider}/url`);
+      const { url } = response;
+
+      // Store current location for redirect after auth
+      localStorage.setItem('auth_redirect', window.location.pathname);
+
+      // Open OAuth provider's page in a popup
+      const width = 500;
+      const height = 600;
+      const left = window.screenX + (window.outerWidth - width) / 2;
+      const top = window.screenY + (window.outerHeight - height) / 2;
+      
+      const popup = window.open(
+        url,
+        `Login with ${provider}`,
+        `width=${width},height=${height},left=${left},top=${top}`
+      );
+
+      if (!popup) {
+        throw new Error('Popup blocked. Please allow popups for this site.');
+      }
+
+      // Listen for the OAuth callback
+      const result = await new Promise<{ user: User; token: string }>((resolve, reject) => {
+        const handleMessage = (event: MessageEvent) => {
+          // Only accept messages from your own domain
+          if (event.origin !== window.location.origin) return;
+
+          try {
+            const data = event.data;
+            if (data.type === 'oauth_success') {
+              window.removeEventListener('message', handleMessage);
+              popup.close();
+              resolve(data.payload);
+            } else if (data.type === 'oauth_error') {
+              window.removeEventListener('message', handleMessage);
+              popup.close();
+              reject(new Error(data.error));
+            }
+          } catch (err) {
+            console.error('Error processing message:', err);
+          }
+        };
+
+        window.addEventListener('message', handleMessage);
+
+        // Check if popup was closed
+        const checkClosed = setInterval(() => {
+          if (popup.closed) {
+            clearInterval(checkClosed);
+            window.removeEventListener('message', handleMessage);
+            reject(new Error('Authentication cancelled'));
+          }
+        }, 1000);
+      });
+
+      handleAuthSuccess(result.user, result.token);
+    } catch (err: any) {
+      console.error('Social auth error:', err);
+      setError(err.message || `Failed to login with ${provider}`);
+      throw err;
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const register = async (email: string, password: string, name?: string) => {
+    setIsLoading(true);
+    setError(null);
+    
+    try {
+      const response = await api.post('/auth/register', { email, password, name });
+      handleAuthSuccess(response.user, response.token);
+    } catch (err: any) {
+      setError(err.message || 'Failed to register');
       throw err;
     } finally {
       setIsLoading(false);
@@ -159,6 +247,8 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     } finally {
       setUser(null);
       setToken(null);
+      localStorage.removeItem('token');
+      localStorage.removeItem('user');
       if (refreshTimeout) {
         clearTimeout(refreshTimeout);
       }
@@ -167,7 +257,17 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
 
   return (
     <AuthContext.Provider
-      value={{ user, token, login, register, logout, isLoading, error, setUser }}
+      value={{
+        user,
+        token,
+        login,
+        loginWithProvider,
+        register,
+        logout,
+        isLoading,
+        error,
+        setUser,
+      }}
     >
       {children}
     </AuthContext.Provider>
