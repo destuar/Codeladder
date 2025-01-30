@@ -12,6 +12,7 @@ import { AdminDashboard } from './features/admin/AdminDashboard';
 import { useAdmin } from './features/admin/AdminContext';
 import { LevelSystem } from "@/components/LevelSystem";
 import { Navbar } from "@/components/Navbar";
+import OAuthCallback from './features/auth/OAuthCallback';
 
 // Regular components
 const UnauthorizedPage = () => (
@@ -44,6 +45,7 @@ function MainContent() {
           <Route path="/login" element={<LoginPage />} />
           <Route path="/register" element={<RegisterPage />} />
           <Route path="/unauthorized" element={<UnauthorizedPage />} />
+          <Route path="/auth/callback/:provider" element={<OAuthCallback />} />
 
           {/* Protected routes */}
           <Route
@@ -93,6 +95,7 @@ function App() {
                   <Route path="/login" element={<LoginPage />} />
                   <Route path="/register" element={<RegisterPage />} />
                   <Route path="/unauthorized" element={<UnauthorizedPage />} />
+                  <Route path="/auth/callback/:provider" element={<OAuthCallback />} />
 
                   {/* Protected routes */}
                   <Route
