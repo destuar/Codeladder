@@ -80,7 +80,7 @@ export function LevelSystem() {
   }, []);
 
   return (
-    <div className="space-y-12">
+    <div className="space-y-2">
       {/* <div className="flex justify-between items-center">
         <div>
           <h2 className="text-4xl font-bold bg-gradient-to-r from-primary to-primary/60 bg-clip-text text-transparent"
