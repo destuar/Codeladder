@@ -84,7 +84,7 @@ export default function ProfilePage() {
   };
 
   return (
-    <div className="min-h-screen bg-background py-8">
+    <div className="h-[calc(100vh-4rem)] bg-background py-8">
       <div className="container max-w-2xl">
         <div className="space-y-6">
           <div className="flex items-center justify-between">

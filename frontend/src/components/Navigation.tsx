@@ -12,52 +12,55 @@ export function Navigation() {
   const { profile } = useProfile();
 
   return (
-    <nav className="border-b">
-      <div className="container flex items-center justify-between h-16">
-        <div className="flex items-center gap-6">
-          <Link to="/" className="text-xl font-bold" style={{ fontFamily: "'Patrick Hand', cursive" }}>
-            SmarterStruct
-          </Link>
-          {user && (
-            <Link to="/dashboard" className="text-sm font-medium text-muted-foreground hover:text-foreground">
-              Dashboard
+    <>
+      <nav className="fixed top-0 left-0 right-0 border-b bg-background z-50">
+        <div className="container flex items-center justify-between h-16">
+          <div className="flex items-center gap-6">
+            <Link to="/" className="text-xl font-bold" style={{ fontFamily: "'Patrick Hand', cursive" }}>
+              SmarterStruct
             </Link>
-          )}
-        </div>
-        <div className="flex items-center gap-4">
-          <ThemeToggle />
-          {user ? (
-            <div className="flex items-center gap-4">
-              {canAccessAdmin && (
-                <Button
-                  variant="outline"
-                  onClick={() => setIsAdminView(!isAdminView)}
-                >
-                  {isAdminView ? 'Exit Admin' : 'Admin View'}
+            {user && (
+              <Link to="/dashboard" className="text-sm font-medium text-muted-foreground hover:text-foreground">
+                Dashboard
+              </Link>
+            )}
+          </div>
+          <div className="flex items-center gap-4">
+            <ThemeToggle />
+            {user ? (
+              <div className="flex items-center gap-4">
+                {canAccessAdmin && (
+                  <Button
+                    variant="outline"
+                    onClick={() => setIsAdminView(!isAdminView)}
+                  >
+                    {isAdminView ? 'Exit Admin' : 'Admin View'}
+                  </Button>
+                )}
+                <Button variant="outline" onClick={logout}>
+                  Logout
                 </Button>
-              )}
-              <Button variant="outline" onClick={logout}>
-                Logout
-              </Button>
-              <Link to="/profile">
-                <Avatar className="h-9 w-9 transition-transform hover:scale-105">
-                  <AvatarImage src={profile?.avatarUrl} />
-                  <AvatarFallback>{user.name?.[0] || user.email?.[0]}</AvatarFallback>
-                </Avatar>
-              </Link>
-            </div>
-          ) : (
-            <div className="flex items-center gap-4">
-              <Link to="/login">
-                <Button variant="outline">Login</Button>
-              </Link>
-              <Link to="/register">
-                <Button>Register</Button>
-              </Link>
-            </div>
-          )}
+                <Link to="/profile">
+                  <Avatar className="h-9 w-9 transition-transform hover:scale-105">
+                    <AvatarImage src={profile?.avatarUrl} />
+                    <AvatarFallback>{user.name?.[0] || user.email?.[0]}</AvatarFallback>
+                  </Avatar>
+                </Link>
+              </div>
+            ) : (
+              <div className="flex items-center gap-4">
+                <Link to="/login">
+                  <Button variant="outline">Login</Button>
+                </Link>
+                <Link to="/register">
+                  <Button>Register</Button>
+                </Link>
+              </div>
+            )}
+          </div>
         </div>
-      </div>
-    </nav>
+      </nav>
+      <div className="h-16" /> {/* Spacer for fixed header */}
+    </>
   );
 } 

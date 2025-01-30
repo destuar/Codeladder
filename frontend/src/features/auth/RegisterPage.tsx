@@ -30,12 +30,11 @@ export default function RegisterPage() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-background">
-      <div className="max-w-md w-full space-y-8 p-8 bg-card rounded-lg shadow-lg">
-        <div>
-          <h2 className="mt-6 text-3xl font-bold text-center text-foreground">
-            Create your account
-          </h2>
+    <div className="h-[calc(100vh-4rem)] flex items-center justify-center bg-background">
+      <div className="w-full max-w-md space-y-6 p-6">
+        <div className="space-y-2 text-center">
+          <h1 className="text-3xl font-bold">Create an account</h1>
+          <p className="text-muted-foreground">Enter your details to get started</p>
         </div>
         <form className="mt-8 space-y-6" onSubmit={handleSubmit(onSubmit)}>
           <div className="space-y-4">
