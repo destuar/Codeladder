@@ -13,7 +13,7 @@ interface Level {
 
 const levels: Level[] = [
   {
-    level: "L1",
+    level: "I",
     topics: [
       { name: "Methodology", description: "Programming fundamentals and best practices" },
       { name: "Syntax", description: "Language syntax and basic constructs" }
