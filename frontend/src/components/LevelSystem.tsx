@@ -1,5 +1,6 @@
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { useEffect, useState } from "react";
 
 interface Topic {
   name: string;
@@ -72,6 +73,12 @@ function ProgressBar({ progress = 0 }: { progress?: number }) {
 }
 
 export function LevelSystem() {
+  const [isVisible, setIsVisible] = useState(false);
+
+  useEffect(() => {
+    setIsVisible(true);
+  }, []);
+
   return (
     <div className="space-y-12">
       {/* <div className="flex justify-between items-center">
@@ -86,11 +93,29 @@ export function LevelSystem() {
         </div>
       </div> */}
 
+      <style>
+        {`
+          @keyframes slideIn {
+            from {
+              opacity: 0;
+              transform: translateY(20px);
+            }
+            to {
+              opacity: 1;
+              transform: translateY(0);
+            }
+          }
+        `}
+      </style>
+
       <div className="grid gap-8">
-        {levels.map((level) => (
+        {levels.map((level, index) => (
           <Card 
             key={level.level} 
-            className="p-6 relative overflow-hidden group hover:shadow-lg transition-all duration-300"
+            className="p-6 relative overflow-hidden group hover:shadow-lg transition-all duration-300 opacity-0 translate-y-4"
+            style={{
+              animation: isVisible ? `slideIn 0.6s ease-out ${index * 0.1}s forwards` : 'none',
+            }}
           >
             {/* Background decoration */}
             <div className="absolute inset-0 bg-gradient-to-r from-primary/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
