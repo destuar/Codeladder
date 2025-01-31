@@ -2,63 +2,8 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-
-interface Topic {
-  name: string;
-  progress?: number; // 0 to 100
-  slug?: string;
-}
-
-interface Level {
-  level: string;
-  topics: Topic[];
-}
-
-const levels: Level[] = [
-  {
-    level: "I",
-    topics: [
-      { name: "Methodology", progress: 0, slug: "methodology" },
-      { name: "Syntax", progress: 0, slug: "syntax" }
-    ]
-  },
-  {
-    level: "L3",
-    topics: [
-      { name: "Arrays", progress: 0, slug: "arrays" }
-    ]
-  },
-  {
-    level: "L4",
-    topics: [
-      { name: "Hashing", progress: 0, slug: "hashing" },
-      { name: "Linked List", progress: 0, slug: "linked-list" }
-    ]
-  },
-  {
-    level: "L5",
-    topics: [
-      { name: "Stack/Queue", progress: 0, slug: "stack-queue" },
-      { name: "Binary Search", progress: 0, slug: "binary-search" },
-      { name: "Binary Tree", progress: 0, slug: "binary-tree" }
-    ]
-  },
-  {
-    level: "L6",
-    topics: [
-      { name: "Backtracking", progress: 0, slug: "backtracking" },
-      { name: "Tries", progress: 0, slug: "tries" }
-    ]
-  },
-  {
-    level: "L7",
-    topics: [
-      { name: "Heap/Priority Queue", progress: 0, slug: "heap-priority-queue" },
-      { name: "Graphs", progress: 0, slug: "graphs" },
-      { name: "Dynamic Programming", progress: 0, slug: "dynamic-programming" }
-    ]
-  }
-];
+import { useLearningPath } from "@/hooks/useLearningPath";
+import { Button } from "./ui/button";
 
 function ProgressBar({ progress = 0 }: { progress?: number }) {
   return (
@@ -77,14 +22,42 @@ function ProgressBar({ progress = 0 }: { progress?: number }) {
 export function LevelSystem() {
   const [isVisible, setIsVisible] = useState(false);
   const navigate = useNavigate();
+  const { levels, loading, error } = useLearningPath();
 
   useEffect(() => {
     setIsVisible(true);
   }, []);
 
-  const handleTopicClick = (slug: string) => {
-    navigate(`/topics/${slug}`);
+  useEffect(() => {
+    console.log('Levels data:', levels);
+  }, [levels]);
+
+  const handleTopicClick = (topicId: string) => {
+    navigate(`/topics/${topicId}`);
   };
+
+  if (loading) {
+    console.log('Loading state:', loading);
+    return (
+      <div className="flex items-center justify-center p-8">
+        <div className="animate-spin rounded-full h-8 w-8 border-2 border-primary border-t-transparent" />
+      </div>
+    );
+  }
+
+  if (error) {
+    console.log('Error state:', error);
+    return (
+      <div className="p-8 text-center">
+        <p className="text-destructive mb-4">{error}</p>
+        <Button variant="outline" onClick={() => window.location.reload()}>
+          Retry
+        </Button>
+      </div>
+    );
+  }
+
+  console.log('Rendering levels:', levels);
 
   return (
     <div className="space-y-2">
@@ -116,50 +89,56 @@ export function LevelSystem() {
       </style>
 
       <div className="grid gap-8">
-        {levels.map((level, index) => (
-          <Card 
-            key={level.level} 
-            className="p-6 relative overflow-hidden group hover:shadow-lg transition-all duration-300 opacity-0 translate-y-4"
-            style={{
-              animation: isVisible ? `slideIn 0.6s ease-out ${index * 0.1}s forwards` : 'none',
-            }}
-          >
-            {/* Background decoration */}
-            <div className="absolute inset-0 bg-gradient-to-r from-primary/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
-            
-            <div className="relative flex items-start gap-6">
-              <Badge 
-                variant="outline" 
-                className="text-2xl px-4 py-2 font-bold bg-background shadow-sm"
-                style={{ fontFamily: "'Patrick Hand', cursive" }}
-              >
-                {level.level}
-              </Badge>
+        {Array.isArray(levels) && levels.length > 0 ? (
+          levels.map((level, index) => (
+            <Card 
+              key={level.id} 
+              className="p-6 relative overflow-hidden group hover:shadow-lg transition-all duration-300 opacity-0 translate-y-4"
+              style={{
+                animation: isVisible ? `slideIn 0.6s ease-out ${index * 0.1}s forwards` : 'none',
+              }}
+            >
+              {/* Background decoration */}
+              <div className="absolute inset-0 bg-gradient-to-r from-primary/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+              
+              <div className="relative flex items-start gap-6">
+                <Badge 
+                  variant="outline" 
+                  className="text-2xl px-4 py-2 font-bold bg-background shadow-sm"
+                  style={{ fontFamily: "'Patrick Hand', cursive" }}
+                >
+                  {level.name}
+                </Badge>
 
-              <div className="flex-1">
-                <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-                  {level.topics.map((topic) => (
-                    <div
-                      key={topic.name}
-                      className="relative rounded-lg border bg-card p-4 transition-all duration-300
-                        hover:shadow-md hover:scale-[1.02] hover:border-primary/50 flex flex-col items-center justify-center
-                        cursor-pointer"
-                      onClick={() => topic.slug && handleTopicClick(topic.slug)}
-                    >
-                      <h3 
-                        className="text-xl font-semibold mb-4 text-center text-foreground/90 group-hover:text-primary transition-colors duration-300"
-                        style={{ fontFamily: "'Patrick Hand', cursive" }}
+                <div className="flex-1">
+                  <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+                    {level.topics?.map((topic) => (
+                      <div
+                        key={topic.id}
+                        className="relative rounded-lg border bg-card p-4 transition-all duration-300
+                          hover:shadow-md hover:scale-[1.02] hover:border-primary/50 flex flex-col items-center justify-center
+                          cursor-pointer"
+                        onClick={() => handleTopicClick(topic.id)}
                       >
-                        {topic.name}
-                      </h3>
-                      <ProgressBar progress={topic.progress} />
-                    </div>
-                  ))}
+                        <h3 
+                          className="text-xl font-semibold mb-4 text-center text-foreground/90 group-hover:text-primary transition-colors duration-300"
+                          style={{ fontFamily: "'Patrick Hand', cursive" }}
+                        >
+                          {topic.name}
+                        </h3>
+                        <ProgressBar progress={0} /> {/* We'll implement progress tracking later */}
+                      </div>
+                    ))}
+                  </div>
                 </div>
               </div>
-            </div>
-          </Card>
-        ))}
+            </Card>
+          ))
+        ) : (
+          <div className="text-center p-8 text-muted-foreground">
+            No levels found
+          </div>
+        )}
       </div>
     </div>
   );
