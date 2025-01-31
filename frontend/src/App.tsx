@@ -13,6 +13,7 @@ import { useAdmin } from './features/admin/AdminContext';
 import { LevelSystem } from "@/components/LevelSystem";
 import { Navbar } from "@/components/Navbar";
 import OAuthCallback from './features/auth/OAuthCallback';
+import TopicPage from './features/topics/TopicPage';
 
 // Regular components
 const UnauthorizedPage = () => (
@@ -70,6 +71,17 @@ function MainContent() {
             }
           />
 
+          <Route
+            path="/topics/:topicId"
+            element={
+              <ProtectedRoute>
+                <AdminViewWrapper>
+                  <TopicPage />
+                </AdminViewWrapper>
+              </ProtectedRoute>
+            }
+          />
+
           {/* Redirect root to dashboard */}
           <Route
             path="/"
@@ -115,6 +127,17 @@ function App() {
                       <ProtectedRoute>
                         <AdminViewWrapper>
                           <ProfilePage />
+                        </AdminViewWrapper>
+                      </ProtectedRoute>
+                    }
+                  />
+
+                  <Route
+                    path="/topics/:topicId"
+                    element={
+                      <ProtectedRoute>
+                        <AdminViewWrapper>
+                          <TopicPage />
                         </AdminViewWrapper>
                       </ProtectedRoute>
                     }

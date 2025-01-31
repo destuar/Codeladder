@@ -1,10 +1,12 @@
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 
 interface Topic {
   name: string;
   progress?: number; // 0 to 100
+  slug?: string;
 }
 
 interface Level {
@@ -16,44 +18,44 @@ const levels: Level[] = [
   {
     level: "I",
     topics: [
-      { name: "Methodology", progress: 0 },
-      { name: "Syntax", progress: 0 }
+      { name: "Methodology", progress: 0, slug: "methodology" },
+      { name: "Syntax", progress: 0, slug: "syntax" }
     ]
   },
   {
     level: "L3",
     topics: [
-      { name: "Arrays", progress: 0 }
+      { name: "Arrays", progress: 0, slug: "arrays" }
     ]
   },
   {
     level: "L4",
     topics: [
-      { name: "Hashing", progress: 0 },
-      { name: "Linked List", progress: 0 }
+      { name: "Hashing", progress: 0, slug: "hashing" },
+      { name: "Linked List", progress: 0, slug: "linked-list" }
     ]
   },
   {
     level: "L5",
     topics: [
-      { name: "Stack/Queue", progress: 0 },
-      { name: "Binary Search", progress: 0 },
-      { name: "Binary Tree", progress: 0 }
+      { name: "Stack/Queue", progress: 0, slug: "stack-queue" },
+      { name: "Binary Search", progress: 0, slug: "binary-search" },
+      { name: "Binary Tree", progress: 0, slug: "binary-tree" }
     ]
   },
   {
     level: "L6",
     topics: [
-      { name: "Backtracking", progress: 0 },
-      { name: "Tries", progress: 0 }
+      { name: "Backtracking", progress: 0, slug: "backtracking" },
+      { name: "Tries", progress: 0, slug: "tries" }
     ]
   },
   {
     level: "L7",
     topics: [
-      { name: "Heap/Priority Queue", progress: 0 },
-      { name: "Graphs", progress: 0 },
-      { name: "Dynamic Programming", progress: 0 }
+      { name: "Heap/Priority Queue", progress: 0, slug: "heap-priority-queue" },
+      { name: "Graphs", progress: 0, slug: "graphs" },
+      { name: "Dynamic Programming", progress: 0, slug: "dynamic-programming" }
     ]
   }
 ];
@@ -74,10 +76,15 @@ function ProgressBar({ progress = 0 }: { progress?: number }) {
 
 export function LevelSystem() {
   const [isVisible, setIsVisible] = useState(false);
+  const navigate = useNavigate();
 
   useEffect(() => {
     setIsVisible(true);
   }, []);
+
+  const handleTopicClick = (slug: string) => {
+    navigate(`/topics/${slug}`);
+  };
 
   return (
     <div className="space-y-2">
@@ -135,7 +142,9 @@ export function LevelSystem() {
                     <div
                       key={topic.name}
                       className="relative rounded-lg border bg-card p-4 transition-all duration-300
-                        hover:shadow-md hover:scale-[1.02] hover:border-primary/50 flex flex-col items-center justify-center"
+                        hover:shadow-md hover:scale-[1.02] hover:border-primary/50 flex flex-col items-center justify-center
+                        cursor-pointer"
+                      onClick={() => topic.slug && handleTopicClick(topic.slug)}
                     >
                       <h3 
                         className="text-xl font-semibold mb-4 text-center text-foreground/90 group-hover:text-primary transition-colors duration-300"
