@@ -10,7 +10,7 @@ import ProtectedRoute from './components/ProtectedRoute';
 import { Navigation } from './components/Navigation';
 import { AdminDashboard } from './features/admin/AdminDashboard';
 import { useAdmin } from './features/admin/AdminContext';
-import { LevelSystem } from "@/components/LevelSystem";
+import { LevelSystem } from "@/features/learning/components/LevelSystem";
 import { Navbar } from "@/components/Navbar";
 import OAuthCallback from './features/auth/OAuthCallback';
 import TopicPage from './features/topics/TopicPage';

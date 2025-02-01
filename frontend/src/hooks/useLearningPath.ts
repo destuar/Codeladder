@@ -40,6 +40,7 @@ export function useLearningPath() {
         console.log('Fetching learning path data...');
         const response = await api.get('/learning/levels');
         console.log('Raw API response:', response);
+        console.log('Response data:', response);
         
         if (!Array.isArray(response)) {
           console.error('Expected array of levels, got:', typeof response);
