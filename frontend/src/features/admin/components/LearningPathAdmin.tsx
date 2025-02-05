@@ -1,9 +1,266 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { useLearningPath } from "@/hooks/useLearningPath";
+import { useLearningPath, Level, Topic, Problem } from "@/hooks/useLearningPath";
+import { useState } from "react";
+import { api } from "@/lib/api";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { toast } from "sonner";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { useAuth } from "@/features/auth/AuthContext";
+
+type ProblemDifficulty = 'EASY_IIII' | 'EASY_III' | 'EASY_II' | 'EASY_I' | 'MEDIUM' | 'HARD';
+
+type NewLevel = {
+  name: string;
+  description: string;
+  order: number;
+};
+
+type NewTopic = {
+  name: string;
+  description: string;
+  content: string;
+  order: number;
+};
+
+type NewProblem = {
+  name: string;
+  content: string;
+  difficulty: ProblemDifficulty;
+  required: boolean;
+  reqOrder: number;
+};
+
+const updateLevel = (level: Level, updates: Partial<Level>): Level => ({
+  ...level,
+  ...updates,
+  description: updates.description ?? level.description ?? "",
+  topics: level.topics
+});
+
+const updateTopic = (topic: Topic, updates: Partial<Topic>): Topic => ({
+  ...topic,
+  ...updates,
+  description: updates.description ?? topic.description ?? "",
+  content: updates.content ?? topic.content ?? "",
+  problems: topic.problems
+});
+
+const updateProblem = (problem: Problem, updates: Partial<Problem>): Problem => ({
+  ...problem,
+  ...updates,
+  content: updates.content ?? problem.content ?? "",
+  reqOrder: updates.reqOrder ?? problem.reqOrder ?? 1
+});
 
 export function LearningPathAdmin() {
+  const { token } = useAuth();
   const { levels, loading, error } = useLearningPath();
+  const [isAddingLevel, setIsAddingLevel] = useState(false);
+  const [isEditingLevel, setIsEditingLevel] = useState(false);
+  const [isAddingTopic, setIsAddingTopic] = useState(false);
+  const [isEditingTopic, setIsEditingTopic] = useState(false);
+  const [isAddingProblem, setIsAddingProblem] = useState(false);
+  const [isEditingProblem, setIsEditingProblem] = useState(false);
+  
+  const [selectedLevel, setSelectedLevel] = useState<Level | null>(null);
+  const [selectedTopic, setSelectedTopic] = useState<Topic | null>(null);
+  const [selectedProblem, setSelectedProblem] = useState<Problem | null>(null);
+
+  const [newLevel, setNewLevel] = useState<NewLevel>({ 
+    name: "", 
+    description: "", 
+    order: 1 
+  });
+  
+  const [newTopic, setNewTopic] = useState<NewTopic>({ 
+    name: "", 
+    description: "", 
+    content: "", 
+    order: 1 
+  });
+  
+  const [newProblem, setNewProblem] = useState<NewProblem>({ 
+    name: "", 
+    content: "", 
+    difficulty: "EASY_I",
+    required: false,
+    reqOrder: 1
+  });
+
+  const handleAddLevel = async () => {
+    try {
+      console.log('Adding new level:', newLevel);
+      const response = await api.post("/learning/levels", newLevel, token);
+      console.log('Add level response:', response);
+      setIsAddingLevel(false);
+      setNewLevel({ name: "", description: "", order: 1 });
+      toast.success("Level added successfully");
+      window.location.reload();
+    } catch (err) {
+      console.error("Error adding level:", err);
+      if (err instanceof Error) {
+        toast.error(`Failed to add level: ${err.message}`);
+      } else {
+        toast.error("Failed to add level");
+      }
+    }
+  };
+
+  const handleEditLevel = async () => {
+    if (!selectedLevel) return;
+    try {
+      const updatedLevel = {
+        name: selectedLevel.name,
+        description: selectedLevel.description || "",
+        order: selectedLevel.order
+      };
+      console.log('Updating level:', selectedLevel.id, updatedLevel);
+      const response = await api.put(`/learning/levels/${selectedLevel.id}`, updatedLevel, token);
+      console.log('Update level response:', response);
+      setIsEditingLevel(false);
+      setSelectedLevel(null);
+      toast.success("Level updated successfully");
+      window.location.reload();
+    } catch (err) {
+      console.error("Error updating level:", err);
+      if (err instanceof Error) {
+        toast.error(`Failed to update level: ${err.message}`);
+      } else {
+        toast.error("Failed to update level");
+      }
+    }
+  };
+
+  const handleAddTopic = async () => {
+    if (!selectedLevel) return;
+    try {
+      console.log('Adding new topic to level:', selectedLevel.id, newTopic);
+      const response = await api.post(`/learning/levels/${selectedLevel.id}/topics`, newTopic, token);
+      console.log('Add topic response:', response);
+      setIsAddingTopic(false);
+      setNewTopic({ name: "", description: "", content: "", order: 1 });
+      setSelectedLevel(null);
+      toast.success("Topic added successfully");
+      window.location.reload();
+    } catch (err) {
+      console.error("Error adding topic:", err);
+      if (err instanceof Error) {
+        toast.error(`Failed to add topic: ${err.message}`);
+      } else {
+        toast.error("Failed to add topic");
+      }
+    }
+  };
+
+  const handleEditTopic = async () => {
+    if (!selectedTopic) return;
+    try {
+      const updatedTopic = {
+        name: selectedTopic.name,
+        description: selectedTopic.description || "",
+        content: selectedTopic.content || "",
+        order: selectedTopic.order
+      };
+      console.log('Updating topic:', selectedTopic.id, updatedTopic);
+      const response = await api.put(`/learning/topics/${selectedTopic.id}`, updatedTopic, token);
+      console.log('Update topic response:', response);
+      setIsEditingTopic(false);
+      setSelectedTopic(null);
+      toast.success("Topic updated successfully");
+      window.location.reload();
+    } catch (err) {
+      console.error("Error updating topic:", err);
+      if (err instanceof Error) {
+        toast.error(`Failed to update topic: ${err.message}`);
+      } else {
+        toast.error("Failed to update topic");
+      }
+    }
+  };
+
+  const handleAddProblem = async () => {
+    if (!selectedTopic) return;
+    try {
+      console.log('Adding new problem to topic:', selectedTopic.id, newProblem);
+      const response = await api.post(`/learning/topics/${selectedTopic.id}/problems`, newProblem, token);
+      console.log('Add problem response:', response);
+      setIsAddingProblem(false);
+      setNewProblem({ 
+        name: "", 
+        content: "", 
+        difficulty: "EASY_I",
+        required: false,
+        reqOrder: 1
+      });
+      setSelectedTopic(null);
+      toast.success("Problem added successfully");
+      window.location.reload();
+    } catch (err) {
+      console.error("Error adding problem:", err);
+      if (err instanceof Error) {
+        toast.error(`Failed to add problem: ${err.message}`);
+      } else {
+        toast.error("Failed to add problem");
+      }
+    }
+  };
+
+  const handleEditProblem = async () => {
+    if (!selectedProblem) return;
+    try {
+      const updatedProblem = {
+        name: selectedProblem.name,
+        content: selectedProblem.content || "",
+        difficulty: selectedProblem.difficulty,
+        required: selectedProblem.required,
+        reqOrder: selectedProblem.reqOrder || 1
+      };
+      console.log('Updating problem:', selectedProblem.id, updatedProblem);
+      const response = await api.put(`/learning/problems/${selectedProblem.id}`, updatedProblem, token);
+      console.log('Update problem response:', response);
+      setIsEditingProblem(false);
+      setSelectedProblem(null);
+      toast.success("Problem updated successfully");
+      window.location.reload();
+    } catch (err) {
+      console.error("Error updating problem:", err);
+      if (err instanceof Error) {
+        toast.error(`Failed to update problem: ${err.message}`);
+      } else {
+        toast.error("Failed to update problem");
+      }
+    }
+  };
+
+  const handleLevelChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+    if (!selectedLevel) return;
+    const { name, value } = e.target;
+    setSelectedLevel(prev => prev ? updateLevel(prev, { [name]: value }) : null);
+  };
+
+  const handleTopicChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+    if (!selectedTopic) return;
+    const { name, value } = e.target;
+    setSelectedTopic(prev => prev ? updateTopic(prev, { [name]: value }) : null);
+  };
+
+  const handleProblemChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+    if (!selectedProblem) return;
+    const { name, value } = e.target;
+    setSelectedProblem(prev => prev ? updateProblem(prev, { [name]: value }) : null);
+  };
 
   if (loading) {
     return (
@@ -31,7 +288,55 @@ export function LearningPathAdmin() {
           <h2 className="text-3xl font-bold">Learning Path Management</h2>
           <p className="text-muted-foreground">Manage levels, topics, and problems</p>
         </div>
-        <Button>Add New Level</Button>
+        <Dialog open={isAddingLevel} onOpenChange={setIsAddingLevel}>
+          <DialogTrigger asChild>
+            <Button>Add New Level</Button>
+          </DialogTrigger>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Add New Level</DialogTitle>
+              <DialogDescription>
+                Create a new level in the learning path.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="grid gap-4 py-4">
+              <div className="grid gap-2">
+                <Label htmlFor="name">Name</Label>
+                <Input
+                  id="name"
+                  value={newLevel.name}
+                  onChange={(e) => setNewLevel({ ...newLevel, name: e.target.value })}
+                  placeholder="e.g., Level 1"
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="description">Description</Label>
+                <Textarea
+                  id="description"
+                  value={newLevel.description}
+                  onChange={(e) => setNewLevel({ ...newLevel, description: e.target.value })}
+                  placeholder="Describe this level..."
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="order">Order</Label>
+                <Input
+                  id="order"
+                  type="number"
+                  value={newLevel.order}
+                  onChange={(e) => setNewLevel({ ...newLevel, order: parseInt(e.target.value) })}
+                  min={1}
+                />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setIsAddingLevel(false)}>
+                Cancel
+              </Button>
+              <Button onClick={handleAddLevel}>Add Level</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
 
       <div className="grid gap-6">
@@ -43,8 +348,26 @@ export function LearningPathAdmin() {
                 <CardDescription>{level.description}</CardDescription>
               </div>
               <div className="flex gap-2">
-                <Button variant="outline" size="sm">Edit Level</Button>
-                <Button variant="outline" size="sm">Add Topic</Button>
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  onClick={() => {
+                    setSelectedLevel(level);
+                    setIsEditingLevel(true);
+                  }}
+                >
+                  Edit Level
+                </Button>
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  onClick={() => {
+                    setSelectedLevel(level);
+                    setIsAddingTopic(true);
+                  }}
+                >
+                  Add Topic
+                </Button>
               </div>
             </CardHeader>
             <CardContent>
@@ -57,8 +380,26 @@ export function LearningPathAdmin() {
                         <CardDescription>{topic.description}</CardDescription>
                       </div>
                       <div className="flex gap-2">
-                        <Button variant="outline" size="sm">Edit Topic</Button>
-                        <Button variant="outline" size="sm">Add Problem</Button>
+                        <Button 
+                          variant="outline" 
+                          size="sm"
+                          onClick={() => {
+                            setSelectedTopic(topic);
+                            setIsEditingTopic(true);
+                          }}
+                        >
+                          Edit Topic
+                        </Button>
+                        <Button 
+                          variant="outline" 
+                          size="sm"
+                          onClick={() => {
+                            setSelectedTopic(topic);
+                            setIsAddingProblem(true);
+                          }}
+                        >
+                          Add Problem
+                        </Button>
                       </div>
                     </CardHeader>
                     <CardContent>
@@ -71,7 +412,16 @@ export function LearningPathAdmin() {
                                 {problem.difficulty} • {problem.required ? `Required (${problem.reqOrder})` : 'Optional'}
                               </div>
                             </div>
-                            <Button variant="ghost" size="sm">Edit</Button>
+                            <Button 
+                              variant="ghost" 
+                              size="sm"
+                              onClick={() => {
+                                setSelectedProblem(problem);
+                                setIsEditingProblem(true);
+                              }}
+                            >
+                              Edit
+                            </Button>
                           </div>
                         ))}
                       </div>
@@ -83,6 +433,318 @@ export function LearningPathAdmin() {
           </Card>
         ))}
       </div>
+
+      {/* Edit Level Dialog */}
+      <Dialog open={isEditingLevel} onOpenChange={setIsEditingLevel}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Edit Level</DialogTitle>
+            <DialogDescription>
+              Modify the level details.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="grid gap-2">
+              <Label htmlFor="edit-level-name">Name</Label>
+              <Input
+                id="edit-level-name"
+                name="name"
+                value={selectedLevel?.name || ""}
+                onChange={handleLevelChange}
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="edit-level-description">Description</Label>
+              <Textarea
+                id="edit-level-description"
+                value={selectedLevel?.description || ""}
+                onChange={handleLevelChange}
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="edit-level-order">Order</Label>
+              <Input
+                id="edit-level-order"
+                type="number"
+                value={selectedLevel?.order || 1}
+                onChange={handleLevelChange}
+                min={1}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsEditingLevel(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleEditLevel}>Save Changes</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Add Topic Dialog */}
+      <Dialog open={isAddingTopic} onOpenChange={setIsAddingTopic}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Add Topic</DialogTitle>
+            <DialogDescription>
+              Add a new topic to Level {selectedLevel?.name}.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="grid gap-2">
+              <Label htmlFor="topic-name">Name</Label>
+              <Input
+                id="topic-name"
+                value={newTopic.name}
+                onChange={(e) => setNewTopic({ ...newTopic, name: e.target.value })}
+                placeholder="Topic name"
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="topic-description">Description</Label>
+              <Textarea
+                id="topic-description"
+                value={newTopic.description}
+                onChange={(e) => setNewTopic({ ...newTopic, description: e.target.value })}
+                placeholder="Topic description"
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="topic-content">Content</Label>
+              <Textarea
+                id="topic-content"
+                value={newTopic.content}
+                onChange={(e) => setNewTopic({ ...newTopic, content: e.target.value })}
+                placeholder="Topic content"
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="topic-order">Order</Label>
+              <Input
+                id="topic-order"
+                type="number"
+                value={newTopic.order}
+                onChange={(e) => setNewTopic({ ...newTopic, order: parseInt(e.target.value) })}
+                min={1}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsAddingTopic(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleAddTopic}>Add Topic</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Topic Dialog */}
+      <Dialog open={isEditingTopic} onOpenChange={setIsEditingTopic}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Edit Topic</DialogTitle>
+            <DialogDescription>
+              Modify the topic details.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="grid gap-2">
+              <Label htmlFor="edit-topic-name">Name</Label>
+              <Input
+                id="edit-topic-name"
+                value={selectedTopic?.name || ""}
+                onChange={handleTopicChange}
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="edit-topic-description">Description</Label>
+              <Textarea
+                id="edit-topic-description"
+                value={selectedTopic?.description || ""}
+                onChange={handleTopicChange}
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="edit-topic-content">Content</Label>
+              <Textarea
+                id="edit-topic-content"
+                value={selectedTopic?.content || ""}
+                onChange={handleTopicChange}
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="edit-topic-order">Order</Label>
+              <Input
+                id="edit-topic-order"
+                type="number"
+                value={selectedTopic?.order || 1}
+                onChange={handleTopicChange}
+                min={1}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsEditingTopic(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleEditTopic}>Save Changes</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Add Problem Dialog */}
+      <Dialog open={isAddingProblem} onOpenChange={setIsAddingProblem}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Add Problem</DialogTitle>
+            <DialogDescription>
+              Add a new problem to {selectedTopic?.name}.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="grid gap-2">
+              <Label htmlFor="problem-name">Name</Label>
+              <Input
+                id="problem-name"
+                value={newProblem.name}
+                onChange={(e) => setNewProblem({ ...newProblem, name: e.target.value })}
+                placeholder="Problem name"
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="problem-content">Content</Label>
+              <Textarea
+                id="problem-content"
+                value={newProblem.content}
+                onChange={(e) => setNewProblem({ ...newProblem, content: e.target.value })}
+                placeholder="Problem content"
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="problem-difficulty">Difficulty</Label>
+              <Select
+                value={newProblem.difficulty}
+                onValueChange={(value: ProblemDifficulty) => setNewProblem({ ...newProblem, difficulty: value })}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select difficulty" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="EASY_IIII">Easy IIII</SelectItem>
+                  <SelectItem value="EASY_III">Easy III</SelectItem>
+                  <SelectItem value="EASY_II">Easy II</SelectItem>
+                  <SelectItem value="EASY_I">Easy I</SelectItem>
+                  <SelectItem value="MEDIUM">Medium</SelectItem>
+                  <SelectItem value="HARD">Hard</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                id="problem-required"
+                checked={newProblem.required}
+                onChange={(e) => setNewProblem({ ...newProblem, required: e.target.checked })}
+              />
+              <Label htmlFor="problem-required">Required</Label>
+            </div>
+            {newProblem.required && (
+              <div className="grid gap-2">
+                <Label htmlFor="problem-reqOrder">Required Order</Label>
+                <Input
+                  id="problem-reqOrder"
+                  type="number"
+                  value={newProblem.reqOrder}
+                  onChange={(e) => setNewProblem({ ...newProblem, reqOrder: parseInt(e.target.value) })}
+                  min={1}
+                />
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsAddingProblem(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleAddProblem}>Add Problem</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Problem Dialog */}
+      <Dialog open={isEditingProblem} onOpenChange={setIsEditingProblem}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Edit Problem</DialogTitle>
+            <DialogDescription>
+              Modify the problem details.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="grid gap-2">
+              <Label htmlFor="edit-problem-name">Name</Label>
+              <Input
+                id="edit-problem-name"
+                value={selectedProblem?.name || ""}
+                onChange={handleProblemChange}
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="edit-problem-content">Content</Label>
+              <Textarea
+                id="edit-problem-content"
+                value={selectedProblem?.content || ""}
+                onChange={handleProblemChange}
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="edit-problem-difficulty">Difficulty</Label>
+              <Select
+                value={selectedProblem?.difficulty}
+                onValueChange={(value: ProblemDifficulty) => setSelectedProblem(selectedProblem ? updateProblem(selectedProblem, { difficulty: value }) : null)}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select difficulty" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="EASY_IIII">Easy IIII</SelectItem>
+                  <SelectItem value="EASY_III">Easy III</SelectItem>
+                  <SelectItem value="EASY_II">Easy II</SelectItem>
+                  <SelectItem value="EASY_I">Easy I</SelectItem>
+                  <SelectItem value="MEDIUM">Medium</SelectItem>
+                  <SelectItem value="HARD">Hard</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                id="edit-problem-required"
+                checked={selectedProblem?.required}
+                onChange={(e) => setSelectedProblem(selectedProblem ? updateProblem(selectedProblem, { required: e.target.checked }) : null)}
+              />
+              <Label htmlFor="edit-problem-required">Required</Label>
+            </div>
+            {selectedProblem?.required && (
+              <div className="grid gap-2">
+                <Label htmlFor="edit-problem-reqOrder">Required Order</Label>
+                <Input
+                  id="edit-problem-reqOrder"
+                  type="number"
+                  value={selectedProblem?.reqOrder || 1}
+                  onChange={(e) => setSelectedProblem(selectedProblem ? updateProblem(selectedProblem, { reqOrder: parseInt(e.target.value) }) : null)}
+                  min={1}
+                />
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsEditingProblem(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleEditProblem}>Save Changes</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 } 

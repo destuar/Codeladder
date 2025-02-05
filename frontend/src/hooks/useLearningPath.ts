@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { api } from '@/lib/api';
+import { useAuth } from '@/features/auth/AuthContext';
 
 export interface Problem {
   id: string;
@@ -32,13 +33,14 @@ export function useLearningPath() {
   const [levels, setLevels] = useState<Level[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const { token } = useAuth();
 
   useEffect(() => {
     const fetchLearningPath = async () => {
       try {
         setLoading(true);
         console.log('Fetching learning path data...');
-        const response = await api.get('/learning/levels');
+        const response = await api.get('/learning/levels', token);
         console.log('Raw API response:', response);
         console.log('Response data:', response);
         
@@ -59,7 +61,7 @@ export function useLearningPath() {
     };
 
     fetchLearningPath();
-  }, []);
+  }, [token]);
 
   return { levels, loading, error };
 } 
