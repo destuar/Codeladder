@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import type { RequestHandler } from 'express-serve-static-core';
 import { prisma } from '../lib/prisma';
 import { Role } from '@prisma/client';
 import { authenticateToken } from '../middleware/auth';
@@ -7,7 +8,7 @@ import { authorizeRoles } from '../middleware/authorize';
 const router = Router();
 
 // Get all levels with topics and problems
-router.get('/levels', async (req, res) => {
+router.get('/levels', (async (req, res) => {
   try {
     const levels = await prisma.level.findMany({
       orderBy: {
@@ -34,10 +35,38 @@ router.get('/levels', async (req, res) => {
     console.error('Error fetching levels:', error);
     res.status(500).json({ error: 'Failed to fetch learning path data' });
   }
-});
+}) as RequestHandler);
 
 // Protected routes - only for admins
 router.use(authenticateToken);
+
+// Get a single topic by ID
+router.get('/topics/:id', (async (req, res) => {
+  try {
+    const { id } = req.params;
+    const topic = await prisma.topic.findUnique({
+      where: { id },
+      include: {
+        problems: {
+          orderBy: {
+            reqOrder: 'asc',
+          },
+        },
+        level: true,
+      },
+    });
+
+    if (!topic) {
+      return res.status(404).json({ error: 'Topic not found' });
+    }
+
+    res.json(topic);
+  } catch (error) {
+    console.error('Error fetching topic:', error);
+    res.status(500).json({ error: 'Failed to fetch topic data' });
+  }
+}) as RequestHandler);
+
 router.use(authorizeRoles([Role.ADMIN, Role.DEVELOPER]));
 
 // Create new level

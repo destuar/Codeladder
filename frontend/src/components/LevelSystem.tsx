@@ -33,6 +33,8 @@ export function LevelSystem() {
   }, [levels]);
 
   const handleTopicClick = (topicId: string) => {
+    console.log('Clicked topic with ID:', topicId);
+    console.log('Navigating to:', `/topics/${topicId}`);
     navigate(`/topics/${topicId}`);
   };
 

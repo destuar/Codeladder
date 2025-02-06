@@ -19,6 +19,7 @@ export interface Topic {
   content?: string;
   order: number;
   problems: Problem[];
+  level: Level;
 }
 
 export interface Level {
