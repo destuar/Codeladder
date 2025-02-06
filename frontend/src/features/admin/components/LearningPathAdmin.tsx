@@ -247,19 +247,58 @@ export function LearningPathAdmin() {
   const handleLevelChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     if (!selectedLevel) return;
     const { name, value } = e.target;
-    setSelectedLevel(prev => prev ? updateLevel(prev, { [name]: value }) : null);
+    const updatedValue = name === 'order' ? parseInt(value) : value;
+    setSelectedLevel(prev => prev ? updateLevel(prev, { [name]: updatedValue }) : null);
   };
-
+  
   const handleTopicChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     if (!selectedTopic) return;
     const { name, value } = e.target;
-    setSelectedTopic(prev => prev ? updateTopic(prev, { [name]: value }) : null);
+    const updatedValue = name === 'order' ? parseInt(value) : value;
+    setSelectedTopic(prev => prev ? updateTopic(prev, { [name]: updatedValue }) : null);
   };
 
   const handleProblemChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     if (!selectedProblem) return;
     const { name, value } = e.target;
-    setSelectedProblem(prev => prev ? updateProblem(prev, { [name]: value }) : null);
+    const updatedValue = name === 'reqOrder' ? parseInt(value) : value;
+    setSelectedProblem(prev => prev ? updateProblem(prev, { [name]: updatedValue }) : null);
+  };
+  
+  // Add these handlers after your existing handlers
+
+const handleDeleteTopic = async (topicId: string) => {
+    try {
+      console.log('Deleting topic:', topicId);
+      const response = await api.delete(`/learning/topics/${topicId}`, token);
+      console.log('Delete topic response:', response);
+      toast.success("Topic deleted successfully");
+      window.location.reload();
+    } catch (err) {
+      console.error("Error deleting topic:", err);
+      if (err instanceof Error) {
+        toast.error(`Failed to delete topic: ${err.message}`);
+      } else {
+        toast.error("Failed to delete topic");
+      }
+    }
+  };
+  
+  const handleDeleteProblem = async (problemId: string) => {
+    try {
+      console.log('Deleting problem:', problemId);
+      const response = await api.delete(`/learning/problems/${problemId}`, token);
+      console.log('Delete problem response:', response);
+      toast.success("Problem deleted successfully");
+      window.location.reload();
+    } catch (err) {
+      console.error("Error deleting problem:", err);
+      if (err instanceof Error) {
+        toast.error(`Failed to delete problem: ${err.message}`);
+      } else {
+        toast.error("Failed to delete problem");
+      }
+    }
   };
 
   if (loading) {
@@ -344,7 +383,7 @@ export function LearningPathAdmin() {
           <Card key={level.id}>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <div>
-                <CardTitle className="text-2xl">Level {level.name}</CardTitle>
+                <CardTitle className="text-2xl">{level.name}</CardTitle>
                 <CardDescription>{level.description}</CardDescription>
               </div>
               <div className="flex gap-2">
@@ -400,6 +439,13 @@ export function LearningPathAdmin() {
                         >
                           Add Problem
                         </Button>
+                        <Button 
+                            variant="destructive" 
+                            size="sm"
+                            onClick={() => handleDeleteTopic(topic.id)}
+                        >
+                            Delete
+                        </Button>
                       </div>
                     </CardHeader>
                     <CardContent>
@@ -412,16 +458,25 @@ export function LearningPathAdmin() {
                                 {problem.difficulty} • {problem.required ? `Required (${problem.reqOrder})` : 'Optional'}
                               </div>
                             </div>
-                            <Button 
-                              variant="ghost" 
-                              size="sm"
-                              onClick={() => {
-                                setSelectedProblem(problem);
-                                setIsEditingProblem(true);
-                              }}
-                            >
-                              Edit
-                            </Button>
+                            <div className="flex gap-2">
+                              <Button 
+                                variant="ghost" 
+                                size="sm"
+                                onClick={() => {
+                                  setSelectedProblem(problem);
+                                  setIsEditingProblem(true);
+                                }}
+                              >
+                                Edit
+                              </Button>
+                              <Button 
+                                variant="destructive" 
+                                size="sm"
+                                onClick={() => handleDeleteProblem(problem.id)}
+                              >
+                                Delete
+                              </Button>
+                            </div>
                           </div>
                         ))}
                       </div>
@@ -457,6 +512,7 @@ export function LearningPathAdmin() {
               <Label htmlFor="edit-level-description">Description</Label>
               <Textarea
                 id="edit-level-description"
+                name="description"
                 value={selectedLevel?.description || ""}
                 onChange={handleLevelChange}
               />
@@ -465,6 +521,7 @@ export function LearningPathAdmin() {
               <Label htmlFor="edit-level-order">Order</Label>
               <Input
                 id="edit-level-order"
+                name="order"
                 type="number"
                 value={selectedLevel?.order || 1}
                 onChange={handleLevelChange}
@@ -552,6 +609,7 @@ export function LearningPathAdmin() {
               <Label htmlFor="edit-topic-name">Name</Label>
               <Input
                 id="edit-topic-name"
+                name="name"
                 value={selectedTopic?.name || ""}
                 onChange={handleTopicChange}
               />
@@ -560,6 +618,7 @@ export function LearningPathAdmin() {
               <Label htmlFor="edit-topic-description">Description</Label>
               <Textarea
                 id="edit-topic-description"
+                name="description"
                 value={selectedTopic?.description || ""}
                 onChange={handleTopicChange}
               />
@@ -568,6 +627,7 @@ export function LearningPathAdmin() {
               <Label htmlFor="edit-topic-content">Content</Label>
               <Textarea
                 id="edit-topic-content"
+                name="content"
                 value={selectedTopic?.content || ""}
                 onChange={handleTopicChange}
               />
@@ -576,6 +636,7 @@ export function LearningPathAdmin() {
               <Label htmlFor="edit-topic-order">Order</Label>
               <Input
                 id="edit-topic-order"
+                name="order"
                 type="number"
                 value={selectedTopic?.order || 1}
                 onChange={handleTopicChange}
@@ -684,6 +745,7 @@ export function LearningPathAdmin() {
               <Label htmlFor="edit-problem-name">Name</Label>
               <Input
                 id="edit-problem-name"
+                name="name"
                 value={selectedProblem?.name || ""}
                 onChange={handleProblemChange}
               />
@@ -692,15 +754,20 @@ export function LearningPathAdmin() {
               <Label htmlFor="edit-problem-content">Content</Label>
               <Textarea
                 id="edit-problem-content"
+                name="content"
                 value={selectedProblem?.content || ""}
                 onChange={handleProblemChange}
               />
             </div>
             <div className="grid gap-2">
               <Label htmlFor="edit-problem-difficulty">Difficulty</Label>
-              <Select
-                value={selectedProblem?.difficulty}
-                onValueChange={(value: ProblemDifficulty) => setSelectedProblem(selectedProblem ? updateProblem(selectedProblem, { difficulty: value }) : null)}
+              <Select 
+                value={selectedProblem?.difficulty} 
+                onValueChange={(value) => 
+                  setSelectedProblem(prev => 
+                    prev ? updateProblem(prev, { difficulty: value as ProblemDifficulty }) : null
+                  )
+                }
               >
                 <SelectTrigger>
                   <SelectValue placeholder="Select difficulty" />
@@ -715,27 +782,31 @@ export function LearningPathAdmin() {
                 </SelectContent>
               </Select>
             </div>
-            <div className="flex items-center gap-2">
-              <input
-                type="checkbox"
-                id="edit-problem-required"
-                checked={selectedProblem?.required}
-                onChange={(e) => setSelectedProblem(selectedProblem ? updateProblem(selectedProblem, { required: e.target.checked }) : null)}
-              />
+            <div className="grid gap-2">
               <Label htmlFor="edit-problem-required">Required</Label>
+              <Input
+                id="edit-problem-required"
+                name="required"
+                type="checkbox"
+                checked={selectedProblem?.required || false}
+                onChange={(e) => 
+                  setSelectedProblem(prev => 
+                    prev ? updateProblem(prev, { required: e.target.checked }) : null
+                  )
+                }
+              />
             </div>
-            {selectedProblem?.required && (
-              <div className="grid gap-2">
-                <Label htmlFor="edit-problem-reqOrder">Required Order</Label>
-                <Input
-                  id="edit-problem-reqOrder"
-                  type="number"
-                  value={selectedProblem?.reqOrder || 1}
-                  onChange={(e) => setSelectedProblem(selectedProblem ? updateProblem(selectedProblem, { reqOrder: parseInt(e.target.value) }) : null)}
-                  min={1}
-                />
-              </div>
-            )}
+            <div className="grid gap-2">
+              <Label htmlFor="edit-problem-reqOrder">Required Order</Label>
+              <Input
+                id="edit-problem-reqOrder"
+                name="reqOrder"
+                type="number"
+                value={selectedProblem?.reqOrder || 1}
+                onChange={handleProblemChange}
+                min={1}
+              />
+            </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setIsEditingProblem(false)}>

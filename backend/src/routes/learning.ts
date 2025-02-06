@@ -87,4 +87,111 @@ router.post('/levels/:levelId/topics', async (req, res) => {
   }
 });
 
+// Update topic
+router.put('/topics/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { name, description, content, order } = req.body;
+    
+    const topic = await prisma.topic.update({
+      where: { id },
+      data: {
+        name,
+        description,
+        content,
+        order,
+      },
+    });
+
+    res.json(topic);
+  } catch (error) {
+    console.error('Error updating topic:', error);
+    res.status(500).json({ error: 'Failed to update topic' });
+  }
+});
+
+// Delete topic
+router.delete('/topics/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    // First delete all problems associated with this topic
+    await prisma.problem.deleteMany({
+      where: { topicId: id },
+    });
+    
+    // Then delete the topic
+    await prisma.topic.delete({
+      where: { id },
+    });
+
+    res.json({ message: 'Topic deleted successfully' });
+  } catch (error) {
+    console.error('Error deleting topic:', error);
+    res.status(500).json({ error: 'Failed to delete topic' });
+  }
+});
+
+// Update problem
+router.put('/problems/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { name, content, difficulty, required, reqOrder } = req.body;
+    
+    const problem = await prisma.problem.update({
+      where: { id },
+      data: {
+        name,
+        content,
+        difficulty,
+        required,
+        reqOrder,
+      },
+    });
+
+    res.json(problem);
+  } catch (error) {
+    console.error('Error updating problem:', error);
+    res.status(500).json({ error: 'Failed to update problem' });
+  }
+});
+
+// Delete problem
+router.delete('/problems/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    await prisma.problem.delete({
+      where: { id },
+    });
+
+    res.json({ message: 'Problem deleted successfully' });
+  } catch (error) {
+    console.error('Error deleting problem:', error);
+    res.status(500).json({ error: 'Failed to delete problem' });
+  }
+});
+
+// Update level
+router.put('/levels/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { name, description, order } = req.body;
+    
+    const level = await prisma.level.update({
+      where: { id },
+      data: {
+        name,
+        description,
+        order,
+      },
+    });
+
+    res.json(level);
+  } catch (error) {
+    console.error('Error updating level:', error);
+    res.status(500).json({ error: 'Failed to update level' });
+  }
+});
+
 export default router; 
