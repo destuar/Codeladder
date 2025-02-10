@@ -14,7 +14,10 @@ import {
 } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { LevelSystem } from '@/components/LevelSystem';
+import { LevelSystem } from '@/features/learning/components/LevelSystem';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { LearningPathAdmin } from "./components/LearningPathAdmin";
+import { Card } from "@/components/ui/card";
 
 interface AdminData {
   users: User[];
@@ -191,8 +194,32 @@ export function AdminDashboard() {
   };
 
   return (
-    <div className="container py-8 space-y-8">
-      {renderContent()}
+    <div className="container py-8">
+      <div className="space-y-8">
+        <div>
+          <h1 className="text-4xl font-bold">Admin Dashboard</h1>
+          <p className="text-muted-foreground mt-2">
+            Manage your learning platform content and view user progress
+          </p>
+        </div>
+
+        <Tabs defaultValue="editor" className="space-y-4">
+          <TabsList>
+            <TabsTrigger value="editor">Learning Path Editor</TabsTrigger>
+            <TabsTrigger value="preview">User View Preview</TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="editor" className="space-y-4">
+            <LearningPathAdmin />
+          </TabsContent>
+
+          <TabsContent value="preview" className="space-y-4">
+            <Card className="p-6">
+              <LevelSystem />
+            </Card>
+          </TabsContent>
+        </Tabs>
+      </div>
     </div>
   );
 } 

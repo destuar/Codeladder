@@ -4,161 +4,12 @@ import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/com
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
+import { useState, useEffect } from 'react';
+import { api } from '@/lib/api';
+import type { Topic, Problem } from '@/hooks/useLearningPath';
+import { useAuth } from '@/features/auth/AuthContext';
 
-type Difficulty = 'Easy IIII' | 'Easy III' | 'Easy II' | 'Easy I' | 'Medium' | 'Hard';
-
-interface Problem {
-  id: string;
-  name: string;
-  difficulty: Difficulty;
-  required: boolean;
-  completed: boolean;
-  reqOrder?: number;
-}
-
-interface TopicContent {
-  title: string;
-  description: string;
-  content: string;
-  level: string;
-  problems: Problem[];
-}
-
-const TOPIC_DATA: Record<string, TopicContent> = {
-  'methodology': {
-    title: 'Methodology',
-    description: 'Learn about problem-solving methodologies in programming',
-    content: 'Content for methodology...',
-    level: 'I',
-    problems: [
-      { id: 'meth-1', name: 'Problem Breakdown Practice', difficulty: 'Easy IIII', required: true, reqOrder: 1, completed: false },
-      { id: 'meth-2', name: 'Algorithm Design Steps', difficulty: 'Easy III', required: true, reqOrder: 2, completed: false },
-      { id: 'meth-3', name: 'Time Complexity Analysis', difficulty: 'Medium', required: false, completed: false }
-    ]
-  },
-  'syntax': {
-    title: 'Syntax',
-    description: 'Master the basic syntax and structure of programming',
-    level: 'I',
-    content: 'Content for syntax...',
-    problems: [
-      { id: 'syn-1', name: 'Basic Variable Operations', difficulty: 'Easy IIII', required: true, reqOrder: 1, completed: false },
-      { id: 'syn-2', name: 'Control Flow Implementation', difficulty: 'Easy II', required: false, completed: false }
-    ]
-  },
-  'arrays': {
-    title: 'Arrays',
-    description: 'Understanding array data structures and operations',
-    content: 'Content for arrays...',
-    level: 'L3',
-    problems: [
-      { id: 'arr-1', name: 'Array Rotation', difficulty: 'Easy III', required: true, reqOrder: 1, completed: false },
-      { id: 'arr-2', name: 'Two Sum Problem', difficulty: 'Easy II', required: true, reqOrder: 2, completed: false },
-      { id: 'arr-3', name: 'Subarray Sum', difficulty: 'Medium', required: false, completed: false }
-    ]
-  },
-  'hashing': {
-    title: 'Hashing',
-    description: 'Learn about hash tables and their applications',
-    content: 'Content for hashing...',
-    level: 'L4',
-    problems: [
-      { id: 'hash-1', name: 'Implement Hash Table', difficulty: 'Medium', required: false, completed: false },
-      { id: 'hash-2', name: 'First Non-Repeating Character', difficulty: 'Easy II', required: false, completed: false }
-    ]
-  },
-  'linked-list': {
-    title: 'Linked List',
-    description: 'Understanding linked list data structures',
-    content: 'Content for linked list...',
-    level: 'L4',
-    problems: [
-      { id: 'll-1', name: 'Reverse Linked List', difficulty: 'Easy IIII', required: true, reqOrder: 1, completed: false },
-      { id: 'll-2', name: 'Detect Cycle', difficulty: 'Medium', required: false, completed: false }
-    ]
-  },
-  'stack-queue': {
-    title: 'Stack/Queue',
-    description: 'Learn about stack and queue data structures',
-    content: 'Content for stack/queue...',
-    level: 'L5',
-    problems: [
-      { id: 'sq-1', name: 'Valid Parentheses', difficulty: 'Easy II', required: false, completed: false },
-      { id: 'sq-2', name: 'Implement Queue using Stacks', difficulty: 'Medium', required: false, completed: false }
-    ]
-  },
-  'binary-search': {
-    title: 'Binary Search',
-    description: 'Master the binary search algorithm',
-    content: 'Content for binary search...',
-    level: 'L5',
-    problems: [
-      { id: 'bs-1', name: 'Basic Binary Search', difficulty: 'Easy III', required: true, reqOrder: 1, completed: false },
-      { id: 'bs-2', name: 'Search in Rotated Array', difficulty: 'Medium', required: false, completed: false }
-    ]
-  },
-  'binary-tree': {
-    title: 'Binary Tree',
-    description: 'Understanding binary tree data structures',
-    content: 'Content for binary tree...',
-    level: 'L5',
-    problems: [
-      { id: 'bt-1', name: 'Tree Traversal', difficulty: 'Easy II', required: false, completed: false },
-      { id: 'bt-2', name: 'Lowest Common Ancestor', difficulty: 'Medium', required: false, completed: false }
-    ]
-  },
-  'backtracking': {
-    title: 'Backtracking',
-    description: 'Learn about backtracking algorithms',
-    content: 'Content for backtracking...',
-    level: 'L6',
-    problems: [
-      { id: 'back-1', name: 'N-Queens Problem', difficulty: 'Hard', required: true, reqOrder: 1, completed: false },
-      { id: 'back-2', name: 'Subset Sum', difficulty: 'Medium', required: false, completed: false }
-    ]
-  },
-  'tries': {
-    title: 'Tries',
-    description: 'Understanding trie data structures',
-    content: 'Content for tries...',
-    level: 'L6',
-    problems: [
-      { id: 'trie-1', name: 'Implement Trie', difficulty: 'Medium', required: false, completed: false },
-      { id: 'trie-2', name: 'Word Search II', difficulty: 'Hard', required: true, reqOrder: 1, completed: false }
-    ]
-  },
-  'heap-priority-queue': {
-    title: 'Heap/Priority Queue',
-    description: 'Learn about heap and priority queue data structures',
-    content: 'Content for heap/priority queue...',
-    level: 'L7',
-    problems: [
-      { id: 'heap-1', name: 'Kth Largest Element', difficulty: 'Easy I', required: false, completed: false },
-      { id: 'heap-2', name: 'Merge K Sorted Lists', difficulty: 'Hard', required: true, reqOrder: 1, completed: false }
-    ]
-  },
-  'graphs': {
-    title: 'Graphs',
-    description: 'Understanding graph algorithms and applications',
-    content: 'Content for graphs...',
-    level: 'L7',
-    problems: [
-      { id: 'graph-1', name: 'BFS Implementation', difficulty: 'Medium', required: false, completed: false },
-      { id: 'graph-2', name: 'Shortest Path', difficulty: 'Hard', required: true, reqOrder: 1, completed: false }
-    ]
-  },
-  'dynamic-programming': {
-    title: 'Dynamic Programming',
-    description: 'Master dynamic programming techniques',
-    content: 'Content for dynamic programming...',
-    level: 'L7',
-    problems: [
-      { id: 'dp-1', name: 'Fibonacci with DP', difficulty: 'Easy I', required: false, completed: false },
-      { id: 'dp-2', name: 'Longest Common Subsequence', difficulty: 'Medium', required: false, completed: false },
-      { id: 'dp-3', name: 'Edit Distance', difficulty: 'Hard', required: true, reqOrder: 1, completed: false }
-    ]
-  },
-};
+type Difficulty = 'EASY_IIII' | 'EASY_III' | 'EASY_II' | 'EASY_I' | 'MEDIUM' | 'HARD';
 
 function DifficultyBadge({ difficulty }: { difficulty: Difficulty }) {
   return (
@@ -171,28 +22,65 @@ function DifficultyBadge({ difficulty }: { difficulty: Difficulty }) {
 export default function TopicPage() {
   const { topicId } = useParams<{ topicId: string }>();
   const { isAdminView } = useAdmin();
-  
-  if (!topicId || !TOPIC_DATA[topicId]) {
+  const { token } = useAuth();
+  const [topic, setTopic] = useState<Topic | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const fetchTopic = async () => {
+      try {
+        setLoading(true);
+        console.log('Fetching topic with ID:', topicId);
+        const response = await api.get(`/learning/topics/${topicId}`, token);
+        console.log('Topic API response:', response);
+        console.log('Topic data:', response);
+        setTopic(response);
+        setError(null);
+      } catch (err) {
+        console.error('Error fetching topic:', err);
+        setError('Failed to load topic data');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    if (topicId) {
+      fetchTopic();
+    }
+  }, [topicId, token]);
+
+  if (loading) {
     return (
       <div className="container py-8">
         <Card>
-          <CardContent className="p-6">
-            <h2 className="text-xl font-semibold text-destructive">Topic Not Found</h2>
-            <p className="mt-2">The requested topic does not exist.</p>
+          <CardContent className="p-6 flex justify-center">
+            <div className="animate-spin rounded-full h-8 w-8 border-2 border-primary border-t-transparent" />
           </CardContent>
         </Card>
       </div>
     );
   }
 
-  const topic = TOPIC_DATA[topicId];
+  if (error || !topic) {
+    return (
+      <div className="container py-8">
+        <Card>
+          <CardContent className="p-6">
+            <h2 className="text-xl font-semibold text-destructive">Topic Not Found</h2>
+            <p className="mt-2">{error || 'The requested topic does not exist.'}</p>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="container py-8 space-y-6">
       <div className="flex justify-between items-center">
         <div>
-          <h1 className="text-3xl font-bold">{topic.title}</h1>
-          <p className="text-muted-foreground">Level {topic.level}</p>
+          <h1 className="text-3xl font-bold">{topic.name}</h1>
+          <p className="text-muted-foreground">Level {topic.level.order}</p>
         </div>
         {isAdminView && (
           <Button variant="outline">Edit Topic</Button>
@@ -211,55 +99,36 @@ export default function TopicPage() {
         </CardContent>
       </Card>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Problems</CardTitle>
-          <CardDescription>Practice problems for this topic</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-2">
-            {topic.problems.map((problem) => (
-              <div
-                key={problem.id}
-                className="flex items-center px-4 py-2 rounded-lg border hover:border-primary/50 transition-colors"
-              >
-                <Checkbox 
-                  checked={problem.completed}
-                  className="h-4 w-4 mr-6"
-                  aria-label="Mark as completed"
-                />
-                <div className="w-[300px] font-medium">
-                  {problem.name}
-                </div>
-                <DifficultyBadge difficulty={problem.difficulty} />
-                <div className="flex-1" />
-                <div className="flex items-center gap-3">
-                  {problem.required && (
-                    <span className="text-xs text-muted-foreground bg-muted px-1.5 py-0.5 rounded">
-                      REQ {problem.reqOrder}
-                    </span>
-                  )}
-                  <Button variant="outline" size="sm">
-                    Solve
-                  </Button>
-                </div>
-              </div>
-            ))}
-          </div>
-        </CardContent>
-      </Card>
-
-      {isAdminView && (
+      {topic.problems && topic.problems.length > 0 && (
         <Card>
           <CardHeader>
-            <CardTitle>Admin Controls</CardTitle>
-            <CardDescription>Manage this topic's content and settings</CardDescription>
+            <CardTitle>Problems</CardTitle>
+            <CardDescription>Practice problems for this topic</CardDescription>
           </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="flex gap-4">
-              <Button variant="outline">Edit Content</Button>
-              <Button variant="outline">Manage Problems</Button>
-              <Button variant="outline">View Analytics</Button>
+          <CardContent>
+            <div className="space-y-2">
+              {topic.problems.map((problem) => (
+                <div
+                  key={problem.id}
+                  className="flex items-center justify-between p-4 rounded-lg border bg-card text-card-foreground shadow-sm"
+                >
+                  <div className="flex items-center space-x-4">
+                    <Checkbox checked={problem.completed} />
+                    <div>
+                      <h3 className="font-medium">{problem.name}</h3>
+                      <div className="flex items-center space-x-2 mt-1">
+                        <DifficultyBadge difficulty={problem.difficulty as Difficulty} />
+                        {problem.required && (
+                          <Badge variant="secondary">Required</Badge>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                  <Button variant="outline" size="sm">
+                    Start
+                  </Button>
+                </div>
+              ))}
             </div>
           </CardContent>
         </Card>

@@ -10,7 +10,7 @@ import ProtectedRoute from './components/ProtectedRoute';
 import { Navigation } from './components/Navigation';
 import { AdminDashboard } from './features/admin/AdminDashboard';
 import { useAdmin } from './features/admin/AdminContext';
-import { LevelSystem } from "@/components/LevelSystem";
+import { LevelSystem } from "@/features/learning/components/LevelSystem";
 import { Navbar } from "@/components/Navbar";
 import OAuthCallback from './features/auth/OAuthCallback';
 import TopicPage from './features/topics/TopicPage';
@@ -33,64 +33,6 @@ function AdminViewWrapper({ children }: { children: React.ReactNode }) {
   }
   
   return <>{children}</>;
-}
-
-// Wrap the main content to access admin context
-function MainContent() {
-  return (
-    <div className="min-h-screen bg-background">
-      <Navigation />
-      <main>
-        <Routes>
-          {/* Public routes */}
-          <Route path="/login" element={<LoginPage />} />
-          <Route path="/register" element={<RegisterPage />} />
-          <Route path="/unauthorized" element={<UnauthorizedPage />} />
-          <Route path="/auth/callback/:provider" element={<OAuthCallback />} />
-
-          {/* Protected routes */}
-          <Route
-            path="/dashboard"
-            element={
-              <ProtectedRoute>
-                <AdminViewWrapper>
-                  <DashboardPage />
-                </AdminViewWrapper>
-              </ProtectedRoute>
-            }
-          />
-
-          <Route
-            path="/profile"
-            element={
-              <ProtectedRoute>
-                <AdminViewWrapper>
-                  <ProfilePage />
-                </AdminViewWrapper>
-              </ProtectedRoute>
-            }
-          />
-
-          <Route
-            path="/topics/:topicId"
-            element={
-              <ProtectedRoute>
-                <AdminViewWrapper>
-                  <TopicPage />
-                </AdminViewWrapper>
-              </ProtectedRoute>
-            }
-          />
-
-          {/* Redirect root to dashboard */}
-          <Route
-            path="/"
-            element={<Navigate to="/dashboard" replace />}
-          />
-        </Routes>
-      </main>
-    </div>
-  );
 }
 
 function App() {
@@ -146,6 +88,12 @@ function App() {
                   {/* Redirect root to dashboard */}
                   <Route
                     path="/"
+                    element={<Navigate to="/dashboard" replace />}
+                  />
+
+                  {/* Catch all other routes */}
+                  <Route
+                    path="*"
                     element={<Navigate to="/dashboard" replace />}
                   />
                 </Routes>

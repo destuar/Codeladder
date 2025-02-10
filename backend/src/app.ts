@@ -6,6 +6,7 @@ import authRoutes from './api/auth/route';
 import profileRoutes from './api/profile/route';
 import cookieParser from 'cookie-parser';
 import adminRoutes from './api/admin/route';
+import learningRoutes from './routes/learning';
 
 const app = express();
 
@@ -25,6 +26,7 @@ app.use(express.json());
 app.use('/api/auth', authRoutes);
 app.use('/api/profile', profileRoutes);
 app.use('/api/admin', adminRoutes);
+app.use('/api/learning', learningRoutes);
 
 // Root endpoint
 app.get('/', (req, res) => {

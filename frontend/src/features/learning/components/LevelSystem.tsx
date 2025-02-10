@@ -3,7 +3,7 @@ import { Badge } from "@/components/ui/badge";
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useLearningPath } from "@/hooks/useLearningPath";
-import { Button } from "./ui/button";
+import { Button } from "@/components/ui/button";
 
 function ProgressBar({ progress = 0 }: { progress?: number }) {
   return (
@@ -33,8 +33,6 @@ export function LevelSystem() {
   }, [levels]);
 
   const handleTopicClick = (topicId: string) => {
-    console.log('Clicked topic with ID:', topicId);
-    console.log('Navigating to:', `/topics/${topicId}`);
     navigate(`/topics/${topicId}`);
   };
 
@@ -63,7 +61,7 @@ export function LevelSystem() {
 
   return (
     <div className="space-y-2">
-      {/* <div className="flex justify-between items-center">
+      <div className="flex justify-between items-center">
         <div>
           <h2 className="text-4xl font-bold bg-gradient-to-r from-primary to-primary/60 bg-clip-text text-transparent"
               style={{ fontFamily: "'Patrick Hand', cursive" }}>
@@ -73,7 +71,7 @@ export function LevelSystem() {
             Structured progression through programming concepts
           </p>
         </div>
-      </div> */}
+      </div>
 
       <style>
         {`
@@ -128,7 +126,7 @@ export function LevelSystem() {
                         >
                           {topic.name}
                         </h3>
-                        <ProgressBar progress={0} /> {/* We'll implement progress tracking later */}
+                        <ProgressBar progress={0} />
                       </div>
                     ))}
                   </div>
