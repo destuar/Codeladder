@@ -78,7 +78,7 @@ model Problem {
   solution    String?   @db.Text  // Solution or hints
   problemType ProblemType @default(INFO)  // Type of problem (Info or Coding)
   codeTemplate String?   @db.Text  // Starting code template for coding problems
-  testCases   String?   @db.Text  // JSON string containing test cases for coding problems
+  testCases   Json?     // Test cases for coding problems
   topic       Topic     @relation(fields: [topicId], references: [id])
   topicId     String
   completedBy User[]    @relation("UserCompletedProblems")

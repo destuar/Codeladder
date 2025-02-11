@@ -107,7 +107,6 @@ async function main() {
       levelId: levelI.id,
       problems: {
         create: [
-          // @ts-ignore - Problem type is correct at runtime
           {
             name: 'Understanding Problem Statements',
             content: '# Reading Problem Statements\n\nLearn how to break down and understand programming problem statements effectively.',
@@ -116,7 +115,6 @@ async function main() {
             reqOrder: 1,
             problemType: 'INFO'
           },
-          // @ts-ignore - Problem type is correct at runtime
           {
             name: 'Problem Decomposition',
             content: '# Problem Decomposition\n\nPractice breaking complex problems into smaller, manageable pieces.',
@@ -125,12 +123,12 @@ async function main() {
             reqOrder: 2,
             problemType: 'CODING',
             codeTemplate: 'function decomposeProblem(problem) {\n  // Your code here\n}',
-            testCases: JSON.stringify([
+            testCases: [
               {
                 input: ['complex task'],
                 expected: ['subtask1', 'subtask2']
               }
-            ])
+            ]
           }
         ]
       }
@@ -153,7 +151,7 @@ async function main() {
             required: true,
             reqOrder: 1,
             problemType: 'INFO'
-          } as const,
+          },
           {
             name: 'First Program',
             content: '# Writing Your First Program\n\nCreate a simple program that prints "Hello, World!"',
@@ -162,13 +160,13 @@ async function main() {
             reqOrder: 2,
             problemType: 'CODING',
             codeTemplate: 'function sayHello() {\n  // Your code here\n}',
-            testCases: JSON.stringify([
+            testCases: [
               {
                 input: [],
                 expected: 'Hello, World!'
               }
-            ])
-          } as const
+            ]
+          }
         ]
       }
     }
@@ -191,7 +189,7 @@ async function main() {
             required: true,
             reqOrder: 1,
             problemType: 'INFO'
-          } as const,
+          },
           {
             name: 'Array Reversal',
             content: '# Reverse an Array\n\nImplement a function to reverse the elements of an array.',
@@ -200,13 +198,13 @@ async function main() {
             reqOrder: 2,
             problemType: 'CODING',
             codeTemplate: 'function reverseArray(arr) {\n  // Your code here\n}',
-            testCases: JSON.stringify([
+            testCases: [
               {
                 input: [[1, 2, 3]],
                 expected: [3, 2, 1]
               }
-            ])
-          } as const
+            ]
+          }
         ]
       }
     }

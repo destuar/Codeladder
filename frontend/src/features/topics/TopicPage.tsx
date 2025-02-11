@@ -8,6 +8,7 @@ import { useState, useEffect } from 'react';
 import { api } from '@/lib/api';
 import type { Topic, Problem } from '@/hooks/useLearningPath';
 import { useAuth } from '@/features/auth/AuthContext';
+import { Markdown } from '@/components/ui/markdown';
 
 type Difficulty = 'EASY_IIII' | 'EASY_III' | 'EASY_II' | 'EASY_I' | 'MEDIUM' | 'HARD';
 
@@ -94,9 +95,7 @@ export default function TopicPage() {
           <CardDescription>{topic.description}</CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="prose dark:prose-invert">
-            {topic.content}
-          </div>
+          <Markdown content={topic.content || ''} />
         </CardContent>
       </Card>
 

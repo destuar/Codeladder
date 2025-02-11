@@ -1,6 +1,6 @@
 import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import ReactMarkdown from 'react-markdown';
+import { Markdown } from "@/components/ui/markdown";
 
 interface CodingProblemProps {
   content: string;
@@ -20,10 +20,8 @@ const CodingProblem: React.FC<CodingProblemProps> = ({
         <CardHeader>
           <CardTitle>Problem Description</CardTitle>
         </CardHeader>
-        <CardContent className="prose dark:prose-invert">
-          <ReactMarkdown>
-            {content}
-          </ReactMarkdown>
+        <CardContent>
+          <Markdown content={content} />
         </CardContent>
       </Card>
 

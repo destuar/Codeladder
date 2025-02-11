@@ -1,6 +1,6 @@
 import React from 'react';
 import { Card, CardContent } from "@/components/ui/card";
-import ReactMarkdown from 'react-markdown';
+import { Markdown } from "@/components/ui/markdown";
 
 interface InfoProblemProps {
   content: string;
@@ -9,10 +9,8 @@ interface InfoProblemProps {
 const InfoProblem: React.FC<InfoProblemProps> = ({ content }) => {
   return (
     <Card>
-      <CardContent className="p-6 prose dark:prose-invert max-w-none">
-        <ReactMarkdown>
-          {content}
-        </ReactMarkdown>
+      <CardContent className="p-6">
+        <Markdown content={content} />
       </CardContent>
     </Card>
   );
