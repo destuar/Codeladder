@@ -9,13 +9,41 @@ import { api } from '@/lib/api';
 import type { Topic, Problem } from '@/hooks/useLearningPath';
 import { useAuth } from '@/features/auth/AuthContext';
 import { Markdown } from '@/components/ui/markdown';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { ArrowUpDown, ChevronDown, ChevronUp, CheckCircle2, Circle } from "lucide-react";
 
 type Difficulty = 'EASY_IIII' | 'EASY_III' | 'EASY_II' | 'EASY_I' | 'MEDIUM' | 'HARD';
 
+type SortField = 'name' | 'difficulty' | 'required' | 'completed';
+type SortDirection = 'asc' | 'desc';
+
 function DifficultyBadge({ difficulty }: { difficulty: Difficulty }) {
+  const getColor = () => {
+    switch (difficulty) {
+      case 'EASY_IIII':
+      case 'EASY_III':
+      case 'EASY_II':
+      case 'EASY_I':
+        return 'bg-green-100 text-green-800';
+      case 'MEDIUM':
+        return 'bg-yellow-100 text-yellow-800';
+      case 'HARD':
+        return 'bg-red-100 text-red-800';
+      default:
+        return 'bg-secondary text-secondary-foreground';
+    }
+  };
+
   return (
-    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-secondary text-secondary-foreground">
-      {difficulty}
+    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getColor()}`}>
+      {difficulty.replace(/_/g, ' ')}
     </span>
   );
 }
@@ -28,6 +56,8 @@ export default function TopicPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const navigate = useNavigate();
+  const [sortField, setSortField] = useState<SortField>('name');
+  const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
 
   useEffect(() => {
     const fetchTopic = async () => {
@@ -51,6 +81,36 @@ export default function TopicPage() {
       fetchTopic();
     }
   }, [topicId, token]);
+
+  const handleSort = (field: SortField) => {
+    if (sortField === field) {
+      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortField(field);
+      setSortDirection('asc');
+    }
+  };
+
+  const getSortedProblems = () => {
+    if (!topic?.problems) return [];
+    
+    return [...topic.problems].sort((a, b) => {
+      const direction = sortDirection === 'asc' ? 1 : -1;
+      
+      switch (sortField) {
+        case 'name':
+          return direction * a.name.localeCompare(b.name);
+        case 'difficulty':
+          return direction * a.difficulty.localeCompare(b.difficulty);
+        case 'required':
+          return direction * (Number(b.required) - Number(a.required));
+        case 'completed':
+          return direction * (Number(b.completed) - Number(a.completed));
+        default:
+          return 0;
+      }
+    });
+  };
 
   if (loading) {
     return (
@@ -106,37 +166,99 @@ export default function TopicPage() {
             <CardDescription>Practice problems for this topic</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="space-y-2">
-              {topic.problems.map((problem) => (
-                <div
-                  key={problem.id}
-                  className="flex items-center justify-between p-4 rounded-lg border bg-card text-card-foreground shadow-sm"
-                >
-                  <div className="flex items-center space-x-4">
-                    <Checkbox checked={problem.completed} />
-                    <div>
-                      <h3 className="font-medium">{problem.name}</h3>
-                      <div className="flex items-center space-x-2 mt-1">
-                        <DifficultyBadge difficulty={problem.difficulty as Difficulty} />
-                        {problem.required && (
-                          <Badge variant="secondary">Required</Badge>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                  <Button 
-                    variant="outline" 
-                    size="sm"
-                    onClick={() => {
-                      console.log('Navigating to problem:', problem.id);
-                      navigate(`/problems/${problem.id}`);
-                    }}
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="w-12">Status</TableHead>
+                  <TableHead 
+                    className="cursor-pointer hover:bg-muted/50 transition-colors" 
+                    onClick={() => handleSort('name')}
                   >
-                    Start
-                  </Button>
-                </div>
-              ))}
-            </div>
+                    <div className="flex items-center space-x-1">
+                      <span>Name</span>
+                      {sortField === 'name' ? (
+                        sortDirection === 'asc' ? (
+                          <ChevronUp className="h-4 w-4 text-primary" />
+                        ) : (
+                          <ChevronDown className="h-4 w-4 text-primary" />
+                        )
+                      ) : (
+                        <ArrowUpDown className="h-4 w-4 text-muted-foreground" />
+                      )}
+                    </div>
+                  </TableHead>
+                  <TableHead 
+                    className="cursor-pointer hover:bg-muted/50 transition-colors" 
+                    onClick={() => handleSort('difficulty')}
+                  >
+                    <div className="flex items-center space-x-1">
+                      <span>Difficulty</span>
+                      {sortField === 'difficulty' ? (
+                        sortDirection === 'asc' ? (
+                          <ChevronUp className="h-4 w-4 text-primary" />
+                        ) : (
+                          <ChevronDown className="h-4 w-4 text-primary" />
+                        )
+                      ) : (
+                        <ArrowUpDown className="h-4 w-4 text-muted-foreground" />
+                      )}
+                    </div>
+                  </TableHead>
+                  <TableHead 
+                    className="cursor-pointer hover:bg-muted/50 transition-colors" 
+                    onClick={() => handleSort('required')}
+                  >
+                    <div className="flex items-center space-x-1">
+                      <span>Required</span>
+                      {sortField === 'required' ? (
+                        sortDirection === 'asc' ? (
+                          <ChevronUp className="h-4 w-4 text-primary" />
+                        ) : (
+                          <ChevronDown className="h-4 w-4 text-primary" />
+                        )
+                      ) : (
+                        <ArrowUpDown className="h-4 w-4 text-muted-foreground" />
+                      )}
+                    </div>
+                  </TableHead>
+                  <TableHead className="w-[100px]">Action</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {getSortedProblems().map((problem) => (
+                  <TableRow key={problem.id} className="cursor-pointer hover:bg-muted/50">
+                    <TableCell>
+                      {problem.completed ? (
+                        <CheckCircle2 className="h-5 w-5 text-green-500" />
+                      ) : (
+                        <Circle className="h-5 w-5 text-muted-foreground" />
+                      )}
+                    </TableCell>
+                    <TableCell className="font-medium">{problem.name}</TableCell>
+                    <TableCell>
+                      <DifficultyBadge difficulty={problem.difficulty as Difficulty} />
+                    </TableCell>
+                    <TableCell>
+                      {problem.required && (
+                        <Badge variant="secondary">Required</Badge>
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      <Button 
+                        variant="outline" 
+                        size="sm"
+                        onClick={() => {
+                          console.log('Navigating to problem:', problem.id);
+                          navigate(`/problems/${problem.id}`);
+                        }}
+                      >
+                        Start
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
           </CardContent>
         </Card>
       )}
