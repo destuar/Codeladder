@@ -62,6 +62,11 @@ model Topic {
   @@map("topics")
 }
 
+enum ProblemType {
+  INFO
+  CODING
+}
+
 model Problem {
   id          String    @id @default(cuid())
   name        String
@@ -71,6 +76,9 @@ model Problem {
   reqOrder    Int?      // Order number for required problems
   content     String?   @db.Text  // Problem content/description
   solution    String?   @db.Text  // Solution or hints
+  problemType ProblemType @default(INFO)  // Type of problem (Info or Coding)
+  codeTemplate String?   @db.Text  // Starting code template for coding problems
+  testCases   String?   @db.Text  // JSON string containing test cases for coding problems
   topic       Topic     @relation(fields: [topicId], references: [id])
   topicId     String
   completedBy User[]    @relation("UserCompletedProblems")

@@ -18,8 +18,10 @@ import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useAuth } from "@/features/auth/AuthContext";
+import { Link } from "react-router-dom";
 
 type ProblemDifficulty = 'EASY_IIII' | 'EASY_III' | 'EASY_II' | 'EASY_I' | 'MEDIUM' | 'HARD';
+type ProblemType = 'INFO' | 'CODING';
 
 type NewLevel = {
   name: string;
@@ -40,6 +42,9 @@ type NewProblem = {
   difficulty: ProblemDifficulty;
   required: boolean;
   reqOrder: number;
+  problemType: ProblemType;
+  codeTemplate?: string;
+  testCases?: string;
 };
 
 const updateLevel = (level: Level, updates: Partial<Level>): Level => ({
@@ -96,7 +101,10 @@ export function LearningPathAdmin() {
     content: "", 
     difficulty: "EASY_I",
     required: false,
-    reqOrder: 1
+    reqOrder: 1,
+    problemType: "INFO",
+    codeTemplate: "",
+    testCases: ""
   });
 
   const handleAddLevel = async () => {
@@ -193,8 +201,19 @@ export function LearningPathAdmin() {
   const handleAddProblem = async () => {
     if (!selectedTopic) return;
     try {
-      console.log('Adding new problem to topic:', selectedTopic.id, newProblem);
-      const response = await api.post(`/learning/topics/${selectedTopic.id}/problems`, newProblem, token);
+      const problemData = {
+        ...newProblem,
+        // Only include codeTemplate and testCases for CODING problems
+        ...(newProblem.problemType === 'CODING' ? {
+          codeTemplate: newProblem.codeTemplate,
+          testCases: newProblem.testCases
+        } : {})
+      };
+      console.log('Adding new problem to topic:', selectedTopic.id, problemData);
+      const response = await api.post(`/problems`, {
+        ...problemData,
+        topicId: selectedTopic.id
+      }, token);
       console.log('Add problem response:', response);
       setIsAddingProblem(false);
       setNewProblem({ 
@@ -202,7 +221,10 @@ export function LearningPathAdmin() {
         content: "", 
         difficulty: "EASY_I",
         required: false,
-        reqOrder: 1
+        reqOrder: 1,
+        problemType: "INFO",
+        codeTemplate: "",
+        testCases: ""
       });
       setSelectedTopic(null);
       toast.success("Problem added successfully");
@@ -225,10 +247,15 @@ export function LearningPathAdmin() {
         content: selectedProblem.content || "",
         difficulty: selectedProblem.difficulty,
         required: selectedProblem.required,
-        reqOrder: selectedProblem.reqOrder || 1
+        reqOrder: selectedProblem.reqOrder || 1,
+        problemType: selectedProblem.problemType,
+        ...(selectedProblem.problemType === 'CODING' ? {
+          codeTemplate: selectedProblem.codeTemplate,
+          testCases: selectedProblem.testCases
+        } : {})
       };
       console.log('Updating problem:', selectedProblem.id, updatedProblem);
-      const response = await api.put(`/learning/problems/${selectedProblem.id}`, updatedProblem, token);
+      const response = await api.put(`/problems/${selectedProblem.id}`, updatedProblem, token);
       console.log('Update problem response:', response);
       setIsEditingProblem(false);
       setSelectedProblem(null);
@@ -259,15 +286,23 @@ export function LearningPathAdmin() {
   };
 
   const handleProblemChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
-    if (!selectedProblem) return;
     const { name, value } = e.target;
-    const updatedValue = name === 'reqOrder' ? parseInt(value) : value;
-    setSelectedProblem(prev => prev ? updateProblem(prev, { [name]: updatedValue }) : null);
+    setNewProblem(prev => ({
+      ...prev,
+      [name]: name === 'reqOrder' ? parseInt(value) : value
+    }));
   };
   
-  // Add these handlers after your existing handlers
+  const handleProblemTypeChange = (value: string) => {
+    setNewProblem(prev => ({
+      ...prev,
+      problemType: value as ProblemType,
+      // Reset coding-specific fields when switching to INFO type
+      ...(value === 'INFO' ? { codeTemplate: '', testCases: '' } : {})
+    }));
+  };
 
-const handleDeleteTopic = async (topicId: string) => {
+  const handleDeleteTopic = async (topicId: string) => {
     try {
       console.log('Deleting topic:', topicId);
       const response = await api.delete(`/learning/topics/${topicId}`, token);
@@ -299,6 +334,13 @@ const handleDeleteTopic = async (topicId: string) => {
         toast.error("Failed to delete problem");
       }
     }
+  };
+
+  const handleEditProblemChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+    if (!selectedProblem) return;
+    const { name, value } = e.target;
+    const updatedValue = name === 'reqOrder' ? parseInt(value) : value;
+    setSelectedProblem(prev => prev ? updateProblem(prev, { [name]: updatedValue }) : null);
   };
 
   if (loading) {
@@ -455,10 +497,17 @@ const handleDeleteTopic = async (topicId: string) => {
                             <div>
                               <div className="font-medium">{problem.name}</div>
                               <div className="text-sm text-muted-foreground">
-                                {problem.difficulty} • {problem.required ? `Required (${problem.reqOrder})` : 'Optional'}
+                                {problem.difficulty} • {problem.required ? `Required (${problem.reqOrder})` : 'Optional'} • {problem.problemType}
                               </div>
                             </div>
                             <div className="flex gap-2">
+                              <Button 
+                                variant="ghost" 
+                                size="sm"
+                                asChild
+                              >
+                                <Link to={`/problems/${problem.id}`}>View</Link>
+                              </Button>
                               <Button 
                                 variant="ghost" 
                                 size="sm"
@@ -657,70 +706,113 @@ const handleDeleteTopic = async (topicId: string) => {
       <Dialog open={isAddingProblem} onOpenChange={setIsAddingProblem}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Add Problem</DialogTitle>
+            <DialogTitle>Add New Problem</DialogTitle>
             <DialogDescription>
-              Add a new problem to {selectedTopic?.name}.
+              Create a new problem for the selected topic.
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-4">
             <div className="grid gap-2">
-              <Label htmlFor="problem-name">Name</Label>
+              <Label htmlFor="name">Name</Label>
               <Input
-                id="problem-name"
+                id="name"
+                name="name"
                 value={newProblem.name}
-                onChange={(e) => setNewProblem({ ...newProblem, name: e.target.value })}
-                placeholder="Problem name"
+                onChange={handleProblemChange}
               />
             </div>
             <div className="grid gap-2">
-              <Label htmlFor="problem-content">Content</Label>
+              <Label htmlFor="content">Content (Markdown)</Label>
               <Textarea
-                id="problem-content"
+                id="content"
+                name="content"
                 value={newProblem.content}
-                onChange={(e) => setNewProblem({ ...newProblem, content: e.target.value })}
-                placeholder="Problem content"
+                onChange={handleProblemChange}
+                className="min-h-[100px]"
               />
             </div>
             <div className="grid gap-2">
-              <Label htmlFor="problem-difficulty">Difficulty</Label>
-              <Select
+              <Label htmlFor="difficulty">Difficulty</Label>
+              <Select 
+                name="difficulty" 
                 value={newProblem.difficulty}
-                onValueChange={(value: ProblemDifficulty) => setNewProblem({ ...newProblem, difficulty: value })}
+                onValueChange={(value: string) => setNewProblem(prev => ({ ...prev, difficulty: value as ProblemDifficulty }))}
               >
                 <SelectTrigger>
                   <SelectValue placeholder="Select difficulty" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="EASY_IIII">Easy IIII</SelectItem>
-                  <SelectItem value="EASY_III">Easy III</SelectItem>
-                  <SelectItem value="EASY_II">Easy II</SelectItem>
                   <SelectItem value="EASY_I">Easy I</SelectItem>
+                  <SelectItem value="EASY_II">Easy II</SelectItem>
+                  <SelectItem value="EASY_III">Easy III</SelectItem>
+                  <SelectItem value="EASY_IIII">Easy IIII</SelectItem>
                   <SelectItem value="MEDIUM">Medium</SelectItem>
                   <SelectItem value="HARD">Hard</SelectItem>
                 </SelectContent>
               </Select>
             </div>
+            <div className="grid gap-2">
+              <Label htmlFor="problemType">Problem Type</Label>
+              <Select 
+                name="problemType" 
+                value={newProblem.problemType}
+                onValueChange={handleProblemTypeChange}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select problem type" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="INFO">Info</SelectItem>
+                  <SelectItem value="CODING">Coding</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            {newProblem.problemType === 'CODING' && (
+              <>
+                <div className="grid gap-2">
+                  <Label htmlFor="codeTemplate">Code Template</Label>
+                  <Textarea
+                    id="codeTemplate"
+                    name="codeTemplate"
+                    value={newProblem.codeTemplate}
+                    onChange={handleProblemChange}
+                    className="min-h-[100px] font-mono"
+                    placeholder="function solution() {\n  // Write your code here\n}"
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="testCases">Test Cases (JSON)</Label>
+                  <Textarea
+                    id="testCases"
+                    name="testCases"
+                    value={newProblem.testCases}
+                    onChange={handleProblemChange}
+                    className="min-h-[100px] font-mono"
+                    placeholder='[{\n  "input": [],\n  "expected": "Hello, World!"\n}]'
+                  />
+                </div>
+              </>
+            )}
+            <div className="grid gap-2">
+              <Label htmlFor="reqOrder">Order (if required)</Label>
+              <Input
+                id="reqOrder"
+                name="reqOrder"
+                type="number"
+                value={newProblem.reqOrder}
+                onChange={handleProblemChange}
+              />
+            </div>
             <div className="flex items-center gap-2">
               <input
                 type="checkbox"
-                id="problem-required"
+                id="required"
+                name="required"
                 checked={newProblem.required}
-                onChange={(e) => setNewProblem({ ...newProblem, required: e.target.checked })}
+                onChange={(e) => setNewProblem(prev => ({ ...prev, required: e.target.checked }))}
               />
-              <Label htmlFor="problem-required">Required</Label>
+              <Label htmlFor="required">Required</Label>
             </div>
-            {newProblem.required && (
-              <div className="grid gap-2">
-                <Label htmlFor="problem-reqOrder">Required Order</Label>
-                <Input
-                  id="problem-reqOrder"
-                  type="number"
-                  value={newProblem.reqOrder}
-                  onChange={(e) => setNewProblem({ ...newProblem, reqOrder: parseInt(e.target.value) })}
-                  min={1}
-                />
-              </div>
-            )}
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setIsAddingProblem(false)}>
@@ -747,7 +839,7 @@ const handleDeleteTopic = async (topicId: string) => {
                 id="edit-problem-name"
                 name="name"
                 value={selectedProblem?.name || ""}
-                onChange={handleProblemChange}
+                onChange={handleEditProblemChange}
               />
             </div>
             <div className="grid gap-2">
@@ -756,7 +848,7 @@ const handleDeleteTopic = async (topicId: string) => {
                 id="edit-problem-content"
                 name="content"
                 value={selectedProblem?.content || ""}
-                onChange={handleProblemChange}
+                onChange={handleEditProblemChange}
               />
             </div>
             <div className="grid gap-2">
@@ -803,7 +895,7 @@ const handleDeleteTopic = async (topicId: string) => {
                 name="reqOrder"
                 type="number"
                 value={selectedProblem?.reqOrder || 1}
-                onChange={handleProblemChange}
+                onChange={handleEditProblemChange}
                 min={1}
               />
             </div>

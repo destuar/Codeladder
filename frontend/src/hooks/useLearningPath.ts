@@ -10,6 +10,9 @@ export interface Problem {
   reqOrder?: number;
   content?: string;
   completed?: boolean;
+  problemType: 'INFO' | 'CODING';
+  codeTemplate?: string;
+  testCases?: string;
 }
 
 export interface Topic {
@@ -41,9 +44,8 @@ export function useLearningPath() {
       try {
         setLoading(true);
         console.log('Fetching learning path data...');
-        const response = await api.get('/learning/levels', token);
-        console.log('Raw API response:', response);
-        console.log('Response data:', response);
+        const response = await api.get('/learning/levels');
+        console.log('Learning path response:', response);
         
         if (!Array.isArray(response)) {
           console.error('Expected array of levels, got:', typeof response);
