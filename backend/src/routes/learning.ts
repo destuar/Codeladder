@@ -7,6 +7,7 @@ import { authorizeRoles } from '../middleware/authorize';
 
 const router = Router();
 
+// Public routes
 // Get all levels with topics and problems
 router.get('/levels', (async (req, res) => {
   try {
@@ -37,7 +38,7 @@ router.get('/levels', (async (req, res) => {
   }
 }) as RequestHandler);
 
-// Protected routes - only for admins
+// Protected routes below this line
 router.use(authenticateToken);
 
 // Get a single topic by ID
@@ -67,6 +68,7 @@ router.get('/topics/:id', (async (req, res) => {
   }
 }) as RequestHandler);
 
+// Admin-only routes below this line
 router.use(authorizeRoles([Role.ADMIN, Role.DEVELOPER]));
 
 // Create new level

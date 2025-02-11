@@ -14,6 +14,7 @@ import { LevelSystem } from "@/features/learning/components/LevelSystem";
 import { Navbar } from "@/components/Navbar";
 import OAuthCallback from './features/auth/OAuthCallback';
 import TopicPage from './features/topics/TopicPage';
+import ProblemPage from './features/problems/ProblemPage';
 
 // Regular components
 const UnauthorizedPage = () => (
@@ -80,6 +81,17 @@ function App() {
                       <ProtectedRoute>
                         <AdminViewWrapper>
                           <TopicPage />
+                        </AdminViewWrapper>
+                      </ProtectedRoute>
+                    }
+                  />
+
+                  <Route
+                    path="/problems/:problemId"
+                    element={
+                      <ProtectedRoute>
+                        <AdminViewWrapper>
+                          <ProblemPage />
                         </AdminViewWrapper>
                       </ProtectedRoute>
                     }

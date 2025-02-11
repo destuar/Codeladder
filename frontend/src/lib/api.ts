@@ -109,4 +109,20 @@ export const api = {
       credentials: 'include',
     });
   },
+};
+
+export const getProblem = async (problemId: string) => {
+  const response = await fetch(`${BASE_URL}/api/problems/${problemId}`, {
+    method: 'GET',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    credentials: 'include',
+  });
+
+  if (!response.ok) {
+    throw new Error('Failed to fetch problem');
+  }
+
+  return response.json();
 }; 

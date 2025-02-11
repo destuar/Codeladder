@@ -7,11 +7,13 @@ import profileRoutes from './api/profile/route';
 import cookieParser from 'cookie-parser';
 import adminRoutes from './api/admin/route';
 import learningRoutes from './routes/learning';
+import problemsRouter from './routes/problems';
 
 const app = express();
 
 // Middleware
 app.use(helmet());
+app.use(cookieParser());
 app.use(cors({
   origin: ['http://localhost:5173', 'http://localhost:5174', 'http://localhost:5175'],
   credentials: true,
@@ -19,7 +21,6 @@ app.use(cors({
   allowedHeaders: ['Content-Type', 'Authorization'],
   exposedHeaders: ['Set-Cookie'],
 }));
-app.use(cookieParser());
 app.use(express.json());
 
 // Routes
@@ -27,6 +28,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/profile', profileRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/learning', learningRoutes);
+app.use('/api/problems', problemsRouter);
 
 // Root endpoint
 app.get('/', (req, res) => {
