@@ -2,7 +2,7 @@ import express from 'express';
 import { prisma } from '../lib/prisma';
 import { authenticateToken } from '../middleware/auth';
 import { authorizeRoles } from '../middleware/authorize';
-import { Role } from '@prisma/client';
+import { Role, ProblemType } from '@prisma/client';
 import type { RequestHandler } from 'express-serve-static-core';
 
 const router = express.Router();
@@ -36,11 +36,33 @@ router.post('/', authenticateToken, authorizeRoles([Role.ADMIN, Role.DEVELOPER])
       difficulty, 
       required = false,
       reqOrder,
-      problemType = 'INFO',
+      problemType = ProblemType.INFO,
       codeTemplate,
       testCases,
       topicId 
     } = req.body;
+
+    console.log('Creating problem with data:', {
+      name,
+      content,
+      difficulty,
+      required,
+      reqOrder,
+      problemType,
+      codeTemplate,
+      testCases,
+      topicId
+    });
+
+    // Validate topic exists
+    const topic = await prisma.topic.findUnique({
+      where: { id: topicId }
+    });
+
+    if (!topic) {
+      console.error('Topic not found:', topicId);
+      return res.status(404).json({ error: 'Topic not found' });
+    }
 
     const problem = await prisma.problem.create({
       data: {
@@ -60,8 +82,8 @@ router.post('/', authenticateToken, authorizeRoles([Role.ADMIN, Role.DEVELOPER])
 
     res.status(201).json(problem);
   } catch (error) {
-    console.error('Error creating problem:', error);
-    res.status(500).json({ error: 'Failed to create problem' });
+    console.error('Detailed error creating problem:', error);
+    res.status(500).json({ error: 'Failed to create problem', details: error instanceof Error ? error.message : 'Unknown error' });
   }
 }) as RequestHandler);
 

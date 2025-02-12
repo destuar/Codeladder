@@ -203,10 +203,17 @@ export function LearningPathAdmin() {
     try {
       const problemData = {
         ...newProblem,
+        // Ensure we have good test data
+        name: newProblem.name || "Test Problem",
+        content: newProblem.content || "This is a test problem content",
+        difficulty: newProblem.difficulty || "EASY_I",
+        required: newProblem.required || false,
+        reqOrder: newProblem.reqOrder || 1,
+        problemType: newProblem.problemType || "INFO",
         // Only include codeTemplate and testCases for CODING problems
         ...(newProblem.problemType === 'CODING' ? {
-          codeTemplate: newProblem.codeTemplate,
-          testCases: newProblem.testCases
+          codeTemplate: newProblem.codeTemplate || "function solution() {\n  // Your code here\n}",
+          testCases: newProblem.testCases || JSON.stringify([{ input: [], expected: "test" }])
         } : {})
       };
       console.log('Adding new problem to topic:', selectedTopic.id, problemData);

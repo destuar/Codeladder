@@ -15,6 +15,10 @@ export type Problem = {
   problemType: 'INFO' | 'CODING';
   codeTemplate?: string;
   testCases?: string;
+  nextProblemId?: string;
+  prevProblemId?: string;
+  isCompleted?: boolean;
+  estimatedTime?: string;
 };
 
 const ProblemPage: React.FC = () => {
@@ -44,17 +48,29 @@ const ProblemPage: React.FC = () => {
   }
 
   return (
-    <div className="container py-8">
+    <div className="container max-w-5xl mx-auto py-8">
       <div className="space-y-6">
-        <div>
-          <h1 className="text-3xl font-bold">{problem.name}</h1>
-          <p className="text-muted-foreground">
-            Difficulty: {problem.difficulty.replace(/_/g, ' ')}
-          </p>
-        </div>
+        <Card className="bg-muted/50">
+          <CardContent className="p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <h1 className="text-3xl font-bold">{problem.name}</h1>
+                <p className="text-muted-foreground mt-2">
+                  Difficulty: {problem.difficulty.replace(/_/g, ' ')}
+                </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
 
         {problem.problemType === 'INFO' ? (
-          <InfoProblem content={problem.content} />
+          <InfoProblem 
+            content={problem.content}
+            isCompleted={problem.isCompleted}
+            nextProblemId={problem.nextProblemId}
+            prevProblemId={problem.prevProblemId}
+            estimatedTime={problem.estimatedTime}
+          />
         ) : (
           <CodingProblem 
             content={problem.content}

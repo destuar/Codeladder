@@ -89,6 +89,12 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   };
 
   const refreshToken = async () => {
+    const savedToken = localStorage.getItem('token');
+    if (!savedToken) {
+      console.log('No token found, skipping refresh');
+      return;
+    }
+
     try {
       console.log('Refreshing token...');
       const data = await api.post('/auth/refresh', {});
@@ -109,13 +115,15 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
 
   useEffect(() => {
     const checkSession = async () => {
-      try {
-        await refreshToken();
-      } catch (err) {
-        console.error('Error checking session:', err);
-      } finally {
-        setIsLoading(false);
+      const savedToken = localStorage.getItem('token');
+      if (savedToken) {
+        try {
+          await refreshToken();
+        } catch (err) {
+          console.error('Error checking session:', err);
+        }
       }
+      setIsLoading(false);
     };
     
     checkSession();
