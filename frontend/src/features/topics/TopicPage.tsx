@@ -21,7 +21,16 @@ import { ArrowUpDown, ChevronDown, ChevronUp, CheckCircle2, Circle } from "lucid
 
 type Difficulty = 'EASY_IIII' | 'EASY_III' | 'EASY_II' | 'EASY_I' | 'MEDIUM' | 'HARD';
 
-type SortField = 'name' | 'difficulty' | 'required' | 'completed';
+const DIFFICULTY_ORDER: Record<Difficulty, number> = {
+  'EASY_IIII': 1,
+  'EASY_III': 2,
+  'EASY_II': 3,
+  'EASY_I': 4,
+  'MEDIUM': 5,
+  'HARD': 6
+};
+
+type SortField = 'name' | 'difficulty' | 'order' | 'completed';
 type SortDirection = 'asc' | 'desc';
 
 function DifficultyBadge({ difficulty }: { difficulty: Difficulty }) {
@@ -56,7 +65,7 @@ export default function TopicPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const navigate = useNavigate();
-  const [sortField, setSortField] = useState<SortField>('name');
+  const [sortField, setSortField] = useState<SortField>('order');
   const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
 
   useEffect(() => {
@@ -101,11 +110,13 @@ export default function TopicPage() {
         case 'name':
           return direction * a.name.localeCompare(b.name);
         case 'difficulty':
-          return direction * a.difficulty.localeCompare(b.difficulty);
-        case 'required':
-          return direction * (Number(b.required) - Number(a.required));
+          return direction * (DIFFICULTY_ORDER[a.difficulty as Difficulty] - DIFFICULTY_ORDER[b.difficulty as Difficulty]);
+        case 'order':
+          const aOrder = a.reqOrder || Infinity;
+          const bOrder = b.reqOrder || Infinity;
+          return direction * (aOrder - bOrder);
         case 'completed':
-          return direction * (Number(b.completed) - Number(a.completed));
+          return direction * (Number(a.completed) - Number(b.completed));
         default:
           return 0;
       }
@@ -171,6 +182,23 @@ export default function TopicPage() {
                 <TableRow>
                   <TableHead className="w-12">Status</TableHead>
                   <TableHead 
+                    className="cursor-pointer hover:bg-muted/50 transition-colors w-24" 
+                    onClick={() => handleSort('order')}
+                  >
+                    <div className="flex items-center space-x-1">
+                      <span>Order</span>
+                      {sortField === 'order' ? (
+                        sortDirection === 'asc' ? (
+                          <ChevronUp className="h-4 w-4 text-primary" />
+                        ) : (
+                          <ChevronDown className="h-4 w-4 text-primary" />
+                        )
+                      ) : (
+                        <ArrowUpDown className="h-4 w-4 text-muted-foreground" />
+                      )}
+                    </div>
+                  </TableHead>
+                  <TableHead 
                     className="cursor-pointer hover:bg-muted/50 transition-colors" 
                     onClick={() => handleSort('name')}
                   >
@@ -204,23 +232,6 @@ export default function TopicPage() {
                       )}
                     </div>
                   </TableHead>
-                  <TableHead 
-                    className="cursor-pointer hover:bg-muted/50 transition-colors" 
-                    onClick={() => handleSort('required')}
-                  >
-                    <div className="flex items-center space-x-1">
-                      <span>Required</span>
-                      {sortField === 'required' ? (
-                        sortDirection === 'asc' ? (
-                          <ChevronUp className="h-4 w-4 text-primary" />
-                        ) : (
-                          <ChevronDown className="h-4 w-4 text-primary" />
-                        )
-                      ) : (
-                        <ArrowUpDown className="h-4 w-4 text-muted-foreground" />
-                      )}
-                    </div>
-                  </TableHead>
                   <TableHead className="w-[100px]">Action</TableHead>
                 </TableRow>
               </TableHeader>
@@ -234,14 +245,16 @@ export default function TopicPage() {
                         <Circle className="h-5 w-5 text-muted-foreground" />
                       )}
                     </TableCell>
+                    <TableCell>
+                      {problem.required ? (
+                        <Badge variant="secondary">REQ {problem.reqOrder}</Badge>
+                      ) : (
+                        problem.reqOrder || '-'
+                      )}
+                    </TableCell>
                     <TableCell className="font-medium">{problem.name}</TableCell>
                     <TableCell>
                       <DifficultyBadge difficulty={problem.difficulty as Difficulty} />
-                    </TableCell>
-                    <TableCell>
-                      {problem.required && (
-                        <Badge variant="secondary">Required</Badge>
-                      )}
                     </TableCell>
                     <TableCell>
                       <Button 

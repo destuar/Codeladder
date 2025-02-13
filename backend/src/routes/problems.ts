@@ -2,7 +2,7 @@ import express from 'express';
 import { prisma } from '../lib/prisma';
 import { authenticateToken } from '../middleware/auth';
 import { authorizeRoles } from '../middleware/authorize';
-import { Role, ProblemType } from '@prisma/client';
+import { Role } from '@prisma/client';
 import type { RequestHandler } from 'express-serve-static-core';
 
 const router = express.Router();
@@ -36,7 +36,6 @@ router.post('/', authenticateToken, authorizeRoles([Role.ADMIN, Role.DEVELOPER])
       difficulty, 
       required = false,
       reqOrder,
-      problemType = ProblemType.INFO,
       codeTemplate,
       testCases,
       topicId 
@@ -48,7 +47,6 @@ router.post('/', authenticateToken, authorizeRoles([Role.ADMIN, Role.DEVELOPER])
       difficulty,
       required,
       reqOrder,
-      problemType,
       codeTemplate,
       testCases,
       topicId
@@ -56,12 +54,26 @@ router.post('/', authenticateToken, authorizeRoles([Role.ADMIN, Role.DEVELOPER])
 
     // Validate topic exists
     const topic = await prisma.topic.findUnique({
-      where: { id: topicId }
+      where: { id: topicId },
+      include: {
+        problems: true
+      }
     });
 
     if (!topic) {
       console.error('Topic not found:', topicId);
       return res.status(404).json({ error: 'Topic not found' });
+    }
+
+    // Check for duplicate order number if reqOrder is provided
+    if (reqOrder !== undefined && reqOrder !== null) {
+      const existingProblemWithOrder = topic.problems.find(p => p.reqOrder === reqOrder);
+      if (existingProblemWithOrder) {
+        return res.status(400).json({ 
+          error: 'Order number already exists',
+          details: `Problem "${existingProblemWithOrder.name}" already has order number ${reqOrder}`
+        });
+      }
     }
 
     const problem = await prisma.problem.create({
@@ -71,9 +83,8 @@ router.post('/', authenticateToken, authorizeRoles([Role.ADMIN, Role.DEVELOPER])
         difficulty,
         required,
         reqOrder,
-        problemType,
-        codeTemplate,
-        testCases,
+        ...(codeTemplate && { codeTemplate }),
+        ...(testCases && { testCases: typeof testCases === 'string' ? JSON.parse(testCases) : testCases }),
         topic: {
           connect: { id: topicId }
         }
