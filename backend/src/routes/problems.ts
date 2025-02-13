@@ -2,8 +2,9 @@ import express from 'express';
 import { prisma } from '../lib/prisma';
 import { authenticateToken } from '../middleware/auth';
 import { authorizeRoles } from '../middleware/authorize';
-import { Role, ProblemType } from '@prisma/client';
+import { Prisma, Role } from '@prisma/client';
 import type { RequestHandler } from 'express-serve-static-core';
+
 
 const router = express.Router();
 
@@ -36,7 +37,7 @@ router.post('/', authenticateToken, authorizeRoles([Role.ADMIN, Role.DEVELOPER])
       difficulty, 
       required = false,
       reqOrder,
-      problemType = ProblemType.INFO,
+      problemType = 'INFO' as const,
       codeTemplate,
       testCases,
       topicId 
@@ -64,6 +65,23 @@ router.post('/', authenticateToken, authorizeRoles([Role.ADMIN, Role.DEVELOPER])
       return res.status(404).json({ error: 'Topic not found' });
     }
 
+    // Check for duplicate order number if reqOrder is provided
+    if (reqOrder) {
+      const existingProblem = await prisma.problem.findFirst({
+        where: {
+          topicId,
+          reqOrder,
+        }
+      });
+
+      if (existingProblem) {
+        return res.status(400).json({ 
+          error: 'Order number already exists',
+          details: `Problem "${existingProblem.name}" already has order number ${reqOrder}`
+        });
+      }
+    }
+
     const problem = await prisma.problem.create({
       data: {
         name,
@@ -73,7 +91,7 @@ router.post('/', authenticateToken, authorizeRoles([Role.ADMIN, Role.DEVELOPER])
         reqOrder,
         problemType,
         codeTemplate,
-        testCases,
+        testCases: testCases ? JSON.parse(testCases) : undefined,
         topic: {
           connect: { id: topicId }
         }
@@ -101,6 +119,33 @@ router.put('/:problemId', authenticateToken, authorizeRoles([Role.ADMIN, Role.DE
       codeTemplate,
       testCases
     } = req.body;
+
+    // Get the current problem to check its topic
+    const currentProblem = await prisma.problem.findUnique({
+      where: { id: problemId }
+    });
+
+    if (!currentProblem) {
+      return res.status(404).json({ error: 'Problem not found' });
+    }
+
+    // Check for duplicate order number if reqOrder is provided and different from current
+    if (reqOrder && reqOrder !== currentProblem.reqOrder) {
+      const existingProblem = await prisma.problem.findFirst({
+        where: {
+          topicId: currentProblem.topicId,
+          reqOrder,
+          id: { not: problemId } // Exclude the current problem from the check
+        }
+      });
+
+      if (existingProblem) {
+        return res.status(400).json({ 
+          error: 'Order number already exists',
+          details: `Problem "${existingProblem.name}" already has order number ${reqOrder}`
+        });
+      }
+    }
 
     // Parse testCases if it's a string
     let parsedTestCases = testCases;
