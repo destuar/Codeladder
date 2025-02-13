@@ -135,12 +135,26 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     };
   }, []);
 
-  const handleAuthSuccess = (userData: User, authToken: string) => {
-    setUser(userData);
-    setToken(authToken);
-    localStorage.setItem('token', authToken);
-    localStorage.setItem('user', JSON.stringify(userData));
-    setError(null);
+  const handleAuthSuccess = async (userData: User, authToken: string) => {
+    try {
+      // Set token first
+      setToken(authToken);
+      localStorage.setItem('token', authToken);
+      
+      // Load full user profile
+      await loadUserProfile(authToken);
+      
+      // Set up token refresh
+      setupRefreshToken(authToken);
+      
+      // Finally set the user data and clear any errors
+      setUser(userData);
+      localStorage.setItem('user', JSON.stringify(userData));
+      setError(null);
+    } catch (err) {
+      console.error('Error during auth success:', err);
+      throw err;
+    }
   };
 
   const login = async (email: string, password: string) => {
@@ -149,7 +163,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     
     try {
       const response = await api.post('/auth/login', { email, password });
-      handleAuthSuccess(response.user, response.token);
+      await handleAuthSuccess(response.user, response.accessToken);
     } catch (err: any) {
       setError(err.message || 'Failed to login');
       throw err;
