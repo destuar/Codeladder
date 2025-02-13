@@ -2,8 +2,9 @@ import express from 'express';
 import { prisma } from '../lib/prisma';
 import { authenticateToken } from '../middleware/auth';
 import { authorizeRoles } from '../middleware/authorize';
-import { Role } from '@prisma/client';
+import { Prisma, Role } from '@prisma/client';
 import type { RequestHandler } from 'express-serve-static-core';
+
 
 const router = express.Router();
 
@@ -36,6 +37,7 @@ router.post('/', authenticateToken, authorizeRoles([Role.ADMIN, Role.DEVELOPER])
       difficulty, 
       required = false,
       reqOrder,
+      problemType = 'INFO' as const,
       codeTemplate,
       testCases,
       topicId 
@@ -47,6 +49,7 @@ router.post('/', authenticateToken, authorizeRoles([Role.ADMIN, Role.DEVELOPER])
       difficulty,
       required,
       reqOrder,
+      problemType,
       codeTemplate,
       testCases,
       topicId
@@ -54,10 +57,7 @@ router.post('/', authenticateToken, authorizeRoles([Role.ADMIN, Role.DEVELOPER])
 
     // Validate topic exists
     const topic = await prisma.topic.findUnique({
-      where: { id: topicId },
-      include: {
-        problems: true
-      }
+      where: { id: topicId }
     });
 
     if (!topic) {
@@ -66,12 +66,18 @@ router.post('/', authenticateToken, authorizeRoles([Role.ADMIN, Role.DEVELOPER])
     }
 
     // Check for duplicate order number if reqOrder is provided
-    if (reqOrder !== undefined && reqOrder !== null) {
-      const existingProblemWithOrder = topic.problems.find(p => p.reqOrder === reqOrder);
-      if (existingProblemWithOrder) {
+    if (reqOrder) {
+      const existingProblem = await prisma.problem.findFirst({
+        where: {
+          topicId,
+          reqOrder,
+        }
+      });
+
+      if (existingProblem) {
         return res.status(400).json({ 
           error: 'Order number already exists',
-          details: `Problem "${existingProblemWithOrder.name}" already has order number ${reqOrder}`
+          details: `Problem "${existingProblem.name}" already has order number ${reqOrder}`
         });
       }
     }
@@ -83,8 +89,9 @@ router.post('/', authenticateToken, authorizeRoles([Role.ADMIN, Role.DEVELOPER])
         difficulty,
         required,
         reqOrder,
-        ...(codeTemplate && { codeTemplate }),
-        ...(testCases && { testCases: typeof testCases === 'string' ? JSON.parse(testCases) : testCases }),
+        problemType,
+        codeTemplate,
+        testCases: testCases ? JSON.parse(testCases) : undefined,
         topic: {
           connect: { id: topicId }
         }
@@ -112,6 +119,33 @@ router.put('/:problemId', authenticateToken, authorizeRoles([Role.ADMIN, Role.DE
       codeTemplate,
       testCases
     } = req.body;
+
+    // Get the current problem to check its topic
+    const currentProblem = await prisma.problem.findUnique({
+      where: { id: problemId }
+    });
+
+    if (!currentProblem) {
+      return res.status(404).json({ error: 'Problem not found' });
+    }
+
+    // Check for duplicate order number if reqOrder is provided and different from current
+    if (reqOrder && reqOrder !== currentProblem.reqOrder) {
+      const existingProblem = await prisma.problem.findFirst({
+        where: {
+          topicId: currentProblem.topicId,
+          reqOrder,
+          id: { not: problemId } // Exclude the current problem from the check
+        }
+      });
+
+      if (existingProblem) {
+        return res.status(400).json({ 
+          error: 'Order number already exists',
+          details: `Problem "${existingProblem.name}" already has order number ${reqOrder}`
+        });
+      }
+    }
 
     // Parse testCases if it's a string
     let parsedTestCases = testCases;

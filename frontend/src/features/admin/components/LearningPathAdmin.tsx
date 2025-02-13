@@ -296,7 +296,7 @@ export function LearningPathAdmin() {
     const { name, value } = e.target;
     setNewProblem(prev => ({
       ...prev,
-      [name]: name === 'reqOrder' ? parseInt(value) : value
+      [name]: name === 'reqOrder' ? (value === '' ? 1 : Math.max(1, parseInt(value) || 1)) : value
     }));
   };
   
@@ -346,7 +346,7 @@ export function LearningPathAdmin() {
   const handleEditProblemChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     if (!selectedProblem) return;
     const { name, value } = e.target;
-    const updatedValue = name === 'reqOrder' ? parseInt(value) : value;
+    const updatedValue = name === 'reqOrder' ? (value === '' ? 1 : Math.max(1, parseInt(value) || 1)) : value;
     setSelectedProblem(prev => prev ? updateProblem(prev, { [name]: updatedValue }) : null);
   };
 
@@ -808,6 +808,7 @@ export function LearningPathAdmin() {
                 type="number"
                 value={newProblem.reqOrder}
                 onChange={handleProblemChange}
+                min={1}
               />
             </div>
             <div className="flex items-center gap-2">
@@ -862,9 +863,9 @@ export function LearningPathAdmin() {
               <Label htmlFor="edit-problem-difficulty">Difficulty</Label>
               <Select 
                 value={selectedProblem?.difficulty} 
-                onValueChange={(value) => 
+                onValueChange={(value: ProblemDifficulty) => 
                   setSelectedProblem(prev => 
-                    prev ? updateProblem(prev, { difficulty: value as ProblemDifficulty }) : null
+                    prev ? updateProblem(prev, { difficulty: value }) : null
                   )
                 }
               >
