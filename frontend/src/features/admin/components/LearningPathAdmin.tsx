@@ -47,6 +47,11 @@ type NewProblem = {
   testCases?: string;
 };
 
+type DraggedProblem = Problem & {
+  originalIndex: number;
+  currentIndex: number;
+};
+
 const updateLevel = (level: Level, updates: Partial<Level>): Level => ({
   ...level,
   ...updates,
@@ -71,7 +76,7 @@ const updateProblem = (problem: Problem, updates: Partial<Problem>): Problem => 
 
 export function LearningPathAdmin() {
   const { token } = useAuth();
-  const { levels, loading, error } = useLearningPath();
+  const { levels, loading, error, refresh, setLevels } = useLearningPath();
   const [isAddingLevel, setIsAddingLevel] = useState(false);
   const [isEditingLevel, setIsEditingLevel] = useState(false);
   const [isAddingTopic, setIsAddingTopic] = useState(false);
@@ -107,15 +112,17 @@ export function LearningPathAdmin() {
     testCases: ""
   });
 
+  const [isDragging, setIsDragging] = useState(false);
+  const [draggedProblem, setDraggedProblem] = useState<DraggedProblem | null>(null);
+
   const handleAddLevel = async () => {
     try {
       console.log('Adding new level:', newLevel);
-      const response = await api.post("/learning/levels", newLevel, token);
-      console.log('Add level response:', response);
+      await api.post("/learning/levels", newLevel, token);
       setIsAddingLevel(false);
       setNewLevel({ name: "", description: "", order: 1 });
       toast.success("Level added successfully");
-      window.location.reload();
+      refresh();
     } catch (err) {
       console.error("Error adding level:", err);
       if (err instanceof Error) {
@@ -134,13 +141,11 @@ export function LearningPathAdmin() {
         description: selectedLevel.description || "",
         order: selectedLevel.order
       };
-      console.log('Updating level:', selectedLevel.id, updatedLevel);
-      const response = await api.put(`/learning/levels/${selectedLevel.id}`, updatedLevel, token);
-      console.log('Update level response:', response);
+      await api.put(`/learning/levels/${selectedLevel.id}`, updatedLevel, token);
       setIsEditingLevel(false);
       setSelectedLevel(null);
       toast.success("Level updated successfully");
-      window.location.reload();
+      refresh();
     } catch (err) {
       console.error("Error updating level:", err);
       if (err instanceof Error) {
@@ -154,14 +159,12 @@ export function LearningPathAdmin() {
   const handleAddTopic = async () => {
     if (!selectedLevel) return;
     try {
-      console.log('Adding new topic to level:', selectedLevel.id, newTopic);
-      const response = await api.post(`/learning/levels/${selectedLevel.id}/topics`, newTopic, token);
-      console.log('Add topic response:', response);
+      await api.post(`/learning/levels/${selectedLevel.id}/topics`, newTopic, token);
       setIsAddingTopic(false);
       setNewTopic({ name: "", description: "", content: "", order: 1 });
       setSelectedLevel(null);
       toast.success("Topic added successfully");
-      window.location.reload();
+      refresh();
     } catch (err) {
       console.error("Error adding topic:", err);
       if (err instanceof Error) {
@@ -181,13 +184,11 @@ export function LearningPathAdmin() {
         content: selectedTopic.content || "",
         order: selectedTopic.order
       };
-      console.log('Updating topic:', selectedTopic.id, updatedTopic);
-      const response = await api.put(`/learning/topics/${selectedTopic.id}`, updatedTopic, token);
-      console.log('Update topic response:', response);
+      await api.put(`/learning/topics/${selectedTopic.id}`, updatedTopic, token);
       setIsEditingTopic(false);
       setSelectedTopic(null);
       toast.success("Topic updated successfully");
-      window.location.reload();
+      refresh();
     } catch (err) {
       console.error("Error updating topic:", err);
       if (err instanceof Error) {
@@ -210,18 +211,15 @@ export function LearningPathAdmin() {
         required: newProblem.required || false,
         reqOrder: newProblem.reqOrder || 1,
         problemType: newProblem.problemType || "INFO",
-        // Only include codeTemplate and testCases for CODING problems
         ...(newProblem.problemType === 'CODING' ? {
           codeTemplate: newProblem.codeTemplate || "function solution() {\n  // Your code here\n}",
           testCases: newProblem.testCases || JSON.stringify([{ input: [], expected: "test" }])
         } : {})
       };
-      console.log('Adding new problem to topic:', selectedTopic.id, problemData);
-      const response = await api.post(`/problems`, {
+      await api.post(`/problems`, {
         ...problemData,
         topicId: selectedTopic.id
       }, token);
-      console.log('Add problem response:', response);
       setIsAddingProblem(false);
       setNewProblem({ 
         name: "", 
@@ -235,7 +233,7 @@ export function LearningPathAdmin() {
       });
       setSelectedTopic(null);
       toast.success("Problem added successfully");
-      window.location.reload();
+      refresh();
     } catch (err) {
       console.error("Error adding problem:", err);
       if (err instanceof Error) {
@@ -261,13 +259,11 @@ export function LearningPathAdmin() {
           testCases: selectedProblem.testCases
         } : {})
       };
-      console.log('Updating problem:', selectedProblem.id, updatedProblem);
-      const response = await api.put(`/problems/${selectedProblem.id}`, updatedProblem, token);
-      console.log('Update problem response:', response);
+      await api.put(`/problems/${selectedProblem.id}`, updatedProblem, token);
       setIsEditingProblem(false);
       setSelectedProblem(null);
       toast.success("Problem updated successfully");
-      window.location.reload();
+      refresh();
     } catch (err) {
       console.error("Error updating problem:", err);
       if (err instanceof Error) {
@@ -311,11 +307,9 @@ export function LearningPathAdmin() {
 
   const handleDeleteTopic = async (topicId: string) => {
     try {
-      console.log('Deleting topic:', topicId);
-      const response = await api.delete(`/learning/topics/${topicId}`, token);
-      console.log('Delete topic response:', response);
+      await api.delete(`/learning/topics/${topicId}`, token);
       toast.success("Topic deleted successfully");
-      window.location.reload();
+      refresh();
     } catch (err) {
       console.error("Error deleting topic:", err);
       if (err instanceof Error) {
@@ -328,11 +322,9 @@ export function LearningPathAdmin() {
   
   const handleDeleteProblem = async (problemId: string) => {
     try {
-      console.log('Deleting problem:', problemId);
-      const response = await api.delete(`/learning/problems/${problemId}`, token);
-      console.log('Delete problem response:', response);
+      await api.delete(`/learning/problems/${problemId}`, token);
       toast.success("Problem deleted successfully");
-      window.location.reload();
+      refresh();
     } catch (err) {
       console.error("Error deleting problem:", err);
       if (err instanceof Error) {
@@ -348,6 +340,68 @@ export function LearningPathAdmin() {
     const { name, value } = e.target;
     const updatedValue = name === 'reqOrder' ? (value === '' ? 1 : Math.max(1, parseInt(value) || 1)) : value;
     setSelectedProblem(prev => prev ? updateProblem(prev, { [name]: updatedValue }) : null);
+  };
+
+  const handleDragStart = (problem: Problem, index: number) => {
+    setIsDragging(true);
+    setDraggedProblem({ ...problem, originalIndex: index, currentIndex: index });
+  };
+
+  const handleDragOver = (e: React.DragEvent, overIndex: number) => {
+    e.preventDefault();
+    if (!draggedProblem || draggedProblem.currentIndex === overIndex) return;
+    
+    setDraggedProblem(prev => prev ? { ...prev, currentIndex: overIndex } : null);
+  };
+
+  const handleDragEnd = async (topicId: string, problems: Problem[]) => {
+    if (!draggedProblem) return;
+    
+    setIsDragging(false);
+    const { originalIndex, currentIndex } = draggedProblem;
+    if (originalIndex === currentIndex) {
+      setDraggedProblem(null);
+      return;
+    }
+
+    // Create new order for all problems
+    const reorderedProblems = [...problems];
+    const [movedProblem] = reorderedProblems.splice(originalIndex, 1);
+    reorderedProblems.splice(currentIndex, 0, movedProblem);
+    
+    // Update order numbers
+    const problemOrders = reorderedProblems.map((problem, index) => ({
+      id: problem.id,
+      reqOrder: index + 1
+    }));
+
+    // Optimistically update the UI
+    const updatedLevels = levels.map(level => ({
+      ...level,
+      topics: level.topics.map(topic => {
+        if (topic.id === topicId) {
+          return {
+            ...topic,
+            problems: reorderedProblems.map((problem, index) => ({
+              ...problem,
+              reqOrder: index + 1
+            }))
+          };
+        }
+        return topic;
+      })
+    }));
+    setLevels(updatedLevels);
+
+    try {
+      await api.post('/problems/reorder', { problemOrders }, token);
+    } catch (err) {
+      console.error('Error reordering problems:', err);
+      toast.error('Failed to reorder problems');
+      refresh(); // Only refresh on error to get back to the server state
+    }
+    
+    setDraggedProblem(null);
   };
 
   if (loading) {
@@ -499,12 +553,28 @@ export function LearningPathAdmin() {
                     </CardHeader>
                     <CardContent>
                       <div className="space-y-2">
-                        {topic.problems.map((problem) => (
-                          <div key={problem.id} className="flex items-center justify-between p-2 rounded-lg border">
-                            <div>
-                              <div className="font-medium">{problem.name}</div>
-                              <div className="text-sm text-muted-foreground">
-                                {problem.difficulty} • {problem.required ? `Required (${problem.reqOrder})` : 'Optional'} • {problem.problemType}
+                        {topic.problems.map((problem, index) => (
+                          <div 
+                            key={problem.id} 
+                            className={`flex items-center justify-between p-2 rounded-lg border ${
+                              isDragging ? 'cursor-move' : ''
+                            } ${
+                              draggedProblem?.id === problem.id ? 'opacity-50' : ''
+                            }`}
+                            draggable
+                            onDragStart={() => handleDragStart(problem, index)}
+                            onDragOver={(e) => handleDragOver(e, index)}
+                            onDragEnd={() => handleDragEnd(topic.id, topic.problems)}
+                          >
+                            <div className="flex items-center gap-2">
+                              <span className="text-muted-foreground cursor-move select-none" aria-label="Drag handle">
+                                ⣿
+                              </span>
+                              <div>
+                                <div className="font-medium">{problem.name}</div>
+                                <div className="text-sm text-muted-foreground">
+                                  {problem.difficulty} • {problem.required ? `Required (${problem.reqOrder})` : 'Optional'} • {problem.problemType}
+                                </div>
                               </div>
                             </div>
                             <div className="flex gap-2">
