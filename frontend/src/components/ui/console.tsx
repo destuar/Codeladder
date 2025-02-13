@@ -37,6 +37,8 @@ export function Console({ results, isOpen, onToggle, onClear, className, isRunni
   const anyFailed = results.some(r => !r.passed);
   const [openTestCases, setOpenTestCases] = useState<Record<number, boolean>>({});
   const [isMaximized, setIsMaximized] = useState(false);
+  const [isCollapsed, setIsCollapsed] = useState(false);
+  const [activeTab, setActiveTab] = useState<'output' | 'testcases'>('output');
   const consoleRef = useRef<HTMLDivElement>(null);
   const [height, setHeight] = useState(DEFAULT_HEIGHT);
   const [isDragging, setIsDragging] = useState(false);
@@ -113,12 +115,12 @@ export function Console({ results, isOpen, onToggle, onClear, className, isRunni
         className
       )}
       style={{ 
-        height: isMaximized ? '100vh' : `${height}px`,
+        height: isMaximized ? '100vh' : isCollapsed ? '48px' : `${height}px`,
         transition: isDragging ? 'none' : 'height 0.3s ease-in-out'
       }}
     >
       {/* Drag Handle */}
-      {isOpen && !isMaximized && (
+      {!isMaximized && !isCollapsed && (
         <div
           className={cn(
             "absolute -top-1 left-0 right-0 h-2 group",
@@ -144,43 +146,50 @@ export function Console({ results, isOpen, onToggle, onClear, className, isRunni
         className={cn(
           "flex items-center justify-between px-4 py-2 border-b",
           "sticky top-0 bg-background z-10",
-          !isMaximized && "cursor-pointer hover:bg-muted/50"
+          isCollapsed && "h-full items-center"
         )}
-        onClick={!isMaximized ? onToggle : undefined}
       >
-        <div className="flex items-center gap-2">
-          <Terminal className="h-4 w-4" />
-          <span className="text-sm font-medium">Console</span>
+        <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2">
+            <Terminal className="h-4 w-4" />
+            <span className="text-sm font-medium">Console</span>
+          </div>
+          {!isCollapsed && (
+            <div className="flex items-center gap-2 border rounded-md">
+              <button
+                className={cn(
+                  "px-3 py-1 text-sm transition-colors",
+                  activeTab === 'output' ? "bg-muted" : "hover:bg-muted/50"
+                )}
+                onClick={() => setActiveTab('output')}
+              >
+                Output
+              </button>
+              <button
+                className={cn(
+                  "px-3 py-1 text-sm transition-colors",
+                  activeTab === 'testcases' ? "bg-muted" : "hover:bg-muted/50"
+                )}
+                onClick={() => setActiveTab('testcases')}
+              >
+                Test Cases
+              </button>
+            </div>
+          )}
           {results.length > 0 && (
-            <Badge variant={allPassed ? "outline" : anyFailed ? "destructive" : "secondary"}>
-              {allPassed ? "Accepted" : anyFailed ? "Wrong Answer" : "No Results"}
-            </Badge>
+            <div className="flex items-center gap-3 text-sm text-muted-foreground">
+              <div className="flex items-center gap-1.5">
+                <CheckCircle2 className="h-3.5 w-3.5 text-green-500" />
+                <span>{results.filter(r => r.passed).length}</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <XCircle className="h-3.5 w-3.5 text-red-500" />
+                <span>{results.filter(r => !r.passed).length}</span>
+              </div>
+            </div>
           )}
         </div>
         <div className="flex items-center gap-2">
-          {results.length > 0 && isOpen && (
-            <>
-              <Button
-                variant="ghost"
-                size="sm"
-                className="h-8 px-2"
-                onClick={expandAllTestCases}
-              >
-                <ChevronDown className="h-4 w-4" />
-                Expand All
-              </Button>
-              <Button
-                variant="ghost"
-                size="sm"
-                className="h-8 px-2"
-                onClick={collapseAllTestCases}
-              >
-                <ChevronUp className="h-4 w-4" />
-                Collapse All
-              </Button>
-              <div className="w-px h-4 bg-border" />
-            </>
-          )}
           <button
             onClick={(e) => {
               e.stopPropagation();
@@ -191,7 +200,10 @@ export function Console({ results, isOpen, onToggle, onClear, className, isRunni
             <X className="h-4 w-4" />
           </button>
           <button
-            onClick={toggleMaximize}
+            onClick={(e) => {
+              e.stopPropagation();
+              setIsMaximized(!isMaximized);
+            }}
             className="p-1 hover:bg-muted rounded-md"
           >
             {isMaximized ? (
@@ -200,20 +212,24 @@ export function Console({ results, isOpen, onToggle, onClear, className, isRunni
               <Maximize2 className="h-4 w-4" />
             )}
           </button>
-          {!isMaximized && (
-            <button onClick={onToggle} className="p-1 hover:bg-muted rounded-md">
-              {isOpen ? (
-                <ChevronDown className="h-4 w-4" />
-              ) : (
-                <ChevronUp className="h-4 w-4" />
-              )}
-            </button>
-          )}
+          <button 
+            onClick={(e) => {
+              e.stopPropagation();
+              setIsCollapsed(!isCollapsed);
+            }} 
+            className="p-1 hover:bg-muted rounded-md"
+          >
+            {isCollapsed ? (
+              <ChevronUp className="h-4 w-4" />
+            ) : (
+              <ChevronDown className="h-4 w-4" />
+            )}
+          </button>
         </div>
       </div>
 
       {/* Console Content */}
-      {isOpen && (
+      {!isCollapsed && (
         <ScrollArea 
           className={cn(
             isMaximized ? "h-[calc(100vh-3rem)]" : "h-[calc(100%-2.5rem)]"
@@ -227,7 +243,7 @@ export function Console({ results, isOpen, onToggle, onClear, className, isRunni
               </div>
             ) : results.length === 0 ? (
               <div className="text-muted-foreground">No test results</div>
-            ) : (
+            ) : activeTab === 'output' ? (
               <>
                 {/* Summary Section */}
                 <div className="mb-4 p-3 bg-muted/30 rounded-lg">
@@ -256,76 +272,77 @@ export function Console({ results, isOpen, onToggle, onClear, className, isRunni
                     )}
                   </div>
                 </div>
-
-                {/* Test Cases */}
-                <div className="space-y-2">
-                  {results.map((result, index) => (
-                    <div
-                      key={index}
-                      className={cn(
-                        "border rounded-lg overflow-hidden transition-colors duration-200",
-                        result.passed ? "hover:border-green-500/50" : "hover:border-red-500/50"
-                      )}
-                    >
-                      <button
-                        className="flex items-center justify-between w-full p-3 hover:bg-muted/50 transition-colors"
-                        onClick={() => toggleTestCase(index)}
-                      >
-                        <div className="flex items-center gap-2">
-                          {result.passed ? (
-                            <CheckCircle2 className="h-5 w-5 text-green-500" />
-                          ) : (
-                            <XCircle className="h-5 w-5 text-red-500" />
-                          )}
-                          <span className="font-medium">Test Case {index + 1}</span>
-                        </div>
-                        <div className="flex items-center gap-4">
-                          {result.runtime !== undefined && result.memory !== undefined && (
-                            <div className="flex items-center gap-4 text-xs text-muted-foreground">
-                              <div className="flex items-center gap-1">
-                                <Clock className="h-3 w-3" />
-                                {result.runtime}ms
-                              </div>
-                              <div className="flex items-center gap-1">
-                                <Cpu className="h-3 w-3" />
-                                {result.memory}MB
-                              </div>
-                            </div>
-                          )}
-                          <ChevronRight className={cn(
-                            "h-4 w-4 transition-transform duration-200",
-                            openTestCases[index] && "transform rotate-90"
-                          )} />
-                        </div>
-                      </button>
-                      {openTestCases[index] && (
-                        <div className="p-3 space-y-2 border-t bg-muted/30">
-                          <div className="grid grid-cols-[80px,1fr] gap-2">
-                            <span className="text-muted-foreground">Input:</span>
-                            <code className="bg-muted p-1.5 rounded">
-                              {JSON.stringify(result.input)}
-                            </code>
-                          </div>
-                          <div className="grid grid-cols-[80px,1fr] gap-2">
-                            <span className="text-muted-foreground">Expected:</span>
-                            <code className="bg-muted p-1.5 rounded">
-                              {JSON.stringify(result.expected)}
-                            </code>
-                          </div>
-                          {!result.passed && result.output !== undefined && (
-                            <div className="grid grid-cols-[80px,1fr] gap-2">
-                              <span className="text-muted-foreground">Output:</span>
-                              <code className="bg-muted p-1.5 rounded text-destructive">
-                                {JSON.stringify(result.output)}
-                              </code>
-                            </div>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                </div>
+                <div>Console output will go here...</div>
               </>
+            ) : (
+              /* Test Cases */
+              <div className="space-y-2">
+                {results.map((result, index) => (
+                  <div
+                    key={index}
+                    className={cn(
+                      "border rounded-lg overflow-hidden transition-colors duration-200",
+                      result.passed ? "hover:border-green-500/50" : "hover:border-red-500/50"
+                    )}
+                  >
+                    <button
+                      className="flex items-center justify-between w-full p-3 hover:bg-muted/50 transition-colors"
+                      onClick={() => toggleTestCase(index)}
+                    >
+                      <div className="flex items-center gap-2">
+                        {result.passed ? (
+                          <CheckCircle2 className="h-5 w-5 text-green-500" />
+                        ) : (
+                          <XCircle className="h-5 w-5 text-red-500" />
+                        )}
+                        <span className="font-medium">Test Case {index + 1}</span>
+                      </div>
+                      <div className="flex items-center gap-4">
+                        {result.runtime !== undefined && result.memory !== undefined && (
+                          <div className="flex items-center gap-4 text-xs text-muted-foreground">
+                            <div className="flex items-center gap-1">
+                              <Clock className="h-3 w-3" />
+                              {result.runtime}ms
+                            </div>
+                            <div className="flex items-center gap-1">
+                              <Cpu className="h-3 w-3" />
+                              {result.memory}MB
+                            </div>
+                          </div>
+                        )}
+                        <ChevronRight className={cn(
+                          "h-4 w-4 transition-transform duration-200",
+                          openTestCases[index] && "transform rotate-90"
+                        )} />
+                      </div>
+                    </button>
+                    {openTestCases[index] && (
+                      <div className="p-3 space-y-2 border-t bg-muted/30">
+                        <div className="grid grid-cols-[80px,1fr] gap-2">
+                          <span className="text-muted-foreground">Input:</span>
+                          <code className="bg-muted p-1.5 rounded">
+                            {JSON.stringify(result.input)}
+                          </code>
+                        </div>
+                        <div className="grid grid-cols-[80px,1fr] gap-2">
+                          <span className="text-muted-foreground">Expected:</span>
+                          <code className="bg-muted p-1.5 rounded">
+                            {JSON.stringify(result.expected)}
+                          </code>
+                        </div>
+                        {!result.passed && result.output !== undefined && (
+                          <div className="grid grid-cols-[80px,1fr] gap-2">
+                            <span className="text-muted-foreground">Output:</span>
+                            <code className="bg-muted p-1.5 rounded text-destructive">
+                              {JSON.stringify(result.output)}
+                            </code>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
             )}
           </div>
         </ScrollArea>
