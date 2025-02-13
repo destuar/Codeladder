@@ -1,11 +1,12 @@
 import React from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { api } from '../../lib/api';
+import { api } from '@/lib/api';
 import { useAuth } from '@/features/auth/AuthContext';
 import InfoProblem from './components/InfoProblem';
 import CodingProblem from './components/CodingProblem';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { ErrorBoundary } from '@/components/ErrorBoundary';
 
 export type Problem = {
   id: string;
@@ -24,6 +25,7 @@ export type Problem = {
 const ProblemPage: React.FC = () => {
   const { problemId } = useParams<{ problemId: string }>();
   const { token } = useAuth();
+  const navigate = useNavigate();
   
   const { data: problem, isLoading, error } = useQuery<Problem>({
     queryKey: ['problem', problemId],
@@ -48,37 +50,29 @@ const ProblemPage: React.FC = () => {
   }
 
   return (
-    <div className="container max-w-5xl mx-auto py-8">
-      <div className="space-y-6">
-        <Card className="bg-muted/50">
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <h1 className="text-3xl font-bold">{problem.name}</h1>
-                <p className="text-muted-foreground mt-2">
-                  Difficulty: {problem.difficulty.replace(/_/g, ' ')}
-                </p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        {problem.problemType === 'INFO' ? (
-          <InfoProblem 
-            content={problem.content}
-            isCompleted={problem.isCompleted}
-            nextProblemId={problem.nextProblemId}
-            prevProblemId={problem.prevProblemId}
-            estimatedTime={problem.estimatedTime}
-          />
-        ) : (
+    <div className="h-[calc(100vh-4rem)] overflow-hidden">
+      {problem.problemType === 'INFO' ? (
+        <InfoProblem 
+          content={problem.content}
+          isCompleted={problem.isCompleted}
+          nextProblemId={problem.nextProblemId}
+          prevProblemId={problem.prevProblemId}
+          estimatedTime={problem.estimatedTime}
+        />
+      ) : (
+        <ErrorBoundary>
           <CodingProblem 
+            title={problem.name}
             content={problem.content}
             codeTemplate={problem.codeTemplate}
             testCases={problem.testCases}
+            difficulty={problem.difficulty}
+            nextProblemId={problem.nextProblemId}
+            prevProblemId={problem.prevProblemId}
+            onNavigate={(id) => navigate(`/problems/${id}`)}
           />
-        )}
-      </div>
+        </ErrorBoundary>
+      )}
     </div>
   );
 };
