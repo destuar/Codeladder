@@ -2,10 +2,11 @@ import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
 import env from '../../config/env';
 import { prisma } from '../../config/db';
+import { Role } from '@prisma/client';
 
 interface JwtPayload {
   userId: string;
-  role: 'USER' | 'ADMIN' | 'DEVELOPER';
+  tokenVersion: number;
 }
 
 declare global {
@@ -13,7 +14,10 @@ declare global {
     interface Request {
       user?: {
         id: string;
-        role: 'USER' | 'ADMIN' | 'DEVELOPER';
+        email: string;
+        name: string | null;
+        role: Role;
+        tokenVersion: number;
       };
     }
   }
@@ -35,11 +39,22 @@ export const authenticate = async (
 
     const user = await prisma.user.findUnique({
       where: { id: decoded.userId },
-      select: { id: true, role: true },
+      select: { 
+        id: true,
+        email: true,
+        name: true,
+        role: true,
+        tokenVersion: true
+      },
     });
 
     if (!user) {
       return res.status(401).json({ error: 'User not found' });
+    }
+
+    // Check token version
+    if (user.tokenVersion !== decoded.tokenVersion) {
+      return res.status(401).json({ error: 'Token has been revoked' });
     }
 
     req.user = user;
@@ -49,14 +64,14 @@ export const authenticate = async (
   }
 };
 
-export const authorize = (...roles: ('USER' | 'ADMIN' | 'DEVELOPER')[]) => {
+export const authorize = (...roles: Role[]) => {
   return (req: Request, res: Response, next: NextFunction) => {
     if (!req.user) {
-      return res.status(401).json({ error: 'Not authenticated' });
+      return res.status(401).json({ error: 'Authentication required' });
     }
 
     if (!roles.includes(req.user.role)) {
-      return res.status(403).json({ error: 'Not authorized' });
+      return res.status(403).json({ error: 'Insufficient permissions' });
     }
 
     next();
