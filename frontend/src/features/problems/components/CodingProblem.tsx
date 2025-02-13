@@ -8,6 +8,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import Editor from "@monaco-editor/react";
 import { ChevronLeft, ChevronRight, Play, Send, Timer, Code2, CheckCircle2, XCircle, GripVertical } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { Console } from "@/components/ui/console";
 
 interface TestCase {
   input: any[];
@@ -16,10 +17,11 @@ interface TestCase {
 
 interface TestResult {
   passed: boolean;
-  message: string;
   input: any[];
   expected: any;
   output?: any;
+  runtime?: number;
+  memory?: number;
 }
 
 interface CodingProblemProps {
@@ -50,6 +52,7 @@ export default function CodingProblem({
 }: CodingProblemProps) {
   const [code, setCode] = useState(codeTemplate);
   const [activeTab, setActiveTab] = useState("description");
+  const [consoleResults, setConsoleResults] = useState<TestResult[]>([]);
   const [testResults, setTestResults] = useState<TestResult[]>([]);
   const [isRunning, setIsRunning] = useState(false);
   const [activeTestTab, setActiveTestTab] = useState("testcase-1");
@@ -57,9 +60,11 @@ export default function CodingProblem({
   const [leftPanelWidth, setLeftPanelWidth] = useState(window.innerWidth * 0.4);
   const [isDragging, setIsDragging] = useState(false);
   const [isCollapsed, setIsCollapsed] = useState(false);
-  const [lastClickTime, setLastClickTime] = useState(0);
   const [startX, setStartX] = useState(0);
   const [startWidth, setStartWidth] = useState(0);
+  const [lastClickTime, setLastClickTime] = useState(0);
+  const [consoleOutput, setConsoleOutput] = useState<string[]>([]);
+  const [isConsoleOpen, setIsConsoleOpen] = useState(true);
   const dragHandleRef = useRef<HTMLDivElement>(null);
   const editorRef = useRef<any>(null);
   const editorContainerRef = useRef<HTMLDivElement>(null);
@@ -183,10 +188,10 @@ export default function CodingProblem({
   }, []);
 
   const handleMouseDown = (e: React.MouseEvent) => {
+    e.preventDefault();
     setIsDragging(true);
     setStartX(e.clientX);
     setStartWidth(leftPanelWidth);
-    e.preventDefault();
     
     // Handle double click
     const clickTime = new Date().getTime();
@@ -225,28 +230,38 @@ export default function CodingProblem({
 
   const handleRunTests = async () => {
     setIsRunning(true);
-    // TODO: Implement actual code execution
-    // This is a mock implementation with proper error checking
+    setConsoleResults([]);
+    
+    // Mock implementation with runtime and memory stats
     setTimeout(() => {
-      const mockResults = testCases.map((testCase, index) => ({
-        passed: index === 0, // First test passes, others fail
-        message: index === 0 ? "Test case passed" : "Test case failed",
-        input: testCase.input,
-        expected: testCase.expected,
-        output: index === 0 ? testCase.expected : "different result"
-      }));
+      const mockResults = testCases.map((testCase, index) => {
+        const passed = index === 0;
+        const runtime = Math.floor(Math.random() * 100) + 1; // Mock runtime between 1-100ms
+        const memory = Math.floor(Math.random() * 40) + 10; // Mock memory usage between 10-50MB
+        
+        return {
+          passed,
+          input: testCase.input,
+          expected: testCase.expected,
+          output: passed ? testCase.expected : "different result",
+          runtime,
+          memory
+        };
+      });
 
       // If no test cases, show a message
       if (mockResults.length === 0) {
         mockResults.push({
           passed: false,
-          message: "No test cases available",
           input: [],
           expected: "N/A",
-          output: "N/A"
+          output: "N/A",
+          runtime: 0,
+          memory: 0
         });
       }
 
+      setConsoleResults(mockResults);
       setTestResults(mockResults);
       setIsRunning(false);
     }, 1000);
@@ -277,6 +292,10 @@ export default function CodingProblem({
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
   }, []);
+
+  const clearConsole = () => {
+    setConsoleOutput([]);
+  };
 
   return (
     <div className="flex h-[calc(100vh-3.5rem)] bg-background">
@@ -309,28 +328,23 @@ export default function CodingProblem({
         </ScrollArea>
       </div>
 
-      {/* Enhanced draggable divider */}
+      {/* Resize handle */}
       <div
         ref={dragHandleRef}
         className={cn(
-          "relative w-1 hover:w-2 group flex items-center justify-center",
-          "transition-all duration-200",
-          isDragging ? "bg-primary/50" : "bg-border hover:bg-border/80"
+          "relative w-2 -ml-1 -mr-1 group",
+          "cursor-ew-resize hover:bg-border/50 z-50",
+          isDragging && "bg-border/50"
         )}
         onMouseDown={handleMouseDown}
       >
-        {/* Handle bar */}
-        <div className={cn(
-          "absolute inset-y-0 -ml-0.5 flex items-center justify-center",
-          "opacity-0 group-hover:opacity-100 transition-opacity"
-        )}>
+        <div className="absolute inset-y-0 left-1/2 -translate-x-1/2 flex items-center">
           <div className={cn(
-            "h-16 w-1 flex flex-col items-center justify-center gap-1",
-            "rounded-full"
+            "h-16 rounded-sm flex items-center justify-center",
+            "opacity-0 group-hover:opacity-100 transition-opacity",
+            isDragging && "opacity-100"
           )}>
-            <div className="w-0.5 h-1 rounded-full bg-muted-foreground/50" />
-            <div className="w-0.5 h-1 rounded-full bg-muted-foreground/50" />
-            <div className="w-0.5 h-1 rounded-full bg-muted-foreground/50" />
+            <GripVertical className="h-4 w-4 text-muted-foreground" />
           </div>
         </div>
 
@@ -355,8 +369,8 @@ export default function CodingProblem({
       </div>
 
       {/* Right panel - Code editor and test cases */}
-      <div className="flex-1">
-        <Tabs defaultValue="code" className="flex flex-col h-full">
+      <div className="flex-1 flex flex-col">
+        <Tabs defaultValue="code" className="flex-1 flex flex-col">
           <div className="border-b px-6">
             <TabsList className="bg-muted">
               <TabsTrigger value="code">Code</TabsTrigger>
@@ -402,6 +416,15 @@ export default function CodingProblem({
                   className="absolute inset-0"
                 />
               </div>
+              
+              {/* Updated Console */}
+              <Console
+                results={consoleResults}
+                isOpen={isConsoleOpen}
+                onToggle={() => setIsConsoleOpen(!isConsoleOpen)}
+                onClear={() => setConsoleResults([])}
+                isRunning={isRunning}
+              />
             </TabsContent>
 
             <TabsContent value="testcases" className="h-full data-[state=active]:flex flex-col">
@@ -444,11 +467,30 @@ export default function CodingProblem({
             </TabsContent>
           </div>
 
-          <div className="border-t bg-muted/50 p-4 mt-auto">
+          <div className="border-t bg-muted/50 p-4">
             <div className="flex justify-between gap-4">
               <div className="flex gap-2">
-                <Button onClick={handleRunTests}>Run Tests</Button>
-                <Button variant="outline" onClick={handleSubmit}>Submit</Button>
+                <Button 
+                  onClick={handleRunTests} 
+                  disabled={isRunning}
+                  className="gap-2"
+                >
+                  {isRunning ? (
+                    <>
+                      <div className="h-4 w-4 animate-spin rounded-full border-2 border-background border-t-foreground" />
+                      Running...
+                    </>
+                  ) : (
+                    <>
+                      <Play className="h-4 w-4" />
+                      Run Tests
+                    </>
+                  )}
+                </Button>
+                <Button variant="outline" onClick={handleSubmit} className="gap-2">
+                  <Send className="h-4 w-4" />
+                  Submit
+                </Button>
               </div>
               <div className="flex gap-2">
                 {prevProblemId && (
