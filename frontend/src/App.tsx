@@ -15,6 +15,7 @@ import { Navbar } from "@/components/Navbar";
 import OAuthCallback from './features/auth/OAuthCallback';
 import TopicPage from './features/topics/TopicPage';
 import ProblemPage from './features/problems/ProblemPage';
+import { InfoPage } from '@/features/info/InfoPage';
 
 // Regular components
 const UnauthorizedPage = () => (
@@ -93,6 +94,15 @@ function App() {
                         <AdminViewWrapper>
                           <ProblemPage />
                         </AdminViewWrapper>
+                      </ProtectedRoute>
+                    }
+                  />
+
+                  <Route
+                    path="/info/:id"
+                    element={
+                      <ProtectedRoute>
+                        <InfoPage />
                       </ProtectedRoute>
                     }
                   />

@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { ThemeToggle } from './ThemeToggle';
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { useProfile } from '@/features/profile/ProfileContext';
+import { GlobalSearch } from './GlobalSearch';
 
 export function Navigation() {
   const { user, logout } = useAuth();
@@ -19,6 +20,9 @@ export function Navigation() {
             <Link to="/" className="text-xl font-bold" style={{ fontFamily: "'Patrick Hand', cursive" }}>
               SmarterStruct
             </Link>
+            <div className="w-72">
+              <GlobalSearch />
+            </div>
             {user && (
               <Link to="/dashboard" className="text-sm font-medium text-muted-foreground hover:text-foreground">
                 Dashboard

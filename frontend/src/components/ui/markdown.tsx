@@ -5,6 +5,7 @@ import { oneDark } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import remarkGfm from 'remark-gfm';
 import type { CodeComponent } from 'react-markdown/lib/ast-to-react';
 import type { ReactMarkdownOptions } from 'react-markdown/lib/react-markdown';
+import { Link } from 'react-router-dom';
 
 interface MarkdownProps {
   content: string;
@@ -45,6 +46,30 @@ export function Markdown({ content, className = '' }: MarkdownProps) {
         {children}
       </blockquote>
     ),
+    a: ({ href, children }) => {
+      // Check if it's an internal link
+      if (href?.startsWith('/')) {
+        return (
+          <Link 
+            to={href} 
+            className="font-semibold text-primary hover:text-primary/80 hover:underline"
+          >
+            {children}
+          </Link>
+        );
+      }
+      // External link
+      return (
+        <a 
+          href={href} 
+          target="_blank" 
+          rel="noopener noreferrer"
+          className="font-semibold text-primary hover:text-primary/80 hover:underline"
+        >
+          {children}
+        </a>
+      );
+    },
   };
 
   return (
