@@ -53,6 +53,18 @@ type DraggedProblem = Problem & {
   currentIndex: number;
 };
 
+type ProblemData = {
+  name: string;
+  content: string;
+  difficulty: ProblemDifficulty;
+  required: boolean;
+  reqOrder: number;
+  problemType: ProblemType;
+  topicId: string;
+  codeTemplate?: string;
+  testCases?: string;
+};
+
 const updateLevel = (level: Level, updates: Partial<Level>): Level => ({
   ...level,
   ...updates,
@@ -203,31 +215,36 @@ export function LearningPathAdmin() {
   const handleAddProblem = async () => {
     if (!selectedTopic) return;
     try {
-      // Parse test cases if provided as a string, or use default
-      let parsedTestCases;
-      if (newProblem.problemType === 'CODING') {
-        try {
-          parsedTestCases = newProblem.testCases ? JSON.parse(newProblem.testCases) : [{ input: [], expected: "test" }];
-        } catch (e) {
-          console.error('Error parsing test cases:', e);
-          toast.error('Invalid test cases JSON format');
-          return;
-        }
-      }
-
-      const problemData = {
+      // Base problem data without coding-specific fields
+      const problemData: ProblemData = {
         name: newProblem.name || "Test Problem",
         content: newProblem.content || "This is a test problem content",
         difficulty: newProblem.difficulty || "EASY_I",
         required: newProblem.required || false,
         reqOrder: newProblem.reqOrder || 1,
         problemType: newProblem.problemType || "INFO",
-        topicId: selectedTopic.id,
-        ...(newProblem.problemType === 'CODING' ? {
-          codeTemplate: newProblem.codeTemplate || "function solution() {\n  // Your code here\n}",
-          testCases: parsedTestCases
-        } : {})
+        topicId: selectedTopic.id
       };
+
+      // Add coding-specific fields only if it's a coding problem
+      if (newProblem.problemType === 'CODING') {
+        // Add code template if provided
+        if (newProblem.codeTemplate) {
+          problemData.codeTemplate = newProblem.codeTemplate;
+        }
+
+        // Add test cases only if they are provided and valid
+        if (newProblem.testCases && newProblem.testCases.trim() !== '') {
+          try {
+            const testCasesObj = JSON.parse(newProblem.testCases);
+            problemData.testCases = JSON.stringify(testCasesObj);
+          } catch (e) {
+            console.error('Error parsing test cases:', e);
+            toast.error('Invalid test cases JSON format');
+            return;
+          }
+        }
+      }
 
       await api.post('/problems', problemData, token);
       setIsAddingProblem(false);

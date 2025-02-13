@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Markdown } from "@/components/ui/markdown";
 import { Button } from "@/components/ui/button";
@@ -27,10 +27,10 @@ interface CodingProblemProps {
   content: string;
   codeTemplate?: string;
   testCases?: string;
-  difficulty: 'EASY_IIII' | 'EASY_III' | 'EASY_II' | 'EASY_I' | 'MEDIUM' | 'HARD';
+  difficulty: string;
   nextProblemId?: string;
   prevProblemId?: string;
-  onNavigate?: (problemId: string) => void;
+  onNavigate: (id: string) => void;
 }
 
 const MIN_PANEL_WIDTH = 300;
@@ -38,7 +38,7 @@ const MAX_PANEL_WIDTH = 800;
 const COLLAPSED_WIDTH = 0;
 const DOUBLE_CLICK_TIMEOUT = 300;
 
-const CodingProblem: React.FC<CodingProblemProps> = ({ 
+export default function CodingProblem({ 
   title,
   content, 
   codeTemplate = "function solution() {\n  // Write your code here\n}", 
@@ -47,7 +47,7 @@ const CodingProblem: React.FC<CodingProblemProps> = ({
   nextProblemId,
   prevProblemId,
   onNavigate
-}) => {
+}: CodingProblemProps) {
   const [code, setCode] = useState(codeTemplate);
   const [activeTab, setActiveTab] = useState("description");
   const [testResults, setTestResults] = useState<TestResult[]>([]);
@@ -64,7 +64,20 @@ const CodingProblem: React.FC<CodingProblemProps> = ({
   const editorRef = useRef<any>(null);
   const editorContainerRef = useRef<HTMLDivElement>(null);
   
-  const testCases: TestCase[] = testCasesString ? JSON.parse(testCasesString) : [];
+  // Parse test cases with error handling
+  const testCases: TestCase[] = useMemo(() => {
+    if (!testCasesString) return [];
+    try {
+      // If it's already an object, stringify it first
+      const jsonString = typeof testCasesString === 'object' 
+        ? JSON.stringify(testCasesString)
+        : testCasesString;
+      return JSON.parse(jsonString);
+    } catch (error) {
+      console.error('Error parsing test cases:', error);
+      return [];
+    }
+  }, [testCasesString]);
 
   // Add editor mount handler
   const handleEditorDidMount = (editor: any) => {
@@ -451,6 +464,4 @@ const CodingProblem: React.FC<CodingProblemProps> = ({
       </div>
     </div>
   );
-};
-
-export default CodingProblem; 
+} 

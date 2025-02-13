@@ -1,11 +1,12 @@
 import React from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { api } from '../../lib/api';
+import { api } from '@/lib/api';
 import { useAuth } from '@/features/auth/AuthContext';
 import InfoProblem from './components/InfoProblem';
 import CodingProblem from './components/CodingProblem';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { ErrorBoundary } from '@/components/ErrorBoundary';
 
 export type Problem = {
   id: string;
@@ -59,16 +60,18 @@ const ProblemPage: React.FC = () => {
           estimatedTime={problem.estimatedTime}
         />
       ) : (
-        <CodingProblem 
-          content={problem.content}
-          codeTemplate={problem.codeTemplate}
-          testCases={problem.testCases}
-          difficulty={problem.difficulty}
-          nextProblemId={problem.nextProblemId}
-          prevProblemId={problem.prevProblemId}
-          onNavigate={(id) => navigate(`/problems/${id}`)}
-          title={problem.name}
-        />
+        <ErrorBoundary>
+          <CodingProblem 
+            title={problem.name}
+            content={problem.content}
+            codeTemplate={problem.codeTemplate}
+            testCases={problem.testCases}
+            difficulty={problem.difficulty}
+            nextProblemId={problem.nextProblemId}
+            prevProblemId={problem.prevProblemId}
+            onNavigate={(id) => navigate(`/problems/${id}`)}
+          />
+        </ErrorBoundary>
       )}
     </div>
   );
