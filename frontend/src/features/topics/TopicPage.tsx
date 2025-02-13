@@ -161,10 +161,10 @@ export default function TopicPage() {
       </div>
 
       <Card>
-        <CardHeader>
+        {/* <CardHeader>
           <CardTitle>Overview</CardTitle>
           <CardDescription>{topic.description}</CardDescription>
-        </CardHeader>
+        </CardHeader> */}
         <CardContent>
           <Markdown content={topic.content || ''} />
         </CardContent>
