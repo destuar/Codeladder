@@ -19,6 +19,7 @@ import { toast } from "sonner";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useAuth } from "@/features/auth/AuthContext";
 import { Link } from "react-router-dom";
+import { Badge } from "@/components/ui/badge";
 
 type ProblemDifficulty = 'EASY_IIII' | 'EASY_III' | 'EASY_II' | 'EASY_I' | 'MEDIUM' | 'HARD';
 type ProblemType = 'INFO' | 'CODING';
@@ -573,7 +574,12 @@ export function LearningPathAdmin() {
                               <div>
                                 <div className="font-medium">{problem.name}</div>
                                 <div className="text-sm text-muted-foreground">
-                                  {problem.difficulty} • {problem.required ? `Required (${problem.reqOrder})` : 'Optional'} • {problem.problemType}
+                                  <span className="inline-flex items-center">
+                                    <Badge variant={problem.required ? "outline" : "secondary"} className="mr-2 w-[4.5rem] justify-center">
+                                      {problem.required ? `REQ ${problem.reqOrder}` : `OPT ${problem.reqOrder}`}
+                                    </Badge>
+                                    {problem.difficulty} • {problem.problemType}
+                                  </span>
                                 </div>
                               </div>
                             </div>

@@ -247,9 +247,9 @@ export default function TopicPage() {
                     </TableCell>
                     <TableCell>
                       {problem.required ? (
-                        <Badge variant="secondary">REQ {problem.reqOrder}</Badge>
+                        <Badge variant="outline">REQ {problem.reqOrder}</Badge>
                       ) : (
-                        problem.reqOrder || '-'
+                        <Badge variant="secondary">OPT {problem.reqOrder}</Badge>
                       )}
                     </TableCell>
                     <TableCell className="font-medium">{problem.name}</TableCell>
