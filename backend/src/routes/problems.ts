@@ -179,4 +179,32 @@ router.put('/:problemId', authenticateToken, authorizeRoles([Role.ADMIN, Role.DE
   }
 }) as RequestHandler);
 
+// Reorder problems endpoint
+router.post('/reorder', authenticateToken, authorizeRoles([Role.ADMIN, Role.DEVELOPER]), (async (req, res) => {
+  try {
+    const { problemOrders } = req.body;
+    // problemOrders should be an array of { id: string, reqOrder: number }
+
+    // Validate input
+    if (!Array.isArray(problemOrders)) {
+      return res.status(400).json({ error: 'problemOrders must be an array' });
+    }
+
+    // Perform all updates in a transaction to ensure consistency
+    const result = await prisma.$transaction(
+      problemOrders.map(({ id, reqOrder }) =>
+        prisma.problem.update({
+          where: { id },
+          data: { reqOrder }
+        })
+      )
+    );
+
+    res.json(result);
+  } catch (error) {
+    console.error('Error reordering problems:', error);
+    res.status(500).json({ error: 'Failed to reorder problems' });
+  }
+}) as RequestHandler);
+
 export default router; 

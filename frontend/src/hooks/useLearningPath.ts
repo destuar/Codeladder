@@ -34,37 +34,33 @@ export interface Level {
 }
 
 export function useLearningPath() {
+  const { token } = useAuth();
   const [levels, setLevels] = useState<Level[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const { token } = useAuth();
+  const [version, setVersion] = useState(0);
 
   useEffect(() => {
-    const fetchLearningPath = async () => {
+    const fetchLevels = async () => {
       try {
         setLoading(true);
-        console.log('Fetching learning path data...');
-        const response = await api.get('/learning/levels');
-        console.log('Learning path response:', response);
-        
-        if (!Array.isArray(response)) {
-          console.error('Expected array of levels, got:', typeof response);
-          setError('Invalid data format received from server');
-          return;
-        }
-
+        const response = await api.get('/learning/levels', token);
         setLevels(response);
         setError(null);
       } catch (err) {
-        console.error('Error fetching learning path:', err);
-        setError('Failed to load learning path data');
+        console.error('Error fetching levels:', err);
+        setError('Failed to load learning path');
       } finally {
         setLoading(false);
       }
     };
 
-    fetchLearningPath();
-  }, [token]);
+    fetchLevels();
+  }, [token, version]);
 
-  return { levels, loading, error };
+  const refresh = () => {
+    setVersion(v => v + 1);
+  };
+
+  return { levels, loading, error, refresh, setLevels };
 } 
