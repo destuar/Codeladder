@@ -8,6 +8,7 @@ import cookieParser from 'cookie-parser';
 import adminRoutes from './api/admin/route';
 import learningRoutes from './routes/learning';
 import problemsRouter from './routes/problems';
+import standaloneInfoRoutes from './routes/standalone-info';
 
 const app = express();
 
@@ -51,6 +52,7 @@ app.use('/api/profile', profileRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/learning', learningRoutes);
 app.use('/api/problems', problemsRouter);
+app.use('/api/standalone-info', standaloneInfoRoutes);
 
 // Root endpoint
 app.get('/', (req, res) => {

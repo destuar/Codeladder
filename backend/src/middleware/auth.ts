@@ -44,4 +44,22 @@ export const authenticateToken: RequestHandler = async (req, res, next) => {
     res.status(401).json({ error: 'Invalid token' });
     return;
   }
+};
+
+// Middleware to require authentication
+export const requireAuth: RequestHandler = (req, res, next) => {
+  if (!req.user) {
+    res.status(401).json({ error: 'Authentication required' });
+    return;
+  }
+  next();
+};
+
+// Middleware to require admin role
+export const requireAdmin: RequestHandler = (req, res, next) => {
+  if (!req.user || (req.user.role !== 'ADMIN' && req.user.role !== 'DEVELOPER')) {
+    res.status(403).json({ error: 'Admin access required' });
+    return;
+  }
+  next();
 }; 

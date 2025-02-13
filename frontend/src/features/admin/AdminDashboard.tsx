@@ -17,6 +17,7 @@ import { Badge } from '@/components/ui/badge';
 import { LevelSystem } from '@/features/learning/components/LevelSystem';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { LearningPathAdmin } from "./components/LearningPathAdmin";
+import { StandaloneInfoAdmin } from "./components/StandaloneInfoAdmin";
 import { Card } from "@/components/ui/card";
 
 interface AdminData {
@@ -206,11 +207,16 @@ export function AdminDashboard() {
         <Tabs defaultValue="editor" className="space-y-4">
           <TabsList>
             <TabsTrigger value="editor">Learning Path Editor</TabsTrigger>
+            <TabsTrigger value="info">Standalone Info Pages</TabsTrigger>
             <TabsTrigger value="preview">User View Preview</TabsTrigger>
           </TabsList>
 
           <TabsContent value="editor" className="space-y-4">
             <LearningPathAdmin />
+          </TabsContent>
+
+          <TabsContent value="info" className="space-y-4">
+            <StandaloneInfoAdmin />
           </TabsContent>
 
           <TabsContent value="preview" className="space-y-4">

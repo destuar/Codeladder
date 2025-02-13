@@ -67,29 +67,49 @@ export default function TopicPage() {
   const navigate = useNavigate();
   const [sortField, setSortField] = useState<SortField>('order');
   const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
+  const [isTokenInitialized, setIsTokenInitialized] = useState(false);
+
+  useEffect(() => {
+    if (token) {
+      console.log('Token initialized:', token.substring(0, 20) + '...');
+      setIsTokenInitialized(true);
+    } else {
+      console.log('Waiting for token initialization...');
+    }
+  }, [token]);
 
   useEffect(() => {
     const fetchTopic = async () => {
+      if (!token || !isTokenInitialized) {
+        console.log('Skipping fetch - Token ready:', !!token, 'Initialized:', isTokenInitialized);
+        return;
+      }
+
       try {
         setLoading(true);
         console.log('Fetching topic with ID:', topicId);
+        console.log('Auth state - Token:', token.substring(0, 20) + '...', 'Initialized:', isTokenInitialized);
         const response = await api.get(`/learning/topics/${topicId}`, token);
         console.log('Topic API response:', response);
-        console.log('Topic data:', response);
+        if (!response) {
+          throw new Error('No data received from API');
+        }
         setTopic(response);
         setError(null);
       } catch (err) {
         console.error('Error fetching topic:', err);
         setError('Failed to load topic data');
+        setTopic(null);
       } finally {
         setLoading(false);
       }
     };
 
-    if (topicId) {
+    // Only set loading true if we're actually going to fetch
+    if (topicId && token && isTokenInitialized) {
       fetchTopic();
     }
-  }, [topicId, token]);
+  }, [topicId, token, isTokenInitialized]);
 
   const handleSort = (field: SortField) => {
     if (sortField === field) {
@@ -123,6 +143,20 @@ export default function TopicPage() {
     });
   };
 
+  // Early return for loading state while waiting for token
+  if (!token || !isTokenInitialized) {
+    return (
+      <div className="container py-8">
+        <Card>
+          <CardContent className="p-6">
+            <h2 className="text-xl font-semibold">Initializing...</h2>
+            <p className="mt-2">Setting up your session...</p>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
   if (loading) {
     return (
       <div className="container py-8">
@@ -141,7 +175,14 @@ export default function TopicPage() {
         <Card>
           <CardContent className="p-6">
             <h2 className="text-xl font-semibold text-destructive">Topic Not Found</h2>
-            <p className="mt-2">{error || 'The requested topic does not exist.'}</p>
+            <p className="mt-2">{error || 'The requested topic could not be loaded.'}</p>
+            <Button 
+              variant="outline" 
+              className="mt-4"
+              onClick={() => window.location.reload()}
+            >
+              Retry Loading
+            </Button>
           </CardContent>
         </Card>
       </div>

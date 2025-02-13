@@ -30,6 +30,7 @@ export default function LoginPage() {
   const onSubmit = async (data: LoginFormData) => {
     try {
       await login(data.email, data.password);
+      await new Promise(resolve => setTimeout(resolve, 100));
       navigate('/dashboard');
     } catch (err) {
       // Error is handled by the auth context
@@ -39,6 +40,7 @@ export default function LoginPage() {
   const handleSocialAuth = async (provider: 'google' | 'github' | 'apple') => {
     try {
       await loginWithProvider(provider);
+      await new Promise(resolve => setTimeout(resolve, 100));
       navigate('/dashboard');
     } catch (err) {
       // Error is handled by the auth context

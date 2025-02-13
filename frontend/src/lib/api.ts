@@ -11,11 +11,14 @@ interface ApiError extends Error {
 async function request(endpoint: string, options: RequestOptions = {}) {
   const { token, ...customOptions } = options;
 
+  // Get token from localStorage if not provided
+  const authToken = token || localStorage.getItem('token');
+
   const headers = new Headers(customOptions.headers);
   headers.set('Content-Type', 'application/json');
 
-  if (token) {
-    headers.set('Authorization', `Bearer ${token}`);
+  if (authToken) {
+    headers.set('Authorization', `Bearer ${authToken}`);
   }
 
   const config: RequestInit = {
@@ -78,35 +81,29 @@ async function request(endpoint: string, options: RequestOptions = {}) {
 
 export const api = {
   async get(endpoint: string, token?: string | null) {
-    return request(endpoint, {
-      headers: token ? { Authorization: `Bearer ${token}` } : undefined,
-      credentials: 'include',
-    });
+    return request(endpoint, { token });
   },
 
   async post(endpoint: string, data: any, token?: string | null) {
     return request(endpoint, {
       method: 'POST',
-      headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+      token,
       body: JSON.stringify(data),
-      credentials: 'include',
     });
   },
 
   async put(endpoint: string, data: any, token?: string | null) {
     return request(endpoint, {
       method: 'PUT',
-      headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+      token,
       body: JSON.stringify(data),
-      credentials: 'include',
     });
   },
 
   async delete(endpoint: string, token?: string | null) {
     return request(endpoint, {
       method: 'DELETE',
-      headers: token ? { Authorization: `Bearer ${token}` } : undefined,
-      credentials: 'include',
+      token,
     });
   },
 };
