@@ -203,24 +203,33 @@ export function LearningPathAdmin() {
   const handleAddProblem = async () => {
     if (!selectedTopic) return;
     try {
+      // Parse test cases if provided as a string, or use default
+      let parsedTestCases;
+      if (newProblem.problemType === 'CODING') {
+        try {
+          parsedTestCases = newProblem.testCases ? JSON.parse(newProblem.testCases) : [{ input: [], expected: "test" }];
+        } catch (e) {
+          console.error('Error parsing test cases:', e);
+          toast.error('Invalid test cases JSON format');
+          return;
+        }
+      }
+
       const problemData = {
-        ...newProblem,
-        // Ensure we have good test data
         name: newProblem.name || "Test Problem",
         content: newProblem.content || "This is a test problem content",
         difficulty: newProblem.difficulty || "EASY_I",
         required: newProblem.required || false,
         reqOrder: newProblem.reqOrder || 1,
         problemType: newProblem.problemType || "INFO",
+        topicId: selectedTopic.id,
         ...(newProblem.problemType === 'CODING' ? {
           codeTemplate: newProblem.codeTemplate || "function solution() {\n  // Your code here\n}",
-          testCases: newProblem.testCases || JSON.stringify([{ input: [], expected: "test" }])
+          testCases: parsedTestCases
         } : {})
       };
-      await api.post(`/problems`, {
-        ...problemData,
-        topicId: selectedTopic.id
-      }, token);
+
+      await api.post('/problems', problemData, token);
       setIsAddingProblem(false);
       setNewProblem({ 
         name: "", 
