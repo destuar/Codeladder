@@ -1,4 +1,4 @@
-import express from 'express';
+import express, { Request, Response, NextFunction } from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import env from './config/env';
@@ -9,6 +9,8 @@ import adminRoutes from './api/admin/route';
 import learningRoutes from './routes/learning';
 import problemsRouter from './routes/problems';
 import standaloneInfoRoutes from './routes/standalone-info';
+import { errorHandler } from './middleware/errorHandler';
+import { apiLimiter, authLimiter, registerLimiter } from './middleware/rateLimit';
 
 const app = express();
 
@@ -46,6 +48,12 @@ app.options('*', cors(corsOptions));
 app.use(cors(corsOptions));
 app.use(express.json());
 
+// Apply rate limiting - specific routes first
+app.use('/api/auth/login', authLimiter);
+app.use('/api/auth/register', registerLimiter);
+// General API rate limiting last
+app.use('/api', apiLimiter);
+
 // Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/profile', profileRoutes);
@@ -72,10 +80,9 @@ app.get('/health', (req, res) => {
   res.status(200).json({ status: 'ok' });
 });
 
-// Error handling middleware
-app.use((err: Error, req: express.Request, res: express.Response, next: express.NextFunction) => {
-  console.error(err.stack);
-  res.status(500).json({ error: 'Something broke!' });
+// Error handling middleware (must be last)
+app.use((err: Error, req: Request, res: Response, next: NextFunction) => {
+  errorHandler(err, req, res, next);
 });
 
 export default app; 

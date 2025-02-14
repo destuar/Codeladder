@@ -2,10 +2,17 @@ import { Request, Response, NextFunction, RequestHandler } from 'express';
 import jwt from 'jsonwebtoken';
 import env from '../config/env';
 import { prisma } from '../config/db';
+import { User, Role } from '@prisma/client';
+import { AppError } from './errorHandler';
+
+interface JWTPayload {
+  userId: string;
+  tokenVersion: number;
+}
 
 declare module 'express' {
   interface Request {
-    user?: any;
+    user?: Pick<User, 'id' | 'email' | 'name' | 'role' | 'tokenVersion'>;
   }
 }
 
@@ -15,13 +22,11 @@ export const authenticateToken: RequestHandler = async (req, res, next) => {
     const token = authHeader && authHeader.split(' ')[1];
 
     if (!token) {
-      res.status(401).json({ error: 'No token provided' });
-      return;
+      throw new AppError(401, 'No token provided');
     }
 
-    const decoded = jwt.verify(token, env.JWT_SECRET) as jwt.JwtPayload;
+    const decoded = jwt.verify(token, env.JWT_SECRET) as JWTPayload;
     
-    // Get user from database
     const user = await prisma.user.findUnique({
       where: { id: decoded.userId },
       select: {
@@ -29,20 +34,29 @@ export const authenticateToken: RequestHandler = async (req, res, next) => {
         email: true,
         name: true,
         role: true,
+        tokenVersion: true,
       },
     });
 
     if (!user) {
-      res.status(401).json({ error: 'User not found' });
-      return;
+      throw new AppError(401, 'User not found');
     }
 
-    // Add user to request object
+    // Check if token version matches
+    if (user.tokenVersion !== decoded.tokenVersion) {
+      throw new AppError(401, 'Token has been revoked');
+    }
+
     req.user = user;
     next();
   } catch (err) {
-    res.status(401).json({ error: 'Invalid token' });
-    return;
+    if (err instanceof AppError) {
+      next(err);
+    } else if (err instanceof jwt.JsonWebTokenError) {
+      next(new AppError(401, 'Invalid token'));
+    } else {
+      next(new AppError(500, 'Authentication error'));
+    }
   }
 };
 

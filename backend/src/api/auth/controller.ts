@@ -52,17 +52,23 @@ export const register = async (req: Request, res: Response) => {
         password: hashedPassword,
         name,
         role,
+        tokenVersion: 0, // Initialize token version
       },
       select: {
         id: true,
         email: true,
         name: true,
         role: true,
+        tokenVersion: true,
       },
     });
 
     // Generate token
-    const payload: JwtPayload = { userId: user.id, role: user.role };
+    const payload: JwtPayload = { 
+      userId: user.id, 
+      role: user.role,
+      tokenVersion: user.tokenVersion 
+    };
     const token = jwt.sign(payload, env.JWT_SECRET, accessTokenOptions);
 
     res.status(201).json({ user, token });
