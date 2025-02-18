@@ -5,12 +5,29 @@ import { ChevronRight, Timer, CheckCircle } from "lucide-react";
 import { useNavigate } from 'react-router-dom';
 import { cn } from "@/lib/utils";
 
+function formatEstimatedTime(minutes: number | null | undefined): string | null {
+  if (!minutes) return null;
+  
+  if (minutes < 60) {
+    return `${minutes} min`;
+  }
+
+  const hours = Math.floor(minutes / 60);
+  const remainingMinutes = minutes % 60;
+
+  if (remainingMinutes === 0) {
+    return `${hours}h`;
+  }
+  return `${hours}h ${remainingMinutes}m`;
+}
+
 interface InfoProblemProps {
   content: string;
   isCompleted?: boolean;
   nextProblemId?: string;
   prevProblemId?: string;
-  estimatedTime?: string;
+  estimatedTime?: number;
+  isStandalone?: boolean;
 }
 
 const InfoProblem: React.FC<InfoProblemProps> = ({ 
@@ -18,19 +35,23 @@ const InfoProblem: React.FC<InfoProblemProps> = ({
   isCompleted = false,
   nextProblemId,
   prevProblemId,
-  estimatedTime = "5 min"
+  estimatedTime,
+  isStandalone = false
 }) => {
   const navigate = useNavigate();
+  const formattedTime = formatEstimatedTime(estimatedTime);
 
   return (
     <div className="h-[calc(100vh-4rem)] flex flex-col relative">
       <div className="flex-1 overflow-auto px-4 md:px-8">
         <div className="py-4">
           {/* Reading time indicator */}
-          <div className="flex items-center space-x-2 text-sm text-muted-foreground mb-4">
-            <Timer className="w-4 h-4" />
-            <span>Reading Time: {estimatedTime}</span>
-          </div>
+          {formattedTime && (
+            <div className="flex items-center space-x-2 text-sm text-muted-foreground mb-4">
+              <Timer className="w-4 h-4" />
+              <span>Reading Time: {formattedTime}</span>
+            </div>
+          )}
 
           {/* Main content */}
           <div className="prose dark:prose-invert max-w-4xl mx-auto">

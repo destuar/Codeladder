@@ -33,6 +33,23 @@ interface CodingProblemProps {
   nextProblemId?: string;
   prevProblemId?: string;
   onNavigate: (id: string) => void;
+  estimatedTime?: number;
+}
+
+function formatEstimatedTime(minutes: number | null | undefined): string | null {
+  if (!minutes) return null;
+  
+  if (minutes < 60) {
+    return `${minutes} min`;
+  }
+
+  const hours = Math.floor(minutes / 60);
+  const remainingMinutes = minutes % 60;
+
+  if (remainingMinutes === 0) {
+    return `${hours}h`;
+  }
+  return `${hours}h ${remainingMinutes}m`;
 }
 
 const MIN_PANEL_WIDTH = 300;
@@ -48,7 +65,8 @@ export default function CodingProblem({
   difficulty,
   nextProblemId,
   prevProblemId,
-  onNavigate
+  onNavigate,
+  estimatedTime,
 }: CodingProblemProps) {
   const [code, setCode] = useState(codeTemplate);
   const [activeTab, setActiveTab] = useState("description");
@@ -74,6 +92,10 @@ export default function CodingProblem({
   const editorContainerRef = useRef<HTMLDivElement>(null);
   const timerRef = useRef<NodeJS.Timeout>();
   
+  // Calculate formatted time early
+  const formattedTime = formatEstimatedTime(estimatedTime);
+  console.log('Estimated time:', estimatedTime, 'Formatted time:', formattedTime);
+
   // Parse test cases with error handling
   const testCases: TestCase[] = useMemo(() => {
     if (!testCasesString) return [];
@@ -424,7 +446,7 @@ export default function CodingProblem({
                   </Badge>
                   <div className="flex items-center text-sm text-muted-foreground">
                     <Timer className="w-4 h-4 mr-1" />
-                    <span>45 min</span>
+                    <span>{formattedTime}</span>
                   </div>
                 </div>
               </div>

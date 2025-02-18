@@ -46,6 +46,7 @@ type NewProblem = {
   problemType: ProblemType;
   codeTemplate?: string;
   testCases?: string;
+  estimatedTime?: number;
 };
 
 type DraggedProblem = Problem & {
@@ -63,6 +64,7 @@ type ProblemData = {
   topicId: string;
   codeTemplate?: string;
   testCases?: string;
+  estimatedTime?: number;
 };
 
 const updateLevel = (level: Level, updates: Partial<Level>): Level => ({
@@ -122,7 +124,8 @@ export function LearningPathAdmin() {
     reqOrder: 1,
     problemType: "INFO",
     codeTemplate: "",
-    testCases: ""
+    testCases: "",
+    estimatedTime: undefined
   });
 
   const [isDragging, setIsDragging] = useState(false);
@@ -217,23 +220,22 @@ export function LearningPathAdmin() {
     try {
       // Base problem data without coding-specific fields
       const problemData: ProblemData = {
-        name: newProblem.name || "Test Problem",
-        content: newProblem.content || "This is a test problem content",
-        difficulty: newProblem.difficulty || "EASY_I",
-        required: newProblem.required || false,
-        reqOrder: newProblem.reqOrder || 1,
-        problemType: newProblem.problemType || "INFO",
-        topicId: selectedTopic.id
+        name: newProblem.name,
+        content: newProblem.content,
+        difficulty: newProblem.difficulty,
+        required: newProblem.required,
+        reqOrder: newProblem.reqOrder,
+        problemType: newProblem.problemType,
+        topicId: selectedTopic.id,
+        ...(newProblem.estimatedTime ? { estimatedTime: newProblem.estimatedTime } : {})
       };
 
       // Add coding-specific fields only if it's a coding problem
       if (newProblem.problemType === 'CODING') {
-        // Add code template if provided
         if (newProblem.codeTemplate) {
           problemData.codeTemplate = newProblem.codeTemplate;
         }
 
-        // Add test cases only if they are provided and valid
         if (newProblem.testCases && newProblem.testCases.trim() !== '') {
           try {
             const testCasesObj = JSON.parse(newProblem.testCases);
@@ -256,7 +258,8 @@ export function LearningPathAdmin() {
         reqOrder: 1,
         problemType: "INFO",
         codeTemplate: "",
-        testCases: ""
+        testCases: "",
+        estimatedTime: undefined
       });
       setSelectedTopic(null);
       toast.success("Problem added successfully");
@@ -284,7 +287,8 @@ export function LearningPathAdmin() {
         ...(selectedProblem.problemType === 'CODING' ? {
           codeTemplate: selectedProblem.codeTemplate,
           testCases: selectedProblem.testCases
-        } : {})
+        } : {}),
+        ...(selectedProblem.estimatedTime ? { estimatedTime: selectedProblem.estimatedTime } : {})
       };
       await api.put(`/problems/${selectedProblem.id}`, updatedProblem, token);
       setIsEditingProblem(false);
@@ -913,6 +917,21 @@ export function LearningPathAdmin() {
                 min={1}
               />
             </div>
+            <div className="grid gap-2">
+              <Label htmlFor="estimatedTime">Estimated Time (minutes)</Label>
+              <Input
+                id="estimatedTime"
+                name="estimatedTime"
+                type="number"
+                value={newProblem.estimatedTime || ''}
+                onChange={(e) => {
+                  const value = e.target.value ? parseInt(e.target.value) : undefined;
+                  setNewProblem(prev => ({ ...prev, estimatedTime: value }));
+                }}
+                min={1}
+                placeholder="Leave empty for no estimate"
+              />
+            </div>
             <div className="flex items-center gap-2">
               <input
                 type="checkbox"
@@ -1007,6 +1026,23 @@ export function LearningPathAdmin() {
                 value={selectedProblem?.reqOrder || 1}
                 onChange={handleEditProblemChange}
                 min={1}
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="edit-problem-estimatedTime">Estimated Time (minutes)</Label>
+              <Input
+                id="edit-problem-estimatedTime"
+                name="estimatedTime"
+                type="number"
+                value={selectedProblem?.estimatedTime || ''}
+                onChange={(e) => {
+                  const value = e.target.value ? parseInt(e.target.value) : undefined;
+                  setSelectedProblem(prev => 
+                    prev ? updateProblem(prev, { estimatedTime: value }) : null
+                  );
+                }}
+                min={1}
+                placeholder="Leave empty for no estimate"
               />
             </div>
           </div>

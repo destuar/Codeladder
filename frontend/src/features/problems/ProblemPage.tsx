@@ -13,13 +13,13 @@ export type Problem = {
   name: string;
   difficulty: 'EASY_IIII' | 'EASY_III' | 'EASY_II' | 'EASY_I' | 'MEDIUM' | 'HARD';
   content: string;
-  problemType: 'INFO' | 'CODING';
+  problemType: 'INFO' | 'CODING' | 'STANDALONE_INFO';
   codeTemplate?: string;
   testCases?: string;
   nextProblemId?: string;
   prevProblemId?: string;
   isCompleted?: boolean;
-  estimatedTime?: string;
+  estimatedTime?: string | number;
 };
 
 const ProblemPage: React.FC = () => {
@@ -49,15 +49,19 @@ const ProblemPage: React.FC = () => {
     );
   }
 
+  // Convert estimatedTime to number if it's a string
+  const estimatedTimeNum = problem.estimatedTime ? parseInt(problem.estimatedTime.toString()) : undefined;
+
   return (
     <div className="h-[calc(100vh-4rem)] overflow-hidden">
-      {problem.problemType === 'INFO' ? (
+      {(problem.problemType === 'INFO' || problem.problemType === 'STANDALONE_INFO') ? (
         <InfoProblem 
           content={problem.content}
           isCompleted={problem.isCompleted}
           nextProblemId={problem.nextProblemId}
           prevProblemId={problem.prevProblemId}
-          estimatedTime={problem.estimatedTime}
+          estimatedTime={estimatedTimeNum}
+          isStandalone={problem.problemType === 'STANDALONE_INFO'}
         />
       ) : (
         <ErrorBoundary>
@@ -70,6 +74,7 @@ const ProblemPage: React.FC = () => {
             nextProblemId={problem.nextProblemId}
             prevProblemId={problem.prevProblemId}
             onNavigate={(id) => navigate(`/problems/${id}`)}
+            estimatedTime={estimatedTimeNum}
           />
         </ErrorBoundary>
       )}
