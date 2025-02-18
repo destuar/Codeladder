@@ -79,6 +79,7 @@ model Problem {
   problemType ProblemType @default(INFO)  // Type of problem (Info or Coding)
   codeTemplate String?   @db.Text  // Starting code template for coding problems
   testCases   Json?     // Test cases for coding problems
+  estimatedTime Int?    // Estimated time to complete the problem (in minutes)
   topic       Topic     @relation(fields: [topicId], references: [id])
   topicId     String
   completedBy User[]    @relation("UserCompletedProblems")
@@ -110,8 +111,11 @@ model StandaloneInfoPage {
   name        String
   content     String    @db.Text
   description String?   @db.Text
+  estimatedTime Int?    // Estimated time to complete (in minutes)
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
+
+  @@map("standalone_info_pages")
 }
 
 enum Role {

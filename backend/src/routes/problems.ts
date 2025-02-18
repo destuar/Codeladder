@@ -2,9 +2,34 @@ import express from 'express';
 import { prisma } from '../lib/prisma';
 import { authenticateToken } from '../middleware/auth';
 import { authorizeRoles } from '../middleware/authorize';
-import { Prisma, Role } from '@prisma/client';
+import { Prisma, Role, ProblemType } from '@prisma/client';
 import type { RequestHandler } from 'express-serve-static-core';
 
+// Define the request body types
+interface CreateProblemBody {
+  name: string;
+  content: string;
+  difficulty: Prisma.ProblemCreateInput['difficulty'];
+  required?: boolean;
+  reqOrder?: number;
+  problemType?: ProblemType;
+  codeTemplate?: string;
+  testCases?: string;
+  topicId: string;
+  estimatedTime?: string | number;
+}
+
+interface UpdateProblemBody {
+  name?: string;
+  content?: string;
+  difficulty?: Prisma.ProblemCreateInput['difficulty'];
+  required?: boolean;
+  reqOrder?: number;
+  problemType?: ProblemType;
+  codeTemplate?: string;
+  testCases?: string;
+  estimatedTime?: string | number;
+}
 
 const router = express.Router();
 
@@ -40,8 +65,9 @@ router.post('/', authenticateToken, authorizeRoles([Role.ADMIN, Role.DEVELOPER])
       problemType = 'INFO' as const,
       codeTemplate,
       testCases,
-      topicId 
-    } = req.body;
+      topicId,
+      estimatedTime 
+    } = req.body as CreateProblemBody;
 
     console.log('Creating problem with data:', {
       name,
@@ -52,7 +78,8 @@ router.post('/', authenticateToken, authorizeRoles([Role.ADMIN, Role.DEVELOPER])
       problemType,
       codeTemplate,
       testCases,
-      topicId
+      topicId,
+      estimatedTime
     });
 
     // Validate topic exists
@@ -82,6 +109,12 @@ router.post('/', authenticateToken, authorizeRoles([Role.ADMIN, Role.DEVELOPER])
       }
     }
 
+    // Convert estimatedTime to number if provided
+    const parsedEstimatedTime = estimatedTime ? parseInt(estimatedTime.toString()) : null;
+    if (estimatedTime && isNaN(parsedEstimatedTime!)) {
+      return res.status(400).json({ error: 'Estimated time must be a valid number' });
+    }
+
     const problem = await prisma.problem.create({
       data: {
         name,
@@ -92,6 +125,7 @@ router.post('/', authenticateToken, authorizeRoles([Role.ADMIN, Role.DEVELOPER])
         problemType,
         codeTemplate,
         testCases: testCases ? JSON.parse(testCases) : undefined,
+        estimatedTime: parsedEstimatedTime,
         topic: {
           connect: { id: topicId }
         }
@@ -117,8 +151,9 @@ router.put('/:problemId', authenticateToken, authorizeRoles([Role.ADMIN, Role.DE
       reqOrder,
       problemType,
       codeTemplate,
-      testCases
-    } = req.body;
+      testCases,
+      estimatedTime
+    } = req.body as UpdateProblemBody;
 
     // Get the current problem to check its topic
     const currentProblem = await prisma.problem.findUnique({
@@ -158,6 +193,12 @@ router.put('/:problemId', authenticateToken, authorizeRoles([Role.ADMIN, Role.DE
       }
     }
 
+    // Convert estimatedTime to number if provided
+    const parsedEstimatedTime = estimatedTime ? parseInt(estimatedTime.toString()) : null;
+    if (estimatedTime && isNaN(parsedEstimatedTime!)) {
+      return res.status(400).json({ error: 'Estimated time must be a valid number' });
+    }
+
     const problem = await prisma.problem.update({
       where: { id: problemId },
       data: {
@@ -168,7 +209,8 @@ router.put('/:problemId', authenticateToken, authorizeRoles([Role.ADMIN, Role.DE
         reqOrder,
         ...(problemType && { problemType: problemType }),
         ...(codeTemplate !== undefined && { codeTemplate }),
-        ...(testCases !== undefined && { testCases: parsedTestCases })
+        ...(testCases !== undefined && { testCases: parsedTestCases }),
+        ...(estimatedTime !== undefined && { estimatedTime: parsedEstimatedTime })
       }
     });
 

@@ -17,9 +17,26 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { ArrowUpDown, ChevronDown, ChevronUp, CheckCircle2, Circle, Book, Code2 } from "lucide-react";
+import { ArrowUpDown, ChevronDown, ChevronUp, CheckCircle2, Circle, Book, Code2, Timer } from "lucide-react";
 
 type Difficulty = 'EASY_IIII' | 'EASY_III' | 'EASY_II' | 'EASY_I' | 'MEDIUM' | 'HARD';
+
+function formatEstimatedTime(minutes: number | null | undefined): string | null {
+  if (!minutes) return null;
+  
+  // Input is already in minutes, no need to parse
+  if (minutes < 60) {
+    return `${minutes} min`;
+  }
+
+  const hours = Math.floor(minutes / 60);
+  const remainingMinutes = minutes % 60;
+
+  if (remainingMinutes === 0) {
+    return `${hours}h`;
+  }
+  return `${hours}h ${remainingMinutes}m`;
+}
 
 const DIFFICULTY_ORDER: Record<Difficulty, number> = {
   'EASY_IIII': 1,
@@ -307,16 +324,24 @@ export default function TopicPage() {
                       <DifficultyBadge difficulty={problem.difficulty as Difficulty} />
                     </TableCell>
                     <TableCell>
-                      <Button 
-                        variant="outline" 
-                        size="sm"
-                        onClick={() => {
-                          console.log('Navigating to problem:', problem.id);
-                          navigate(`/problems/${problem.id}`);
-                        }}
-                      >
-                        Start
-                      </Button>
+                      <div className="flex items-center gap-2">
+                        <Button 
+                          variant="outline" 
+                          size="sm"
+                          onClick={() => {
+                            console.log('Navigating to problem:', problem.id);
+                            navigate(`/problems/${problem.id}`);
+                          }}
+                        >
+                          Start
+                        </Button>
+                        {formatEstimatedTime(problem.estimatedTime) && (
+                          <div className="flex items-center gap-1 text-sm text-muted-foreground whitespace-nowrap">
+                            <Timer className="h-4 w-4" />
+                            <span>{formatEstimatedTime(problem.estimatedTime)}</span>
+                          </div>
+                        )}
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))}

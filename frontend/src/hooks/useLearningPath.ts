@@ -13,6 +13,7 @@ export interface Problem {
   problemType: 'INFO' | 'CODING';
   codeTemplate?: string;
   testCases?: string;
+  estimatedTime?: number;
 }
 
 export interface Topic {
