@@ -19,7 +19,7 @@ export type Problem = {
   nextProblemId?: string;
   prevProblemId?: string;
   isCompleted?: boolean;
-  estimatedTime?: string;
+  estimatedTime?: string | number;
 };
 
 const ProblemPage: React.FC = () => {
@@ -49,6 +49,9 @@ const ProblemPage: React.FC = () => {
     );
   }
 
+  // Convert estimatedTime to number if it's a string
+  const estimatedTimeNum = problem.estimatedTime ? parseInt(problem.estimatedTime.toString()) : undefined;
+
   return (
     <div className="h-[calc(100vh-4rem)] overflow-hidden">
       {problem.problemType === 'INFO' ? (
@@ -57,7 +60,7 @@ const ProblemPage: React.FC = () => {
           isCompleted={problem.isCompleted}
           nextProblemId={problem.nextProblemId}
           prevProblemId={problem.prevProblemId}
-          estimatedTime={problem.estimatedTime}
+          estimatedTime={estimatedTimeNum}
         />
       ) : (
         <ErrorBoundary>
@@ -70,6 +73,7 @@ const ProblemPage: React.FC = () => {
             nextProblemId={problem.nextProblemId}
             prevProblemId={problem.prevProblemId}
             onNavigate={(id) => navigate(`/problems/${id}`)}
+            estimatedTime={estimatedTimeNum}
           />
         </ErrorBoundary>
       )}

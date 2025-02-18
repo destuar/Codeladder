@@ -39,7 +39,22 @@ router.get('/:problemId', authenticateToken, (async (req, res) => {
     const { problemId } = req.params;
 
     const problem = await prisma.problem.findUnique({
-      where: { id: problemId }
+      where: { id: problemId },
+      select: {
+        id: true,
+        name: true,
+        content: true,
+        description: true,
+        difficulty: true,
+        required: true,
+        reqOrder: true,
+        problemType: true,
+        codeTemplate: true,
+        testCases: true,
+        estimatedTime: true,
+        createdAt: true,
+        updatedAt: true
+      }
     });
 
     if (!problem) {
