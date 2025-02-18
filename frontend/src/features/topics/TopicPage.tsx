@@ -17,7 +17,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { ArrowUpDown, ChevronDown, ChevronUp, CheckCircle2, Circle } from "lucide-react";
+import { ArrowUpDown, ChevronDown, ChevronUp, CheckCircle2, Circle, Book, Code2 } from "lucide-react";
 
 type Difficulty = 'EASY_IIII' | 'EASY_III' | 'EASY_II' | 'EASY_I' | 'MEDIUM' | 'HARD';
 
@@ -293,7 +293,16 @@ export default function TopicPage() {
                         <Badge variant="secondary">OPT {problem.reqOrder}</Badge>
                       )}
                     </TableCell>
-                    <TableCell className="font-medium">{problem.name}</TableCell>
+                    <TableCell className="font-medium">
+                      <div className="flex items-center gap-2">
+                        {problem.problemType === 'INFO' ? (
+                          <Book className="h-4 w-4 text-muted-foreground" />
+                        ) : (
+                          <Code2 className="h-4 w-4 text-muted-foreground" />
+                        )}
+                        {problem.name}
+                      </div>
+                    </TableCell>
                     <TableCell>
                       <DifficultyBadge difficulty={problem.difficulty as Difficulty} />
                     </TableCell>
