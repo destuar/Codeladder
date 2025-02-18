@@ -22,6 +22,7 @@ type StandaloneInfoPage = {
   name: string;
   content: string;
   description: string | null;
+  estimatedTime?: number;
   createdAt: string;
   updatedAt: string;
 };
@@ -30,6 +31,7 @@ type NewInfoPage = {
   name: string;
   content: string;
   description: string;
+  estimatedTime?: number;
 };
 
 export function StandaloneInfoAdmin() {
@@ -39,6 +41,7 @@ export function StandaloneInfoAdmin() {
     name: "",
     content: "",
     description: "",
+    estimatedTime: undefined
   });
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
@@ -55,7 +58,7 @@ export function StandaloneInfoAdmin() {
     
     setIsLoading(true);
     try {
-      const data = await api.get("/standalone-info", token);
+      const data = await api.get("/problems?type=STANDALONE_INFO", token);
       console.log("API response data:", data);
       
       if (Array.isArray(data)) {
@@ -89,15 +92,18 @@ export function StandaloneInfoAdmin() {
     }
 
     try {
-      await api.post("/standalone-info", {
-        ...newPage,
+      await api.post("/problems", {
         name: newPage.name.trim(),
         content: newPage.content.trim(),
-        description: newPage.description.trim()
+        description: newPage.description.trim(),
+        estimatedTime: newPage.estimatedTime,
+        problemType: "STANDALONE_INFO",
+        difficulty: "EASY_I",  // Default difficulty for standalone info
+        required: false
       }, token);
       toast.success("Info page created successfully");
       setIsAddDialogOpen(false);
-      setNewPage({ name: "", content: "", description: "" });
+      setNewPage({ name: "", content: "", description: "", estimatedTime: undefined });
       fetchInfoPages();
     } catch (error: any) {
       const errorMessage = error?.message || "Failed to create info page";
@@ -109,7 +115,7 @@ export function StandaloneInfoAdmin() {
     if (!token) return;
 
     try {
-      await api.delete(`/standalone-info/${id}`, token);
+      await api.delete(`/problems/${id}`, token);
       toast.success("Info page deleted successfully");
       fetchInfoPages();
     } catch (error) {
@@ -218,6 +224,21 @@ export function StandaloneInfoAdmin() {
                     name="description"
                     value={newPage.description}
                     onChange={handleChange}
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="estimatedTime">Estimated Time (minutes)</Label>
+                  <Input
+                    id="estimatedTime"
+                    name="estimatedTime"
+                    type="number"
+                    value={newPage.estimatedTime || ''}
+                    onChange={(e) => {
+                      const value = e.target.value ? parseInt(e.target.value) : undefined;
+                      setNewPage(prev => ({ ...prev, estimatedTime: value }));
+                    }}
+                    min={1}
+                    placeholder="Leave empty for no estimate"
                   />
                 </div>
                 <div>

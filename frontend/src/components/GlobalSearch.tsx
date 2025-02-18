@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
@@ -9,6 +9,7 @@ type SearchResult = {
   id: string;
   name: string;
   description: string | null;
+  problemType: 'INFO' | 'CODING' | 'STANDALONE_INFO';
 };
 
 export function GlobalSearch() {
@@ -17,6 +18,21 @@ export function GlobalSearch() {
   const [results, setResults] = useState<SearchResult[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const { token } = useAuth();
+  const searchRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (searchRef.current && !searchRef.current.contains(event.target as Node)) {
+        setResults([]);
+        setSearchQuery("");
+      }
+    }
+
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, []);
 
   useEffect(() => {
     const debounceTimer = setTimeout(async () => {
@@ -27,7 +43,8 @@ export function GlobalSearch() {
 
       setIsSearching(true);
       try {
-        const data = await api.get(`/standalone-info?search=${encodeURIComponent(searchQuery.trim())}`, token);
+        // Search across all problem types
+        const data = await api.get(`/problems?search=${encodeURIComponent(searchQuery.trim())}`, token);
         if (Array.isArray(data)) {
           setResults(data);
         }
@@ -42,16 +59,16 @@ export function GlobalSearch() {
   }, [searchQuery, token]);
 
   const handleResultClick = (id: string) => {
-    navigate(`/info/${id}`);
+    navigate(`/problems/${id}`); // Update to use /problems/:id route
     setSearchQuery("");
     setResults([]);
   };
 
   return (
-    <div className="relative">
+    <div className="relative" ref={searchRef}>
       <div className="relative">
         <Input
-          placeholder="Search info pages..."
+          placeholder="Search info pages and problems..."
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
           className="w-full"

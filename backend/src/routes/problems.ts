@@ -15,7 +15,7 @@ interface CreateProblemBody {
   problemType?: ProblemType;
   codeTemplate?: string;
   testCases?: string;
-  topicId: string;
+  topicId?: string;
   estimatedTime?: string | number;
 }
 
@@ -68,6 +68,69 @@ router.get('/:problemId', authenticateToken, (async (req, res) => {
   }
 }) as RequestHandler);
 
+// Get problems by type
+router.get('/', authenticateToken, (async (req, res) => {
+  try {
+    const { type, search } = req.query;
+
+    const where: any = {};
+    
+    // Add type filter if provided
+    if (type) {
+      where.problemType = type as ProblemType;
+    }
+
+    // Add search filter if provided
+    if (search) {
+      where.name = { contains: search as string, mode: 'insensitive' };
+    }
+
+    const problems = await prisma.problem.findMany({
+      where,
+      select: {
+        id: true,
+        name: true,
+        content: true,
+        description: true,
+        difficulty: true,
+        required: true,
+        reqOrder: true,
+        problemType: true,
+        codeTemplate: true,
+        testCases: true,
+        estimatedTime: true,
+        createdAt: true,
+        updatedAt: true,
+        topic: true,
+        topicId: true,
+        completedBy: {
+          select: {
+            id: true
+          }
+        },
+        progress: {
+          select: {
+            id: true,
+            status: true,
+            userId: true
+          }
+        }
+      },
+      orderBy: [
+        {
+          problemType: 'desc'
+        },
+        { name: 'asc' }
+      ]
+    });
+
+    res.json(problems);
+  } catch (error) {
+    console.error('Error fetching problems:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+}) as RequestHandler);
+
 // Create a new problem (admin only)
 router.post('/', authenticateToken, authorizeRoles([Role.ADMIN, Role.DEVELOPER]), (async (req, res) => {
   try {
@@ -97,30 +160,32 @@ router.post('/', authenticateToken, authorizeRoles([Role.ADMIN, Role.DEVELOPER])
       estimatedTime
     });
 
-    // Validate topic exists
-    const topic = await prisma.topic.findUnique({
-      where: { id: topicId }
-    });
-
-    if (!topic) {
-      console.error('Topic not found:', topicId);
-      return res.status(404).json({ error: 'Topic not found' });
-    }
-
-    // Check for duplicate order number if reqOrder is provided
-    if (reqOrder) {
-      const existingProblem = await prisma.problem.findFirst({
-        where: {
-          topicId,
-          reqOrder,
-        }
+    // Only validate topic if topicId is provided
+    if (topicId) {
+      const topic = await prisma.topic.findUnique({
+        where: { id: topicId }
       });
 
-      if (existingProblem) {
-        return res.status(400).json({ 
-          error: 'Order number already exists',
-          details: `Problem "${existingProblem.name}" already has order number ${reqOrder}`
+      if (!topic) {
+        console.error('Topic not found:', topicId);
+        return res.status(404).json({ error: 'Topic not found' });
+      }
+
+      // Check for duplicate order number if reqOrder is provided
+      if (reqOrder) {
+        const existingProblem = await prisma.problem.findFirst({
+          where: {
+            topicId,
+            reqOrder,
+          }
         });
+
+        if (existingProblem) {
+          return res.status(400).json({ 
+            error: 'Order number already exists',
+            details: `Problem "${existingProblem.name}" already has order number ${reqOrder}`
+          });
+        }
       }
     }
 
@@ -141,9 +206,11 @@ router.post('/', authenticateToken, authorizeRoles([Role.ADMIN, Role.DEVELOPER])
         codeTemplate,
         testCases: testCases ? JSON.parse(testCases) : undefined,
         estimatedTime: parsedEstimatedTime,
-        topic: {
-          connect: { id: topicId }
-        }
+        ...(topicId && {
+          topic: {
+            connect: { id: topicId }
+          }
+        })
       }
     });
 

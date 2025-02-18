@@ -13,7 +13,7 @@ export type Problem = {
   name: string;
   difficulty: 'EASY_IIII' | 'EASY_III' | 'EASY_II' | 'EASY_I' | 'MEDIUM' | 'HARD';
   content: string;
-  problemType: 'INFO' | 'CODING';
+  problemType: 'INFO' | 'CODING' | 'STANDALONE_INFO';
   codeTemplate?: string;
   testCases?: string;
   nextProblemId?: string;
@@ -54,13 +54,14 @@ const ProblemPage: React.FC = () => {
 
   return (
     <div className="h-[calc(100vh-4rem)] overflow-hidden">
-      {problem.problemType === 'INFO' ? (
+      {(problem.problemType === 'INFO' || problem.problemType === 'STANDALONE_INFO') ? (
         <InfoProblem 
           content={problem.content}
           isCompleted={problem.isCompleted}
           nextProblemId={problem.nextProblemId}
           prevProblemId={problem.prevProblemId}
           estimatedTime={estimatedTimeNum}
+          isStandalone={problem.problemType === 'STANDALONE_INFO'}
         />
       ) : (
         <ErrorBoundary>

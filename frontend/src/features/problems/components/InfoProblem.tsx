@@ -27,6 +27,7 @@ interface InfoProblemProps {
   nextProblemId?: string;
   prevProblemId?: string;
   estimatedTime?: number;
+  isStandalone?: boolean;
 }
 
 const InfoProblem: React.FC<InfoProblemProps> = ({ 
@@ -34,7 +35,8 @@ const InfoProblem: React.FC<InfoProblemProps> = ({
   isCompleted = false,
   nextProblemId,
   prevProblemId,
-  estimatedTime
+  estimatedTime,
+  isStandalone = false
 }) => {
   const navigate = useNavigate();
   const formattedTime = formatEstimatedTime(estimatedTime);

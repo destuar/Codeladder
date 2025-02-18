@@ -220,24 +220,22 @@ export function LearningPathAdmin() {
     try {
       // Base problem data without coding-specific fields
       const problemData: ProblemData = {
-        name: newProblem.name || "Test Problem",
-        content: newProblem.content || "This is a test problem content",
-        difficulty: newProblem.difficulty || "EASY_I",
-        required: newProblem.required || false,
-        reqOrder: newProblem.reqOrder || 1,
-        problemType: newProblem.problemType || "INFO",
+        name: newProblem.name,
+        content: newProblem.content,
+        difficulty: newProblem.difficulty,
+        required: newProblem.required,
+        reqOrder: newProblem.reqOrder,
+        problemType: newProblem.problemType,
         topicId: selectedTopic.id,
         ...(newProblem.estimatedTime ? { estimatedTime: newProblem.estimatedTime } : {})
       };
 
       // Add coding-specific fields only if it's a coding problem
       if (newProblem.problemType === 'CODING') {
-        // Add code template if provided
         if (newProblem.codeTemplate) {
           problemData.codeTemplate = newProblem.codeTemplate;
         }
 
-        // Add test cases only if they are provided and valid
         if (newProblem.testCases && newProblem.testCases.trim() !== '') {
           try {
             const testCasesObj = JSON.parse(newProblem.testCases);
