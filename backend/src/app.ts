@@ -11,6 +11,7 @@ import problemsRouter from './routes/problems';
 import standaloneInfoRoutes from './routes/standalone-info';
 import { errorHandler } from './middleware/errorHandler';
 import { apiLimiter, authLimiter, registerLimiter } from './middleware/rateLimit';
+import imageUploadRoutes from './routes/image-upload';
 
 const app = express();
 
@@ -61,6 +62,7 @@ app.use('/api/admin', adminRoutes);
 app.use('/api/learning', learningRoutes);
 app.use('/api/problems', problemsRouter);
 app.use('/api/standalone-info', standaloneInfoRoutes);
+app.use('/api/upload-image', imageUploadRoutes);
 
 // Root endpoint
 app.get('/', (req, res) => {
