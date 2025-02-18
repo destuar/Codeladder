@@ -6,7 +6,7 @@ export function Navbar() {
       <div className="container flex items-center justify-between h-16">
         <div className="flex items-center gap-6">
           <h1 className="text-xl font-bold" style={{ fontFamily: "'Patrick Hand', cursive" }}>
-            SmarterStruct
+            CodeLadder
           </h1>
         </div>
         <div className="flex items-center gap-4">
