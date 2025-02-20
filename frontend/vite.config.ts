@@ -10,6 +10,16 @@ export default defineConfig({
       '@': path.resolve(__dirname, './src'),
     },
   },
+  build: {
+    rollupOptions: {
+      external: [],
+      output: {
+        manualChunks: {
+          'react-icons': ['react-icons', 'react-icons/fc', 'react-icons/fa']
+        }
+      }
+    }
+  },
   optimizeDeps: {
     include: [
       '@monaco-editor/react',
@@ -21,7 +31,10 @@ export default defineConfig({
       'react-markdown',
       'react-syntax-highlighter',
       'react-syntax-highlighter/dist/esm/styles/prism',
-      'remark-gfm'
+      'remark-gfm',
+      'react-icons',
+      'react-icons/fc',
+      'react-icons/fa'
     ],
     exclude: []
   },
