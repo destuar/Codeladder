@@ -1,14 +1,14 @@
 FROM node:20-alpine AS builder
 
-# Set NODE_ENV for build stage
-ENV NODE_ENV=production
+# Set NODE_ENV for build stage only
+ENV NODE_ENV=development
 
 WORKDIR /app
 
 # Copy package files first to leverage cache
 COPY package*.json ./
 
-# Install ALL dependencies (including dev) for build stage
+# Install ALL dependencies for build stage
 RUN npm ci \
     && npm cache clean --force \
     && rm -rf /root/.npm/_cacache
@@ -21,8 +21,11 @@ RUN npm run build \
     && rm -rf node_modules \
     && rm -rf /root/.npm
 
-# Production stage - use smaller nginx image
+# Production stage
 FROM nginx:alpine-slim
+
+# Reset NODE_ENV for runtime (though not strictly necessary for nginx)
+ENV NODE_ENV=production
 
 # Copy built assets from builder stage
 COPY --from=builder /app/dist /usr/share/nginx/html
