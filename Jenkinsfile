@@ -89,8 +89,11 @@ pipeline {
                             df -h
                             
                             echo "Cleaning up Docker system..."
-                            docker system prune -af
+                            docker-compose down --remove-orphans || true
+                            docker rm -f $(docker ps -aq) || true
+                            docker network prune -f
                             docker volume prune -f
+                            docker system prune -af
                             
                             echo "Removing old builds..."
                             rm -rf ~/codeladder/node_modules
@@ -134,44 +137,26 @@ EOL
         
         stage('Deploy to EC2') {
             steps {
-                withCredentials([sshUserPrivateKey(
-                    credentialsId: 'codeladder-jenkins-key', 
-                    keyFileVariable: 'SSH_KEY',
-                    usernameVariable: 'SSH_USER'
-                )]) {
-                    sh """
-                        set -e  # Exit on any error
+                withCredentials([sshUserPrivateKey(credentialsId: 'jenkins-ssh-key', keyFileVariable: 'SSH_KEY')]) {
+                    sh '''
+                        set -euo pipefail
                         
-                        # Fix SSH key permissions
-                        chmod 600 "\$SSH_KEY"
+                        # Transfer improved deploy script
+                        scp -i $SSH_KEY deploy.sh ec2-user@${EC2_HOST}:~/codeladder/
                         
-                        echo "Creating archive..."
-                        git archive --format=tar.gz -o \${ARCHIVE_NAME} HEAD
-                        
-                        echo "Creating remote directory..."
-                        ssh -o StrictHostKeyChecking=no -i "\$SSH_KEY" \${SSH_USER}@\${EC2_HOST} 'mkdir -p ~/codeladder'
-                        
-                        echo "Transferring files to EC2..."
-                        scp -o StrictHostKeyChecking=no -i "\$SSH_KEY" \
-                            \${ARCHIVE_NAME} \
-                            .env.deploy \
-                            "\${SSH_USER}@\${EC2_HOST}:~/codeladder/"
-                        
-                        echo "Executing deployment..."
-                        ssh -o StrictHostKeyChecking=no -i "\$SSH_KEY" \${SSH_USER}@\${EC2_HOST} "
-                            set -x  # Enable debug mode
-                            cd ~/codeladder
-                            ls -la  # Check files
-                            echo 'Extracting archive...'
-                            tar -xzf repo.tar.gz
-                            echo 'Removing archive...'
-                            rm repo.tar.gz
-                            echo 'Setting permissions...'
-                            chmod +x deploy.sh
-                            echo 'Running deploy script...'
-                            bash -x deploy.sh
-                        "
-                    """
+                        # Execute with proper error handling
+                        ssh -i $SSH_KEY ec2-user@${EC2_HOST} '''bash -x ~/codeladder/deploy.sh'''
+                    '''
+                }
+            }
+            post {
+                failure {
+                    script {
+                        // Collect diagnostic information
+                        sh '''
+                            ssh -i $SSH_KEY ec2-user@${EC2_HOST} 'cd ~/codeladder && docker-compose logs'
+                        '''
+                    }
                 }
             }
         }
