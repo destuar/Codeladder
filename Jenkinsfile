@@ -139,21 +139,44 @@ EOL
             steps {
                 withCredentials([sshUserPrivateKey(credentialsId: 'jenkins-ssh-key', keyFileVariable: 'SSH_KEY')]) {
                     sh """
-                        ssh -i "\$SSH_KEY" ec2-user@\${EC2_HOST} '
-                            cd \${DEPLOY_PATH}
-                            # Rest of deployment commands...
+                        # First ensure the deploy directory exists
+                        ssh -o StrictHostKeyChecking=no -i "\$SSH_KEY" ec2-user@\${EC2_HOST} 'mkdir -p /home/ec2-user/codeladder'
+                        
+                        # Copy environment file
+                        scp -i "\$SSH_KEY" .env.deploy ec2-user@\${EC2_HOST}:/home/ec2-user/codeladder/.env.deploy
+                        
+                        # Execute deployment commands
+                        ssh -o StrictHostKeyChecking=no -i "\$SSH_KEY" ec2-user@\${EC2_HOST} '
+                            cd /home/ec2-user/codeladder
+                            
+                            # Clean up existing containers
+                            docker rm -f codeladder-backend codeladder-frontend || true
+                            docker network rm app-network || true
+                            
+                            # Create network
+                            docker network create app-network || true
+                            
+                            # Start containers
+                            docker run -d \\
+                                --name codeladder-backend \\
+                                --network app-network \\
+                                -p 8000:8000 \\
+                                --env-file .env.deploy \\
+                                codeladder-backend
+                            
+                            docker run -d \\
+                                --name codeladder-frontend \\
+                                --network app-network \\
+                                -p 8085:80 \\
+                                -e API_URL="/api" \\
+                                -e NODE_ENV="production" \\
+                                codeladder-frontend
+                            
+                            # Verify containers are running
+                            docker ps | grep -q "codeladder-backend" || (echo "Backend failed to start" && exit 1)
+                            docker ps | grep -q "codeladder-frontend" || (echo "Frontend failed to start" && exit 1)
                         '
                     """
-                }
-            }
-            post {
-                failure {
-                    script {
-                        // Collect diagnostic information
-                        sh '''
-                            ssh -i $SSH_KEY ec2-user@${EC2_HOST} 'cd ~/codeladder && docker-compose logs'
-                        '''
-                    }
                 }
             }
         }
