@@ -6,6 +6,7 @@ import LoginPage from './features/auth/LoginPage';
 import RegisterPage from './features/auth/RegisterPage';
 import ProfilePage from './features/profile/ProfilePage';
 import DashboardPage from './features/dashboard/DashboardPage';
+import ProblemsPage from './features/problems/ProblemsPage';
 import ProtectedRoute from './components/ProtectedRoute';
 import { Navigation } from './components/Navigation';
 import { AdminDashboard } from './features/admin/AdminDashboard';
@@ -86,6 +87,15 @@ export default function App() {
                           <AdminViewWrapper>
                             <TopicPage />
                           </AdminViewWrapper>
+                        </ProtectedRoute>
+                      }
+                    />
+
+                    <Route
+                      path="/problems"
+                      element={
+                        <ProtectedRoute>
+                          <ProblemsPage />
                         </ProtectedRoute>
                       }
                     />

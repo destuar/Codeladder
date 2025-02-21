@@ -56,7 +56,8 @@ const InfoProblem: React.FC<InfoProblemProps> = ({
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ['problem', problemId] }),
         queryClient.invalidateQueries({ queryKey: ['learningPath'] }),
-        queryClient.invalidateQueries({ queryKey: ['topic'] })
+        queryClient.invalidateQueries({ queryKey: ['topic'] }),
+        queryClient.invalidateQueries({ queryKey: ['allProblems'] })
       ]);
     } catch (error) {
       console.error('Error marking problem as complete:', error);

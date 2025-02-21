@@ -230,6 +230,7 @@ export default function TopicPage() {
               canAccessAdmin={canAccessAdmin}
               onProblemStart={handleProblemStart}
               itemsPerPage={50}
+              showOrder={true}
             />
           </CardContent>
         </Card>

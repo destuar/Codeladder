@@ -24,17 +24,25 @@ export function Navigation() {
               <GlobalSearch />
             </div>
             {user && (
-              <Link 
-                to="/dashboard" 
-                className="text-sm font-medium text-muted-foreground hover:text-foreground"
-                onClick={() => {
-                  if (isAdminView) {
-                    setIsAdminView(false);
-                  }
-                }}
-              >
-                Dashboard
-              </Link>
+              <>
+                <Link 
+                  to="/dashboard" 
+                  className="text-sm font-medium text-muted-foreground hover:text-foreground"
+                  onClick={() => {
+                    if (isAdminView) {
+                      setIsAdminView(false);
+                    }
+                  }}
+                >
+                  Dashboard
+                </Link>
+                <Link 
+                  to="/problems" 
+                  className="text-sm font-medium text-muted-foreground hover:text-foreground"
+                >
+                  Problems
+                </Link>
+              </>
             )}
           </div>
           <div className="flex items-center gap-4">

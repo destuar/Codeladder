@@ -80,6 +80,11 @@ router.get('/:problemId', authenticateToken, (async (req, res) => {
 router.get('/', authenticateToken, (async (req, res) => {
   try {
     const { type, search } = req.query;
+    const userId = req.user?.id;
+
+    if (!userId) {
+      return res.status(401).json({ error: 'User not authenticated' });
+    }
 
     const where: any = {};
     
@@ -112,16 +117,12 @@ router.get('/', authenticateToken, (async (req, res) => {
         topic: true,
         topicId: true,
         completedBy: {
-          select: {
-            id: true
-          }
+          where: { id: userId },
+          select: { id: true }
         },
         progress: {
-          select: {
-            id: true,
-            status: true,
-            userId: true
-          }
+          where: { userId },
+          select: { status: true }
         }
       },
       orderBy: [
@@ -132,7 +133,15 @@ router.get('/', authenticateToken, (async (req, res) => {
       ]
     });
 
-    res.json(problems);
+    // Transform the response to include completion status
+    const transformedProblems = problems.map(problem => ({
+      ...problem,
+      completed: problem.completedBy.length > 0 || problem.progress.some(p => p.status === 'COMPLETED'),
+      completedBy: undefined,
+      progress: undefined
+    }));
+
+    res.json(transformedProblems);
   } catch (error) {
     console.error('Error fetching problems:', error);
     res.status(500).json({ error: 'Internal server error' });

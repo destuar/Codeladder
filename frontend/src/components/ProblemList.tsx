@@ -33,6 +33,7 @@ interface ProblemListProps {
   onProblemStart: (problemId: string) => void;
   itemsPerPage?: number;
   showTopicName?: boolean;
+  showOrder?: boolean;
 }
 
 const formatEstimatedTime = (time?: number) => {
@@ -74,6 +75,7 @@ export function ProblemList({
   onProblemStart,
   itemsPerPage = 50,
   showTopicName = false,
+  showOrder = false,
 }: ProblemListProps) {
   const [sortField, setSortField] = useState<SortField>('order');
   const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
@@ -121,8 +123,29 @@ export function ProblemList({
       <Table>
         <TableHeader>
           <TableRow>
-            <TableHead className={cn(isLocked && "text-muted-foreground")}>Status</TableHead>
-            <TableHead className={cn(isLocked && "text-muted-foreground")}>Type</TableHead>
+            <TableHead className={cn("w-4", isLocked && "text-muted-foreground")} />
+            {showOrder && (
+              <TableHead 
+                className={cn(
+                  "cursor-pointer hover:bg-muted/50 transition-colors pl-2",
+                  isLocked && "text-muted-foreground"
+                )}
+                onClick={() => handleSort('order')}
+              >
+                <div className="flex items-center">
+                  <span>Order</span>
+                  {sortField === 'order' ? (
+                    sortDirection === 'asc' ? (
+                      <ChevronUp className="h-4 w-4 ml-1 text-primary" />
+                    ) : (
+                      <ChevronDown className="h-4 w-4 ml-1 text-primary" />
+                    )
+                  ) : (
+                    <ArrowUpDown className="h-4 w-4 ml-1 text-muted-foreground" />
+                  )}
+                </div>
+              </TableHead>
+            )}
             <TableHead 
               className={cn(
                 "cursor-pointer hover:bg-muted/50 transition-colors",
@@ -179,17 +202,19 @@ export function ProblemList({
                   <Circle className="h-5 w-5 text-muted-foreground" />
                 )}
               </TableCell>
-              <TableCell>
-                {problem.required ? (
-                  <Badge variant="outline" className={cn(isLocked && "border-muted-foreground text-muted-foreground")}>
-                    REQ {problem.reqOrder}
-                  </Badge>
-                ) : (
-                  <Badge variant="secondary" className={cn(isLocked && "bg-muted text-muted-foreground")}>
-                    OPT {problem.reqOrder}
-                  </Badge>
-                )}
-              </TableCell>
+              {showOrder && (
+                <TableCell>
+                  {problem.required ? (
+                    <Badge variant="outline" className={cn(isLocked && "border-muted-foreground text-muted-foreground")}>
+                      REQ {problem.reqOrder}
+                    </Badge>
+                  ) : (
+                    <Badge variant="secondary" className={cn(isLocked && "bg-muted text-muted-foreground")}>
+                      {problem.reqOrder ? `OPT ${problem.reqOrder}` : 'STANDALONE'}
+                    </Badge>
+                  )}
+                </TableCell>
+              )}
               <TableCell className={cn("font-medium", isLocked && "text-muted-foreground")}>
                 <div className="flex items-center gap-2">
                   {problem.problemType === 'INFO' ? (
@@ -200,13 +225,13 @@ export function ProblemList({
                   {problem.name}
                 </div>
               </TableCell>
-              {showTopicName && problem.topic && (
+              {showTopicName && (
                 <TableCell className={cn(isLocked && "text-muted-foreground")}>
-                  {problem.topic.name}
+                  {problem.topic?.name || 'Standalone'}
                 </TableCell>
               )}
               <TableCell>
-                <DifficultyBadge difficulty={problem.difficulty as Difficulty} />
+                <DifficultyBadge difficulty={problem.difficulty || 'MEDIUM' as Difficulty} />
               </TableCell>
               <TableCell>
                 <div className="flex items-center gap-2">
