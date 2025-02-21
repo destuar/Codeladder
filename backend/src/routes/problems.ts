@@ -348,11 +348,12 @@ router.post('/reorder', authenticateToken, authorizeRoles([Role.ADMIN, Role.DEVE
   }
 }) as RequestHandler);
 
-// Mark a problem as completed
+// Mark a problem as completed or uncompleted (toggle)
 router.post('/:problemId/complete', authenticateToken, (async (req, res) => {
   try {
     const { problemId } = req.params;
     const userId = req.user?.id;
+    const isAdmin = req.user?.role === Role.ADMIN || req.user?.role === Role.DEVELOPER;
 
     if (!userId) {
       return res.status(401).json({ error: 'User not authenticated' });
@@ -362,7 +363,15 @@ router.post('/:problemId/complete', authenticateToken, (async (req, res) => {
     const problem = await prisma.problem.findUnique({
       where: { id: problemId },
       include: {
-        topic: true
+        topic: true,
+        completedBy: {
+          where: { id: userId },
+          select: { id: true }
+        },
+        progress: {
+          where: { userId },
+          select: { status: true }
+        }
       }
     });
 
@@ -370,40 +379,68 @@ router.post('/:problemId/complete', authenticateToken, (async (req, res) => {
       return res.status(404).json({ error: 'Problem not found' });
     }
 
-    // Create or update progress for the problem
-    await prisma.progress.upsert({
-      where: {
-        userId_topicId_problemId: {
-          userId,
-          topicId: problem.topicId!,
-          problemId
-        }
-      },
-      create: {
-        userId,
-        topicId: problem.topicId!,
-        problemId,
-        status: 'COMPLETED'
-      },
-      update: {
-        status: 'COMPLETED'
-      }
-    });
+    // Check if problem is already completed
+    const isCompleted = problem.completedBy.length > 0 || problem.progress.some(p => p.status === 'COMPLETED');
 
-    // Add the problem to user's completed problems
-    await prisma.user.update({
-      where: { id: userId },
-      data: {
-        completedProblems: {
-          connect: { id: problemId }
-        }
-      }
-    });
+    if (isCompleted && !isAdmin) {
+      return res.status(400).json({ error: 'Problem is already completed' });
+    }
 
-    res.json({ message: 'Problem marked as completed' });
+    if (isCompleted) {
+      // Remove completion status
+      await prisma.$transaction([
+        prisma.progress.deleteMany({
+          where: {
+            userId,
+            problemId,
+            status: 'COMPLETED'
+          }
+        }),
+        prisma.user.update({
+          where: { id: userId },
+          data: {
+            completedProblems: {
+              disconnect: { id: problemId }
+            }
+          }
+        })
+      ]);
+    } else {
+      // Mark as completed
+      await prisma.$transaction([
+        prisma.progress.upsert({
+          where: {
+            userId_topicId_problemId: {
+              userId,
+              topicId: problem.topicId!,
+              problemId
+            }
+          },
+          create: {
+            userId,
+            topicId: problem.topicId!,
+            problemId,
+            status: 'COMPLETED'
+          },
+          update: {
+            status: 'COMPLETED'
+          }
+        }),
+        prisma.user.update({
+          where: { id: userId },
+          data: {
+            completedProblems: {
+              connect: { id: problemId }
+            }
+          }
+        })
+      ]);
+    }
+
+    res.json({ message: isCompleted ? 'Problem marked as uncompleted' : 'Problem marked as completed' });
   } catch (error) {
-    console.error('Error marking problem as completed:', error);
-    res.status(500).json({ error: 'Failed to mark problem as completed' });
+    console.error('Error toggling problem completion:', error);
+    res.status(500).json({ error: 'Failed to toggle problem completion' });
   }
 }) as RequestHandler);
 
