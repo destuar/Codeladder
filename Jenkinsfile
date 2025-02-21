@@ -75,25 +75,29 @@ EOL
                     keyFileVariable: 'SSH_KEY',
                     usernameVariable: 'SSH_USER'
                 )]) {
-                    sh '''
+                    sh """
                         set -e  # Exit on any error
                         
                         echo "Creating archive..."
-                        git archive --format=tar.gz -o ${ARCHIVE_NAME} HEAD
+                        git archive --format=tar.gz -o \${ARCHIVE_NAME} HEAD
                         
                         echo "Testing SSH connection..."
-                        ssh -o StrictHostKeyChecking=no -i "$SSH_KEY" ${SSH_USER}@${EC2_HOST} "echo 'SSH connection successful'"
+                        ssh -o StrictHostKeyChecking=no -i "\$SSH_KEY" \${SSH_USER}@\${EC2_HOST} "echo 'SSH connection successful'"
                         
                         echo "Transferring files to EC2..."
-                        scp -o StrictHostKeyChecking=no -i "$SSH_KEY" \
-                            ${ARCHIVE_NAME} \
-                            .env.deploy \
-                            ${SSH_USER}@${EC2_HOST}:${DEPLOY_PATH}/
-                    '''
-                    
-                    // Separate command for deployment to handle environment parameter
-                    sh """
-                        ssh -o StrictHostKeyChecking=no -i "\$SSH_KEY" \${SSH_USER}@\${EC2_HOST} 'cd \${DEPLOY_PATH} && tar -xzf \${ARCHIVE_NAME} && rm \${ARCHIVE_NAME} && chmod +x deploy.sh && ENVIRONMENT=${params.ENVIRONMENT} ./deploy.sh'
+                        scp -o StrictHostKeyChecking=no -i "\$SSH_KEY" \\
+                            \${ARCHIVE_NAME} \\
+                            .env.deploy \\
+                            \${SSH_USER}@\${EC2_HOST}:\${DEPLOY_PATH}/
+                        
+                        echo "Executing deployment..."
+                        ssh -o StrictHostKeyChecking=no -i "\$SSH_KEY" \${SSH_USER}@\${EC2_HOST} "
+                            cd \${DEPLOY_PATH} && \\
+                            tar -xzf \${ARCHIVE_NAME} && \\
+                            rm \${ARCHIVE_NAME} && \\
+                            chmod +x deploy.sh && \\
+                            ENVIRONMENT=${params.ENVIRONMENT} ./deploy.sh
+                        "
                     """
                 }
             }
