@@ -8,8 +8,8 @@ WORKDIR /app
 # Copy package files first to leverage cache
 COPY package*.json ./
 
-# Install dependencies with specific flags to reduce size and clean up cache
-RUN npm ci --only=production --no-audit \
+# Install ALL dependencies (including dev) for build stage
+RUN npm ci \
     && npm cache clean --force \
     && rm -rf /root/.npm/_cacache
 
