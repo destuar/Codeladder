@@ -16,6 +16,8 @@ import OAuthCallback from './features/auth/OAuthCallback';
 import TopicPage from './features/topics/TopicPage';
 import ProblemPage from './features/problems/ProblemPage';
 import { InfoPage } from '@/features/info/InfoPage';
+import { QueryClientProvider } from '@tanstack/react-query';
+import queryClient from '@/lib/queryClient';
 
 // Regular components
 const UnauthorizedPage = () => (
@@ -37,95 +39,95 @@ function AdminViewWrapper({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
-function App() {
+export default function App() {
   return (
-    <Router>
-      <AuthProvider>
-        <AdminProvider>
-          <ProfileProvider>
-            <div className="min-h-screen bg-background text-foreground">
-              <Navigation />
-              <main>
-                <Routes>
-                  {/* Public routes */}
-                  <Route path="/login" element={<LoginPage />} />
-                  <Route path="/register" element={<RegisterPage />} />
-                  <Route path="/unauthorized" element={<UnauthorizedPage />} />
-                  <Route path="/auth/callback/:provider" element={<OAuthCallback />} />
+    <QueryClientProvider client={queryClient}>
+      <Router>
+        <AuthProvider>
+          <AdminProvider>
+            <ProfileProvider>
+              <div className="min-h-screen bg-background text-foreground">
+                <Navigation />
+                <main>
+                  <Routes>
+                    {/* Public routes */}
+                    <Route path="/login" element={<LoginPage />} />
+                    <Route path="/register" element={<RegisterPage />} />
+                    <Route path="/unauthorized" element={<UnauthorizedPage />} />
+                    <Route path="/auth/callback/:provider" element={<OAuthCallback />} />
 
-                  {/* Protected routes */}
-                  <Route
-                    path="/dashboard"
-                    element={
-                      <ProtectedRoute>
-                        <AdminViewWrapper>
-                          <DashboardPage />
-                        </AdminViewWrapper>
-                      </ProtectedRoute>
-                    }
-                  />
+                    {/* Protected routes */}
+                    <Route
+                      path="/dashboard"
+                      element={
+                        <ProtectedRoute>
+                          <AdminViewWrapper>
+                            <DashboardPage />
+                          </AdminViewWrapper>
+                        </ProtectedRoute>
+                      }
+                    />
 
-                  <Route
-                    path="/profile"
-                    element={
-                      <ProtectedRoute>
-                        <AdminViewWrapper>
-                          <ProfilePage />
-                        </AdminViewWrapper>
-                      </ProtectedRoute>
-                    }
-                  />
+                    <Route
+                      path="/profile"
+                      element={
+                        <ProtectedRoute>
+                          <AdminViewWrapper>
+                            <ProfilePage />
+                          </AdminViewWrapper>
+                        </ProtectedRoute>
+                      }
+                    />
 
-                  <Route
-                    path="/topics/:topicId"
-                    element={
-                      <ProtectedRoute>
-                        <AdminViewWrapper>
-                          <TopicPage />
-                        </AdminViewWrapper>
-                      </ProtectedRoute>
-                    }
-                  />
+                    <Route
+                      path="/topics/:topicId"
+                      element={
+                        <ProtectedRoute>
+                          <AdminViewWrapper>
+                            <TopicPage />
+                          </AdminViewWrapper>
+                        </ProtectedRoute>
+                      }
+                    />
 
-                  <Route
-                    path="/problems/:problemId"
-                    element={
-                      <ProtectedRoute>
-                        <AdminViewWrapper>
-                          <ProblemPage />
-                        </AdminViewWrapper>
-                      </ProtectedRoute>
-                    }
-                  />
+                    <Route
+                      path="/problems/:problemId"
+                      element={
+                        <ProtectedRoute>
+                          <AdminViewWrapper>
+                            <ProblemPage />
+                          </AdminViewWrapper>
+                        </ProtectedRoute>
+                      }
+                    />
 
-                  <Route
-                    path="/info/:id"
-                    element={
-                      <ProtectedRoute>
-                        <InfoPage />
-                      </ProtectedRoute>
-                    }
-                  />
+                    <Route
+                      path="/info/:id"
+                      element={
+                        <ProtectedRoute>
+                          <InfoPage />
+                        </ProtectedRoute>
+                      }
+                    />
 
-                  {/* Redirect root to dashboard */}
-                  <Route
-                    path="/"
-                    element={<Navigate to="/dashboard" replace />}
-                  />
+                    {/* Redirect root to dashboard */}
+                    <Route
+                      path="/"
+                      element={<Navigate to="/dashboard" replace />}
+                    />
 
-                  {/* Catch all other routes */}
-                  <Route
-                    path="*"
-                    element={<Navigate to="/dashboard" replace />}
-                  />
-                </Routes>
-              </main>
-            </div>
-          </ProfileProvider>
-        </AdminProvider>
-      </AuthProvider>
-    </Router>
+                    {/* Catch all other routes */}
+                    <Route
+                      path="*"
+                      element={<Navigate to="/dashboard" replace />}
+                    />
+                  </Routes>
+                </main>
+              </div>
+            </ProfileProvider>
+          </AdminProvider>
+        </AuthProvider>
+      </Router>
+    </QueryClientProvider>
   );
 }
-
-export default App;

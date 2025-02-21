@@ -15,6 +15,7 @@ pipeline {
         AWS_REGION = 'us-east-2'
         S3_BUCKET = 'codeladder-s3'
         CORS_ORIGIN = "http://${EC2_HOST}:${FRONTEND_PORT}"
+        NODE_ENV = 'production'
     }
     
     parameters {
@@ -183,6 +184,12 @@ EOL
                         }
                     }
                 }
+            }
+        }
+        
+        stage('Start Server') {
+            steps {
+                sh 'NODE_ENV=production npm start'
             }
         }
     }

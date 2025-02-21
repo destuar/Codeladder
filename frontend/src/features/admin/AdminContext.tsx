@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect } from 'react';
 import { useAuth } from '../auth/AuthContext';
 
 interface AdminContextType {
@@ -10,39 +10,38 @@ interface AdminContextType {
 const AdminContext = createContext<AdminContextType | undefined>(undefined);
 
 export function AdminProvider({ children }: { children: React.ReactNode }) {
+  // Move the useAuth hook inside a useEffect
+  const [canAccessAdmin, setCanAccessAdmin] = useState(false);
+  const [isAdminView, setIsAdminView] = useState(false);
   const { user } = useAuth();
-  const canAccessAdmin = user?.role === 'ADMIN' || user?.role === 'DEVELOPER';
-  
-  // Initialize state from localStorage if available, otherwise false
-  const [isAdminView, setIsAdminView] = useState(() => {
-    if (!canAccessAdmin) return false;
-    const saved = localStorage.getItem('adminMode');
-    return saved ? JSON.parse(saved) : false;
-  });
+
+  useEffect(() => {
+    const hasAdminAccess = user?.role === 'ADMIN' || user?.role === 'DEVELOPER';
+    setCanAccessAdmin(hasAdminAccess);
+    
+    // Reset admin view if user loses admin access
+    if (!hasAdminAccess) {
+      setIsAdminView(false);
+      localStorage.removeItem('adminMode');
+    }
+  }, [user]);
+
+  // Initialize admin view from localStorage if user has access
+  useEffect(() => {
+    if (canAccessAdmin) {
+      const saved = localStorage.getItem('adminMode');
+      if (saved) {
+        setIsAdminView(JSON.parse(saved));
+      }
+    }
+  }, [canAccessAdmin]);
 
   // Update localStorage when admin mode changes
   useEffect(() => {
     if (canAccessAdmin) {
       localStorage.setItem('adminMode', JSON.stringify(isAdminView));
-    } else {
-      localStorage.removeItem('adminMode');
-      setIsAdminView(false);
     }
   }, [isAdminView, canAccessAdmin]);
-
-  // Reset admin mode when user changes or logs out
-  useEffect(() => {
-    if (!canAccessAdmin) {
-      setIsAdminView(false);
-      localStorage.removeItem('adminMode');
-    }
-  }, [canAccessAdmin]);
-
-  const toggleAdminView = () => {
-    if (canAccessAdmin) {
-      setIsAdminView((prev: boolean) => !prev);
-    }
-  };
 
   return (
     <AdminContext.Provider
@@ -59,7 +58,7 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
 
 export function useAdmin() {
   const context = useContext(AdminContext);
-  if (context === undefined) {
+  if (!context) {
     throw new Error('useAdmin must be used within an AdminProvider');
   }
   return context;

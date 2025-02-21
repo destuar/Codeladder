@@ -10,16 +10,48 @@ import { requestDebugger } from './middleware/debugger';
 
 const app = express();
 
+// Add near the start of your app.ts
+console.log('Current environment:', process.env.NODE_ENV);
+console.log('CORS origins allowed:', process.env.NODE_ENV === 'production' 
+  ? [process.env.CORS_ORIGIN]
+  : ['http://localhost:5173', process.env.CORS_ORIGIN].filter(Boolean)
+);
+
 // Middleware
 app.use(helmet({
   crossOriginResourcePolicy: { policy: "cross-origin" },
   crossOriginOpenerPolicy: { policy: "unsafe-none" },
 }));
 
-app.use(cors({
-  origin: env.CORS_ORIGIN,
-  credentials: true
-}));
+// CORS configuration for development
+const corsOptions = {
+  origin: (origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) => {
+    const allowedOrigins = process.env.NODE_ENV === 'production'
+      ? [process.env.CORS_ORIGIN]
+      : ['http://localhost:5173', process.env.CORS_ORIGIN];
+    
+    // Remove any undefined/null values and filter empty strings
+    const validOrigins = allowedOrigins.filter(Boolean);
+    
+    // Allow requests with no origin (like mobile apps or curl requests)
+    if (!origin) {
+      return callback(null, true);
+    }
+
+    if (validOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      console.warn(`Origin ${origin} not allowed by CORS`);
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+  optionsSuccessStatus: 200
+};
+
+app.use(cors(corsOptions));
 
 app.use(express.json());
 app.use(cookieParser());

@@ -33,9 +33,6 @@ const debug = {
   }
 };
 
-// Simplify BASE_URL handling to always use relative paths
-const BASE_URL = '/api';
-
 interface RequestOptions extends RequestInit {
   token?: string | null;
 }
@@ -44,11 +41,21 @@ interface ApiError extends Error {
   status?: number;
 }
 
-const API_URL = window.RUNTIME_CONFIG?.API_URL || '/api';
+const getBaseUrl = () => {
+  // In both dev and prod, we'll use relative /api path
+  // Vite handles proxying in dev, nginx handles it in prod
+  return '/api';
+};
 
 async function request(endpoint: string, options: RequestOptions = {}) {
   const { token, ...customOptions } = options;
   const authToken = token || localStorage.getItem('token');
+
+  // Add token debugging
+  debug.log('Token being used:', authToken ? 'Present' : 'Missing', {
+    fromOptions: !!token,
+    fromLocalStorage: !!localStorage.getItem('token')
+  });
 
   const headers = new Headers(customOptions.headers);
   headers.set('Content-Type', 'application/json');
@@ -58,15 +65,11 @@ async function request(endpoint: string, options: RequestOptions = {}) {
     debug.log('Added auth token to request');
   }
 
-  // URL construction with logging
   const cleanEndpoint = endpoint.startsWith('/') ? endpoint.slice(1) : endpoint;
-  debug.log('Cleaned endpoint:', cleanEndpoint);
-  
-  const cleanBaseUrl = BASE_URL.endsWith('/') ? BASE_URL.slice(0, -1) : BASE_URL;
-  debug.log('Cleaned base URL:', cleanBaseUrl);
-  
-  const url = `${cleanBaseUrl}/${cleanEndpoint}`;
-  debug.log('Final URL:', url);
+  const baseUrl = getBaseUrl();
+  const url = `${baseUrl}/${cleanEndpoint}`.replace(/\/+/g, '/');
+
+  debug.log(`Making ${options.method || 'GET'} request to:`, url);
 
   // Log the complete request
   debug.request(options.method || 'GET', url, {
@@ -87,11 +90,16 @@ async function request(endpoint: string, options: RequestOptions = {}) {
       return null;
     });
 
-    // Log the complete response
-    debug.response(url, response, data);
+    // Add response debugging
+    debug.log('Response headers:', {
+      ...Object.fromEntries(response.headers.entries())
+    });
 
     if (response.status === 401) {
-      debug.error('Unauthorized request:', url);
+      debug.error('Unauthorized request:', url, {
+        responseData: data,
+        headers: Object.fromEntries(headers.entries())
+      });
       throw new Error('Unauthorized');
     }
 
@@ -154,6 +162,13 @@ export const api = {
       token,
     });
   },
+
+  request: async (endpoint: string, options: RequestOptions = {}) => {
+    const baseUrl = getBaseUrl();
+    const url = `${baseUrl}/${endpoint}`.replace(/\/+/g, '/');
+    
+    // ... rest of request implementation ...
+  }
 };
 
 export const getProblem = async (problemId: string) => {

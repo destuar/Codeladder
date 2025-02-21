@@ -96,9 +96,13 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     }
 
     try {
-      console.log('Refreshing token...');
+      console.log('Refreshing token...', {
+        tokenExists: !!savedToken,
+        tokenLength: savedToken?.length
+      });
+      
       const data = await api.post('/auth/refresh', {}, savedToken);
-      console.log('Token refreshed successfully');
+      console.log('Token refresh response:', data);
       
       if (data.accessToken) {
         setToken(data.accessToken);
@@ -112,12 +116,14 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       }
     } catch (err) {
       console.error('Error refreshing token:', err);
+      // Clear tokens on unauthorized
       if (err instanceof Error && err.message === 'Unauthorized') {
-        if (user) {
-          console.log('Unauthorized during refresh, logging out');
-          await logout();
-        }
+        localStorage.removeItem('token');
+        localStorage.removeItem('user');
+        setToken(null);
+        setUser(null);
       }
+      throw err;
     }
   };
 
