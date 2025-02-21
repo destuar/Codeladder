@@ -14,6 +14,7 @@ export interface Problem {
   codeTemplate?: string;
   testCases?: string;
   estimatedTime?: number;
+  topic?: Topic;
 }
 
 export interface Topic {

@@ -11,6 +11,8 @@ import { cn } from "@/lib/utils";
 import { Console } from "@/components/ui/console";
 import { api } from '@/lib/api';
 import { useAuth } from '@/features/auth/AuthContext';
+import { useQueryClient } from '@tanstack/react-query';
+import { useAdmin } from '@/features/admin/AdminContext';
 
 interface TestCase {
   input: any[];
@@ -99,6 +101,8 @@ export default function CodingProblem({
   const editorRef = useRef<any>(null);
   const editorContainerRef = useRef<HTMLDivElement>(null);
   const timerRef = useRef<NodeJS.Timeout>();
+  const queryClient = useQueryClient();
+  const { canAccessAdmin } = useAdmin();
   
   // Calculate formatted time early
   const formattedTime = formatEstimatedTime(estimatedTime);
@@ -389,11 +393,22 @@ export default function CodingProblem({
   }, []);
 
   const handleMarkAsComplete = async () => {
+    // Optimistically update the UI
+    setIsProblemCompleted(!isProblemCompleted);
+
     try {
       await api.post(`/problems/${problemId}/complete`, {}, token);
-      setIsProblemCompleted(true);
+      // Invalidate queries to force a refresh of the data
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['problem', problemId] }),
+        queryClient.invalidateQueries({ queryKey: ['learningPath'] }),
+        queryClient.invalidateQueries({ queryKey: ['topic'] }),
+        queryClient.invalidateQueries({ queryKey: ['allProblems'] })
+      ]);
     } catch (error) {
-      console.error('Error marking problem as complete:', error);
+      // Revert the optimistic update on error
+      setIsProblemCompleted(!isProblemCompleted);
+      console.error('Error toggling problem completion:', error);
     }
   };
 
@@ -435,20 +450,26 @@ export default function CodingProblem({
           </div>
         </div>
         <div className="flex items-center gap-2">
-          {isProblemCompleted ? (
-            <div className="flex items-center justify-end text-green-500 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 p-2 rounded-lg shadow-sm">
-              <CheckCircle2 className="w-5 h-5" />
-              <span className="text-sm font-medium ml-2">Completed</span>
+          <Button 
+            variant={isProblemCompleted ? "outline" : "default"}
+            className={cn(
+              "shadow-sm transition-all duration-200",
+              isProblemCompleted && "border-green-500 text-green-500 hover:bg-green-500/10"
+            )}
+            onClick={handleMarkAsComplete}
+            disabled={isProblemCompleted && !canAccessAdmin}
+          >
+            <div className="flex items-center">
+              {isProblemCompleted ? (
+                <>
+                  <CheckCircle2 className="w-5 h-5" />
+                  <span className="ml-2">{canAccessAdmin ? "Toggle Complete" : "Completed"}</span>
+                </>
+              ) : (
+                <span>Mark as Complete</span>
+              )}
             </div>
-          ) : (
-            <Button 
-              variant="outline" 
-              className="shadow-sm"
-              onClick={handleMarkAsComplete}
-            >
-              Mark as Complete
-            </Button>
-          )}
+          </Button>
           <Button variant="ghost" size="icon" onClick={toggleFullscreen}>
             {isFullscreen ? (
               <Minimize2 className="h-4 w-4" />

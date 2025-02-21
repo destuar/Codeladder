@@ -20,6 +20,7 @@ import {
 } from "@/components/ui/table";
 import { ArrowUpDown, ChevronDown, ChevronUp, CheckCircle2, Circle, Book, Code2, Timer, Lock, AlertCircle } from "lucide-react";
 import { cn } from '@/lib/utils';
+import { ProblemList } from '@/components/ProblemList';
 
 type Difficulty = 'EASY_IIII' | 'EASY_III' | 'EASY_II' | 'EASY_I' | 'MEDIUM' | 'HARD';
 
@@ -81,8 +82,6 @@ export default function TopicPage() {
   const { isAdminView, canAccessAdmin } = useAdmin();
   const { token } = useAuth();
   const navigate = useNavigate();
-  const [sortField, setSortField] = useState<SortField>('order');
-  const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
   const [showWarning, setShowWarning] = useState(false);
   const [warningMessage, setWarningMessage] = useState('');
 
@@ -131,38 +130,6 @@ export default function TopicPage() {
 
     return false;
   })();
-
-  const handleSort = (field: SortField) => {
-    if (sortField === field) {
-      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
-    } else {
-      setSortField(field);
-      setSortDirection('asc');
-    }
-  };
-
-  const getSortedProblems = () => {
-    if (!topic?.problems) return [];
-    
-    return [...topic.problems].sort((a, b) => {
-      const direction = sortDirection === 'asc' ? 1 : -1;
-      
-      switch (sortField) {
-        case 'name':
-          return direction * a.name.localeCompare(b.name);
-        case 'difficulty':
-          return direction * (DIFFICULTY_ORDER[a.difficulty as Difficulty] - DIFFICULTY_ORDER[b.difficulty as Difficulty]);
-        case 'order':
-          const aOrder = a.reqOrder || Infinity;
-          const bOrder = b.reqOrder || Infinity;
-          return direction * (aOrder - bOrder);
-        case 'completed':
-          return direction * (Number(a.completed) - Number(b.completed));
-        default:
-          return 0;
-      }
-    });
-  };
 
   const handleProblemStart = (problemId: string) => {
     if (isLocked && !canAccessAdmin) {
@@ -257,132 +224,14 @@ export default function TopicPage() {
             )}
           </CardHeader>
           <CardContent>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className={cn("w-12", isLocked && "text-muted-foreground")}>Status</TableHead>
-                  <TableHead 
-                    className={cn(
-                      "cursor-pointer hover:bg-muted/50 transition-colors w-24",
-                      isLocked && "text-muted-foreground"
-                    )}
-                    onClick={() => handleSort('order')}
-                  >
-                    <div className="flex items-center space-x-1">
-                      <span>Order</span>
-                      {sortField === 'order' ? (
-                        sortDirection === 'asc' ? (
-                          <ChevronUp className="h-4 w-4 text-primary" />
-                        ) : (
-                          <ChevronDown className="h-4 w-4 text-primary" />
-                        )
-                      ) : (
-                        <ArrowUpDown className="h-4 w-4 text-muted-foreground" />
-                      )}
-                    </div>
-                  </TableHead>
-                  <TableHead 
-                    className={cn(
-                      "cursor-pointer hover:bg-muted/50 transition-colors",
-                      isLocked && "text-muted-foreground"
-                    )}
-                    onClick={() => handleSort('name')}
-                  >
-                    <div className="flex items-center space-x-1">
-                      <span>Name</span>
-                      {sortField === 'name' ? (
-                        sortDirection === 'asc' ? (
-                          <ChevronUp className="h-4 w-4 text-primary" />
-                        ) : (
-                          <ChevronDown className="h-4 w-4 text-primary" />
-                        )
-                      ) : (
-                        <ArrowUpDown className="h-4 w-4 text-muted-foreground" />
-                      )}
-                    </div>
-                  </TableHead>
-                  <TableHead 
-                    className={cn(
-                      "cursor-pointer hover:bg-muted/50 transition-colors",
-                      isLocked && "text-muted-foreground"
-                    )}
-                    onClick={() => handleSort('difficulty')}
-                  >
-                    <div className="flex items-center space-x-1">
-                      <span>Difficulty</span>
-                      {sortField === 'difficulty' ? (
-                        sortDirection === 'asc' ? (
-                          <ChevronUp className="h-4 w-4 text-primary" />
-                        ) : (
-                          <ChevronDown className="h-4 w-4 text-primary" />
-                        )
-                      ) : (
-                        <ArrowUpDown className="h-4 w-4 text-muted-foreground" />
-                      )}
-                    </div>
-                  </TableHead>
-                  <TableHead className={cn("w-[100px]", isLocked && "text-muted-foreground")}>Action</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody className={cn(isLocked && "opacity-50")}>
-                {getSortedProblems().map((problem) => (
-                  <TableRow key={problem.id} className="cursor-pointer hover:bg-muted/50">
-                    <TableCell>
-                      {problem.completed ? (
-                        <CheckCircle2 className={cn("h-5 w-5 text-green-500", isLocked && "text-muted-foreground")} />
-                      ) : (
-                        <Circle className="h-5 w-5 text-muted-foreground" />
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      {problem.required ? (
-                        <Badge variant="outline" className={cn(isLocked && "border-muted-foreground text-muted-foreground")}>
-                          REQ {problem.reqOrder}
-                        </Badge>
-                      ) : (
-                        <Badge variant="secondary" className={cn(isLocked && "bg-muted text-muted-foreground")}>
-                          OPT {problem.reqOrder}
-                        </Badge>
-                      )}
-                    </TableCell>
-                    <TableCell className={cn("font-medium", isLocked && "text-muted-foreground")}>
-                      <div className="flex items-center gap-2">
-                        {problem.problemType === 'INFO' ? (
-                          <Book className="h-4 w-4 text-muted-foreground" />
-                        ) : (
-                          <Code2 className="h-4 w-4 text-muted-foreground" />
-                        )}
-                        {problem.name}
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <DifficultyBadge difficulty={problem.difficulty as Difficulty} />
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex items-center gap-2">
-                        <Button 
-                          variant="outline" 
-                          size="sm"
-                          className={cn(
-                            isLocked && !canAccessAdmin && "border-muted-foreground text-muted-foreground",
-                            isLocked && canAccessAdmin && "border-yellow-500 text-yellow-500 hover:bg-yellow-500/10"
-                          )}
-                          onClick={() => handleProblemStart(problem.id)}
-                        >
-                          {isLocked && canAccessAdmin ? "Start (Admin)" : "Start"}
-                        </Button>
-                        {formatEstimatedTime(problem.estimatedTime) && (
-                          <div className="flex items-center gap-1 text-sm text-muted-foreground whitespace-nowrap">
-                            <Timer className="h-4 w-4" />
-                            <span>{formatEstimatedTime(problem.estimatedTime)}</span>
-                          </div>
-                        )}
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+            <ProblemList
+              problems={topic.problems}
+              isLocked={isLocked}
+              canAccessAdmin={canAccessAdmin}
+              onProblemStart={handleProblemStart}
+              itemsPerPage={50}
+              showOrder={true}
+            />
           </CardContent>
         </Card>
       )}
