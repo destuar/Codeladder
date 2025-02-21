@@ -121,11 +121,17 @@ EOL
                         
                         echo "Executing deployment..."
                         ssh -o StrictHostKeyChecking=no -i "\$SSH_KEY" \${SSH_USER}@\${EC2_HOST} "
-                            cd ~/codeladder && \\
-                            tar -xzf \${ARCHIVE_NAME} && \\
-                            rm \${ARCHIVE_NAME} && \\
-                            chmod +x deploy.sh && \\
-                            ENVIRONMENT=${params.ENVIRONMENT} ./deploy.sh
+                            set -x  # Enable debug mode
+                            cd ~/codeladder
+                            ls -la  # Check files
+                            echo 'Extracting archive...'
+                            tar -xzf \${ARCHIVE_NAME}
+                            echo 'Removing archive...'
+                            rm \${ARCHIVE_NAME}
+                            echo 'Setting permissions...'
+                            chmod +x deploy.sh
+                            echo 'Running deploy script...'
+                            ENVIRONMENT=${params.ENVIRONMENT} bash -x deploy.sh  # Pass ENVIRONMENT variable
                         "
                     """
                 }

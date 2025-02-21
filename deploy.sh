@@ -8,11 +8,11 @@ report_error() {
     echo "Container status:"
     docker ps -a
     echo "Backend logs:"
-    docker logs codeladder-backend
+    docker logs codeladder-backend 2>&1 || true
     echo "Database connection test:"
-    docker exec codeladder-backend nc -zv codeladder-db.c1y8u4sey2wa.us-east-2.rds.amazonaws.com 5432
+    docker exec codeladder-backend nc -zv codeladder-db.c1y8u4sey2wa.us-east-2.rds.amazonaws.com 5432 || true
     echo "Environment variables:"
-    docker exec codeladder-backend printenv | grep -v "SECRET\|KEY\|PASSWORD"
+    docker exec codeladder-backend printenv | grep -v "SECRET\|KEY\|PASSWORD" || true
 }
 
 # Modify error handler to use it
@@ -79,135 +79,72 @@ if ! validate_database_url "$DATABASE_URL_VALUE"; then
     exit 1
 fi
 
-# Transfer files to EC2 and verify
-echo "Transferring files to EC2..."
-scp -r .env.deploy ec2-user@3.21.246.147:~/codeladder/
-
-echo "Checking .env.deploy on EC2 instance..."
-ssh ec2-user@3.21.246.147 "cat ~/codeladder/.env.deploy | grep DATABASE_URL"
-
 # Clean up Docker resources
 docker rm -f codeladder-backend codeladder-frontend || true
 docker network rm app-network || true
-docker builder prune -f  # Add this line to clear build cache
+docker builder prune -f
 
 # Create network
 echo "Creating Docker network..."
 docker network create app-network || true
 
-# Build the backend image with better error output
+# Build images
 echo "Building backend image..."
 docker build -t codeladder-backend -f backend/Dockerfile.backend ./backend 2>&1 | tee build.log || {
     echo "Build failed. Showing TypeScript errors:"
-    grep "TS" build.log
+    grep "TS" build.log || true
     exit 1
 }
 
-# Build the frontend image
 echo "Building frontend image..."
 docker build -t codeladder-frontend -f frontend/Dockerfile.frontend ./frontend
 
-# Stop and remove existing containers if they exist
-echo "Cleaning up existing containers..."
-docker rm -f codeladder-backend codeladder-frontend || true
-
+# Start containers
 echo "Starting backend container..."
 docker run -d \
     --name codeladder-backend \
     --network app-network \
     -p 8000:8000 \
     --env-file .env.deploy \
-    codeladder-backend || {
-    echo "Failed to start backend container. Checking logs..."
-    docker logs codeladder-backend
-    exit 1
-}
+    codeladder-backend
 
-# Wait for container to initialize
-echo "Waiting for backend to initialize..."
-sleep 5
-
-echo "Checking environment variables in container..."
-docker exec codeladder-backend env | grep DATABASE_URL
-
-echo "Testing DNS resolution..."
-docker exec codeladder-backend nslookup codeladder-db.c1y8u4sey2wa.us-east-2.rds.amazonaws.com
-
-echo "Testing database connection..."
-docker exec codeladder-backend bash -c '
-  echo "Current DATABASE_URL (sanitized):"
-  echo "$DATABASE_URL" | sed "s/:[^:]*@/@/g"
-  
-  echo "Testing DNS resolution for database host..."
-  host codeladder-db.c1y8u4sey2wa.us-east-2.rds.amazonaws.com
-
-  echo "Testing TCP connection to database..."
-  nc -zv -w 5 codeladder-db.c1y8u4sey2wa.us-east-2.rds.amazonaws.com 5432
-
-  echo "Testing PostgreSQL connection with explicit credentials..."
-  # Properly escape special characters in password
-  PGPASSWORD="${DATABASE_URL#*:}" psql "${DATABASE_URL}" -c "\l"
-' || {
-    echo "Failed to connect to database. Checking logs..."
-    docker logs codeladder-backend
-    exit 1
-}
-
-# Install SSL certificates and tools
-docker exec codeladder-backend apt-get update
-docker exec codeladder-backend apt-get install -y ca-certificates postgresql-client
-
-# Test database connection with psql
-echo "Testing PostgreSQL connection..."
-docker exec codeladder-backend psql "$DATABASE_URL" -c '\l'
-
-echo "Running Prisma commands..."
-docker exec codeladder-backend npx prisma generate
-docker exec codeladder-backend npx prisma migrate deploy
-
-# Get the public IP or hostname
-PUBLIC_IP="3.21.246.147"
-PUBLIC_API_URL="http://${PUBLIC_IP}:8000/api"
-
-# Update the frontend container run command
 echo "Starting frontend container..."
 docker run -d \
-  --name codeladder-frontend \
-  --network app-network \
-  -p 8085:80 \
-  -e API_URL="/api" \
-  -e NODE_ENV="production" \
-  codeladder-frontend
+    --name codeladder-frontend \
+    --network app-network \
+    -p 8085:80 \
+    -e API_URL="/api" \
+    -e NODE_ENV="${ENVIRONMENT:-production}" \
+    codeladder-frontend
 
-# Add verification of the config
-echo "Verifying frontend configuration..."
-sleep 2  # Give nginx time to generate the config
-docker exec codeladder-frontend cat /usr/share/nginx/html/config.js
+# Wait for containers
+echo "Waiting for containers to start..."
+sleep 5
 
-# Test API reachability
-echo "Testing API reachability..."
-echo "Testing root endpoint..."
-curl -I "http://${PUBLIC_IP}:8000/" || {
-    echo "WARNING: Root endpoint not reachable"
+# Verify deployment
+echo "Verifying deployment..."
+if ! docker ps | grep -q codeladder-backend; then
+    echo "ERROR: Backend container failed to start"
+    docker logs codeladder-backend
+    exit 1
+fi
+
+if ! docker ps | grep -q codeladder-frontend; then
+    echo "ERROR: Frontend container failed to start"
+    docker logs codeladder-frontend
+    exit 1
+fi
+
+echo "Testing backend health..."
+curl -f http://localhost:8000/api/health || {
+    echo "ERROR: Backend health check failed"
+    docker logs codeladder-backend
+    exit 1
 }
 
-echo "Testing API health endpoint..."
-curl -I -H "Origin: http://${PUBLIC_IP}:8085" "${PUBLIC_API_URL}/health" || {
-    echo "WARNING: API not reachable at ${PUBLIC_API_URL}"
-    echo "Please verify your security groups and network settings"
-}
-
-echo "Testing API response..."
-curl -H "Origin: http://${PUBLIC_IP}:8085" "${PUBLIC_API_URL}/health" || {
-    echo "WARNING: Could not get health check response"
-}
-
-echo "Deployment complete! Services should be available at:"
-echo "Frontend: http://3.21.246.147:8085"
-echo "Backend: http://3.21.246.147:8000"
-echo ""
-echo "Checking container status..."
-docker ps
+echo "Deployment complete! Services available at:"
+echo "Frontend: http://$(curl -s ifconfig.me):8085"
+echo "Backend: http://$(curl -s ifconfig.me):8000"
 
 # Check if containers are running
 if ! docker ps | grep -q codeladder-backend; then
@@ -258,14 +195,6 @@ docker exec codeladder-backend bash -c '
 # After sourcing .env.deploy
 echo "Content of .env.deploy on local machine:"
 cat .env.deploy | grep DATABASE_URL
-
-# After transferring files to EC2
-echo "Checking .env.deploy on EC2 instance..."
-ssh ec2-user@3.21.246.147 "cat ~/codeladder/.env.deploy | grep DATABASE_URL"
-
-# After starting the backend container
-echo "Checking environment variables in the backend container..."
-docker exec codeladder-backend env | grep DATABASE_URL
 
 # Add a check to ensure the correct DATABASE_URL is being used
 echo "Verifying DATABASE_URL in container..."
