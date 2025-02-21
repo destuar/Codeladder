@@ -1,0 +1,124 @@
+pipeline {
+    agent any
+
+    environment {
+        EC2_HOST = '3.21.246.147'
+        FRONTEND_PORT = '8085'
+        BACKEND_PORT = '8000'
+        NODE_VERSION = '18'
+        TEST_DB_NAME = 'codeladder_test'
+        DATABASE_URL = credentials('DATABASE_URL')
+        JWT_SECRET = credentials('JWT_SECRET')
+        JWT_REFRESH_SECRET = credentials('JWT_REFRESH_SECRET')
+        CORS_ORIGIN = "http://${EC2_HOST}:${FRONTEND_PORT}"
+        NODE_ENV = 'test'
+        API_URL = "http://${EC2_HOST}:${BACKEND_PORT}/api"
+    }
+
+    stages {
+        stage('Setup Test Environment') {
+            steps {
+                script {
+                    def dbUrl = env.DATABASE_URL
+                    def (protocol, rest) = dbUrl.split('://')
+                    def (credentials, hostAndDb) = rest.split('@')
+                    def (username, password) = credentials.split(':')
+                    def (hostAndPort, originalDb) = hostAndDb.split('/')
+                    
+                    sh """
+                        PGPASSWORD=${password} psql -h ${hostAndPort} -U ${username} -d postgres -c "DROP DATABASE IF EXISTS ${TEST_DB_NAME}"
+                        PGPASSWORD=${password} psql -h ${hostAndPort} -U ${username} -d postgres -c "CREATE DATABASE ${TEST_DB_NAME}"
+                    """
+                    
+                    env.DATABASE_URL = "${protocol}://${credentials}@${hostAndPort}/${TEST_DB_NAME}"
+                }
+            }
+        }
+
+        stage('Setup Node.js') {
+            steps {
+                sh """
+                    . ~/.nvm/nvm.sh
+                    nvm install ${NODE_VERSION}
+                    nvm use ${NODE_VERSION}
+                    node --version
+                    npm --version
+                """
+            }
+        }
+
+        stage('Backend Tests') {
+            steps {
+                dir('backend') {
+                    sh """
+                        # Install dependencies
+                        npm ci
+
+                        # Generate Prisma client
+                        npx prisma generate
+
+                        # Run migrations on test database
+                        NODE_ENV=test npx prisma migrate deploy
+
+                        # Modify test script to use EC2 endpoint
+                        sed -i 's|http://localhost:8000/api|http://${EC2_HOST}:${BACKEND_PORT}/api|g' test.sh
+
+                        # Run tests
+                        npm run build
+                        chmod +x test.sh
+                        ./test.sh
+                    """
+                }
+            }
+        }
+
+        stage('Frontend Tests') {
+            steps {
+                dir('frontend') {
+                    sh """
+                        # Install dependencies
+                        npm ci
+
+                        # Run type checking
+                        npm run type-check
+
+                        # Run linting
+                        npm run lint
+
+                        # Test build with EC2 API URL
+                        VITE_API_URL=${API_URL} npm run build
+                    """
+                }
+            }
+        }
+    }
+
+    post {
+        always {
+            script {
+                def dbUrl = env.DATABASE_URL
+                def (protocol, rest) = dbUrl.split('://')
+                def (credentials, hostAndDb) = rest.split('@')
+                def (username, password) = credentials.split(':')
+                def (hostAndPort, originalDb) = hostAndDb.split('/')
+                
+                sh """
+                    PGPASSWORD=${password} psql -h ${hostAndPort} -U ${username} -d postgres -c "DROP DATABASE IF EXISTS ${TEST_DB_NAME}"
+                """
+            }
+            cleanWs()
+        }
+        success {
+            slackSend(
+                color: 'good',
+                message: "Branch Tests Passed: ${env.BRANCH_NAME}\nBuild Number: ${env.BUILD_NUMBER}"
+            )
+        }
+        failure {
+            slackSend(
+                color: 'danger',
+                message: "Branch Tests Failed: ${env.BRANCH_NAME}\nBuild Number: ${env.BUILD_NUMBER}\nCheck the logs: ${env.BUILD_URL}"
+            )
+        }
+    }
+} 
