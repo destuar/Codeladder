@@ -147,6 +147,26 @@ EOL
                 }
             }
         }
+        
+        stage('Test SSH Connection') {
+            steps {
+                withCredentials([sshUserPrivateKey(
+                    credentialsId: 'codeladder-jenkins-key', 
+                    keyFileVariable: 'SSH_KEY',
+                    usernameVariable: 'SSH_USER'
+                )]) {
+                    sh """
+                        echo "Testing SSH connection..."
+                        ssh -v -o StrictHostKeyChecking=no -i "\$SSH_KEY" \${SSH_USER}@\${EC2_HOST} '
+                            echo "Connection successful from Jenkins!"
+                            echo "Current directory: \$(pwd)"
+                            echo "Running as user: \$(whoami)"
+                            echo "Host: \$(hostname)"
+                        '
+                    """
+                }
+            }
+        }
     }
     
     post {
