@@ -89,16 +89,12 @@ EOL
                             ${ARCHIVE_NAME} \
                             .env.deploy \
                             ${SSH_USER}@${EC2_HOST}:${DEPLOY_PATH}/
-                        
-                        echo "Executing deployment..."
-                        ssh -o StrictHostKeyChecking=no -i "$SSH_KEY" ${SSH_USER}@${EC2_HOST} """
-                            cd ${DEPLOY_PATH} && \
-                            tar -xzf ${ARCHIVE_NAME} && \
-                            rm ${ARCHIVE_NAME} && \
-                            chmod +x deploy.sh && \
-                            ENVIRONMENT=${params.ENVIRONMENT} ./deploy.sh
-                        """
                     '''
+                    
+                    // Separate command for deployment to handle environment parameter
+                    sh """
+                        ssh -o StrictHostKeyChecking=no -i "\$SSH_KEY" \${SSH_USER}@\${EC2_HOST} 'cd \${DEPLOY_PATH} && tar -xzf \${ARCHIVE_NAME} && rm \${ARCHIVE_NAME} && chmod +x deploy.sh && ENVIRONMENT=${params.ENVIRONMENT} ./deploy.sh'
+                    """
                 }
             }
         }
