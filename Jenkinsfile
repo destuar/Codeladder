@@ -131,7 +131,8 @@ EOL
                             echo 'Setting permissions...'
                             chmod +x deploy.sh
                             echo 'Running deploy script...'
-                            ENVIRONMENT=${params.ENVIRONMENT} bash -x deploy.sh  # Pass ENVIRONMENT variable
+                            # Map staging to production for NODE_ENV
+                            NODE_ENV=\${params.ENVIRONMENT == 'staging' ? 'production' : params.ENVIRONMENT} bash -x deploy.sh
                         "
                     """
                 }
