@@ -152,11 +152,11 @@ EOL
                             
                             # Build backend
                             cd backend
-                            docker build -t codeladder-backend .
+                            docker build -t codeladder-backend -f Dockerfile.backend .
                             
                             # Build frontend
                             cd ../frontend
-                            docker build -t codeladder-frontend .
+                            docker build -t codeladder-frontend -f Dockerfile.frontend .
                         '
                     """
                 }
