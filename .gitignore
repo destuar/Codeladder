@@ -91,6 +91,8 @@ web_modules/
 .env.production.local
 .env.local
 .env.shared
+.env.deploy
+codeladder-jenkins.pem
 
 # parcel-bundler cache (https://parceljs.org/)
 .cache

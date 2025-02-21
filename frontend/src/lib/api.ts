@@ -1,4 +1,40 @@
-const BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api';
+declare global {
+  interface Window {
+    RUNTIME_CONFIG: {
+      API_URL: string;
+      ENV: string;
+    };
+  }
+}
+
+// Debug logging helper
+const debug = {
+  log: (...args: any[]) => {
+    if (window.RUNTIME_CONFIG.ENV !== 'production') {
+      console.log('[API Client]', ...args);
+    }
+  },
+  error: (...args: any[]) => console.error('[API Client Error]', ...args),
+  request: (method: string, url: string, options: any) => {
+    debug.log(`🚀 ${method} Request:`, {
+      url,
+      headers: Object.fromEntries(options.headers.entries()),
+      body: options.body ? JSON.parse(options.body) : undefined,
+      credentials: options.credentials
+    });
+  },
+  response: (url: string, response: Response, data: any) => {
+    debug.log(`📥 Response from ${url}:`, {
+      status: response.status,
+      statusText: response.statusText,
+      headers: Object.fromEntries(response.headers.entries()),
+      data
+    });
+  }
+};
+
+// Simplify BASE_URL handling to always use relative paths
+const BASE_URL = '/api';
 
 interface RequestOptions extends RequestInit {
   token?: string | null;
@@ -8,74 +44,86 @@ interface ApiError extends Error {
   status?: number;
 }
 
+const API_URL = window.RUNTIME_CONFIG?.API_URL || '/api';
+
 async function request(endpoint: string, options: RequestOptions = {}) {
   const { token, ...customOptions } = options;
-
-  // Get token from localStorage if not provided
   const authToken = token || localStorage.getItem('token');
 
   const headers = new Headers(customOptions.headers);
   headers.set('Content-Type', 'application/json');
-
+  
   if (authToken) {
     headers.set('Authorization', `Bearer ${authToken}`);
+    debug.log('Added auth token to request');
   }
 
-  const config: RequestInit = {
+  // URL construction with logging
+  const cleanEndpoint = endpoint.startsWith('/') ? endpoint.slice(1) : endpoint;
+  debug.log('Cleaned endpoint:', cleanEndpoint);
+  
+  const cleanBaseUrl = BASE_URL.endsWith('/') ? BASE_URL.slice(0, -1) : BASE_URL;
+  debug.log('Cleaned base URL:', cleanBaseUrl);
+  
+  const url = `${cleanBaseUrl}/${cleanEndpoint}`;
+  debug.log('Final URL:', url);
+
+  // Log the complete request
+  debug.request(options.method || 'GET', url, {
     ...customOptions,
     headers,
-    credentials: 'include',
-  };
-
-  console.log(`Making ${config.method || 'GET'} request to ${endpoint}`, {
-    headers: Object.fromEntries(headers.entries()),
-    body: config.body,
+    credentials: 'include'
   });
 
   try {
-    const response = await fetch(`${BASE_URL}${endpoint}`, config);
-    console.log(`Response from ${endpoint}:`, {
-      status: response.status,
-      statusText: response.statusText,
-      headers: Object.fromEntries(response.headers.entries()),
+    const response = await fetch(url, {
+      ...customOptions,
+      headers,
+      credentials: 'include'
     });
-    
-    const data = await response.json().catch(() => null);
-    console.log(`Response data from ${endpoint}:`, data);
 
-    // Handle 401 by throwing a specific error
+    const data = await response.json().catch(() => {
+      debug.log('No JSON response body');
+      return null;
+    });
+
+    // Log the complete response
+    debug.response(url, response, data);
+
     if (response.status === 401) {
+      debug.error('Unauthorized request:', url);
       throw new Error('Unauthorized');
     }
 
     if (!response.ok) {
-      console.error('API Error:', {
-        endpoint,
-        status: response.status,
-        statusText: response.statusText,
-        data
-      });
-      
       if (data?.error) {
-        const error = new Error(
-          Array.isArray(data.error) 
-            ? data.error.map((e: any) => e.message || e).join(', ')
-            : data.error
-        ) as ApiError;
+        const errorMessage = Array.isArray(data.error) 
+          ? data.error.map((e: any) => e.message || e).join(', ')
+          : data.error;
+        debug.error('API Error:', {
+          url,
+          status: response.status,
+          message: errorMessage
+        });
+        const error = new Error(errorMessage) as ApiError;
         error.status = response.status;
         throw error;
       }
-      
+      debug.error('HTTP Error:', {
+        url,
+        status: response.status,
+        statusText: response.statusText
+      });
       throw new Error(`HTTP error! status: ${response.status}`);
     }
 
     return data;
   } catch (error) {
-    console.error('Request failed:', error);
-    if (error instanceof Error) {
-      throw error;
-    }
-    throw new Error('Network error');
+    debug.error('Request failed:', {
+      url,
+      error: error instanceof Error ? error.message : 'Unknown error'
+    });
+    throw error;
   }
 }
 
@@ -109,17 +157,5 @@ export const api = {
 };
 
 export const getProblem = async (problemId: string) => {
-  const response = await fetch(`${BASE_URL}/api/problems/${problemId}`, {
-    method: 'GET',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    credentials: 'include',
-  });
-
-  if (!response.ok) {
-    throw new Error('Failed to fetch problem');
-  }
-
-  return response.json();
+  return request(`problems/${problemId}`);
 }; 

@@ -2,16 +2,11 @@ import express, { Request, Response, NextFunction } from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import env from './config/env';
-import authRoutes from './api/auth/route';
-import profileRoutes from './api/profile/route';
+import apiRouter from './routes/index';
 import cookieParser from 'cookie-parser';
-import adminRoutes from './api/admin/route';
-import learningRoutes from './routes/learning';
-import problemsRouter from './routes/problems';
-import standaloneInfoRoutes from './routes/standalone-info';
 import { errorHandler } from './middleware/errorHandler';
 import { apiLimiter, authLimiter, registerLimiter } from './middleware/rateLimit';
-import imageUploadRoutes from './routes/image-upload';
+import { requestDebugger } from './middleware/debugger';
 
 const app = express();
 
@@ -20,69 +15,40 @@ app.use(helmet({
   crossOriginResourcePolicy: { policy: "cross-origin" },
   crossOriginOpenerPolicy: { policy: "unsafe-none" },
 }));
-app.use(cookieParser());
 
-// CORS configuration
-const corsOptions = {
-  origin: function (origin: any, callback: any) {
-    // Allow requests with no origin (like mobile apps or curl requests)
-    if (!origin) return callback(null, true);
-    
-    const allowedOrigins = ['http://localhost:5173', 'http://localhost:5174', 'http://localhost:5175'];
-    if (allowedOrigins.indexOf(origin) !== -1 || env.NODE_ENV === 'development') {
-      callback(null, true);
-    } else {
-      callback(new Error('Not allowed by CORS'));
-    }
-  },
-  credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin'],
-  exposedHeaders: ['Set-Cookie'],
-  maxAge: 600, // 10 minutes
-};
+app.use(cors({
+  origin: env.CORS_ORIGIN,
+  credentials: true
+}));
 
-// Enable preflight requests for all routes
-app.options('*', cors(corsOptions));
-
-// Apply CORS to all routes
-app.use(cors(corsOptions));
 app.use(express.json());
+app.use(cookieParser());
+app.use(requestDebugger);
 
-// Apply rate limiting - specific routes first
-app.use('/api/auth/login', authLimiter);
+// Rate limiting
+app.use('/api/', apiLimiter);
+app.use('/api/auth', authLimiter);
 app.use('/api/auth/register', registerLimiter);
-// General API rate limiting last
-app.use('/api', apiLimiter);
 
-// Routes
-app.use('/api/auth', authRoutes);
-app.use('/api/profile', profileRoutes);
-app.use('/api/admin', adminRoutes);
-app.use('/api/learning', learningRoutes);
-app.use('/api/problems', problemsRouter);
-app.use('/api/standalone-info', standaloneInfoRoutes);
-app.use('/api/upload-image', imageUploadRoutes);
+// Mount all routes under /api
+app.use('/api', apiRouter);
 
 // Root endpoint
 app.get('/', (req, res) => {
-  res.json({ 
-    message: 'Welcome to SmarterStruct API',
+  res.json({
+    message: 'CodeLadder API Server',
     version: '1.0.0',
-    endpoints: {
-      auth: '/api/auth',
-      profile: '/api/profile',
-      health: '/health',
-    }
+    documentation: '/api/docs',
+    health: '/api/health'
   });
 });
 
 // Health check endpoint
-app.get('/health', (req, res) => {
+app.get('/api/health', (req, res) => {
   res.status(200).json({ status: 'ok' });
 });
 
-// Error handling middleware (must be last)
+// Error handling
 app.use((err: Error, req: Request, res: Response, next: NextFunction) => {
   errorHandler(err, req, res, next);
 });

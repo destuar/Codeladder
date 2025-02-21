@@ -1,0 +1,38 @@
+# Build Stage
+FROM node:20 AS builder
+WORKDIR /app
+
+# Install dependencies and build the frontend
+COPY package.json ./
+RUN npm install
+
+# Copy all configuration files and source code
+COPY . .
+
+RUN npm run build
+
+# Runtime Stage
+FROM alpine:latest
+
+# Install nginx, gettext, and curl for testing
+RUN apk add --no-cache nginx gettext curl
+
+# Remove any default nginx cache/config if necessary
+RUN rm -rf /var/cache/nginx
+
+# Copy built files from builder into nginx html folder
+COPY --from=builder /app/dist/ /usr/share/nginx/html/
+
+# Replace the default nginx config with our own
+COPY nginx.conf /etc/nginx/nginx.conf
+
+# Copy config.js template and our custom entrypoint script
+COPY config.js.template /etc/nginx/config.js.template
+COPY docker-entrypoint.sh /custom-entrypoint.sh
+RUN chmod +x /custom-entrypoint.sh
+
+# Expose port 80
+EXPOSE 80
+
+# Set our custom entrypoint so that our script runs on container start
+ENTRYPOINT ["/bin/sh", "/custom-entrypoint.sh"] 
