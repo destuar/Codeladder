@@ -7,6 +7,14 @@ pipeline {
         ARCHIVE_NAME = 'repo.tar.gz'
         FRONTEND_PORT = '8085'
         BACKEND_PORT = '8000'
+        DATABASE_URL = credentials('DATABASE_URL')
+        JWT_SECRET = credentials('JWT_SECRET')
+        JWT_REFRESH_SECRET = credentials('JWT_REFRESH_SECRET')
+        AWS_ACCESS_KEY_ID = credentials('AWS_ACCESS_KEY_ID')
+        AWS_SECRET_ACCESS_KEY = credentials('AWS_SECRET_ACCESS_KEY')
+        AWS_REGION = 'us-east-2'
+        S3_BUCKET = 'codeladder-s3'
+        CORS_ORIGIN = "http://${EC2_HOST}:${FRONTEND_PORT}"
     }
     
     parameters {
@@ -20,17 +28,42 @@ pipeline {
     }
     
     stages {
-        stage('Prepare Deployment') {
+        stage('Test Pipeline') {
+            steps {
+                echo "Testing pipeline configuration..."
+                sh 'pwd'
+                sh 'ls -la'
+                sh '''
+                    echo "Checking credentials..."
+                    if [ -n "$DATABASE_URL" ]; then echo "DATABASE_URL is set"; fi
+                    if [ -n "$JWT_SECRET" ]; then echo "JWT_SECRET is set"; fi
+                    if [ -n "$JWT_REFRESH_SECRET" ]; then echo "JWT_REFRESH_SECRET is set"; fi
+                    if [ -n "$AWS_ACCESS_KEY_ID" ]; then echo "AWS_ACCESS_KEY_ID is set"; fi
+                    if [ -n "$AWS_SECRET_ACCESS_KEY" ]; then echo "AWS_SECRET_ACCESS_KEY is set"; fi
+                '''
+            }
+        }
+        
+        stage('Create Environment File') {
             steps {
                 script {
-                    currentBuild.description = "Deploying to ${params.ENVIRONMENT}"
-                    // Verify .env.deploy exists
-                    sh '''
-                        if [ ! -f .env.deploy ]; then
-                            echo "Error: .env.deploy file not found!"
-                            exit 1
-                        fi
-                    '''
+                    sh """
+                        cat > .env.deploy << EOL
+NODE_ENV=${params.ENVIRONMENT}
+PORT=${BACKEND_PORT}
+DATABASE_URL=${DATABASE_URL}
+JWT_SECRET=${JWT_SECRET}
+JWT_REFRESH_SECRET=${JWT_REFRESH_SECRET}
+JWT_EXPIRES_IN=15m
+CORS_ORIGIN=${CORS_ORIGIN}
+AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
+AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
+AWS_REGION=${AWS_REGION}
+S3_BUCKET=${S3_BUCKET}
+EOL
+                    """
+                    
+                    sh 'test -f .env.deploy && echo ".env.deploy created successfully"'
                 }
             }
         }
@@ -48,9 +81,6 @@ pipeline {
                         echo "Creating archive..."
                         git archive --format=tar.gz -o ${ARCHIVE_NAME} HEAD
                         
-                        echo "Copying .env.deploy..."
-                        cp .env.deploy ${WORKSPACE}/
-                        
                         echo "Testing SSH connection..."
                         ssh -o StrictHostKeyChecking=no -i "$SSH_KEY" ${SSH_USER}@${EC2_HOST} "echo 'SSH connection successful'"
                         
@@ -66,15 +96,7 @@ pipeline {
                             tar -xzf ${ARCHIVE_NAME} && \
                             rm ${ARCHIVE_NAME} && \
                             chmod +x deploy.sh && \
-                            echo 'Making deploy.sh executable...' && \
-                            ENVIRONMENT=${ENVIRONMENT} ./deploy.sh || {
-                                echo 'Deploy script failed. Checking Docker status...'
-                                docker ps -a
-                                echo 'Checking Docker logs...'
-                                docker logs codeladder-frontend 2>&1 || true
-                                docker logs codeladder-backend 2>&1 || true
-                                exit 1
-                            }
+                            ENVIRONMENT=${params.ENVIRONMENT} ./deploy.sh
                         """
                     '''
                 }
@@ -91,49 +113,31 @@ pipeline {
                     while (!deployed && retryCount < maxRetries) {
                         try {
                             // Check if Docker containers are running
-                            sh """
-                                ssh -o StrictHostKeyChecking=no -i "$SSH_KEY" ${SSH_USER}@${EC2_HOST} '
-                                    echo "Checking Docker containers..."
-                                    docker ps | grep -q "codeladder-frontend" || (echo "Frontend container not running" && exit 1)
-                                    docker ps | grep -q "codeladder-backend" || (echo "Backend container not running" && exit 1)
-                                '
-                            """
-                            
-                            // Check frontend
-                            sh "curl -f http://${EC2_HOST}:${FRONTEND_PORT}"
-                            
-                            // Check backend health endpoint
-                            sh "curl -f http://${EC2_HOST}:${BACKEND_PORT}/api/health"
+                            withCredentials([sshUserPrivateKey(
+                                credentialsId: 'codeladder-jenkins-key', 
+                                keyFileVariable: 'SSH_KEY',
+                                usernameVariable: 'SSH_USER'
+                            )]) {
+                                sh """
+                                    ssh -o StrictHostKeyChecking=no -i "$SSH_KEY" ${SSH_USER}@${EC2_HOST} '
+                                        echo "Checking Docker containers..."
+                                        docker ps | grep -q "codeladder-frontend" || (echo "Frontend container not running" && exit 1)
+                                        docker ps | grep -q "codeladder-backend" || (echo "Backend container not running" && exit 1)
+                                    '
+                                """
+                                
+                                // Check frontend
+                                sh "curl -f http://${EC2_HOST}:${FRONTEND_PORT}"
+                                
+                                // Check backend health endpoint
+                                sh "curl -f http://${EC2_HOST}:${BACKEND_PORT}/api/health"
+                            }
                             
                             deployed = true
                             echo "Deployment verified successfully!"
                         } catch (Exception e) {
                             retryCount++
                             if (retryCount == maxRetries) {
-                                // Collect diagnostic information
-                                withCredentials([sshUserPrivateKey(
-                                    credentialsId: 'codeladder-jenkins-key',
-                                    keyFileVariable: 'SSH_KEY',
-                                    usernameVariable: 'SSH_USER'
-                                )]) {
-                                    sh """
-                                        ssh -i "$SSH_KEY" ${SSH_USER}@${EC2_HOST} '
-                                            cd ${DEPLOY_PATH}
-                                            echo "Docker container status:"
-                                            docker ps -a
-                                            echo "Docker networks:"
-                                            docker network ls
-                                            echo "Frontend logs:"
-                                            docker logs codeladder-frontend 2>&1 || true
-                                            echo "Backend logs:"
-                                            docker logs codeladder-backend 2>&1 || true
-                                            echo "Checking deploy.sh permissions:"
-                                            ls -l deploy.sh
-                                            echo "Checking .env.deploy:"
-                                            cat .env.deploy | grep -v "PASSWORD\\|SECRET"
-                                        '
-                                    """
-                                }
                                 error "Failed to verify deployment after ${maxRetries} attempts"
                             }
                             echo "Retry ${retryCount}/${maxRetries}. Waiting 15 seconds..."
@@ -151,7 +155,6 @@ pipeline {
         }
         failure {
             script {
-                // Collect logs and diagnostic information on failure
                 withCredentials([sshUserPrivateKey(
                     credentialsId: 'codeladder-jenkins-key',
                     keyFileVariable: 'SSH_KEY',
@@ -168,12 +171,6 @@ pipeline {
                             docker logs codeladder-frontend 2>&1 || true
                             echo "Backend logs:"
                             docker logs codeladder-backend 2>&1 || true
-                            echo "Disk space:"
-                            df -h
-                            echo "Memory usage:"
-                            free -h
-                            echo "Running processes:"
-                            ps aux | grep -E "docker|node|nginx"
                         '
                     """
                 }
@@ -181,6 +178,7 @@ pipeline {
             echo "Deployment failed! Check the logs above for details."
         }
         always {
+            sh 'rm -f .env.deploy || true'
             cleanWs()
         }
     }

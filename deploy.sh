@@ -2,51 +2,6 @@
 
 set -e  # Exit on error
 
-# Print commands as they are executed
-set -x
-
-# Function to log messages
-log() {
-    echo "[$(date '+%Y-%m-%d %H:%M:%S')] $1"
-}
-
-# Clean up on error
-cleanup() {
-    log "Error occurred. Cleaning up..."
-    docker ps -a
-    docker logs codeladder-frontend 2>&1 || true
-    docker logs codeladder-backend 2>&1 || true
-}
-
-# Set up error handling
-trap cleanup ERR
-
-# Main deployment logic
-log "Starting deployment..."
-
-# Clean up existing containers
-log "Cleaning up existing containers..."
-docker rm -f codeladder-frontend codeladder-backend || true
-docker network rm app-network || true
-
-# Create network
-log "Creating Docker network..."
-docker network create app-network || true
-
-# Build and start backend
-log "Building and starting backend..."
-cd backend
-docker build -t codeladder-backend -f Dockerfile.backend .
-docker run -d --name codeladder-backend --network app-network -p 8000:8000 --env-file ../.env.deploy codeladder-backend
-
-# Build and start frontend
-log "Building and starting frontend..."
-cd ../frontend
-docker build -t codeladder-frontend -f Dockerfile.frontend .
-docker run -d --name codeladder-frontend --network app-network -p 8085:80 codeladder-frontend
-
-log "Deployment completed successfully"
-
 # Add detailed error reporting function
 report_error() {
     echo "Error occurred. Gathering diagnostic information..."
