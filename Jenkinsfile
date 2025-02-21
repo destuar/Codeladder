@@ -135,22 +135,46 @@ EOL
             }
         }
         
+        stage('Build Docker Images') {
+            steps {
+                withCredentials([sshUserPrivateKey(
+                    credentialsId: 'codeladder-jenkins-key',
+                    keyFileVariable: 'SSH_KEY'
+                )]) {
+                    sh """
+                        # Copy necessary files to EC2
+                        ssh -o StrictHostKeyChecking=no -i "\$SSH_KEY" ec2-user@\${EC2_HOST} 'mkdir -p /home/ec2-user/codeladder'
+                        scp -i "\$SSH_KEY" -r backend frontend package*.json ec2-user@\${EC2_HOST}:/home/ec2-user/codeladder/
+                        
+                        # Build images on EC2
+                        ssh -o StrictHostKeyChecking=no -i "\$SSH_KEY" ec2-user@\${EC2_HOST} '
+                            cd /home/ec2-user/codeladder
+                            
+                            # Build backend
+                            cd backend
+                            docker build -t codeladder-backend .
+                            
+                            # Build frontend
+                            cd ../frontend
+                            docker build -t codeladder-frontend .
+                        '
+                    """
+                }
+            }
+        }
+        
         stage('Deploy to EC2') {
             steps {
                 withCredentials([sshUserPrivateKey(
                     credentialsId: 'codeladder-jenkins-key',
-                    keyFileVariable: 'SSH_KEY',
-                    usernameVariable: 'SSH_USER'
+                    keyFileVariable: 'SSH_KEY'
                 )]) {
                     sh """
-                        # First ensure the deploy directory exists
-                        ssh -o StrictHostKeyChecking=no -i "\$SSH_KEY" \${SSH_USER}@\${EC2_HOST} 'mkdir -p /home/ec2-user/codeladder'
-                        
                         # Copy environment file
-                        scp -i "\$SSH_KEY" .env.deploy \${SSH_USER}@\${EC2_HOST}:/home/ec2-user/codeladder/.env.deploy
+                        scp -i "\$SSH_KEY" .env.deploy ec2-user@\${EC2_HOST}:/home/ec2-user/codeladder/.env.deploy
                         
-                        # Execute deployment commands
-                        ssh -o StrictHostKeyChecking=no -i "\$SSH_KEY" \${SSH_USER}@\${EC2_HOST} '
+                        # Deploy containers
+                        ssh -o StrictHostKeyChecking=no -i "\$SSH_KEY" ec2-user@\${EC2_HOST} '
                             cd /home/ec2-user/codeladder
                             
                             # Clean up existing containers
@@ -158,20 +182,20 @@ EOL
                             docker network rm app-network || true
                             
                             # Create network
-                            docker network create app-network || true
+                            docker network create app-network
                             
                             # Start containers
                             docker run -d \\
                                 --name codeladder-backend \\
                                 --network app-network \\
-                                -p 8000:8000 \\
+                                -p \${BACKEND_PORT}:\${BACKEND_PORT} \\
                                 --env-file .env.deploy \\
                                 codeladder-backend
                             
                             docker run -d \\
                                 --name codeladder-frontend \\
                                 --network app-network \\
-                                -p 8085:80 \\
+                                -p \${FRONTEND_PORT}:80 \\
                                 -e API_URL="/api" \\
                                 -e NODE_ENV="production" \\
                                 codeladder-frontend
