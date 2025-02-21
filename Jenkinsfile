@@ -138,15 +138,12 @@ EOL
         stage('Deploy to EC2') {
             steps {
                 withCredentials([sshUserPrivateKey(credentialsId: 'jenkins-ssh-key', keyFileVariable: 'SSH_KEY')]) {
-                    sh '''
-                        set -euo pipefail
-                        
-                        # Transfer improved deploy script
-                        scp -i $SSH_KEY deploy.sh ec2-user@${EC2_HOST}:~/codeladder/
-                        
-                        # Execute with proper error handling
-                        ssh -i $SSH_KEY ec2-user@${EC2_HOST} '''bash -x ~/codeladder/deploy.sh'''
-                    '''
+                    sh """
+                        ssh -i "\$SSH_KEY" ec2-user@\${EC2_HOST} '
+                            cd \${DEPLOY_PATH}
+                            # Rest of deployment commands...
+                        '
+                    """
                 }
             }
             post {
