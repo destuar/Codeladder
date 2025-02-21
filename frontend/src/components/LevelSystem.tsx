@@ -2,8 +2,11 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { useLearningPath } from "@/hooks/useLearningPath";
+import { useQuery } from "@tanstack/react-query";
 import { Button } from "./ui/button";
+import type { Topic, Problem, Level } from "@/hooks/useLearningPath";
+import { api } from "@/lib/api";
+import { useAuth } from "@/features/auth/AuthContext";
 
 function ProgressBar({ progress = 0 }: { progress?: number }) {
   return (
@@ -22,24 +25,37 @@ function ProgressBar({ progress = 0 }: { progress?: number }) {
 export function LevelSystem() {
   const [isVisible, setIsVisible] = useState(false);
   const navigate = useNavigate();
-  const { levels, loading, error } = useLearningPath();
+  const { token } = useAuth();
+
+  const { data: levels, isLoading: loading, error } = useQuery<Level[]>({
+    queryKey: ['learningPath'],
+    queryFn: async () => {
+      if (!token) throw new Error('No token available');
+      return api.get('/learning/levels', token);
+    },
+    enabled: !!token,
+    staleTime: 1000 * 60, // Consider data fresh for 1 minute
+    gcTime: 1000 * 60 * 30, // Keep data in cache for 30 minutes
+  });
 
   useEffect(() => {
     setIsVisible(true);
   }, []);
 
-  useEffect(() => {
-    console.log('Levels data:', levels);
-  }, [levels]);
+  // Calculate progress for a topic
+  const calculateTopicProgress = (topic: Topic) => {
+    const requiredProblems = topic.problems.filter(p => p.required);
+    if (requiredProblems.length === 0) return 0;
+    
+    const completedRequired = requiredProblems.filter(p => p.completed).length;
+    return Math.round((completedRequired / requiredProblems.length) * 100);
+  };
 
   const handleTopicClick = (topicId: string) => {
-    console.log('Clicked topic with ID:', topicId);
-    console.log('Navigating to:', `/topics/${topicId}`);
     navigate(`/topics/${topicId}`);
   };
 
   if (loading) {
-    console.log('Loading state:', loading);
     return (
       <div className="flex items-center justify-center p-8">
         <div className="animate-spin rounded-full h-8 w-8 border-2 border-primary border-t-transparent" />
@@ -48,18 +64,15 @@ export function LevelSystem() {
   }
 
   if (error) {
-    console.log('Error state:', error);
     return (
       <div className="p-8 text-center">
-        <p className="text-destructive mb-4">{error}</p>
+        <p className="text-destructive mb-4">{error instanceof Error ? error.message : 'Failed to load learning path'}</p>
         <Button variant="outline" onClick={() => window.location.reload()}>
           Retry
         </Button>
       </div>
     );
   }
-
-  console.log('Rendering levels:', levels);
 
   return (
     <div className="space-y-2">
@@ -128,7 +141,7 @@ export function LevelSystem() {
                         >
                           {topic.name}
                         </h3>
-                        <ProgressBar progress={0} /> {/* We'll implement progress tracking later */}
+                        <ProgressBar progress={calculateTopicProgress(topic)} />
                       </div>
                     ))}
                   </div>

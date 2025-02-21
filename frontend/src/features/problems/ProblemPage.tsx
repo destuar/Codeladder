@@ -1,6 +1,6 @@
 import React from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 import { useAuth } from '@/features/auth/AuthContext';
 import InfoProblem from './components/InfoProblem';
@@ -26,12 +26,16 @@ const ProblemPage: React.FC = () => {
   const { problemId } = useParams<{ problemId: string }>();
   const { token } = useAuth();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   
   const { data: problem, isLoading, error } = useQuery<Problem>({
     queryKey: ['problem', problemId],
     queryFn: () => api.get(`/problems/${problemId}`, token),
     enabled: !!problemId && !!token,
   });
+
+  // Convert estimatedTime to number if it's a string
+  const estimatedTimeNum = problem?.estimatedTime ? parseInt(problem.estimatedTime.toString()) : undefined;
 
   if (isLoading) {
     return (
@@ -49,9 +53,6 @@ const ProblemPage: React.FC = () => {
     );
   }
 
-  // Convert estimatedTime to number if it's a string
-  const estimatedTimeNum = problem.estimatedTime ? parseInt(problem.estimatedTime.toString()) : undefined;
-
   return (
     <div className="h-[calc(100vh-4rem)] overflow-hidden">
       {(problem.problemType === 'INFO' || problem.problemType === 'STANDALONE_INFO') ? (
@@ -62,6 +63,7 @@ const ProblemPage: React.FC = () => {
           prevProblemId={problem.prevProblemId}
           estimatedTime={estimatedTimeNum}
           isStandalone={problem.problemType === 'STANDALONE_INFO'}
+          problemId={problem.id}
         />
       ) : (
         <ErrorBoundary>
@@ -75,6 +77,8 @@ const ProblemPage: React.FC = () => {
             prevProblemId={problem.prevProblemId}
             onNavigate={(id) => navigate(`/problems/${id}`)}
             estimatedTime={estimatedTimeNum}
+            isCompleted={problem.isCompleted}
+            problemId={problem.id}
           />
         </ErrorBoundary>
       )}

@@ -1,9 +1,12 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Markdown } from "@/components/ui/markdown";
 import { Button } from "@/components/ui/button";
-import { ChevronRight, Timer, CheckCircle } from "lucide-react";
+import { ChevronRight, Timer, CheckCircle, CheckCircle2 } from "lucide-react";
 import { useNavigate } from 'react-router-dom';
 import { cn } from "@/lib/utils";
+import { api } from '@/lib/api';
+import { useAuth } from '@/features/auth/AuthContext';
+import { useQueryClient } from '@tanstack/react-query';
 
 function formatEstimatedTime(minutes: number | null | undefined): string | null {
   if (!minutes) return null;
@@ -28,6 +31,7 @@ interface InfoProblemProps {
   prevProblemId?: string;
   estimatedTime?: number;
   isStandalone?: boolean;
+  problemId: string;
 }
 
 const InfoProblem: React.FC<InfoProblemProps> = ({ 
@@ -36,9 +40,29 @@ const InfoProblem: React.FC<InfoProblemProps> = ({
   nextProblemId,
   prevProblemId,
   estimatedTime,
-  isStandalone = false
+  isStandalone = false,
+  problemId,
 }) => {
   const navigate = useNavigate();
+  const { token } = useAuth();
+  const queryClient = useQueryClient();
+  const [isProblemCompleted, setIsProblemCompleted] = useState(isCompleted);
+
+  const handleMarkAsComplete = async () => {
+    try {
+      await api.post(`/problems/${problemId}/complete`, {}, token);
+      setIsProblemCompleted(true);
+      // Invalidate queries to force a refresh of the data
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['problem', problemId] }),
+        queryClient.invalidateQueries({ queryKey: ['learningPath'] }),
+        queryClient.invalidateQueries({ queryKey: ['topic'] })
+      ]);
+    } catch (error) {
+      console.error('Error marking problem as complete:', error);
+    }
+  };
+
   const formattedTime = formatEstimatedTime(estimatedTime);
 
   return (
@@ -63,18 +87,16 @@ const InfoProblem: React.FC<InfoProblemProps> = ({
       {/* Floating buttons */}
       <div className="fixed bottom-6 right-6 flex flex-col gap-2">
         {/* Complete button */}
-        {isCompleted ? (
+        {isProblemCompleted ? (
           <div className="flex items-center justify-end text-green-500 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 p-2 rounded-lg shadow-sm">
-            <CheckCircle className="w-5 h-5" />
+            <CheckCircle2 className="w-5 h-5" />
             <span className="text-sm font-medium ml-2">Completed</span>
           </div>
         ) : (
           <Button 
             variant="outline" 
             className="shadow-sm"
-            onClick={() => {
-              // TODO: Handle completion
-            }}
+            onClick={handleMarkAsComplete}
           >
             Mark as Complete
           </Button>

@@ -37,23 +37,23 @@ const router = express.Router();
 router.get('/:problemId', authenticateToken, (async (req, res) => {
   try {
     const { problemId } = req.params;
+    const userId = req.user?.id;
+
+    if (!userId) {
+      return res.status(401).json({ error: 'User not authenticated' });
+    }
 
     const problem = await prisma.problem.findUnique({
       where: { id: problemId },
-      select: {
-        id: true,
-        name: true,
-        content: true,
-        description: true,
-        difficulty: true,
-        required: true,
-        reqOrder: true,
-        problemType: true,
-        codeTemplate: true,
-        testCases: true,
-        estimatedTime: true,
-        createdAt: true,
-        updatedAt: true
+      include: {
+        completedBy: {
+          where: { id: userId },
+          select: { id: true }
+        },
+        progress: {
+          where: { userId },
+          select: { status: true }
+        }
       }
     });
 
@@ -61,7 +61,15 @@ router.get('/:problemId', authenticateToken, (async (req, res) => {
       return res.status(404).json({ error: 'Problem not found' });
     }
 
-    res.json(problem);
+    // Transform the response to include isCompleted
+    const response = {
+      ...problem,
+      isCompleted: problem.completedBy.length > 0 || problem.progress.some(p => p.status === 'COMPLETED'),
+      completedBy: undefined, // Remove these from the response
+      progress: undefined
+    };
+
+    res.json(response);
   } catch (error) {
     console.error('Error fetching problem:', error);
     res.status(500).json({ error: 'Internal server error' });
@@ -328,6 +336,65 @@ router.post('/reorder', authenticateToken, authorizeRoles([Role.ADMIN, Role.DEVE
   } catch (error) {
     console.error('Error reordering problems:', error);
     res.status(500).json({ error: 'Failed to reorder problems' });
+  }
+}) as RequestHandler);
+
+// Mark a problem as completed
+router.post('/:problemId/complete', authenticateToken, (async (req, res) => {
+  try {
+    const { problemId } = req.params;
+    const userId = req.user?.id;
+
+    if (!userId) {
+      return res.status(401).json({ error: 'User not authenticated' });
+    }
+
+    // Get the problem to check if it exists and get its topic
+    const problem = await prisma.problem.findUnique({
+      where: { id: problemId },
+      include: {
+        topic: true
+      }
+    });
+
+    if (!problem) {
+      return res.status(404).json({ error: 'Problem not found' });
+    }
+
+    // Create or update progress for the problem
+    await prisma.progress.upsert({
+      where: {
+        userId_topicId_problemId: {
+          userId,
+          topicId: problem.topicId!,
+          problemId
+        }
+      },
+      create: {
+        userId,
+        topicId: problem.topicId!,
+        problemId,
+        status: 'COMPLETED'
+      },
+      update: {
+        status: 'COMPLETED'
+      }
+    });
+
+    // Add the problem to user's completed problems
+    await prisma.user.update({
+      where: { id: userId },
+      data: {
+        completedProblems: {
+          connect: { id: problemId }
+        }
+      }
+    });
+
+    res.json({ message: 'Problem marked as completed' });
+  } catch (error) {
+    console.error('Error marking problem as completed:', error);
+    res.status(500).json({ error: 'Failed to mark problem as completed' });
   }
 }) as RequestHandler);
 

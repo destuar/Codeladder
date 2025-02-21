@@ -4,11 +4,12 @@ import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/com
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { api } from '@/lib/api';
 import type { Topic, Problem } from '@/hooks/useLearningPath';
 import { useAuth } from '@/features/auth/AuthContext';
 import { Markdown } from '@/components/ui/markdown';
+import { useQuery } from '@tanstack/react-query';
 import {
   Table,
   TableBody,
@@ -78,55 +79,18 @@ export default function TopicPage() {
   const { topicId } = useParams<{ topicId: string }>();
   const { isAdminView } = useAdmin();
   const { token } = useAuth();
-  const [topic, setTopic] = useState<Topic | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const navigate = useNavigate();
   const [sortField, setSortField] = useState<SortField>('order');
   const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
-  const [isTokenInitialized, setIsTokenInitialized] = useState(false);
 
-  useEffect(() => {
-    if (token) {
-      console.log('Token initialized:', token.substring(0, 20) + '...');
-      setIsTokenInitialized(true);
-    } else {
-      console.log('Waiting for token initialization...');
-    }
-  }, [token]);
-
-  useEffect(() => {
-    const fetchTopic = async () => {
-      if (!token || !isTokenInitialized) {
-        console.log('Skipping fetch - Token ready:', !!token, 'Initialized:', isTokenInitialized);
-        return;
-      }
-
-      try {
-        setLoading(true);
-        console.log('Fetching topic with ID:', topicId);
-        console.log('Auth state - Token:', token.substring(0, 20) + '...', 'Initialized:', isTokenInitialized);
-        const response = await api.get(`/learning/topics/${topicId}`, token);
-        console.log('Topic API response:', response);
-        if (!response) {
-          throw new Error('No data received from API');
-        }
-        setTopic(response);
-        setError(null);
-      } catch (err) {
-        console.error('Error fetching topic:', err);
-        setError('Failed to load topic data');
-        setTopic(null);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    // Only set loading true if we're actually going to fetch
-    if (topicId && token && isTokenInitialized) {
-      fetchTopic();
-    }
-  }, [topicId, token, isTokenInitialized]);
+  const { data: topic, isLoading: loading, error } = useQuery<Topic>({
+    queryKey: ['topic', topicId],
+    queryFn: async () => {
+      if (!token) throw new Error('No token available');
+      return api.get(`/learning/topics/${topicId}`, token);
+    },
+    enabled: !!token && !!topicId,
+  });
 
   const handleSort = (field: SortField) => {
     if (sortField === field) {
@@ -160,20 +124,6 @@ export default function TopicPage() {
     });
   };
 
-  // Early return for loading state while waiting for token
-  if (!token || !isTokenInitialized) {
-    return (
-      <div className="container py-8">
-        <Card>
-          <CardContent className="p-6">
-            <h2 className="text-xl font-semibold">Initializing...</h2>
-            <p className="mt-2">Setting up your session...</p>
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
-
   if (loading) {
     return (
       <div className="container py-8">
@@ -192,7 +142,7 @@ export default function TopicPage() {
         <Card>
           <CardContent className="p-6">
             <h2 className="text-xl font-semibold text-destructive">Topic Not Found</h2>
-            <p className="mt-2">{error || 'The requested topic could not be loaded.'}</p>
+            <p className="mt-2">{error instanceof Error ? error.message : 'The requested topic could not be loaded.'}</p>
             <Button 
               variant="outline" 
               className="mt-4"

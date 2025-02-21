@@ -14,7 +14,7 @@ import {
 } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { LevelSystem } from '@/features/learning/components/LevelSystem';
+import { LevelSystem } from '@/components/LevelSystem';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { LearningPathAdmin } from "./components/LearningPathAdmin";
 import { StandaloneInfoAdmin } from "./components/StandaloneInfoAdmin";
