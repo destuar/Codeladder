@@ -158,14 +158,4 @@ export const api = {
 
 export const getProblem = async (problemId: string) => {
   return request(`problems/${problemId}`);
-};
-
-export async function get<T>(endpoint: string): Promise<T> {
-    const response = await fetch(`${API_URL}${endpoint}`, {
-        headers: {
-            'Content-Type': 'application/json',
-        },
-        credentials: 'include'
-    });
-    // ... rest of the code
-} 
+}; 
