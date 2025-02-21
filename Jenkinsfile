@@ -174,7 +174,7 @@ EOL
                         scp -i "\$SSH_KEY" .env.deploy ec2-user@\${EC2_HOST}:/home/ec2-user/codeladder/.env.deploy
                         
                         # Deploy containers
-                        ssh -o StrictHostKeyChecking=no -i "\$SSH_KEY" ec2-user@\${EC2_HOST} '
+                        ssh -o StrictHostKeyChecking=no -i "\$SSH_KEY" ec2-user@\${EC2_HOST} 'source /home/ec2-user/codeladder/.env.deploy && 
                             cd /home/ec2-user/codeladder
                             
                             # Clean up existing containers
@@ -188,14 +188,14 @@ EOL
                             docker run -d \\
                                 --name codeladder-backend \\
                                 --network app-network \\
-                                -p \${BACKEND_PORT}:\${BACKEND_PORT} \\
+                                -p 8000:8000 \\
                                 --env-file .env.deploy \\
                                 codeladder-backend
                             
                             docker run -d \\
                                 --name codeladder-frontend \\
                                 --network app-network \\
-                                -p \${FRONTEND_PORT}:80 \\
+                                -p 8085:80 \\
                                 -e API_URL="/api" \\
                                 -e NODE_ENV="production" \\
                                 codeladder-frontend
