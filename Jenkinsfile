@@ -137,16 +137,20 @@ EOL
         
         stage('Deploy to EC2') {
             steps {
-                withCredentials([sshUserPrivateKey(credentialsId: 'jenkins-ssh-key', keyFileVariable: 'SSH_KEY')]) {
+                withCredentials([sshUserPrivateKey(
+                    credentialsId: 'codeladder-jenkins-key',
+                    keyFileVariable: 'SSH_KEY',
+                    usernameVariable: 'SSH_USER'
+                )]) {
                     sh """
                         # First ensure the deploy directory exists
-                        ssh -o StrictHostKeyChecking=no -i "\$SSH_KEY" ec2-user@\${EC2_HOST} 'mkdir -p /home/ec2-user/codeladder'
+                        ssh -o StrictHostKeyChecking=no -i "\$SSH_KEY" \${SSH_USER}@\${EC2_HOST} 'mkdir -p /home/ec2-user/codeladder'
                         
                         # Copy environment file
-                        scp -i "\$SSH_KEY" .env.deploy ec2-user@\${EC2_HOST}:/home/ec2-user/codeladder/.env.deploy
+                        scp -i "\$SSH_KEY" .env.deploy \${SSH_USER}@\${EC2_HOST}:/home/ec2-user/codeladder/.env.deploy
                         
                         # Execute deployment commands
-                        ssh -o StrictHostKeyChecking=no -i "\$SSH_KEY" ec2-user@\${EC2_HOST} '
+                        ssh -o StrictHostKeyChecking=no -i "\$SSH_KEY" \${SSH_USER}@\${EC2_HOST} '
                             cd /home/ec2-user/codeladder
                             
                             # Clean up existing containers
