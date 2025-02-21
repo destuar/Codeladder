@@ -32,15 +32,18 @@ pipeline {
         stage('Test Pipeline') {
             steps {
                 echo "Testing pipeline configuration..."
-                sh 'pwd'
-                sh 'ls -la'
+                sh '''
+                    pwd
+                    ls -la
+                '''
+                // Check if credentials are set
                 sh '''
                     echo "Checking credentials..."
-                    if [ -n "$DATABASE_URL" ]; then echo "DATABASE_URL is set"; fi
-                    if [ -n "$JWT_SECRET" ]; then echo "JWT_SECRET is set"; fi
-                    if [ -n "$JWT_REFRESH_SECRET" ]; then echo "JWT_REFRESH_SECRET is set"; fi
-                    if [ -n "$AWS_ACCESS_KEY_ID" ]; then echo "AWS_ACCESS_KEY_ID is set"; fi
-                    if [ -n "$AWS_SECRET_ACCESS_KEY" ]; then echo "AWS_SECRET_ACCESS_KEY is set"; fi
+                    [ -n "$DATABASE_URL" ] && echo "DATABASE_URL is set"
+                    [ -n "$JWT_SECRET" ] && echo "JWT_SECRET is set"
+                    [ -n "$JWT_REFRESH_SECRET" ] && echo "JWT_REFRESH_SECRET is set"
+                    [ -n "$AWS_ACCESS_KEY_ID" ] && echo "AWS_ACCESS_KEY_ID is set"
+                    [ -n "$AWS_SECRET_ACCESS_KEY" ] && echo "AWS_SECRET_ACCESS_KEY is set"
                 '''
             }
         }
@@ -65,6 +68,37 @@ pipeline {
                             echo "Host: $(hostname)"
                             echo "=== File Permissions ==="
                             ls -la ~/.ssh/
+                        '
+                    '''
+                }
+            }
+        }
+        
+        stage('Cleanup Disk Space') {
+            steps {
+                withCredentials([sshUserPrivateKey(credentialsId: 'codeladder-jenkins-key', keyFileVariable: 'SSH_KEY')]) {
+                    sh '''
+                        # Clean local Jenkins workspace
+                        echo "Cleaning local Docker system..."
+                        docker system prune -af
+                        docker volume prune -f
+                        
+                        # Clean EC2 instance
+                        ssh -i "$SSH_KEY" ec2-user@3.21.246.147 '
+                            echo "Current disk space:"
+                            df -h
+                            
+                            echo "Cleaning up Docker system..."
+                            docker system prune -af
+                            docker volume prune -f
+                            
+                            echo "Removing old builds..."
+                            rm -rf ~/codeladder/node_modules
+                            rm -rf ~/codeladder/frontend/node_modules
+                            rm -rf ~/codeladder/backend/node_modules
+                            
+                            echo "Disk space after cleanup:"
+                            df -h
                         '
                     '''
                 }
@@ -190,6 +224,22 @@ EOL
         stage('Start Server') {
             steps {
                 sh 'NODE_ENV=production npm start'
+            }
+        }
+        
+        stage('Check Disk Space') {
+            steps {
+                sh '''
+                    echo "Disk space before cleanup:"
+                    df -h
+                    
+                    echo "Cleaning up Docker system..."
+                    docker system prune -af
+                    docker volume prune -f
+                    
+                    echo "Disk space after cleanup:"
+                    df -h
+                '''
             }
         }
     }
