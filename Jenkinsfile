@@ -44,6 +44,32 @@ pipeline {
             }
         }
         
+        stage('Test SSH Connection') {
+            steps {
+                withCredentials([sshUserPrivateKey(
+                    credentialsId: 'codeladder-jenkins-key', 
+                    keyFileVariable: 'SSH_KEY',
+                    usernameVariable: 'SSH_USER'
+                )]) {
+                    sh '''
+                        # Show SSH key permissions
+                        ls -l "$SSH_KEY"
+                        
+                        # Try SSH connection with verbose output
+                        ssh -v -o StrictHostKeyChecking=no -i "$SSH_KEY" ${SSH_USER}@${EC2_HOST} '
+                            echo "=== Connection Test ==="
+                            echo "Current user: $(whoami)"
+                            echo "Current directory: $(pwd)"
+                            echo "SSH_USER: $SSH_USER"
+                            echo "Host: $(hostname)"
+                            echo "=== File Permissions ==="
+                            ls -la ~/.ssh/
+                        '
+                    '''
+                }
+            }
+        }
+        
         stage('Create Environment File') {
             steps {
                 script {
@@ -78,21 +104,24 @@ EOL
                     sh """
                         set -e  # Exit on any error
                         
+                        # Fix SSH key permissions
+                        chmod 600 "\$SSH_KEY"
+                        
                         echo "Creating archive..."
                         git archive --format=tar.gz -o \${ARCHIVE_NAME} HEAD
                         
-                        echo "Testing SSH connection..."
-                        ssh -o StrictHostKeyChecking=no -i "\$SSH_KEY" \${SSH_USER}@\${EC2_HOST} "echo 'SSH connection successful'"
+                        echo "Creating remote directory..."
+                        ssh -o StrictHostKeyChecking=no -i "\$SSH_KEY" \${SSH_USER}@\${EC2_HOST} 'mkdir -p ~/codeladder'
                         
                         echo "Transferring files to EC2..."
-                        scp -o StrictHostKeyChecking=no -i "\$SSH_KEY" \\
-                            \${ARCHIVE_NAME} \\
-                            .env.deploy \\
-                            \${SSH_USER}@\${EC2_HOST}:\${DEPLOY_PATH}/
+                        scp -o StrictHostKeyChecking=no -i "\$SSH_KEY" \
+                            \${ARCHIVE_NAME} \
+                            .env.deploy \
+                            "\${SSH_USER}@\${EC2_HOST}:~/codeladder/"
                         
                         echo "Executing deployment..."
                         ssh -o StrictHostKeyChecking=no -i "\$SSH_KEY" \${SSH_USER}@\${EC2_HOST} "
-                            cd \${DEPLOY_PATH} && \\
+                            cd ~/codeladder && \\
                             tar -xzf \${ARCHIVE_NAME} && \\
                             rm \${ARCHIVE_NAME} && \\
                             chmod +x deploy.sh && \\
@@ -144,26 +173,6 @@ EOL
                             sleep(15)
                         }
                     }
-                }
-            }
-        }
-        
-        stage('Test SSH Connection') {
-            steps {
-                withCredentials([sshUserPrivateKey(
-                    credentialsId: 'codeladder-jenkins-key', 
-                    keyFileVariable: 'SSH_KEY',
-                    usernameVariable: 'SSH_USER'
-                )]) {
-                    sh """
-                        echo "Testing SSH connection..."
-                        ssh -v -o StrictHostKeyChecking=no -i "\$SSH_KEY" \${SSH_USER}@\${EC2_HOST} '
-                            echo "Connection successful from Jenkins!"
-                            echo "Current directory: \$(pwd)"
-                            echo "Running as user: \$(whoami)"
-                            echo "Host: \$(hostname)"
-                        '
-                    """
                 }
             }
         }
