@@ -44,6 +44,8 @@ interface ApiError extends Error {
   status?: number;
 }
 
+const API_URL = window.RUNTIME_CONFIG?.API_URL || '/api';
+
 async function request(endpoint: string, options: RequestOptions = {}) {
   const { token, ...customOptions } = options;
   const authToken = token || localStorage.getItem('token');
@@ -156,4 +158,14 @@ export const api = {
 
 export const getProblem = async (problemId: string) => {
   return request(`problems/${problemId}`);
-}; 
+};
+
+export async function get<T>(endpoint: string): Promise<T> {
+    const response = await fetch(`${API_URL}${endpoint}`, {
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        credentials: 'include'
+    });
+    // ... rest of the code
+} 
