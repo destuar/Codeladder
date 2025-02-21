@@ -120,20 +120,24 @@ EOL
                             "\${SSH_USER}@\${EC2_HOST}:~/codeladder/"
                         
                         echo "Executing deployment..."
-                        ssh -o StrictHostKeyChecking=no -i "\$SSH_KEY" \${SSH_USER}@\${EC2_HOST} "
+                        ssh -o StrictHostKeyChecking=no -i "\$SSH_KEY" \${SSH_USER}@\${EC2_HOST} '
                             set -x  # Enable debug mode
                             cd ~/codeladder
                             ls -la  # Check files
-                            echo 'Extracting archive...'
-                            tar -xzf \${ARCHIVE_NAME}
-                            echo 'Removing archive...'
-                            rm \${ARCHIVE_NAME}
-                            echo 'Setting permissions...'
+                            echo "Extracting archive..."
+                            tar -xzf repo.tar.gz
+                            echo "Removing archive..."
+                            rm repo.tar.gz
+                            echo "Setting permissions..."
                             chmod +x deploy.sh
-                            echo 'Running deploy script...'
+                            echo "Running deploy script..."
                             # Map staging to production for NODE_ENV
-                            NODE_ENV=\${params.ENVIRONMENT == 'staging' ? 'production' : params.ENVIRONMENT} bash -x deploy.sh
-                        "
+                            if [ "\${ENVIRONMENT}" = "staging" ]; then
+                                NODE_ENV="production" bash -x deploy.sh
+                            else
+                                NODE_ENV="\${ENVIRONMENT}" bash -x deploy.sh
+                            fi
+                        '
                     """
                 }
             }
