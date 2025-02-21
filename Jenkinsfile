@@ -73,9 +73,12 @@ pipeline {
         stage('Create Environment File') {
             steps {
                 script {
+                    // Map staging to production for NODE_ENV
+                    def nodeEnv = params.ENVIRONMENT == 'staging' ? 'production' : params.ENVIRONMENT
+                    
                     sh """
                         cat > .env.deploy << EOL
-NODE_ENV=${params.ENVIRONMENT}
+NODE_ENV=${nodeEnv}
 PORT=${BACKEND_PORT}
 DATABASE_URL=${DATABASE_URL}
 JWT_SECRET=${JWT_SECRET}
@@ -120,24 +123,19 @@ EOL
                             "\${SSH_USER}@\${EC2_HOST}:~/codeladder/"
                         
                         echo "Executing deployment..."
-                        ssh -o StrictHostKeyChecking=no -i "\$SSH_KEY" \${SSH_USER}@\${EC2_HOST} '
+                        ssh -o StrictHostKeyChecking=no -i "\$SSH_KEY" \${SSH_USER}@\${EC2_HOST} "
                             set -x  # Enable debug mode
                             cd ~/codeladder
                             ls -la  # Check files
-                            echo "Extracting archive..."
+                            echo 'Extracting archive...'
                             tar -xzf repo.tar.gz
-                            echo "Removing archive..."
+                            echo 'Removing archive...'
                             rm repo.tar.gz
-                            echo "Setting permissions..."
+                            echo 'Setting permissions...'
                             chmod +x deploy.sh
-                            echo "Running deploy script..."
-                            # Map staging to production for NODE_ENV
-                            if [ "\${ENVIRONMENT}" = "staging" ]; then
-                                NODE_ENV="production" bash -x deploy.sh
-                            else
-                                NODE_ENV="\${ENVIRONMENT}" bash -x deploy.sh
-                            fi
-                        '
+                            echo 'Running deploy script...'
+                            bash -x deploy.sh
+                        "
                     """
                 }
             }
