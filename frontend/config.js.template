@@ -1,7 +1,7 @@
 window.CONFIG = {
   API_URL: '${API_URL}',
   NODE_ENV: '${NODE_ENV}',
-  AUTH_ENABLED: ${AUTH_ENABLED:-true},
-  DEFAULT_ERROR_MESSAGE: '${DEFAULT_ERROR_MESSAGE:-An error occurred while processing your request}',
-  API_TIMEOUT: ${API_TIMEOUT:-30000}
+  AUTH_ENABLED: true,
+  DEFAULT_ERROR_MESSAGE: 'An error occurred while processing your request',
+  API_TIMEOUT: 30000
 };

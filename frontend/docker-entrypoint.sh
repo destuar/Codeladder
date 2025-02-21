@@ -8,13 +8,7 @@ ls -la /usr/share/nginx/html/
 
 echo "API_URL is: ${API_URL}"
 
-# Ensure config.js.template exists (corrected path)
-if [ ! -f "/usr/share/nginx/html/config.js.template" ]; then
-    echo "ERROR: config.js.template not found!"
-    exit 1
-fi
-
-# Generate config.js with proper environment variable substitution (corrected path)
+# Generate config.js with proper environment variable substitution
 envsubst '${API_URL} ${NODE_ENV}' < /usr/share/nginx/html/config.js.template > /usr/share/nginx/html/config.js
 
 echo "Generated config.js contents:"
