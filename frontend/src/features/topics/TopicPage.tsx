@@ -4,11 +4,12 @@ import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/com
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { api } from '@/lib/api';
-import type { Topic, Problem } from '@/hooks/useLearningPath';
+import type { Topic, Problem, Level } from '@/hooks/useLearningPath';
 import { useAuth } from '@/features/auth/AuthContext';
 import { Markdown } from '@/components/ui/markdown';
+import { useQuery } from '@tanstack/react-query';
 import {
   Table,
   TableBody,
@@ -17,7 +18,8 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { ArrowUpDown, ChevronDown, ChevronUp, CheckCircle2, Circle, Book, Code2, Timer } from "lucide-react";
+import { ArrowUpDown, ChevronDown, ChevronUp, CheckCircle2, Circle, Book, Code2, Timer, Lock, AlertCircle } from "lucide-react";
+import { cn } from '@/lib/utils';
 
 type Difficulty = 'EASY_IIII' | 'EASY_III' | 'EASY_II' | 'EASY_I' | 'MEDIUM' | 'HARD';
 
@@ -76,57 +78,59 @@ function DifficultyBadge({ difficulty }: { difficulty: Difficulty }) {
 
 export default function TopicPage() {
   const { topicId } = useParams<{ topicId: string }>();
-  const { isAdminView } = useAdmin();
+  const { isAdminView, canAccessAdmin } = useAdmin();
   const { token } = useAuth();
-  const [topic, setTopic] = useState<Topic | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const navigate = useNavigate();
   const [sortField, setSortField] = useState<SortField>('order');
   const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
-  const [isTokenInitialized, setIsTokenInitialized] = useState(false);
+  const [showWarning, setShowWarning] = useState(false);
+  const [warningMessage, setWarningMessage] = useState('');
 
-  useEffect(() => {
-    if (token) {
-      console.log('Token initialized:', token.substring(0, 20) + '...');
-      setIsTokenInitialized(true);
-    } else {
-      console.log('Waiting for token initialization...');
+  const { data: topic, isLoading: loading, error } = useQuery<Topic>({
+    queryKey: ['topic', topicId],
+    queryFn: async () => {
+      if (!token) throw new Error('No token available');
+      return api.get(`/learning/topics/${topicId}`, token);
+    },
+    enabled: !!token && !!topicId,
+  });
+
+  // Get learning path data to check if level is locked
+  const { data: learningPath } = useQuery({
+    queryKey: ['learningPath'],
+    queryFn: async () => {
+      if (!token) throw new Error('No token available');
+      return api.get('/learning/levels', token);
+    },
+    enabled: !!token,
+  });
+
+  // Check if the current topic's level is locked
+  const isLocked = (() => {
+    if (!learningPath || !topic) return false;
+
+    const currentLevel = learningPath.find((level: Level) => 
+      level.topics.some((t: Topic) => t.id === topicId)
+    );
+    if (!currentLevel) return false;
+
+    const levelIndex = learningPath.findIndex((l: Level) => l.id === currentLevel.id);
+    if (levelIndex === 0) return false;
+
+    // Check if all previous levels are completed
+    for (let i = 0; i < levelIndex; i++) {
+      const level = learningPath[i];
+      const isLevelCompleted = level.topics.every((topic: Topic) => {
+        const requiredProblems = topic.problems.filter((p: Problem) => p.required);
+        if (requiredProblems.length === 0) return true;
+        const completedRequired = requiredProblems.filter((p: Problem) => p.completed).length;
+        return completedRequired === requiredProblems.length;
+      });
+      if (!isLevelCompleted) return true;
     }
-  }, [token]);
 
-  useEffect(() => {
-    const fetchTopic = async () => {
-      if (!token || !isTokenInitialized) {
-        console.log('Skipping fetch - Token ready:', !!token, 'Initialized:', isTokenInitialized);
-        return;
-      }
-
-      try {
-        setLoading(true);
-        console.log('Fetching topic with ID:', topicId);
-        console.log('Auth state - Token:', token.substring(0, 20) + '...', 'Initialized:', isTokenInitialized);
-        const response = await api.get(`/learning/topics/${topicId}`, token);
-        console.log('Topic API response:', response);
-        if (!response) {
-          throw new Error('No data received from API');
-        }
-        setTopic(response);
-        setError(null);
-      } catch (err) {
-        console.error('Error fetching topic:', err);
-        setError('Failed to load topic data');
-        setTopic(null);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    // Only set loading true if we're actually going to fetch
-    if (topicId && token && isTokenInitialized) {
-      fetchTopic();
-    }
-  }, [topicId, token, isTokenInitialized]);
+    return false;
+  })();
 
   const handleSort = (field: SortField) => {
     if (sortField === field) {
@@ -160,19 +164,28 @@ export default function TopicPage() {
     });
   };
 
-  // Early return for loading state while waiting for token
-  if (!token || !isTokenInitialized) {
-    return (
-      <div className="container py-8">
-        <Card>
-          <CardContent className="p-6">
-            <h2 className="text-xl font-semibold">Initializing...</h2>
-            <p className="mt-2">Setting up your session...</p>
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
+  const handleProblemStart = (problemId: string) => {
+    if (isLocked && !canAccessAdmin) {
+      const uncompletedLevel = learningPath?.find((level: Level, index: number) => {
+        if (index === 0) return false;
+        return !level.topics.every((topic: Topic) => {
+          const requiredProblems = topic.problems.filter((p: Problem) => p.required);
+          if (requiredProblems.length === 0) return true;
+          const completedRequired = requiredProblems.filter((p: Problem) => p.completed).length;
+          return completedRequired === requiredProblems.length;
+        });
+      });
+
+      if (uncompletedLevel) {
+        setWarningMessage(`You must complete Level ${uncompletedLevel.name} before continuing.`);
+        setShowWarning(true);
+        setTimeout(() => setShowWarning(false), 5000);
+        return;
+      }
+    }
+
+    navigate(`/problems/${problemId}`);
+  };
 
   if (loading) {
     return (
@@ -192,7 +205,7 @@ export default function TopicPage() {
         <Card>
           <CardContent className="p-6">
             <h2 className="text-xl font-semibold text-destructive">Topic Not Found</h2>
-            <p className="mt-2">{error || 'The requested topic could not be loaded.'}</p>
+            <p className="mt-2">{error instanceof Error ? error.message : 'The requested topic could not be loaded.'}</p>
             <Button 
               variant="outline" 
               className="mt-4"
@@ -207,7 +220,7 @@ export default function TopicPage() {
   }
 
   return (
-    <div className="container py-8 space-y-6">
+    <div className="container py-8 space-y-6 relative">
       <div className="flex justify-between items-center">
         <div>
           <h1 className="text-3xl font-bold">{topic.name}</h1>
@@ -229,18 +242,30 @@ export default function TopicPage() {
       </Card>
 
       {topic.problems && topic.problems.length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Problems</CardTitle>
-            <CardDescription>Practice problems for this topic</CardDescription>
+        <Card className={cn(isLocked && "bg-muted/50")}>
+          <CardHeader className="relative">
+            <CardTitle className={cn(isLocked && "text-muted-foreground")}>Problems</CardTitle>
+            <CardDescription className={cn(isLocked && "text-muted-foreground/50")}>
+              Practice problems for this topic
+            </CardDescription>
+            {isLocked && (
+              <div className="absolute right-6 top-6">
+                <div className="bg-background rounded-full p-2 shadow-sm border">
+                  <Lock className="w-5 h-5 text-muted-foreground" />
+                </div>
+              </div>
+            )}
           </CardHeader>
           <CardContent>
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead className="w-12">Status</TableHead>
+                  <TableHead className={cn("w-12", isLocked && "text-muted-foreground")}>Status</TableHead>
                   <TableHead 
-                    className="cursor-pointer hover:bg-muted/50 transition-colors w-24" 
+                    className={cn(
+                      "cursor-pointer hover:bg-muted/50 transition-colors w-24",
+                      isLocked && "text-muted-foreground"
+                    )}
                     onClick={() => handleSort('order')}
                   >
                     <div className="flex items-center space-x-1">
@@ -257,7 +282,10 @@ export default function TopicPage() {
                     </div>
                   </TableHead>
                   <TableHead 
-                    className="cursor-pointer hover:bg-muted/50 transition-colors" 
+                    className={cn(
+                      "cursor-pointer hover:bg-muted/50 transition-colors",
+                      isLocked && "text-muted-foreground"
+                    )}
                     onClick={() => handleSort('name')}
                   >
                     <div className="flex items-center space-x-1">
@@ -274,7 +302,10 @@ export default function TopicPage() {
                     </div>
                   </TableHead>
                   <TableHead 
-                    className="cursor-pointer hover:bg-muted/50 transition-colors" 
+                    className={cn(
+                      "cursor-pointer hover:bg-muted/50 transition-colors",
+                      isLocked && "text-muted-foreground"
+                    )}
                     onClick={() => handleSort('difficulty')}
                   >
                     <div className="flex items-center space-x-1">
@@ -290,27 +321,31 @@ export default function TopicPage() {
                       )}
                     </div>
                   </TableHead>
-                  <TableHead className="w-[100px]">Action</TableHead>
+                  <TableHead className={cn("w-[100px]", isLocked && "text-muted-foreground")}>Action</TableHead>
                 </TableRow>
               </TableHeader>
-              <TableBody>
+              <TableBody className={cn(isLocked && "opacity-50")}>
                 {getSortedProblems().map((problem) => (
                   <TableRow key={problem.id} className="cursor-pointer hover:bg-muted/50">
                     <TableCell>
                       {problem.completed ? (
-                        <CheckCircle2 className="h-5 w-5 text-green-500" />
+                        <CheckCircle2 className={cn("h-5 w-5 text-green-500", isLocked && "text-muted-foreground")} />
                       ) : (
                         <Circle className="h-5 w-5 text-muted-foreground" />
                       )}
                     </TableCell>
                     <TableCell>
                       {problem.required ? (
-                        <Badge variant="outline">REQ {problem.reqOrder}</Badge>
+                        <Badge variant="outline" className={cn(isLocked && "border-muted-foreground text-muted-foreground")}>
+                          REQ {problem.reqOrder}
+                        </Badge>
                       ) : (
-                        <Badge variant="secondary">OPT {problem.reqOrder}</Badge>
+                        <Badge variant="secondary" className={cn(isLocked && "bg-muted text-muted-foreground")}>
+                          OPT {problem.reqOrder}
+                        </Badge>
                       )}
                     </TableCell>
-                    <TableCell className="font-medium">
+                    <TableCell className={cn("font-medium", isLocked && "text-muted-foreground")}>
                       <div className="flex items-center gap-2">
                         {problem.problemType === 'INFO' ? (
                           <Book className="h-4 w-4 text-muted-foreground" />
@@ -328,12 +363,13 @@ export default function TopicPage() {
                         <Button 
                           variant="outline" 
                           size="sm"
-                          onClick={() => {
-                            console.log('Navigating to problem:', problem.id);
-                            navigate(`/problems/${problem.id}`);
-                          }}
+                          className={cn(
+                            isLocked && !canAccessAdmin && "border-muted-foreground text-muted-foreground",
+                            isLocked && canAccessAdmin && "border-yellow-500 text-yellow-500 hover:bg-yellow-500/10"
+                          )}
+                          onClick={() => handleProblemStart(problem.id)}
                         >
-                          Start
+                          {isLocked && canAccessAdmin ? "Start (Admin)" : "Start"}
                         </Button>
                         {formatEstimatedTime(problem.estimatedTime) && (
                           <div className="flex items-center gap-1 text-sm text-muted-foreground whitespace-nowrap">
@@ -349,6 +385,21 @@ export default function TopicPage() {
             </Table>
           </CardContent>
         </Card>
+      )}
+
+      {/* Warning Card */}
+      {showWarning && (
+        <div className="fixed bottom-6 right-6 z-50 animate-in fade-in slide-in-from-bottom-6 duration-300">
+          <Card className="bg-destructive/10 border-destructive">
+            <CardContent className="p-4 flex items-start gap-3">
+              <AlertCircle className="h-5 w-5 text-destructive flex-shrink-0 mt-0.5" />
+              <div>
+                <p className="font-medium text-destructive">{warningMessage}</p>
+                <p className="text-destructive/80 text-sm mt-1">Complete the required level to unlock this content.</p>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
       )}
     </div>
   );

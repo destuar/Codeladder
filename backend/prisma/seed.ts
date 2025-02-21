@@ -4,6 +4,9 @@
  * The values are correct at runtime (proven by working admin interface).
  * TypeScript errors are due to types not being fully loaded in seed context.
  */
+
+/*
+
 import { PrismaClient, Role, Difficulty, ProblemType } from '@prisma/client';
 import bcrypt from 'bcrypt';
 
@@ -355,4 +358,7 @@ main()
   })
   .finally(async () => {
     await prisma.$disconnect();
-  }); 
+  });
+  
+  
+  /*

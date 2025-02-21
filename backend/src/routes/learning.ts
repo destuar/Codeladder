@@ -9,8 +9,14 @@ const router = Router();
 
 // Public routes
 // Get all levels with topics and problems
-router.get('/levels', (async (req, res) => {
+router.get('/levels', authenticateToken, (async (req, res) => {
   try {
+    const userId = req.user?.id;
+
+    if (!userId) {
+      return res.status(401).json({ error: 'User not authenticated' });
+    }
+
     const levels = await prisma.level.findMany({
       orderBy: {
         order: 'asc',
@@ -25,13 +31,37 @@ router.get('/levels', (async (req, res) => {
               orderBy: {
                 reqOrder: 'asc',
               },
+              include: {
+                completedBy: {
+                  where: { id: userId },
+                  select: { id: true }
+                },
+                progress: {
+                  where: { userId },
+                  select: { status: true }
+                }
+              }
             },
           },
         },
       },
     });
 
-    res.json(levels);
+    // Transform the response to include completion status
+    const transformedLevels = levels.map(level => ({
+      ...level,
+      topics: level.topics.map(topic => ({
+        ...topic,
+        problems: topic.problems.map(problem => ({
+          ...problem,
+          completed: problem.completedBy.length > 0 || problem.progress.some(p => p.status === 'COMPLETED'),
+          completedBy: undefined,
+          progress: undefined
+        }))
+      }))
+    }));
+
+    res.json(transformedLevels);
   } catch (error) {
     console.error('Error fetching levels:', error);
     res.status(500).json({ error: 'Failed to fetch learning path data' });
@@ -45,6 +75,12 @@ router.use(authenticateToken);
 router.get('/topics/:id', (async (req, res) => {
   try {
     const { id } = req.params;
+    const userId = req.user?.id;
+
+    if (!userId) {
+      return res.status(401).json({ error: 'User not authenticated' });
+    }
+
     const topic = await prisma.topic.findUnique({
       where: { id },
       include: {
@@ -52,6 +88,16 @@ router.get('/topics/:id', (async (req, res) => {
           orderBy: {
             reqOrder: 'asc',
           },
+          include: {
+            completedBy: {
+              where: { id: userId },
+              select: { id: true }
+            },
+            progress: {
+              where: { userId },
+              select: { status: true }
+            }
+          }
         },
         level: true,
       },
@@ -61,7 +107,18 @@ router.get('/topics/:id', (async (req, res) => {
       return res.status(404).json({ error: 'Topic not found' });
     }
 
-    res.json(topic);
+    // Transform the response to include completion status
+    const transformedTopic = {
+      ...topic,
+      problems: topic.problems.map(problem => ({
+        ...problem,
+        completed: problem.completedBy.length > 0 || problem.progress.some(p => p.status === 'COMPLETED'),
+        completedBy: undefined,
+        progress: undefined
+      }))
+    };
+
+    res.json(transformedTopic);
   } catch (error) {
     console.error('Error fetching topic:', error);
     res.status(500).json({ error: 'Failed to fetch topic data' });

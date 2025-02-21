@@ -9,6 +9,8 @@ import Editor from "@monaco-editor/react";
 import { ChevronLeft, ChevronRight, Play, Send, Timer, Code2, CheckCircle2, XCircle, GripVertical, Maximize2, Minimize2, Pause, RotateCcw } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Console } from "@/components/ui/console";
+import { api } from '@/lib/api';
+import { useAuth } from '@/features/auth/AuthContext';
 
 interface TestCase {
   input: any[];
@@ -34,6 +36,8 @@ interface CodingProblemProps {
   prevProblemId?: string;
   onNavigate: (id: string) => void;
   estimatedTime?: number;
+  isCompleted?: boolean;
+  problemId: string;
 }
 
 function formatEstimatedTime(minutes: number | null | undefined): string | null {
@@ -67,6 +71,8 @@ export default function CodingProblem({
   prevProblemId,
   onNavigate,
   estimatedTime,
+  isCompleted = false,
+  problemId,
 }: CodingProblemProps) {
   const [code, setCode] = useState(codeTemplate);
   const [activeTab, setActiveTab] = useState("description");
@@ -87,6 +93,8 @@ export default function CodingProblem({
   const [time, setTime] = useState(0); // Time in seconds
   const [isTimerRunning, setIsTimerRunning] = useState(false);
   const [isTimerExpanded, setIsTimerExpanded] = useState(false);
+  const [isProblemCompleted, setIsProblemCompleted] = useState(isCompleted);
+  const { token } = useAuth();
   const dragHandleRef = useRef<HTMLDivElement>(null);
   const editorRef = useRef<any>(null);
   const editorContainerRef = useRef<HTMLDivElement>(null);
@@ -380,6 +388,15 @@ export default function CodingProblem({
     };
   }, []);
 
+  const handleMarkAsComplete = async () => {
+    try {
+      await api.post(`/problems/${problemId}/complete`, {}, token);
+      setIsProblemCompleted(true);
+    } catch (error) {
+      console.error('Error marking problem as complete:', error);
+    }
+  };
+
   return (
     <div className={cn(
       "flex flex-col bg-background",
@@ -417,13 +434,29 @@ export default function CodingProblem({
             )}
           </div>
         </div>
-        <Button variant="ghost" size="icon" onClick={toggleFullscreen}>
-          {isFullscreen ? (
-            <Minimize2 className="h-4 w-4" />
+        <div className="flex items-center gap-2">
+          {isProblemCompleted ? (
+            <div className="flex items-center justify-end text-green-500 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 p-2 rounded-lg shadow-sm">
+              <CheckCircle2 className="w-5 h-5" />
+              <span className="text-sm font-medium ml-2">Completed</span>
+            </div>
           ) : (
-            <Maximize2 className="h-4 w-4" />
+            <Button 
+              variant="outline" 
+              className="shadow-sm"
+              onClick={handleMarkAsComplete}
+            >
+              Mark as Complete
+            </Button>
           )}
-        </Button>
+          <Button variant="ghost" size="icon" onClick={toggleFullscreen}>
+            {isFullscreen ? (
+              <Minimize2 className="h-4 w-4" />
+            ) : (
+              <Maximize2 className="h-4 w-4" />
+            )}
+          </Button>
+        </div>
       </div>
 
       {/* Main content */}
