@@ -221,12 +221,6 @@ EOL
             }
         }
         
-        stage('Start Server') {
-            steps {
-                sh 'NODE_ENV=production npm start'
-            }
-        }
-        
         stage('Check Disk Space') {
             steps {
                 sh '''
