@@ -1,7 +1,7 @@
 import express from 'express';
 import healthRouter from './health';
-import authRouter from './auth';
-import profileRouter from './profile';
+import authRouter from '../api/auth/route';
+import profileRouter from '../api/profile/route';
 import adminRouter from './admin';
 import learningRouter from './learning';
 import problemsRouter from './problems';
@@ -18,6 +18,6 @@ router.use('/admin', adminRouter);
 router.use('/learning', learningRouter);
 router.use('/problems', problemsRouter);
 router.use('/standalone-info', standaloneInfoRouter);
-router.use('/upload-image', imageUploadRouter);
+router.use('/image-upload', imageUploadRouter);
 
 export default router; 

@@ -145,50 +145,61 @@ export const login = async (req: Request, res: Response) => {
 
 export const refresh = async (req: Request, res: Response) => {
   try {
-    const refreshToken = req.cookies.refreshToken;
-    if (!refreshToken) {
-      return res.status(401).json({ error: 'No refresh token' });
+    // Get token from authorization header
+    const authHeader = req.headers.authorization;
+    if (!authHeader?.startsWith('Bearer ')) {
+      return res.status(401).json({ error: 'No token provided' });
     }
 
-    // Verify refresh token
-    const payload = jwt.verify(refreshToken, env.JWT_REFRESH_SECRET) as JwtPayload;
+    const token = authHeader.split(' ')[1];
     
-    // Get user and verify token version
-    const user = await prisma.user.findUnique({
-      where: { id: payload.userId },
-      select: {
-        id: true,
-        email: true,
-        name: true,
-        role: true,
-        tokenVersion: true
+    try {
+      // Verify the token
+      const payload = jwt.verify(token, env.JWT_SECRET) as JwtPayload;
+      
+      // Get user and verify token version
+      const user = await prisma.user.findUnique({
+        where: { id: payload.userId },
+        select: {
+          id: true,
+          email: true,
+          name: true,
+          role: true,
+          tokenVersion: true
+        }
+      });
+
+      if (!user || user.tokenVersion !== payload.tokenVersion) {
+        return res.status(401).json({ error: 'Invalid token' });
       }
-    });
 
-    if (!user || user.tokenVersion !== payload.tokenVersion) {
-      return res.status(401).json({ error: 'Invalid refresh token' });
-    }
-
-    // Generate new access token
-    const newPayload: JwtPayload = { 
-      userId: user.id, 
-      role: user.role,
-      tokenVersion: user.tokenVersion 
-    };
-    
-    const accessToken = jwt.sign(newPayload, env.JWT_SECRET, accessTokenOptions);
-
-    res.json({
-      user: {
-        id: user.id,
-        email: user.email,
-        name: user.name,
+      // Generate new access token
+      const newPayload: JwtPayload = { 
+        userId: user.id, 
         role: user.role,
-      },
-      accessToken,
-    });
+        tokenVersion: user.tokenVersion 
+      };
+      
+      const accessToken = jwt.sign(newPayload, env.JWT_SECRET, accessTokenOptions);
+
+      res.json({
+        user: {
+          id: user.id,
+          email: user.email,
+          name: user.name,
+          role: user.role,
+        },
+        accessToken,
+      });
+    } catch (error) {
+      if (error instanceof jwt.TokenExpiredError) {
+        return res.status(401).json({ error: 'Token expired' });
+      }
+      throw error;
+    }
   } catch (error) {
-    res.status(401).json({ error: 'Invalid refresh token' });
+    console.error('Refresh token error:', error);
+    res.status(401).json({ error: 'Invalid token' });
   }
 };
 

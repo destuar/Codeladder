@@ -1,0 +1,4 @@
+window.RUNTIME_CONFIG = {
+  API_URL: "/api",
+  ENV: "development"
+}; 

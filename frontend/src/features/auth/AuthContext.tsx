@@ -97,11 +97,19 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
 
     try {
       console.log('Refreshing token...');
-      const data = await api.post('/auth/refresh', {});
+      const data = await api.post('/auth/refresh', {}, savedToken);
       console.log('Token refreshed successfully');
-      setToken(data.accessToken);
-      await loadUserProfile(data.accessToken);
-      setupRefreshToken(data.accessToken);
+      
+      if (data.accessToken) {
+        setToken(data.accessToken);
+        localStorage.setItem('token', data.accessToken);
+        setupRefreshToken(data.accessToken);
+      }
+      
+      if (data.user) {
+        setUser(data.user);
+        localStorage.setItem('user', JSON.stringify(data.user));
+      }
     } catch (err) {
       console.error('Error refreshing token:', err);
       if (err instanceof Error && err.message === 'Unauthorized') {
