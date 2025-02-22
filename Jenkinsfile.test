@@ -72,13 +72,13 @@ pipeline {
                         def passed = testOutput.contains('PASS')
 
                         echo """╔═══════════════════════════════════════════════════════════════════════════╗
-║                           TEST EXECUTION SUMMARY                           ║
+║                           TEST EXECUTION SUMMARY                          ║
 ╠═══════════════════════════════════════════════════════════════════════════╣
-║ ${passed ? '✅ Tests Passed' : '❌ Tests Failed'}                                                         ║
+║ ${passed ? '✅ Tests Passed' : '❌ Tests Failed'}                                                            ║
 ║                                                                           ║
-║ ${suites.padRight(75)} ║
-║ ${tests.padRight(75)} ║
-║ ${time.padRight(75)} ║
+║ ${suites.padRight(73)} ║
+║ ${tests.padRight(73)} ║
+║ ${time.padRight(73)} ║
 ╚═══════════════════════════════════════════════════════════════════════════╝"""
 
                         if (!passed) {
