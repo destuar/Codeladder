@@ -16,21 +16,29 @@ pipeline {
         BACKEND_PORT = '8000'
         NODE_ENV = 'test'
         API_URL = "http://${EC2_HOST}:${BACKEND_PORT}/api"
+        GIT_SSH_COMMAND = 'ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null'
     }
 
     stages {
         stage('Setup Git') {
             steps {
-                sh '''
-                    # Add GitHub to known hosts with both key types
-                    mkdir -p ~/.ssh
-                    ssh-keyscan -t rsa,ed25519 github.com >> ~/.ssh/known_hosts
-                    chmod 644 ~/.ssh/known_hosts
-                    
-                    # Verify keys were added
-                    echo "Known hosts content:"
-                    cat ~/.ssh/known_hosts
-                '''
+                withCredentials([sshUserPrivateKey(
+                    credentialsId: 'codeladder-jenkins-key',
+                    keyFileVariable: 'SSH_KEY'
+                )]) {
+                    sh '''
+                        # Setup SSH directory
+                        mkdir -p ~/.ssh
+                        chmod 700 ~/.ssh
+                        
+                        # Add GitHub keys
+                        ssh-keyscan -H github.com >> ~/.ssh/known_hosts
+                        chmod 644 ~/.ssh/known_hosts
+                        
+                        # Clean workspace
+                        rm -rf *
+                    '''
+                }
             }
         }
 
@@ -41,8 +49,13 @@ pipeline {
                     keyFileVariable: 'SSH_KEY'
                 )]) {
                     sh '''
+                        # Clone repository
                         GIT_SSH_COMMAND="ssh -i $SSH_KEY -o StrictHostKeyChecking=no" git clone git@github.com:cee8/codeladder.git .
-                        git checkout $BRANCH_NAME || git checkout main
+                        
+                        # Try to checkout branch or fallback to main
+                        if [ ! -z "$BRANCH_NAME" ]; then
+                            git checkout $BRANCH_NAME || git checkout main
+                        fi
                     '''
                 }
             }
@@ -95,13 +108,19 @@ EOL
 
     post {
         always {
-            cleanWs()
+            node('codeladder') {
+                cleanWs()
+            }
         }
         failure {
-            echo "Tests failed on branch ${env.BRANCH_NAME}"
+            node('codeladder') {
+                echo "Tests failed on branch ${env.BRANCH_NAME}"
+            }
         }
         success {
-            echo "All tests passed on branch ${env.BRANCH_NAME}"
+            node('codeladder') {
+                echo "All tests passed on branch ${env.BRANCH_NAME}"
+            }
         }
     }
 } 
