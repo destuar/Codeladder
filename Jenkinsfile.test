@@ -30,8 +30,8 @@ pipeline {
                         mkdir -p ~/.ssh
                         chmod 700 ~/.ssh
                         
-                        # Add GitHub keys
-                        ssh-keyscan -t rsa,dsa,ecdsa,ed25519 github.com > ~/.ssh/known_hosts
+                        # Add GitHub keys with all types
+                        ssh-keyscan -H github.com >> ~/.ssh/known_hosts
                         chmod 644 ~/.ssh/known_hosts
                         
                         # Configure Git SSH
@@ -39,6 +39,9 @@ pipeline {
                         
                         # Clean workspace
                         rm -rf .* * || true
+                        
+                        # Test GitHub connection
+                        ssh -T git@github.com -o StrictHostKeyChecking=no || true
                     '''
                 }
             }
@@ -46,19 +49,9 @@ pipeline {
 
         stage('Checkout') {
             steps {
-                withCredentials([sshUserPrivateKey(
+                git branch: 'main',
                     credentialsId: 'jenkins-ssh-key',
-                    keyFileVariable: 'SSH_KEY'
-                )]) {
-                    sh '''
-                        git clone git@github.com:cee8/codeladder.git .
-                        git checkout ${BRANCH_NAME:-main}
-                        
-                        # Debug info
-                        echo "Current branch: $(git branch --show-current)"
-                        git status
-                    '''
-                }
+                    url: 'git@github.com:cee8/codeladder.git'
             }
         }
 
@@ -109,13 +102,19 @@ EOL
 
     post {
         always {
-            cleanWs()
+            node('codeladder') {
+                cleanWs()
+            }
         }
         failure {
-            echo "Tests failed on branch ${env.BRANCH_NAME ?: 'main'}"
+            node('codeladder') {
+                echo "Tests failed on branch ${env.BRANCH_NAME ?: 'main'}"
+            }
         }
         success {
-            echo "All tests passed on branch ${env.BRANCH_NAME ?: 'main'}"
+            node('codeladder') {
+                echo "All tests passed on branch ${env.BRANCH_NAME ?: 'main'}"
+            }
         }
     }
 } 
