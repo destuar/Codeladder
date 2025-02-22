@@ -99,18 +99,18 @@ EOL
                             npm install --save-dev jest @types/jest ts-jest supertest @types/supertest
                         '''
 
-                        // Update package.json
+                        // Update package.json with JSON output
                         sh '''
                             node -e '
                                 const fs = require("fs");
                                 const pkg = JSON.parse(fs.readFileSync("package.json", "utf8"));
                                 pkg.scripts = pkg.scripts || {};
-                                pkg.scripts.test = "jest --silent";
+                                pkg.scripts.test = "jest --json --outputFile=jest-output.json";
                                 fs.writeFileSync("package.json", JSON.stringify(pkg, null, 2));
                             '
                         '''
 
-                        // Create test config files
+                        // Create test configs (tsconfig.json and jest.config.js remain the same)
                         sh '''
                             echo '{
                                 "compilerOptions": {
@@ -130,44 +130,49 @@ EOL
                                 testEnvironment: "node",
                                 testTimeout: 10000,
                                 verbose: false,
-                                silent: true,
                                 collectCoverage: true
                             }' > jest.config.js
                         '''
 
                         // Create and run tests
-                        def testOutput = sh(
-                            script: '''
-                                mkdir -p __tests__
-                                echo 'import { describe, expect, test } from "@jest/globals";
-                                describe("Health Check", () => {
-                                    test("Server is running", () => {
-                                        expect(true).toBe(true);
-                                    });
-                                });' > __tests__/health.test.ts
-                                
-                                npm test 2>&1
-                            ''',
-                            returnStdout: true
-                        ).trim()
+                        sh '''
+                            mkdir -p __tests__
+                            echo 'import { describe, expect, test } from "@jest/globals";
+                            describe("Health Check", () => {
+                                test("Server is running", () => {
+                                    expect(true).toBe(true);
+                                });
+                            });' > __tests__/health.test.ts
+                            
+                            npm test || true
+                        '''
 
-                        // Process and display results
-                        def suites = sh(script: "echo '${testOutput}' | grep 'Test Suites:' | tr -d '\\r'", returnStdout: true).trim()
-                        def tests = sh(script: "echo '${testOutput}' | grep '^Tests:' | tr -d '\\r'", returnStdout: true).trim()
-                        def time = sh(script: "echo '${testOutput}' | grep '^Time:' | tr -d '\\r'", returnStdout: true).trim()
-                        def passed = testOutput.contains('PASS')
+                        // Parse test results
+                        def testResults = readJSON file: 'jest-output.json'
+                        def numPassedTests = testResults.numPassedTests
+                        def numFailedTests = testResults.numFailedTests
+                        def numTotalTests = testResults.numTotalTests
+                        def testDuration = (testResults.testResults.reduce { acc, val -> acc.perfStats.end > val.perfStats.end ? acc : val }.perfStats.end / 1000).round(2)
 
                         echo """╔═══════════════════════════════════════════════════════════════════════════╗
 ║                           TEST EXECUTION SUMMARY                           ║
 ╠═══════════════════════════════════════════════════════════════════════════╣
-║ ${passed ? '✅ Tests Passed' : '❌ Tests Failed'}                                                         ║
+║ ${numFailedTests == 0 ? '✅ All Tests Passed' : '❌ Some Tests Failed'}                                                    ║
 ║                                                                           ║
-║ ${suites.padRight(75)} ║
-║ ${tests.padRight(75)} ║
-║ ${time.padRight(75)} ║
+║ Total Tests: ${numTotalTests.toString().padRight(66)} ║
+║ Passed: ${numPassedTests.toString().padRight(69)} ║
+║ Failed: ${numFailedTests.toString().padRight(69)} ║
+║ Duration: ${testDuration}s${' '.multiply(67)}║
 ╚═══════════════════════════════════════════════════════════════════════════╝"""
 
-                        if (!passed) {
+                        if (numFailedTests > 0) {
+                            def failedTests = testResults.testResults.findAll { it.status == 'failed' }
+                            failedTests.each { result ->
+                                echo "Failed Test: ${result.name}"
+                                result.assertionResults.findAll { it.status == 'failed' }.each { assertion ->
+                                    echo "  ❌ ${assertion.title}: ${assertion.failureMessages.join('\n     ')}"
+                                }
+                            }
                             error "Tests failed!"
                         }
                     }
