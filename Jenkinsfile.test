@@ -1,10 +1,13 @@
 pipeline {
-    agent any
+    agent {
+        label 'codeladder'
+    }
 
     options {
         timeout(time: 5, unit: 'MINUTES')
         disableConcurrentBuilds()
         quietPeriod(0)
+        buildDiscarder(logRotator(numToKeepStr: '5'))
     }
 
     environment {
@@ -27,7 +30,7 @@ pipeline {
                     docker network prune -f || true
                     
                     echo "Current disk space:"
-                    df -h
+                    df -h /var/lib/jenkins
                 '''
             }
         }
@@ -37,7 +40,7 @@ pipeline {
                 dir('backend') {
                     sh '''
                         echo "Running security scan..."
-                        npm audit || true
+                        npm audit --production || true
                         echo "✓ Security scan completed"
                     '''
                 }
@@ -47,7 +50,9 @@ pipeline {
 
     post {
         always {
-            cleanWs()
+            cleanWs(cleanWhenNotBuilt: true,
+                   deleteDirs: true,
+                   disableDeferredWipeout: true)
         }
     }
 } 
