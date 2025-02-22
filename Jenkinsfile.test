@@ -104,9 +104,10 @@ pipeline {
                 def (credentials, hostAndDb) = rest.split('@')
                 def (username, password) = credentials.split(':')
                 def (hostAndPort, originalDb) = hostAndDb.split('/')
+                def (host, port) = hostAndPort.split(':')
                 
                 sh """
-                    PGPASSWORD=${password} psql -h ${hostAndPort} -U ${username} -d postgres -c "DROP DATABASE IF EXISTS ${TEST_DB_NAME}"
+                    PGPASSWORD=${password} psql -h ${host} -p ${port} -U ${username} -d postgres -c "DROP DATABASE IF EXISTS ${TEST_DB_NAME}"
                 """
             }
             cleanWs()
