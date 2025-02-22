@@ -95,14 +95,86 @@ EOL
                         echo "Installing dependencies..."
                         npm install
                         
-                        echo "Checking for test script..."
-                        if npm run test --silent 2>/dev/null; then
-                            echo "Running tests..."
-                            npm test
-                        else
-                            echo "No tests defined, skipping test stage"
-                            exit 0
-                        fi
+                        # Create test script in package.json
+                        node -e '
+                            const pkg = require("./package.json");
+                            pkg.scripts.test = "jest --verbose --json --outputFile=test-results.json";
+                            require("fs").writeFileSync("package.json", JSON.stringify(pkg, null, 2));
+                        '
+                        
+                        # Install test dependencies
+                        npm install --save-dev jest @types/jest ts-jest supertest @types/supertest
+
+                        # Create test configuration
+                        echo '{
+                            "preset": "ts-jest",
+                            "testEnvironment": "node",
+                            "testTimeout": 10000,
+                            "verbose": true,
+                            "collectCoverage": true,
+                            "coverageThreshold": {
+                                "global": {
+                                    "branches": 70,
+                                    "functions": 70,
+                                    "lines": 70
+                                }
+                            }
+                        }' > jest.config.json
+
+                        # Run tests and generate summary
+                        npm test || {
+                            echo "
+╔════════════════════════════════════════════════════════════════╗
+║                      TEST EXECUTION SUMMARY                     ║
+╠════════════════════════════════════════════════════════════════╣"
+                            if [ -f test-results.json ]; then
+                                node -e '
+                                    const results = require("./test-results.json");
+                                    const testSuites = results.testResults;
+                                    let passed = 0;
+                                    let failed = 0;
+                                    
+                                    console.log("║ Authentication Tests:");
+                                    testSuites.forEach(suite => {
+                                        if (suite.name.includes("auth")) {
+                                            suite.testResults.forEach(test => {
+                                                const status = test.status === "passed" ? "✓" : "✗";
+                                                console.log(`║  ${status} ${test.title}`);
+                                                test.status === "passed" ? passed++ : failed++;
+                                            });
+                                        }
+                                    });
+                                    
+                                    console.log("║");
+                                    console.log("║ API Health Tests:");
+                                    testSuites.forEach(suite => {
+                                        if (suite.name.includes("health")) {
+                                            suite.testResults.forEach(test => {
+                                                const status = test.status === "passed" ? "✓" : "✗";
+                                                console.log(`║  ${status} ${test.title}`);
+                                                test.status === "passed" ? passed++ : failed++;
+                                            });
+                                        }
+                                    });
+                                    
+                                    const coverage = results.coverageMap ? results.coverageMap.global : null;
+                                    console.log("║");
+                                    console.log("║ Coverage Report:");
+                                    if (coverage) {
+                                        console.log(`║  Lines: ${coverage.lines.pct}%`);
+                                        console.log(`║  Functions: ${coverage.functions.pct}%`);
+                                        console.log(`║  Branches: ${coverage.branches.pct}%`);
+                                    }
+                                    
+                                    console.log("║");
+                                    console.log(`║ Total Tests: ${passed + failed}`);
+                                    console.log(`║ Passed: ${passed}`);
+                                    console.log(`║ Failed: ${failed}`);
+                                '
+                            fi
+                            echo "╚════════════════════════════════════════════════════════════════╝"
+                            exit 1
+                        }
                     '''
                 }
             }
