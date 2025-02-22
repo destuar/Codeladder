@@ -16,7 +16,6 @@ pipeline {
         BACKEND_PORT = '8000'
         NODE_ENV = 'test'
         API_URL = "http://${EC2_HOST}:${BACKEND_PORT}/api"
-        GIT_SSH_COMMAND = 'ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null'
     }
 
     stages {
@@ -24,19 +23,23 @@ pipeline {
             steps {
                 withCredentials([sshUserPrivateKey(
                     credentialsId: 'codeladder-jenkins-key',
-                    keyFileVariable: 'SSH_KEY'
+                    keyFileVariable: 'SSH_KEY',
+                    usernameVariable: 'SSH_USER'
                 )]) {
                     sh '''
                         # Setup SSH directory
                         mkdir -p ~/.ssh
                         chmod 700 ~/.ssh
                         
-                        # Add GitHub keys
-                        ssh-keyscan -H github.com >> ~/.ssh/known_hosts
+                        # Add GitHub keys with all types
+                        ssh-keyscan -t rsa,dsa,ecdsa,ed25519 github.com >> ~/.ssh/known_hosts
                         chmod 644 ~/.ssh/known_hosts
                         
                         # Clean workspace
-                        rm -rf *
+                        rm -rf .* * || true
+                        
+                        # Configure Git
+                        git config --global core.sshCommand "ssh -i $SSH_KEY -o StrictHostKeyChecking=no"
                     '''
                 }
             }
@@ -50,12 +53,16 @@ pipeline {
                 )]) {
                     sh '''
                         # Clone repository
-                        GIT_SSH_COMMAND="ssh -i $SSH_KEY -o StrictHostKeyChecking=no" git clone git@github.com:cee8/codeladder.git .
+                        git clone git@github.com:cee8/codeladder.git .
                         
                         # Try to checkout branch or fallback to main
                         if [ ! -z "$BRANCH_NAME" ]; then
                             git checkout $BRANCH_NAME || git checkout main
                         fi
+                        
+                        # Show current state
+                        git status
+                        git branch
                     '''
                 }
             }
