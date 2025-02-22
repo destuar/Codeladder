@@ -107,37 +107,50 @@ EOL
                             fs.writeFileSync("package.json", JSON.stringify(pkg, null, 2));
                         '
                         
-                        # Create test configuration
+                        # Create tsconfig.json for tests
                         echo '{
-                            "preset": "ts-jest",
-                            "testEnvironment": "node",
-                            "testTimeout": 10000,
-                            "verbose": true,
-                            "collectCoverage": true,
-                            "coverageThreshold": {
-                                "global": {
-                                    "branches": 70,
-                                    "functions": 70,
-                                    "lines": 70
+                            "compilerOptions": {
+                                "target": "es6",
+                                "module": "commonjs",
+                                "types": ["jest", "node"],
+                                "esModuleInterop": true,
+                                "skipLibCheck": true,
+                                "forceConsistentCasingInFileNames": true
+                            },
+                            "include": ["src/**/*", "__tests__/**/*"],
+                            "exclude": ["node_modules"]
+                        }' > tsconfig.json
+                        
+                        # Create jest.config.js
+                        echo 'module.exports = {
+                            preset: "ts-jest",
+                            testEnvironment: "node",
+                            testTimeout: 10000,
+                            verbose: true,
+                            collectCoverage: true,
+                            coverageThreshold: {
+                                global: {
+                                    branches: 70,
+                                    functions: 70,
+                                    lines: 70
                                 }
                             }
-                        }' > jest.config.json
+                        }' > jest.config.js
 
-                        # Create test directory and basic tests
-                        mkdir -p __tests__
-                        
                         # Create basic health check test
-                        echo 'describe("Health Check", () => {
+                        mkdir -p __tests__
+                        echo 'import { describe, expect, test } from "@jest/globals";
+                        
+                        describe("Health Check", () => {
                             test("Server is running", () => {
                                 expect(true).toBe(true);
                             });
                         });' > __tests__/health.test.ts
 
-                        echo "🧪 Running tests..."
-                        
-                        # Run tests and format output
+                        echo "Running tests..."
                         TEST_OUTPUT=$(npm test 2>&1) || true
                         
+                        # Format output
                         echo "
 ╔═══════════════════════════════════════════════════════════════════════════╗
 ║                           TEST EXECUTION SUMMARY                           ║
@@ -148,12 +161,13 @@ EOL
                             RESULT="PASS"
                         else
                             echo "║ ❌ Tests Failed                                                         ║"
-                            echo "║ Error: $(echo "$TEST_OUTPUT" | grep "Error:" | head -1)               ║"
+                            ERROR_MSG=$(echo "$TEST_OUTPUT" | grep "FAIL" | head -1)
+                            printf "║ %-75s ║\\n" "$ERROR_MSG"
                             RESULT="FAIL"
                         fi
 
                         echo "║                                                                           ║"
-                        echo "$TEST_OUTPUT" | grep -E "Test Suites:|Tests:|Time:|Ran all" | while read -r line; do
+                        echo "$TEST_OUTPUT" | grep -E "Test Suites:|Tests:|Time:" | while read -r line; do
                             printf "║ %-75s ║\\n" "$line"
                         done
                         echo "╚═══════════════════════════════════════════════════════════════════════════╝"
