@@ -27,13 +27,16 @@ pipeline {
 
         stage('Setup Environment') {
             steps {
-                withCredentials([
-                    string(credentialsId: 'DATABASE_URL', variable: 'DATABASE_URL'),
-                    string(credentialsId: 'JWT_SECRET', variable: 'JWT_SECRET'),
-                    string(credentialsId: 'JWT_REFRESH_SECRET', variable: 'JWT_REFRESH_SECRET')
-                ]) {
-                    sh """
-                        cat > backend/.env.test << EOL
+                script {
+                    withCredentials([
+                        string(credentialsId: 'DATABASE_URL', variable: 'DATABASE_URL'),
+                        string(credentialsId: 'JWT_SECRET', variable: 'JWT_SECRET'),
+                        string(credentialsId: 'JWT_REFRESH_SECRET', variable: 'JWT_REFRESH_SECRET'),
+                        string(credentialsId: 'AWS_ACCESS_KEY_ID', variable: 'AWS_ACCESS_KEY_ID'),
+                        string(credentialsId: 'AWS_SECRET_ACCESS_KEY', variable: 'AWS_SECRET_ACCESS_KEY')
+                    ]) {
+                        sh """
+                            cat > backend/.env.test << EOL
 NODE_ENV=test
 PORT=${BACKEND_PORT}
 DATABASE_URL=${DATABASE_URL}
@@ -41,8 +44,13 @@ JWT_SECRET=${JWT_SECRET}
 JWT_REFRESH_SECRET=${JWT_REFRESH_SECRET}
 JWT_EXPIRES_IN=15m
 CORS_ORIGIN=http://localhost:${FRONTEND_PORT}
+AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
+AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
+AWS_REGION=us-east-2
+S3_BUCKET=codeladder-s3
 EOL
-                    """
+                        """
+                    }
                 }
             }
         }
