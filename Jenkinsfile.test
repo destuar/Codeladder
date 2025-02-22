@@ -31,17 +31,18 @@ pipeline {
                         chmod 700 ~/.ssh
                         
                         # Add GitHub keys with all types
-                        ssh-keyscan -H github.com >> ~/.ssh/known_hosts
+                        ssh-keyscan -t rsa,dsa,ecdsa,ed25519 github.com >> ~/.ssh/known_hosts
                         chmod 644 ~/.ssh/known_hosts
                         
-                        # Configure Git SSH
-                        git config --global core.sshCommand "ssh -i '$SSH_KEY' -o StrictHostKeyChecking=no"
+                        # Copy SSH key
+                        cp "$SSH_KEY" ~/.ssh/id_rsa
+                        chmod 600 ~/.ssh/id_rsa
+                        
+                        # Test GitHub connection
+                        ssh -T -o StrictHostKeyChecking=no git@github.com || true
                         
                         # Clean workspace
                         rm -rf .* * || true
-                        
-                        # Test GitHub connection
-                        ssh -T git@github.com -o StrictHostKeyChecking=no || true
                     '''
                 }
             }
@@ -49,9 +50,13 @@ pipeline {
 
         stage('Checkout') {
             steps {
-                git branch: 'main',
-                    credentialsId: 'jenkins-ssh-key',
-                    url: 'git@github.com:cee8/codeladder.git'
+                checkout([$class: 'GitSCM',
+                    branches: [[name: '*/main']],
+                    userRemoteConfigs: [[
+                        url: 'git@github.com:cee8/codeladder.git',
+                        credentialsId: 'jenkins-ssh-key'
+                    ]]
+                ])
             }
         }
 
