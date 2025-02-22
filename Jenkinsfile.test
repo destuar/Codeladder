@@ -28,7 +28,6 @@ pipeline {
         stage('Setup Environment') {
             steps {
                 script {
-                    // Create test environment file based on schema
                     withCredentials([
                         string(credentialsId: 'DATABASE_URL', variable: 'DATABASE_URL'),
                         string(credentialsId: 'JWT_SECRET', variable: 'JWT_SECRET'),
@@ -45,8 +44,13 @@ JWT_SECRET=${JWT_SECRET}
 JWT_REFRESH_SECRET=${JWT_REFRESH_SECRET}
 JWT_EXPIRES_IN=15m
 CORS_ORIGIN=http://localhost:${FRONTEND_PORT}
+AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
+AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
+AWS_REGION=us-east-2
+S3_BUCKET=codeladder-s3
 EOL
-                    """
+                        """
+                    }
                 }
             }
         }
