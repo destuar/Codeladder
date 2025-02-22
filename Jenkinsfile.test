@@ -30,19 +30,12 @@ pipeline {
                         mkdir -p ~/.ssh
                         chmod 700 ~/.ssh
                         
-                        # Copy SSH key
-                        cp "$SSH_KEY" ~/.ssh/github_key
-                        chmod 600 ~/.ssh/github_key
+                        # Add GitHub keys
+                        ssh-keyscan -t rsa,dsa,ecdsa,ed25519 github.com > ~/.ssh/known_hosts
+                        chmod 644 ~/.ssh/known_hosts
                         
-                        # Configure SSH for GitHub
-                        cat > ~/.ssh/config << EOL
-Host github.com
-    HostName github.com
-    User git
-    IdentityFile ~/.ssh/github_key
-    StrictHostKeyChecking no
-EOL
-                        chmod 600 ~/.ssh/config
+                        # Configure Git SSH
+                        git config --global core.sshCommand "ssh -i '$SSH_KEY' -o StrictHostKeyChecking=no"
                         
                         # Clean workspace
                         rm -rf .* * || true
@@ -53,15 +46,19 @@ EOL
 
         stage('Checkout') {
             steps {
-                sh '''
-                    git clone git@github.com:cee8/codeladder.git .
-                    BRANCH_NAME=$(echo $GIT_BRANCH | sed 's|origin/||')
-                    git checkout $BRANCH_NAME || git checkout main
-                    
-                    # Debug info
-                    echo "Current branch: $(git branch --show-current)"
-                    git status
-                '''
+                withCredentials([sshUserPrivateKey(
+                    credentialsId: 'jenkins-ssh-key',
+                    keyFileVariable: 'SSH_KEY'
+                )]) {
+                    sh '''
+                        git clone git@github.com:cee8/codeladder.git .
+                        git checkout ${BRANCH_NAME:-main}
+                        
+                        # Debug info
+                        echo "Current branch: $(git branch --show-current)"
+                        git status
+                    '''
+                }
             }
         }
 
@@ -112,25 +109,13 @@ EOL
 
     post {
         always {
-            node('codeladder') {
-                cleanWs()
-            }
+            cleanWs()
         }
         failure {
-            node('codeladder') {
-                script {
-                    def branchName = sh(script: 'git rev-parse --abbrev-ref HEAD', returnStdout: true).trim()
-                    echo "Tests failed on branch ${branchName}"
-                }
-            }
+            echo "Tests failed on branch ${env.BRANCH_NAME ?: 'main'}"
         }
         success {
-            node('codeladder') {
-                script {
-                    def branchName = sh(script: 'git rev-parse --abbrev-ref HEAD', returnStdout: true).trim()
-                    echo "All tests passed on branch ${branchName}"
-                }
-            }
+            echo "All tests passed on branch ${env.BRANCH_NAME ?: 'main'}"
         }
     }
 } 
