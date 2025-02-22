@@ -92,12 +92,8 @@ pipeline {
             steps {
                 dir('backend') {
                     sh '''
-                        export NVM_DIR="$HOME/.nvm"
-                        . "$NVM_DIR/nvm.sh" > /dev/null 2>&1
-                        nvm use ${NODE_VERSION} > /dev/null 2>&1
-                        
                         echo "Running security scan..."
-                        npm audit --silent || true
+                        npm audit
                         echo "✓ Security scan completed"
                     '''
                 }
