@@ -98,13 +98,21 @@ EOL
                         # Install test dependencies
                         npm install --save-dev jest @types/jest ts-jest supertest @types/supertest
                         
+                        # Update package.json test script
+                        node -e '
+                            const fs = require("fs");
+                            const pkg = JSON.parse(fs.readFileSync("package.json", "utf8"));
+                            pkg.scripts = pkg.scripts || {};
+                            pkg.scripts.test = "jest";
+                            fs.writeFileSync("package.json", JSON.stringify(pkg, null, 2));
+                        '
+                        
                         # Create test configuration
                         echo '{
                             "preset": "ts-jest",
                             "testEnvironment": "node",
                             "testTimeout": 10000,
-                            "verbose": false,
-                            "silent": true,
+                            "verbose": true,
                             "collectCoverage": true,
                             "coverageThreshold": {
                                 "global": {
@@ -125,42 +133,29 @@ EOL
                             });
                         });' > __tests__/health.test.ts
 
-                        # Run tests and capture output
                         echo "🧪 Running tests..."
+                        
+                        # Run tests and format output
                         TEST_OUTPUT=$(npm test 2>&1) || true
                         
-                        # Generate summary report
                         echo "
 ╔═══════════════════════════════════════════════════════════════════════════╗
 ║                           TEST EXECUTION SUMMARY                           ║
 ╠═══════════════════════════════════════════════════════════════════════════╣"
 
                         if echo "$TEST_OUTPUT" | grep -q "PASS"; then
-                            echo "║ ✅ All Tests Passed                                                     ║"
+                            echo "║ ✅ Tests Passed                                                         ║"
                             RESULT="PASS"
                         else
-                            echo "║ ❌ Some Tests Failed                                                    ║"
+                            echo "║ ❌ Tests Failed                                                         ║"
+                            echo "║ Error: $(echo "$TEST_OUTPUT" | grep "Error:" | head -1)               ║"
                             RESULT="FAIL"
                         fi
 
                         echo "║                                                                           ║"
-                        echo "║ Test Suites:                                                             ║"
-                        echo "$TEST_OUTPUT" | grep "Test Suites:" | while read -r line; do
-                            printf "║  %s%-65s║\\n" "  " "$line"
+                        echo "$TEST_OUTPUT" | grep -E "Test Suites:|Tests:|Time:|Ran all" | while read -r line; do
+                            printf "║ %-75s ║\\n" "$line"
                         done
-
-                        echo "║                                                                           ║"
-                        echo "║ Tests:                                                                    ║"
-                        echo "$TEST_OUTPUT" | grep "Tests:" | while read -r line; do
-                            printf "║  %s%-65s║\\n" "  " "$line"
-                        done
-
-                        echo "║                                                                           ║"
-                        echo "║ Coverage:                                                                 ║"
-                        echo "$TEST_OUTPUT" | grep "All files" | while read -r line; do
-                            printf "║  %s%-65s║\\n" "  " "$line"
-                        done
-                        
                         echo "╚═══════════════════════════════════════════════════════════════════════════╝"
 
                         if [ "$RESULT" = "FAIL" ]; then
