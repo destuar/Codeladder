@@ -8,6 +8,7 @@ pipeline {
         NODE_VERSION = '18.20.7'
         NODE_ENV = 'test'
         API_URL = "http://${EC2_HOST}:${BACKEND_PORT}/api"
+        SLACK_CHANNEL = '#deployments'
     }
 
     stages {
@@ -90,12 +91,16 @@ pipeline {
         }
         success {
             slackSend(
+                channel: env.SLACK_CHANNEL,
+                tokenCredentialId: 'slack-token',
                 color: 'good',
                 message: "Branch Tests Passed: ${env.BRANCH_NAME}\nBuild Number: ${env.BUILD_NUMBER}"
             )
         }
         failure {
             slackSend(
+                channel: env.SLACK_CHANNEL,
+                tokenCredentialId: 'slack-token',
                 color: 'danger',
                 message: "Branch Tests Failed: ${env.BRANCH_NAME}\nBuild Number: ${env.BUILD_NUMBER}\nCheck the logs: ${env.BUILD_URL}"
             )
