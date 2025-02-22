@@ -74,7 +74,7 @@ pipeline {
                         echo """╔═══════════════════════════════════════════════════════════════════════════╗
 ║                           TEST EXECUTION SUMMARY                          ║
 ╠═══════════════════════════════════════════════════════════════════════════╣
-║ ${passed ? '✅ Tests Passed' : '❌ Tests Failed'}                                                            ║
+║ ${passed ? '✅ Tests Passed' : '❌ Tests Failed'}                                                           ║
 ║                                                                           ║
 ║ ${suites.padRight(73)} ║
 ║ ${tests.padRight(73)} ║
