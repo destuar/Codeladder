@@ -29,7 +29,7 @@ pipeline {
         stage('Setup Environment') {
             steps {
                 script {
-                    // Create test environment file based on schema
+                    // Create test environment file based on schema!
                     withCredentials([
                         string(credentialsId: 'DATABASE_URL', variable: 'DATABASE_URL'),
                         string(credentialsId: 'JWT_SECRET', variable: 'JWT_SECRET'),
