@@ -147,29 +147,34 @@ EOL
                             npm test
                         '''
 
-                        // Parse test results using readFile and evaluate
-                        def testResults = sh(script: 'cat jest-output.json', returnStdout: true).trim()
-                        def results = new groovy.json.JsonSlurperClassic().parseText(testResults)
-                        
-                        def numPassedTests = results.numPassedTests
-                        def numFailedTests = results.numFailedTests
-                        def numTotalTests = results.numTotalTests
-                        def testDuration = (results.testResults[0].perfStats.end / 1000).round(2)
+                        // Parse test results using shell commands
+                        sh '''
+                            # Extract test counts using jq
+                            TEST_OUTPUT=$(cat jest-output.json)
+                            PASSED=$(echo "$TEST_OUTPUT" | grep -o '"numPassedTests":[0-9]*' | cut -d':' -f2)
+                            FAILED=$(echo "$TEST_OUTPUT" | grep -o '"numFailedTests":[0-9]*' | cut -d':' -f2)
+                            TOTAL=$(echo "$TEST_OUTPUT" | grep -o '"numTotalTests":[0-9]*' | cut -d':' -f2)
+                            DURATION=$(echo "$TEST_OUTPUT" | grep -o '"endTime":[0-9]*' | cut -d':' -f2 | awk '{printf "%.2f", $1/1000}')
 
-                        echo """╔═══════════════════════════════════════════════════════════════════════════╗
-║                           TEST EXECUTION SUMMARY                           ║
-╠═══════════════════════════════════════════════════════════════════════════╣
-║ ${numFailedTests == 0 ? '✅ All Tests Passed' : '❌ Some Tests Failed'}                                                    ║
-║                                                                           ║
-║ Total Tests: ${numTotalTests.toString().padRight(66)} ║
-║ Passed: ${numPassedTests.toString().padRight(69)} ║
-║ Failed: ${numFailedTests.toString().padRight(69)} ║
-║ Duration: ${testDuration}s${' ' * 67}║
-╚═══════════════════════════════════════════════════════════════════════════╝"""
+                            # Create summary box
+                            echo "╔═══════════════════════════════════════════════════════════════════════════╗"
+                            echo "║                           TEST EXECUTION SUMMARY                           ║"
+                            echo "╠═══════════════════════════════════════════════════════════════════════════╣"
+                            if [ "$FAILED" -eq 0 ]; then
+                                echo "║ ✅ All Tests Passed                                                    ║"
+                            else
+                                echo "║ ❌ Some Tests Failed                                                    ║"
+                            fi
+                            echo "║                                                                           ║"
+                            printf "║ Total Tests: %-66s ║\\n" "$TOTAL"
+                            printf "║ Passed: %-69s ║\\n" "$PASSED"
+                            printf "║ Failed: %-69s ║\\n" "$FAILED"
+                            printf "║ Duration: %ss%-67s ║\\n" "$DURATION" " "
+                            echo "╚═══════════════════════════════════════════════════════════════════════════╝"
 
-                        if (numFailedTests > 0) {
-                            error "Tests failed!"
-                        }
+                            # Exit with failure if tests failed
+                            [ "$FAILED" -eq 0 ] || exit 1
+                        '''
                     }
                 }
             }
