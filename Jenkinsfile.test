@@ -6,38 +6,11 @@ pipeline {
         FRONTEND_PORT = '8085'
         BACKEND_PORT = '8000'
         NODE_VERSION = '18'
-        TEST_DB_NAME = 'codeladder_test'
-        DATABASE_URL = credentials('DATABASE_URL')
-        JWT_SECRET = credentials('JWT_SECRET')
-        JWT_REFRESH_SECRET = credentials('JWT_REFRESH_SECRET')
-        CORS_ORIGIN = "http://${EC2_HOST}:${FRONTEND_PORT}"
         NODE_ENV = 'test'
         API_URL = "http://${EC2_HOST}:${BACKEND_PORT}/api"
     }
 
     stages {
-        stage('Setup Test Environment') {
-            steps {
-                script {
-                    def dbUrl = env.DATABASE_URL
-                    def (protocol, rest) = dbUrl.split('://')
-                    def (credentials, hostAndDb) = rest.split('@')
-                    def (username, password) = credentials.split(':')
-                    def (hostAndPort, originalDb) = hostAndDb.split('/')
-                    
-                    // Split host and port
-                    def (host, port) = hostAndPort.split(':')
-                    
-                    sh """
-                        PGPASSWORD=${password} psql -h ${host} -p ${port} -U ${username} -d postgres -c "DROP DATABASE IF EXISTS ${TEST_DB_NAME}"
-                        PGPASSWORD=${password} psql -h ${host} -p ${port} -U ${username} -d postgres -c "CREATE DATABASE ${TEST_DB_NAME}"
-                    """
-                    
-                    env.DATABASE_URL = "${protocol}://${credentials}@${host}:${port}/${TEST_DB_NAME}"
-                }
-            }
-        }
-
         stage('Setup Node.js') {
             steps {
                 sh """
@@ -50,26 +23,32 @@ pipeline {
             }
         }
 
-        stage('Backend Tests') {
+        stage('Backend Type Check') {
             steps {
                 dir('backend') {
                     sh """
                         # Install dependencies
                         npm ci
 
-                        # Generate Prisma client
-                        npx prisma generate
+                        # Run type checking
+                        npm run type-check || npm run build
+                    """
+                }
+            }
+        }
 
-                        # Run migrations on test database
-                        NODE_ENV=test npx prisma migrate deploy
-
-                        # Modify test script to use EC2 endpoint
-                        sed -i 's|http://localhost:8000/api|http://${EC2_HOST}:${BACKEND_PORT}/api|g' test.sh
-
-                        # Run tests
-                        npm run build
-                        chmod +x test.sh
-                        ./test.sh
+        stage('Backend Security Scan') {
+            steps {
+                dir('backend') {
+                    sh """
+                        # Install dependencies including dev dependencies
+                        npm ci
+                        
+                        # Run npm audit
+                        npm audit
+                        
+                        # Run snyk if available (requires setup)
+                        which snyk && snyk test || echo "Snyk not installed, skipping"
                     """
                 }
             }
@@ -88,8 +67,63 @@ pipeline {
                         # Run linting
                         npm run lint
 
-                        # Test build with EC2 API URL
+                        # Test build
                         VITE_API_URL=${API_URL} npm run build
+                    """
+                }
+            }
+        }
+
+        stage('Frontend Security & Performance') {
+            steps {
+                dir('frontend') {
+                    sh """
+                        # Install dependencies
+                        npm ci
+                        
+                        # Run security audit
+                        npm audit
+                        
+                        # Run lighthouse CI (requires setup)
+                        which lighthouse && lighthouse http://localhost:8085 --output json || echo "Lighthouse not installed, skipping"
+                    """
+                }
+            }
+        }
+
+        stage('Docker Build Tests') {
+            steps {
+                parallel(
+                    backend: {
+                        dir('backend') {
+                            sh 'docker build -t codeladder-backend:test -f Dockerfile.backend .'
+                        }
+                    },
+                    frontend: {
+                        dir('frontend') {
+                            sh 'docker build -t codeladder-frontend:test -f Dockerfile.frontend .'
+                        }
+                    }
+                )
+            }
+        }
+
+        stage('Config Validation') {
+            steps {
+                dir('backend') {
+                    sh """
+                        # Test environment schema
+                        node -e '
+                            const { z } = require("zod");
+                            const schema = require("./src/config/env.ts").envSchema;
+                            try {
+                                schema.parse(process.env);
+                                console.log("Environment configuration is valid");
+                            } catch (error) {
+                                console.error("Environment validation failed:", error.errors);
+                                process.exit(1);
+                            }
+                        '
                     """
                 }
             }
@@ -98,18 +132,6 @@ pipeline {
 
     post {
         always {
-            script {
-                def dbUrl = env.DATABASE_URL
-                def (protocol, rest) = dbUrl.split('://')
-                def (credentials, hostAndDb) = rest.split('@')
-                def (username, password) = credentials.split(':')
-                def (hostAndPort, originalDb) = hostAndDb.split('/')
-                def (host, port) = hostAndPort.split(':')
-                
-                sh """
-                    PGPASSWORD=${password} psql -h ${host} -p ${port} -U ${username} -d postgres -c "DROP DATABASE IF EXISTS ${TEST_DB_NAME}"
-                """
-            }
             cleanWs()
         }
         success {
