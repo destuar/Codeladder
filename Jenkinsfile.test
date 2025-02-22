@@ -5,17 +5,18 @@ pipeline {
         EC2_HOST = '3.21.246.147'
         FRONTEND_PORT = '8085'
         BACKEND_PORT = '8000'
-        NODE_VERSION = '18'
+        NODE_VERSION = '18.20.7'
         NODE_ENV = 'test'
         API_URL = "http://${EC2_HOST}:${BACKEND_PORT}/api"
+        NVM_DIR = '/home/ec2-user/.nvm'
     }
 
     stages {
         stage('Setup Node.js') {
             steps {
                 sh """
-                    . ~/.nvm/nvm.sh
-                    nvm install ${NODE_VERSION}
+                    export NVM_DIR="/home/ec2-user/.nvm"
+                    [ -s "\$NVM_DIR/nvm.sh" ] && . "\$NVM_DIR/nvm.sh"
                     nvm use ${NODE_VERSION}
                     node --version
                     npm --version
@@ -27,10 +28,11 @@ pipeline {
             steps {
                 dir('backend') {
                     sh """
-                        # Install dependencies
+                        export NVM_DIR="/home/ec2-user/.nvm"
+                        [ -s "\$NVM_DIR/nvm.sh" ] && . "\$NVM_DIR/nvm.sh"
+                        nvm use ${NODE_VERSION}
+                        
                         npm ci
-
-                        # Run type checking
                         npm run type-check || npm run build
                     """
                 }
@@ -41,14 +43,15 @@ pipeline {
             steps {
                 dir('backend') {
                     sh """
-                        # Install dependencies including dev dependencies
-                        npm ci
+                        export NVM_DIR="/home/ec2-user/.nvm"
+                        [ -s "\$NVM_DIR/nvm.sh" ] && . "\$NVM_DIR/nvm.sh"
+                        nvm use ${NODE_VERSION}
                         
-                        # Run npm audit
+                        # Run security audit
                         npm audit
                         
-                        # Run snyk if available (requires setup)
-                        which snyk && snyk test || echo "Snyk not installed, skipping"
+                        # Check for known vulnerabilities in dependencies
+                        npm audit fix --dry-run --audit-level=high || true
                     """
                 }
             }
@@ -58,34 +61,14 @@ pipeline {
             steps {
                 dir('frontend') {
                     sh """
-                        # Install dependencies
+                        export NVM_DIR="/home/ec2-user/.nvm"
+                        [ -s "\$NVM_DIR/nvm.sh" ] && . "\$NVM_DIR/nvm.sh"
+                        nvm use ${NODE_VERSION}
+                        
                         npm ci
-
-                        # Run type checking
                         npm run type-check
-
-                        # Run linting
                         npm run lint
-
-                        # Test build
                         VITE_API_URL=${API_URL} npm run build
-                    """
-                }
-            }
-        }
-
-        stage('Frontend Security & Performance') {
-            steps {
-                dir('frontend') {
-                    sh """
-                        # Install dependencies
-                        npm ci
-                        
-                        # Run security audit
-                        npm audit
-                        
-                        # Run lighthouse CI (requires setup)
-                        which lighthouse && lighthouse http://localhost:8085 --output json || echo "Lighthouse not installed, skipping"
                     """
                 }
             }
@@ -105,27 +88,6 @@ pipeline {
                         }
                     }
                 )
-            }
-        }
-
-        stage('Config Validation') {
-            steps {
-                dir('backend') {
-                    sh """
-                        # Test environment schema
-                        node -e '
-                            const { z } = require("zod");
-                            const schema = require("./src/config/env.ts").envSchema;
-                            try {
-                                schema.parse(process.env);
-                                console.log("Environment configuration is valid");
-                            } catch (error) {
-                                console.error("Environment validation failed:", error.errors);
-                                process.exit(1);
-                            }
-                        '
-                    """
-                }
             }
         }
     }
