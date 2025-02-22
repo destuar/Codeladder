@@ -14,7 +14,6 @@ pipeline {
         EC2_HOST = '3.21.246.147'
         FRONTEND_PORT = '8085'
         BACKEND_PORT = '8000'
-        NODE_VERSION = '18.20.7'
         NODE_ENV = 'test'
         API_URL = "http://${EC2_HOST}:${BACKEND_PORT}/api"
     }
@@ -28,17 +27,13 @@ pipeline {
 
         stage('Setup Environment') {
             steps {
-                script {
-                    // Create test environment file based on schema!
-                    withCredentials([
-                        string(credentialsId: 'DATABASE_URL', variable: 'DATABASE_URL'),
-                        string(credentialsId: 'JWT_SECRET', variable: 'JWT_SECRET'),
-                        string(credentialsId: 'JWT_REFRESH_SECRET', variable: 'JWT_REFRESH_SECRET'),
-                        string(credentialsId: 'AWS_ACCESS_KEY_ID', variable: 'AWS_ACCESS_KEY_ID'),
-                        string(credentialsId: 'AWS_SECRET_ACCESS_KEY', variable: 'AWS_SECRET_ACCESS_KEY')
-                    ]) {
-                        sh """
-                            cat > backend/.env.test << EOL
+                withCredentials([
+                    string(credentialsId: 'DATABASE_URL', variable: 'DATABASE_URL'),
+                    string(credentialsId: 'JWT_SECRET', variable: 'JWT_SECRET'),
+                    string(credentialsId: 'JWT_REFRESH_SECRET', variable: 'JWT_REFRESH_SECRET')
+                ]) {
+                    sh """
+                        cat > backend/.env.test << EOL
 NODE_ENV=test
 PORT=${BACKEND_PORT}
 DATABASE_URL=${DATABASE_URL}
@@ -46,24 +41,16 @@ JWT_SECRET=${JWT_SECRET}
 JWT_REFRESH_SECRET=${JWT_REFRESH_SECRET}
 JWT_EXPIRES_IN=15m
 CORS_ORIGIN=http://localhost:${FRONTEND_PORT}
-AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
-AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
-AWS_REGION=us-east-2
-S3_BUCKET=codeladder-s3
 EOL
-                        """
-                    }
+                    """
                 }
             }
         }
 
-        stage('Build and Test') {
+        stage('Test Backend') {
             steps {
                 dir('backend') {
                     sh '''
-                        echo "Running security scan..."
-                        npm audit --production || true
-                        
                         echo "Installing dependencies..."
                         npm install
                         
@@ -80,14 +67,10 @@ EOL
             cleanWs()
         }
         failure {
-            script {
-                echo "Tests failed on branch ${env.BRANCH_NAME}"
-            }
+            echo "Tests failed on branch ${env.BRANCH_NAME}"
         }
         success {
-            script {
-                echo "All tests passed on branch ${env.BRANCH_NAME}"
-            }
+            echo "All tests passed on branch ${env.BRANCH_NAME}"
         }
     }
 } 
