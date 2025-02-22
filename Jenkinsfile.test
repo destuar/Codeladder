@@ -147,29 +147,31 @@ EOL
                             npm test
                         '''
 
-                        // Parse test results using shell commands
+                        // Parse test results using shell commands with improved duration calculation
                         sh '''
-                            # Extract test counts using jq
+                            # Extract test counts and timing using grep
                             TEST_OUTPUT=$(cat jest-output.json)
                             PASSED=$(echo "$TEST_OUTPUT" | grep -o '"numPassedTests":[0-9]*' | cut -d':' -f2)
                             FAILED=$(echo "$TEST_OUTPUT" | grep -o '"numFailedTests":[0-9]*' | cut -d':' -f2)
                             TOTAL=$(echo "$TEST_OUTPUT" | grep -o '"numTotalTests":[0-9]*' | cut -d':' -f2)
-                            DURATION=$(echo "$TEST_OUTPUT" | grep -o '"endTime":[0-9]*' | cut -d':' -f2 | awk '{printf "%.2f", $1/1000}')
+                            START_TIME=$(echo "$TEST_OUTPUT" | grep -o '"startTime":[0-9]*' | cut -d':' -f2)
+                            END_TIME=$(echo "$TEST_OUTPUT" | grep -o '"endTime":[0-9]*' | cut -d':' -f2)
+                            DURATION=$(echo "scale=2; ($END_TIME - $START_TIME) / 1000" | bc)
 
-                            # Create summary box
+                            # Create summary box with improved alignment
                             echo "╔═══════════════════════════════════════════════════════════════════════════╗"
                             echo "║                           TEST EXECUTION SUMMARY                           ║"
                             echo "╠═══════════════════════════════════════════════════════════════════════════╣"
                             if [ "$FAILED" -eq 0 ]; then
-                                echo "║ ✅ All Tests Passed                                                    ║"
+                                printf "║ ✅ All Tests Passed%-58s║\\n" " "
                             else
-                                echo "║ ❌ Some Tests Failed                                                    ║"
+                                printf "║ ❌ Some Tests Failed%-58s║\\n" " "
                             fi
                             echo "║                                                                           ║"
-                            printf "║ Total Tests: %-66s ║\\n" "$TOTAL"
-                            printf "║ Passed: %-69s ║\\n" "$PASSED"
-                            printf "║ Failed: %-69s ║\\n" "$FAILED"
-                            printf "║ Duration: %ss%-67s ║\\n" "$DURATION" " "
+                            printf "║ Total Tests: %-63d ║\\n" "$TOTAL"
+                            printf "║ Passed:      %-63d ║\\n" "$PASSED"
+                            printf "║ Failed:      %-63d ║\\n" "$FAILED"
+                            printf "║ Duration:    %-61.2fs ║\\n" "$DURATION"
                             echo "╚═══════════════════════════════════════════════════════════════════════════╝"
 
                             # Exit with failure if tests failed
