@@ -103,7 +103,7 @@ EOL
                             const fs = require("fs");
                             const pkg = JSON.parse(fs.readFileSync("package.json", "utf8"));
                             pkg.scripts = pkg.scripts || {};
-                            pkg.scripts.test = "jest";
+                            pkg.scripts.test = "jest --silent";
                             fs.writeFileSync("package.json", JSON.stringify(pkg, null, 2));
                         '
                         
@@ -126,7 +126,8 @@ EOL
                             preset: "ts-jest",
                             testEnvironment: "node",
                             testTimeout: 10000,
-                            verbose: true,
+                            verbose: false,
+                            silent: true,
                             collectCoverage: true,
                             coverageThreshold: {
                                 global: {
@@ -147,22 +148,18 @@ EOL
                             });
                         });' > __tests__/health.test.ts
 
-                        echo "Running tests..."
-                        TEST_OUTPUT=$(npm test 2>&1) || true
+                        echo "🧪 Running tests..."
+                        TEST_OUTPUT=$(npm test 2>&1 | grep -E "PASS|FAIL|Test Suites:|Tests:|Time:|Coverage:" || true)
                         
-                        # Format output
-                        echo "
-╔═══════════════════════════════════════════════════════════════════════════╗
-║                           TEST EXECUTION SUMMARY                           ║
-╠═══════════════════════════════════════════════════════════════════════════╣"
+                        echo "╔═══════════════════════════════════════════════════════════════════════════╗"
+                        echo "║                           TEST EXECUTION SUMMARY                           ║"
+                        echo "╠═══════════════════════════════════════════════════════════════════════════╣"
 
                         if echo "$TEST_OUTPUT" | grep -q "PASS"; then
                             echo "║ ✅ Tests Passed                                                         ║"
                             RESULT="PASS"
                         else
                             echo "║ ❌ Tests Failed                                                         ║"
-                            ERROR_MSG=$(echo "$TEST_OUTPUT" | grep "FAIL" | head -1)
-                            printf "║ %-75s ║\\n" "$ERROR_MSG"
                             RESULT="FAIL"
                         fi
 
