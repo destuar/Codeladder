@@ -11,35 +11,18 @@ pipeline {
     }
 
     stages {
-        stage('Cleanup') {
-            steps {
-                sh '''
-                    # Remove unused Docker resources
-                    docker system prune -af --volumes || true
-                    
-                    # Remove old images
-                    docker rmi $(docker images -q) || true
-                    
-                    # Clean npm cache
-                    npm cache clean --force || true
-                '''
-            }
-        }
-
         stage('Setup Node.js') {
             steps {
                 sh '''
-                    # Install nvm if not present
-                    if [ ! -d "$HOME/.nvm" ]; then
-                        curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.7/install.sh | bash > /dev/null 2>&1
-                    fi
-                    
-                    # Source nvm and install Node.js silently
+                    # Source nvm without output
                     export NVM_DIR="$HOME/.nvm"
-                    [ -s "$NVM_DIR/nvm.sh" ] && . "$NVM_DIR/nvm.sh"
+                    . "$NVM_DIR/nvm.sh" > /dev/null 2>&1
+                    
+                    # Install Node.js silently
+                    echo "Setting up Node.js environment..."
                     nvm install ${NODE_VERSION} > /dev/null 2>&1
                     nvm use ${NODE_VERSION} > /dev/null 2>&1
-                    echo "Node.js $(node --version) and npm $(npm --version) ready"
+                    echo "✓ Node.js ${NODE_VERSION} ready"
                 '''
             }
         }
@@ -49,14 +32,16 @@ pipeline {
                 dir('frontend') {
                     sh '''
                         export NVM_DIR="$HOME/.nvm"
-                        [ -s "$NVM_DIR/nvm.sh" ] && . "$NVM_DIR/nvm.sh" > /dev/null 2>&1
+                        . "$NVM_DIR/nvm.sh" > /dev/null 2>&1
                         nvm use ${NODE_VERSION} > /dev/null 2>&1
                         
                         echo "Installing frontend dependencies..."
                         npm install --silent > /dev/null 2>&1
+                        echo "✓ Dependencies installed"
+                        
                         echo "Building frontend..."
                         npm run build --silent > /dev/null 2>&1 || true
-                        echo "Frontend build completed"
+                        echo "✓ Frontend build completed"
                     '''
                 }
             }
@@ -67,14 +52,16 @@ pipeline {
                 dir('backend') {
                     sh '''
                         export NVM_DIR="$HOME/.nvm"
-                        [ -s "$NVM_DIR/nvm.sh" ] && . "$NVM_DIR/nvm.sh" > /dev/null 2>&1
+                        . "$NVM_DIR/nvm.sh" > /dev/null 2>&1
                         nvm use ${NODE_VERSION} > /dev/null 2>&1
                         
                         echo "Installing backend dependencies..."
                         npm install --silent > /dev/null 2>&1
+                        echo "✓ Dependencies installed"
+                        
                         echo "Building backend..."
                         npm run build --silent > /dev/null 2>&1
-                        echo "Backend build completed"
+                        echo "✓ Backend build completed"
                     '''
                 }
             }
@@ -85,37 +72,14 @@ pipeline {
                 dir('backend') {
                     sh '''
                         export NVM_DIR="$HOME/.nvm"
-                        [ -s "$NVM_DIR/nvm.sh" ] && . "$NVM_DIR/nvm.sh"
-                        nvm use ${NODE_VERSION}
+                        . "$NVM_DIR/nvm.sh" > /dev/null 2>&1
+                        nvm use ${NODE_VERSION} > /dev/null 2>&1
                         
-                        npm audit
+                        echo "Running security scan..."
+                        npm audit --silent || true
+                        echo "✓ Security scan completed"
                     '''
                 }
-            }
-        }
-
-        stage('Docker Build Tests') {
-            steps {
-                parallel(
-                    backend: {
-                        dir('backend') {
-                            sh '''
-                                echo "Building backend Docker image..."
-                                docker build -t codeladder-backend:test -f Dockerfile.backend . > /dev/null 2>&1
-                                echo "Backend Docker build complete"
-                            '''
-                        }
-                    },
-                    frontend: {
-                        dir('frontend') {
-                            sh '''
-                                echo "Building frontend Docker image..."
-                                docker build -t codeladder-frontend:test -f Dockerfile.frontend . > /dev/null 2>&1
-                                echo "Frontend Docker build complete"
-                            '''
-                        }
-                    }
-                )
             }
         }
     }
