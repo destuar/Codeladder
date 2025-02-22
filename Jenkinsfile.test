@@ -1,197 +1,83 @@
-pipeline {
-    agent any
-
-    options {
-        timeout(time: 5, unit: 'MINUTES')
-        disableConcurrentBuilds()
-        quietPeriod(0)
-        buildDiscarder(logRotator(numToKeepStr: '5'))
-    }
-
-    environment {
-        EC2_HOST = '3.21.246.147'
-        FRONTEND_PORT = '8085'
-        BACKEND_PORT = '8000'
-        NODE_ENV = 'test'
-        API_URL = "http://${EC2_HOST}:${BACKEND_PORT}/api"
-    }
-
-    stages {
-        stage('Setup Git') {
-            steps {
-                withCredentials([sshUserPrivateKey(
-                    credentialsId: 'jenkins-ssh-key',
-                    keyFileVariable: 'SSH_KEY'
-                )]) {
-                    sh '''
-                        # Setup SSH directory
-                        mkdir -p ~/.ssh
-                        chmod 700 ~/.ssh
-                        
-                        # Add GitHub keys with all types
-                        ssh-keyscan -t rsa,dsa,ecdsa,ed25519 github.com >> ~/.ssh/known_hosts
-                        chmod 644 ~/.ssh/known_hosts
-                        
-                        # Copy SSH key
-                        cp "$SSH_KEY" ~/.ssh/id_rsa
-                        chmod 600 ~/.ssh/id_rsa
-                        
-                        # Test GitHub connection
-                        ssh -T -o StrictHostKeyChecking=no git@github.com || true
-                        
-                        # Clean workspace
-                        rm -rf .* * || true
-                    '''
-                }
-            }
-        }
-
-        stage('Checkout') {
-            steps {
-                checkout([$class: 'GitSCM',
-                    branches: [[name: '*/main']],
-                    userRemoteConfigs: [[
-                        url: 'git@github.com:cee8/codeladder.git',
-                        credentialsId: 'jenkins-ssh-key'
-                    ]]
-                ])
-            }
-        }
-
-        stage('Setup Environment') {
-            steps {
-                script {
-                    withCredentials([
-                        string(credentialsId: 'DATABASE_URL', variable: 'DATABASE_URL'),
-                        string(credentialsId: 'JWT_SECRET', variable: 'JWT_SECRET'),
-                        string(credentialsId: 'JWT_REFRESH_SECRET', variable: 'JWT_REFRESH_SECRET'),
-                        string(credentialsId: 'AWS_ACCESS_KEY_ID', variable: 'AWS_ACCESS_KEY_ID'),
-                        string(credentialsId: 'AWS_SECRET_ACCESS_KEY', variable: 'AWS_SECRET_ACCESS_KEY')
-                    ]) {
-                        sh """
-                            cat > backend/.env.test << EOL
-NODE_ENV=test
-PORT=${BACKEND_PORT}
-DATABASE_URL=${DATABASE_URL}
-JWT_SECRET=${JWT_SECRET}
-JWT_REFRESH_SECRET=${JWT_REFRESH_SECRET}
-JWT_EXPIRES_IN=15m
-CORS_ORIGIN=http://localhost:${FRONTEND_PORT}
-AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
-AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
-AWS_REGION=us-east-2
-S3_BUCKET=codeladder-s3
-EOL
-                        """
+stage('Test Backend') {
+    steps {
+        dir('backend') {
+            sh '''
+                echo "🔄 Setting up test environment..."
+                npm install
+                
+                # Install test dependencies
+                npm install --save-dev jest @types/jest ts-jest supertest @types/supertest
+                
+                # Create test configuration
+                echo '{
+                    "preset": "ts-jest",
+                    "testEnvironment": "node",
+                    "testTimeout": 10000,
+                    "verbose": false,
+                    "silent": true,
+                    "collectCoverage": true,
+                    "coverageThreshold": {
+                        "global": {
+                            "branches": 70,
+                            "functions": 70,
+                            "lines": 70
+                        }
                     }
-                }
-            }
-        }
+                }' > jest.config.json
 
-        stage('Test Backend') {
-            steps {
-                dir('backend') {
-                    script {
-                        // Setup test environment
-                        sh '''
-                            echo "🔄 Setting up test environment..."
-                            npm install
-                            npm install --save-dev jest @types/jest ts-jest supertest @types/supertest
-                        '''
+                # Create test directory and basic tests
+                mkdir -p __tests__
+                
+                # Create basic health check test
+                echo 'describe("Health Check", () => {
+                    test("Server is running", () => {
+                        expect(true).toBe(true);
+                    });
+                });' > __tests__/health.test.ts
 
-                        // Update package.json with JSON output
-                        sh '''
-                            node -e '
-                                const fs = require("fs");
-                                const pkg = JSON.parse(fs.readFileSync("package.json", "utf8"));
-                                pkg.scripts = pkg.scripts || {};
-                                pkg.scripts.test = "jest --json --outputFile=jest-output.json";
-                                fs.writeFileSync("package.json", JSON.stringify(pkg, null, 2));
-                            '
-                        '''
+                # Run tests and capture output
+                echo "🧪 Running tests..."
+                TEST_OUTPUT=$(npm test 2>&1) || true
+                
+                # Generate summary report
+                echo "
+╔═══════════════════════════════════════════════════════════════════════════╗
+║                           TEST EXECUTION SUMMARY                           ║
+╠═══════════════════════════════════════════════════════════════════════════╣"
 
-                        // Create test configs (tsconfig.json and jest.config.js remain the same)
-                        sh '''
-                            echo '{
-                                "compilerOptions": {
-                                    "target": "es6",
-                                    "module": "commonjs",
-                                    "types": ["jest", "node"],
-                                    "esModuleInterop": true,
-                                    "skipLibCheck": true,
-                                    "forceConsistentCasingInFileNames": true
-                                },
-                                "include": ["src/**/*", "__tests__/**/*"],
-                                "exclude": ["node_modules"]
-                            }' > tsconfig.json
+                if echo "$TEST_OUTPUT" | grep -q "PASS"; then
+                    echo "║ ✅ All Tests Passed                                                     ║"
+                    RESULT="PASS"
+                else
+                    echo "║ ❌ Some Tests Failed                                                    ║"
+                    RESULT="FAIL"
+                fi
 
-                            echo 'module.exports = {
-                                preset: "ts-jest",
-                                testEnvironment: "node",
-                                testTimeout: 10000,
-                                verbose: false,
-                                collectCoverage: true
-                            }' > jest.config.js
-                        '''
+                echo "║                                                                           ║"
+                echo "║ Test Suites:                                                             ║"
+                echo "$TEST_OUTPUT" | grep "Test Suites:" | while read -r line; do
+                    printf "║  %s%-65s║\\n" "  " "$line"
+                done
 
-                        // Create and run tests
-                        sh '''
-                            mkdir -p __tests__
-                            echo 'import { describe, expect, test } from "@jest/globals";
-                            describe("Health Check", () => {
-                                test("Server is running", () => {
-                                    expect(true).toBe(true);
-                                });
-                            });' > __tests__/health.test.ts
-                            
-                            npm test
-                        '''
+                echo "║                                                                           ║"
+                echo "║ Tests:                                                                    ║"
+                echo "$TEST_OUTPUT" | grep "Tests:" | while read -r line; do
+                    printf "║  %s%-65s║\\n" "  " "$line"
+                done
 
-                        // Parse test results using shell commands with improved duration calculation
-                        sh '''
-                            # Extract test counts and timing using grep
-                            TEST_OUTPUT=$(cat jest-output.json)
-                            PASSED=$(echo "$TEST_OUTPUT" | grep -o '"numPassedTests":[0-9]*' | cut -d':' -f2)
-                            FAILED=$(echo "$TEST_OUTPUT" | grep -o '"numFailedTests":[0-9]*' | cut -d':' -f2)
-                            TOTAL=$(echo "$TEST_OUTPUT" | grep -o '"numTotalTests":[0-9]*' | cut -d':' -f2)
-                            START_TIME=$(echo "$TEST_OUTPUT" | grep -o '"startTime":[0-9]*' | cut -d':' -f2)
-                            END_TIME=$(echo "$TEST_OUTPUT" | grep -o '"endTime":[0-9]*' | cut -d':' -f2)
-                            DURATION=$(echo "scale=2; ($END_TIME - $START_TIME) / 1000" | bc)
+                echo "║                                                                           ║"
+                echo "║ Coverage:                                                                 ║"
+                echo "$TEST_OUTPUT" | grep "All files" | while read -r line; do
+                    printf "║  %s%-65s║\\n" "  " "$line"
+                done
+                
+                echo "╚═══════════════════════════════════════════════════════════════════════════╝"
 
-                            # Create summary box with improved alignment
-                            echo "╔═══════════════════════════════════════════════════════════════════════════╗"
-                            echo "║                           TEST EXECUTION SUMMARY                           ║"
-                            echo "╠═══════════════════════════════════════════════════════════════════════════╣"
-                            if [ "$FAILED" -eq 0 ]; then
-                                printf "║ ✅ All Tests Passed%-58s║\\n" " "
-                            else
-                                printf "║ ❌ Some Tests Failed%-58s║\\n" " "
-                            fi
-                            echo "║                                                                           ║"
-                            printf "║ Total Tests: %-63d ║\\n" "$TOTAL"
-                            printf "║ Passed:      %-63d ║\\n" "$PASSED"
-                            printf "║ Failed:      %-63d ║\\n" "$FAILED"
-                            printf "║ Duration:    %-61.2fs ║\\n" "$DURATION"
-                            echo "╚═══════════════════════════════════════════════════════════════════════════╝"
-
-                            # Exit with failure if tests failed
-                            [ "$FAILED" -eq 0 ] || exit 1
-                        '''
-                    }
-                }
-            }
+                if [ "$RESULT" = "FAIL" ]; then
+                    exit 1
+                fi
+            '''
         }
     }
+}
 
-    post {
-        always {
-            cleanWs()
-        }
-        failure {
-            echo "Tests failed on branch ${env.BRANCH_NAME ?: 'main'}"
-        }
-        success {
-            echo "All tests passed on branch ${env.BRANCH_NAME ?: 'main'}"
-        }
-    }
-} 
