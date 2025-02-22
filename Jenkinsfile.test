@@ -144,15 +144,17 @@ EOL
                                 });
                             });' > __tests__/health.test.ts
                             
-                            npm test || true
+                            npm test
                         '''
 
-                        // Parse test results
-                        def testResults = readJSON file: 'jest-output.json'
-                        def numPassedTests = testResults.numPassedTests
-                        def numFailedTests = testResults.numFailedTests
-                        def numTotalTests = testResults.numTotalTests
-                        def testDuration = (testResults.testResults.reduce { acc, val -> acc.perfStats.end > val.perfStats.end ? acc : val }.perfStats.end / 1000).round(2)
+                        // Parse test results using readFile and evaluate
+                        def testResults = sh(script: 'cat jest-output.json', returnStdout: true).trim()
+                        def results = new groovy.json.JsonSlurperClassic().parseText(testResults)
+                        
+                        def numPassedTests = results.numPassedTests
+                        def numFailedTests = results.numFailedTests
+                        def numTotalTests = results.numTotalTests
+                        def testDuration = (results.testResults[0].perfStats.end / 1000).round(2)
 
                         echo """╔═══════════════════════════════════════════════════════════════════════════╗
 ║                           TEST EXECUTION SUMMARY                           ║
@@ -162,17 +164,10 @@ EOL
 ║ Total Tests: ${numTotalTests.toString().padRight(66)} ║
 ║ Passed: ${numPassedTests.toString().padRight(69)} ║
 ║ Failed: ${numFailedTests.toString().padRight(69)} ║
-║ Duration: ${testDuration}s${' '.multiply(67)}║
+║ Duration: ${testDuration}s${' ' * 67}║
 ╚═══════════════════════════════════════════════════════════════════════════╝"""
 
                         if (numFailedTests > 0) {
-                            def failedTests = testResults.testResults.findAll { it.status == 'failed' }
-                            failedTests.each { result ->
-                                echo "Failed Test: ${result.name}"
-                                result.assertionResults.findAll { it.status == 'failed' }.each { assertion ->
-                                    echo "  ❌ ${assertion.title}: ${assertion.failureMessages.join('\n     ')}"
-                                }
-                            }
                             error "Tests failed!"
                         }
                     }
