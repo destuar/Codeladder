@@ -76,7 +76,7 @@ pipeline {
             steps {
                 dir('frontend') {
                     sh """
-                        # Install dependencies
+                        # Install dependencies!
                         npm ci
 
                         # Run type checking
