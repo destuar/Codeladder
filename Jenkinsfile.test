@@ -17,9 +17,25 @@ pipeline {
         NODE_VERSION = '18.20.7'
         NODE_ENV = 'test'
         API_URL = "http://${EC2_HOST}:${BACKEND_PORT}/api"
+        GIT_SSH_COMMAND = 'ssh -o StrictHostKeyChecking=no'
     }
 
     stages {
+        stage('Setup Workspace') {
+            steps {
+                sh '''
+                    # Verify tools
+                    git --version
+                    java -version
+                    docker --version
+                    
+                    # Setup workspace
+                    mkdir -p /home/ec2-user/jenkins/workspace
+                    chmod 755 /home/ec2-user/jenkins/workspace
+                '''
+            }
+        }
+
         stage('Checkout') {
             steps {
                 checkout([
@@ -27,13 +43,13 @@ pipeline {
                     branches: [[name: 'main']],
                     userRemoteConfigs: [[
                         url: 'git@github.com:cee8/codeladder.git',
-                        credentialsId: 'jenkins-ssh-key'
+                        credentialsId: 'codeladder-jenkins-key'
                     ]]
                 ])
             }
         }
 
-        stage('Cleanup Workspace') {
+        stage('Cleanup') {
             steps {
                 sh '''
                     echo "Cleaning up workspace..."
@@ -43,7 +59,7 @@ pipeline {
                     docker network prune -f || true
                     
                     echo "Current disk space:"
-                    df -h /var/lib/jenkins
+                    df -h
                 '''
             }
         }
@@ -63,9 +79,7 @@ pipeline {
 
     post {
         always {
-            cleanWs(cleanWhenNotBuilt: true,
-                   deleteDirs: true,
-                   disableDeferredWipeout: true)
+            cleanWs()
         }
     }
 } 
