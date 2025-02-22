@@ -148,25 +148,35 @@ EOL
                             });
                         });' > __tests__/health.test.ts
 
-                        echo "🧪 Running tests..."
-                        TEST_OUTPUT=$(npm test 2>&1 | grep -E "PASS|FAIL|Test Suites:|Tests:|Time:|Coverage:" || true)
+                        echo "�� Running tests..."
                         
+                        # Run tests and capture output
+                        TEST_OUTPUT=$(npm test 2>&1)
+                        
+                        # Print single clean summary box
                         echo "╔═══════════════════════════════════════════════════════════════════════════╗"
                         echo "║                           TEST EXECUTION SUMMARY                           ║"
                         echo "╠═══════════════════════════════════════════════════════════════════════════╣"
 
+                        # Extract test results
+                        SUITES=$(echo "$TEST_OUTPUT" | grep "Test Suites:" | tr -d '\\r')
+                        TESTS=$(echo "$TEST_OUTPUT" | grep "^Tests:" | tr -d '\\r')
+                        TIME=$(echo "$TEST_OUTPUT" | grep "^Time:" | tr -d '\\r')
+                        
                         if echo "$TEST_OUTPUT" | grep -q "PASS"; then
                             echo "║ ✅ Tests Passed                                                         ║"
                             RESULT="PASS"
                         else
                             echo "║ ❌ Tests Failed                                                         ║"
+                            ERROR=$(echo "$TEST_OUTPUT" | grep "FAIL" | head -1)
+                            printf "║ %-75s ║\\n" "$ERROR"
                             RESULT="FAIL"
                         fi
 
                         echo "║                                                                           ║"
-                        echo "$TEST_OUTPUT" | grep -E "Test Suites:|Tests:|Time:" | while read -r line; do
-                            printf "║ %-75s ║\\n" "$line"
-                        done
+                        printf "║ %-75s ║\\n" "$SUITES"
+                        printf "║ %-75s ║\\n" "$TESTS"
+                        printf "║ %-75s ║\\n" "$TIME"
                         echo "╚═══════════════════════════════════════════════════════════════════════════╝"
 
                         if [ "$RESULT" = "FAIL" ]; then
