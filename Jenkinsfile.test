@@ -25,12 +25,15 @@ pipeline {
                     def (username, password) = credentials.split(':')
                     def (hostAndPort, originalDb) = hostAndDb.split('/')
                     
+                    // Split host and port
+                    def (host, port) = hostAndPort.split(':')
+                    
                     sh """
-                        PGPASSWORD=${password} psql -h ${hostAndPort} -U ${username} -d postgres -c "DROP DATABASE IF EXISTS ${TEST_DB_NAME}"
-                        PGPASSWORD=${password} psql -h ${hostAndPort} -U ${username} -d postgres -c "CREATE DATABASE ${TEST_DB_NAME}"
+                        PGPASSWORD=${password} psql -h ${host} -p ${port} -U ${username} -d postgres -c "DROP DATABASE IF EXISTS ${TEST_DB_NAME}"
+                        PGPASSWORD=${password} psql -h ${host} -p ${port} -U ${username} -d postgres -c "CREATE DATABASE ${TEST_DB_NAME}"
                     """
                     
-                    env.DATABASE_URL = "${protocol}://${credentials}@${hostAndPort}/${TEST_DB_NAME}"
+                    env.DATABASE_URL = "${protocol}://${credentials}@${host}:${port}/${TEST_DB_NAME}"
                 }
             }
         }
