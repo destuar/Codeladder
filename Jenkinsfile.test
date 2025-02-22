@@ -17,60 +17,58 @@ pipeline {
         NODE_VERSION = '18.20.7'
         NODE_ENV = 'test'
         API_URL = "http://${EC2_HOST}:${BACKEND_PORT}/api"
-        GIT_SSH_COMMAND = 'ssh -o StrictHostKeyChecking=no'
     }
 
     stages {
-        stage('Setup Workspace') {
-            steps {
-                sh '''
-                    # Verify tools
-                    git --version
-                    java -version
-                    docker --version
-                    
-                    # Setup workspace
-                    mkdir -p /home/ec2-user/jenkins/workspace
-                    chmod 755 /home/ec2-user/jenkins/workspace
-                '''
-            }
-        }
-
         stage('Checkout') {
             steps {
-                checkout([
-                    $class: 'GitSCM',
-                    branches: [[name: 'main']],
-                    userRemoteConfigs: [[
-                        url: 'git@github.com:cee8/codeladder.git',
-                        credentialsId: 'codeladder-jenkins-key'
-                    ]]
-                ])
+                checkout scm
             }
         }
 
-        stage('Cleanup') {
+        stage('Setup Environment') {
             steps {
-                sh '''
-                    echo "Cleaning up workspace..."
-                    rm -rf *
-                    docker system prune -af || true
-                    docker volume prune -f || true
-                    docker network prune -f || true
-                    
-                    echo "Current disk space:"
-                    df -h
-                '''
+                script {
+                    // Create test environment file based on schema
+                    withCredentials([
+                        string(credentialsId: 'DATABASE_URL', variable: 'DATABASE_URL'),
+                        string(credentialsId: 'JWT_SECRET', variable: 'JWT_SECRET'),
+                        string(credentialsId: 'JWT_REFRESH_SECRET', variable: 'JWT_REFRESH_SECRET'),
+                        string(credentialsId: 'AWS_ACCESS_KEY_ID', variable: 'AWS_ACCESS_KEY_ID'),
+                        string(credentialsId: 'AWS_SECRET_ACCESS_KEY', variable: 'AWS_SECRET_ACCESS_KEY')
+                    ]) {
+                        sh """
+                            cat > backend/.env.test << EOL
+NODE_ENV=test
+PORT=${BACKEND_PORT}
+DATABASE_URL=${DATABASE_URL}
+JWT_SECRET=${JWT_SECRET}
+JWT_REFRESH_SECRET=${JWT_REFRESH_SECRET}
+JWT_EXPIRES_IN=15m
+CORS_ORIGIN=http://localhost:${FRONTEND_PORT}
+AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
+AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
+AWS_REGION=us-east-2
+S3_BUCKET=codeladder-s3
+EOL
+                        """
+                    }
+                }
             }
         }
 
-        stage('Security Scan') {
+        stage('Build and Test') {
             steps {
                 dir('backend') {
                     sh '''
                         echo "Running security scan..."
                         npm audit --production || true
-                        echo "✓ Security scan completed"
+                        
+                        echo "Installing dependencies..."
+                        npm install
+                        
+                        echo "Running tests..."
+                        npm test || exit 1
                     '''
                 }
             }
@@ -80,6 +78,16 @@ pipeline {
     post {
         always {
             cleanWs()
+        }
+        failure {
+            script {
+                echo "Tests failed on branch ${env.BRANCH_NAME}"
+            }
+        }
+        success {
+            script {
+                echo "All tests passed on branch ${env.BRANCH_NAME}"
+            }
         }
     }
 } 
