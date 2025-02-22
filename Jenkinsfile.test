@@ -55,7 +55,8 @@ EOL
             steps {
                 sh '''
                     git clone git@github.com:cee8/codeladder.git .
-                    git checkout ${GIT_BRANCH#*/} || git checkout main
+                    BRANCH_NAME=$(echo $GIT_BRANCH | sed 's|origin/||')
+                    git checkout $BRANCH_NAME || git checkout main
                     
                     # Debug info
                     echo "Current branch: $(git branch --show-current)"
@@ -117,12 +118,18 @@ EOL
         }
         failure {
             node('codeladder') {
-                echo "Tests failed on branch ${GIT_BRANCH#*/}"
+                script {
+                    def branchName = sh(script: 'git rev-parse --abbrev-ref HEAD', returnStdout: true).trim()
+                    echo "Tests failed on branch ${branchName}"
+                }
             }
         }
         success {
             node('codeladder') {
-                echo "All tests passed on branch ${GIT_BRANCH#*/}"
+                script {
+                    def branchName = sh(script: 'git rev-parse --abbrev-ref HEAD', returnStdout: true).trim()
+                    echo "All tests passed on branch ${branchName}"
+                }
             }
         }
     }
