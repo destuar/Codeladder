@@ -1,87 +1,111 @@
-# Build stage
+# ============================================================================
+# CodeLadder Backend Dockerfile
+# 
+# This Dockerfile implements a multi-stage build process for the backend service:
+# 1. Builder stage: Compiles TypeScript and generates Prisma client
+# 2. Production stage: Creates minimal production image with security hardening
+# ============================================================================
+
+# ============================= BUILD STAGE =====================================
+# Use Alpine-based Node.js image for smaller footprint and better security
 FROM node:20-alpine AS builder
 
-# Set working directory
+# Set working directory for build stage
 WORKDIR /app
 
-# Copy package files
+# Copy package files first to leverage Docker layer caching
+# This layer will only rebuild if package files change
 COPY package*.json ./
 
-# Install dependencies
+# Install dependencies with clean npm cache
+# npm ci is preferred over npm install for reproducible builds
 RUN npm ci && \
     npm cache clean --force
 
-# Copy source code
+# Copy source code and configuration files
+# These are separated from package files to optimize layer caching
 COPY tsconfig.json ./
 COPY prisma/ ./prisma/
 COPY src/ ./src/
 
-# Debug: List contents before build
+# Debug: Verify file structure before build
+# This helps with troubleshooting build issues
 RUN echo "Contents of /app:" && \
     ls -la /app && \
     echo "Contents of /app/src:" && \
     ls -la /app/src
 
-# Generate Prisma client first
+# Generate Prisma client before TypeScript compilation
+# This is required as TypeScript needs Prisma's generated types
 RUN npx prisma generate
 
-# Build TypeScript code
+# Build TypeScript code with error handling
+# The || block helps with debugging build failures
 RUN npm run build || { \
         echo "Build failed. Check the logs above for errors."; \
         ls -la /app/dist || true; \
         exit 1; \
     }
 
-# Debug: List contents after build
+# Debug: Verify build output
 RUN echo "Contents of /app/dist:" && \
     ls -la /app/dist
 
-# Production stage
+# ============================= PRODUCTION STAGE ==============================
+# Fresh Node.js image for production to minimize image size
 FROM node:20-alpine
 
-# Create non-root user
+# Create non-root user for security
+# This follows security best practices by not running as root
 RUN addgroup -S nodejs && \
     adduser -S nodejs -G nodejs
 
-# Set working directory
+# Set working directory for production
 WORKDIR /app
 
-# Install production dependencies
+# Install production-only system dependencies
+# postgresql-client: Required for database operations
+# openssl: Required for JWT operations
+# curl: Required for health checks
 RUN apk add --no-cache \
     postgresql-client \
     openssl \
     curl
 
-# Copy package files
+# Copy package files for production dependencies
 COPY package*.json ./
 
-# Install production dependencies
+# Install production dependencies only
+# npm ci ensures exact versions from package-lock.json
 RUN npm ci --production && \
     npm cache clean --force
 
-# Copy built files and configurations
+# Copy built artifacts from builder stage
+# Set correct ownership for security
 COPY --from=builder --chown=nodejs:nodejs /app/dist ./dist
 COPY --from=builder --chown=nodejs:nodejs /app/prisma ./prisma
 COPY --from=builder --chown=nodejs:nodejs /app/node_modules/.prisma ./node_modules/.prisma
 
-# Debug: List contents in production stage
+# Debug: Verify production file structure
 RUN echo "Contents of /app in production stage:" && \
     ls -la /app && \
     echo "Contents of /app/dist in production stage:" && \
     ls -la /app/dist
 
-# Generate Prisma client for production
+# Generate Prisma client for production environment
 RUN npx prisma generate
 
-# Switch to non-root user
+# Switch to non-root user for security
 USER nodejs
 
-# Health check
+# Configure health check for container orchestration
+# Checks API health endpoint every 30 seconds
 HEALTHCHECK --interval=30s --timeout=3s --start-period=30s \
     CMD curl -f http://localhost:8000/api/health || exit 1
 
-# Expose API port
+# Document the port that will be exposed
 EXPOSE 8000
 
-# Start the application
+# Start the Node.js application
+# Using node directly instead of npm for better signal handling
 CMD ["node", "dist/server.js"] 

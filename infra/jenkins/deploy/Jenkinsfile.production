@@ -1,34 +1,63 @@
+# =============================================================================
+# CodeLadder Production Deployment Pipeline
+# 
+# This Jenkinsfile defines the CI/CD pipeline for deploying CodeLadder to production.
+# The pipeline:
+# 1. Sets up environment variables and credentials
+# 2. Checks out the latest code
+# 3. Loads environment configuration
+# 4. Deploys using Docker Compose
+# 
+# Security Note: All sensitive credentials are stored in Jenkins credentials store
+# =============================================================================
+
 pipeline {
+    // Run on any available agent
     agent any
     
+    // Define environment variables for the pipeline
     environment {
-        EC2_HOST = '3.21.246.147'
-        DEPLOY_PATH = '/home/ec2-user/codeladder'
-        FRONTEND_PORT = '8085'
-        BACKEND_PORT = '8000'
+        // ===================== Infrastructure Configuration ======================
+        EC2_HOST = '3.21.246.147'           // Production server IP
+        DEPLOY_PATH = '/home/ec2-user/codeladder'  // Deployment directory
+        FRONTEND_PORT = '8085'               // Frontend service port
+        BACKEND_PORT = '8000'                // Backend service port
+        
+        // ===================== Sensitive Credentials ===========================
+        // These are fetched from Jenkins credentials store
         DATABASE_URL = credentials('DATABASE_URL')
         JWT_SECRET = credentials('JWT_SECRET')
         JWT_REFRESH_SECRET = credentials('JWT_REFRESH_SECRET')
         AWS_ACCESS_KEY_ID = credentials('AWS_ACCESS_KEY_ID')
         AWS_SECRET_ACCESS_KEY = credentials('AWS_SECRET_ACCESS_KEY')
-        AWS_REGION = 'us-east-2'
-        S3_BUCKET = 'codeladder-s3'
-        CORS_ORIGIN = "http://${EC2_HOST}:${FRONTEND_PORT}"
-        NODE_ENV = 'production'
+        
+        // ===================== AWS Configuration ==============================
+        AWS_REGION = 'us-east-2'            // AWS region for services
+        S3_BUCKET = 'codeladder-s3'         // S3 bucket for file storage
+        
+        // ===================== Application Configuration =====================
+        CORS_ORIGIN = "http://${EC2_HOST}:${FRONTEND_PORT}"  // CORS allowed origin
+        NODE_ENV = 'production'              // Force production mode
+        
+        // ===================== Deployment Configuration =====================
         DOCKER_COMPOSE_FILE = 'infra/docker/docker-compose.production.yml'
-        ENV_FILE = '.env'  // Reference root .env file
+        ENV_FILE = '.env'                    // Root environment file
     }
     
     stages {
+        // ===================== Code Checkout Stage ===========================
         stage('Checkout') {
             steps {
+                // Fetch the latest code from version control
                 checkout scm
             }
         }
         
+        // ===================== Environment Setup Stage ======================
         stage('Load Environment') {
             steps {
-                // Load environment variables from root .env
+                // Load additional environment variables from .env file
+                // These complement the variables defined in the environment block
                 script {
                     def props = readProperties file: ENV_FILE
                     props.each { key, value ->
@@ -38,8 +67,12 @@ pipeline {
             }
         }
         
+        // ===================== Deployment Stage ============================
         stage('Deploy') {
             steps {
+                // Deploy using Docker Compose:
+                // 1. Pull latest images
+                // 2. Start or update services
                 sh """
                     docker-compose -f ${DOCKER_COMPOSE_FILE} --env-file ${ENV_FILE} pull
                     docker-compose -f ${DOCKER_COMPOSE_FILE} --env-file ${ENV_FILE} up -d
@@ -48,15 +81,19 @@ pipeline {
         }
     }
     
+    // ===================== Post-Deployment Actions ==========================
     post {
+        // Handle deployment failure
         failure {
             echo 'Deployment failed! Check logs for details.'
         }
+        // Handle successful deployment
         success {
             echo 'Deployment completed successfully!'
         }
+        // Always clean up workspace
         always {
-            // Clean workspace
+            // Remove workspace to free up disk space
             cleanWs()
         }
     }

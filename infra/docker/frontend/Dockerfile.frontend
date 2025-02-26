@@ -1,41 +1,61 @@
-# Build stage
+# ============================================================================
+# CodeLadder Frontend Dockerfile
+# 
+# This Dockerfile implements a multi-stage build process for the frontend service:
+# 1. Builder stage: Builds the React/Vite application
+# 2. Production stage: Serves the static files using Nginx
+# ============================================================================
+
+# ============================= BUILD STAGE =====================================
+# Use Alpine-based Node.js image for smaller footprint
 FROM node:20-alpine AS builder
 
-# Set working directory
+# Set working directory for build stage
 WORKDIR /app
 
-# Copy package files
+# Copy package files first to leverage Docker layer caching
+# This layer will only rebuild if package files change
 COPY package*.json ./
 
-# Install dependencies
+# Install dependencies with clean npm cache
+# npm ci ensures exact versions from package-lock.json
+# Remove npm cache and temporary files to reduce image size
 RUN npm ci && \
     npm cache clean --force && \
     rm -rf /root/.npm/
 
-# Copy source code
+# Copy the rest of the application code
+# This is done after npm install to leverage layer caching
 COPY . .
 
-# Build the application
+# Build the React/Vite application
+# This creates optimized production build in /app/dist
 RUN npm run build
 
-# Create config template that ensures window.ENV is always defined
+# Create dynamic configuration template
+# This allows runtime environment variable injection
+# The template is processed by the nginx entrypoint script
 RUN echo '(function(window) { window.ENV = { API_URL: "${VITE_API_URL}", NODE_ENV: "${VITE_NODE_ENV}" }; })(window);' > /app/dist/config.js.template
 
-# Production stage
+# ============================= PRODUCTION STAGE ==============================
+# Use Alpine-based Nginx for minimal attack surface
 FROM nginx:alpine-slim
 
-# Copy built files
+# Copy the built application from builder stage
 COPY --from=builder /app/dist /usr/share/nginx/html
 
-# Create directory for config
+# Create Nginx configuration directory
+# This is where custom Nginx configurations will be mounted
 RUN mkdir -p /etc/nginx/conf.d
 
-# Set permissions
+# Set proper ownership and permissions for security
+# nginx user should own the files, but they should be readable
 RUN chown -R nginx:nginx /usr/share/nginx/html && \
     chmod -R 755 /usr/share/nginx/html
 
-# Expose port
+# Document the port that will be exposed
 EXPOSE 8085
 
-# Start Nginx
+# Start Nginx in foreground mode
+# daemon off ensures Docker can track the process properly
 CMD ["nginx", "-g", "daemon off;"] 
