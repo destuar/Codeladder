@@ -1,6 +1,14 @@
 # CodeLadder Infrastructure
 
-This directory contains infrastructure configurations for the CodeLadder project. All environment variables are managed through the root `.env` file.
+This directory contains infrastructure configurations for the CodeLadder project. The setup supports both development and production environments through Docker containerization.
+
+## Quick Navigation
+
+- [Prerequisites](#prerequisites)
+- [Development Setup](#development-setup)
+- [Production Setup](#production-setup)
+- [Environment Management](#environment-management)
+- [Maintenance & Troubleshooting](#maintenance--troubleshooting)
 
 ## Directory Structure
 
@@ -20,71 +28,158 @@ infra/
         └── Jenkinsfile.production    # Deployment pipeline
 ```
 
-## Quick Start
+## Development Setup
 
-1. **Development**
+### Prerequisites
+
+```bash
+# Required software versions
+Node.js >= 18.0.0
+Docker    latest
+Docker Compose
+```
+
+### Step-by-Step Development Setup
+
+1. **Initial Environment Configuration**
    ```bash
-   # Start services (uses root .env)
+   # Clone the repository (if not done already)
+   git clone <repository-url>
+   cd codeladder
+
+   # Copy environment template
+   cp .env.example .env
+   ```
+
+2. **Configure Environment Variables**
+   ```bash
+   # Required variables in .env:
+   DATABASE_URL=<your-database-url>
+   JWT_SECRET=<your-jwt-secret>
+   JWT_REFRESH_SECRET=<your-refresh-secret>
+   AWS_ACCESS_KEY_ID=<your-aws-key>
+   AWS_SECRET_ACCESS_KEY=<your-aws-secret>
+   AWS_REGION=<your-aws-region>
+   AWS_BUCKET_NAME=<your-bucket-name>
+
+   # Development-specific settings
+   NODE_ENV=development
+   VITE_NODE_ENV=development
+   VITE_API_URL=http://localhost:8000/api
+   CORS_ORIGIN=http://localhost:5173
+   VITE_ENABLE_DEBUG=true
+   VITE_ENABLE_ANALYTICS=false
+   ```
+
+3. **Backend Setup**
+   ```bash
+   cd backend
+   npm install
+   npx prisma generate
+   npx prisma migrate dev
+   npm run dev  # Backend runs on http://localhost:8000
+   ```
+
+4. **Frontend Setup**
+   ```bash
+   cd frontend
+   npm install
+   npm run dev  # Frontend runs on http://localhost:5173
+   ```
+
+5. **Docker Development (Alternative)**
+   ```bash
+   # Start all services
    docker-compose -f docker/docker-compose.dev.yml up
+
+   # Rebuild after changes
+   docker-compose -f docker/docker-compose.dev.yml up --build
+
+   # Run in background
+   docker-compose -f docker/docker-compose.dev.yml up -d
    ```
 
-2. **Production**
+### Development URLs
+- Frontend: http://localhost:5173
+- Backend API: http://localhost:8000
+- Prisma Studio: http://localhost:5555
+- Health Check: http://localhost:8000/health
+
+## Production Setup
+
+### Environment Switch to Production
+
+1. **Update Environment Variables**
    ```bash
-   # Deploy (uses root .env)
-   docker-compose -f docker/docker-compose.production.yml up -d
-   ```
-
-## Environment Variables
-
-All environment variables are managed in the root `.env` file. This includes:
-- Database configuration
-- AWS credentials
-- JWT secrets
-- API endpoints
-- Feature flags
-
-## Security
-
-- Production credentials are stored in Jenkins credentials store
-- AWS Secrets Manager for sensitive data
-- SSL certificates through AWS Certificate Manager
-
-## CI/CD Pipeline
-
-Jenkins pipeline automatically:
-1. Loads environment from root `.env`
-2. Builds and tests containers
-3. Deploys to production
-4. Performs health checks
-
-## Maintenance
-
-1. **Updates**
-   ```bash
-   # Pull latest changes
-   git pull
+   # In your .env file, modify these settings:
    
-   # Rebuild and restart services
+   # Core settings
+   NODE_ENV=production
+   VITE_NODE_ENV=production
+   
+   # API configuration
+   VITE_API_URL=/api                        # Uncomment this line
+   # VITE_API_URL=http://localhost:8000/api  # Comment this line
+   
+   # CORS settings
+   CORS_ORIGIN=http://3.21.246.147:8085     # Uncomment this line
+   # CORS_ORIGIN=http://localhost:5173       # Comment this line
+   
+   # Feature flags
+   VITE_ENABLE_ANALYTICS=true
+   VITE_ENABLE_DEBUG=false
+   ```
+
+2. **Deploy to Production**
+   ```bash
+   # Stop any running services
+   docker-compose -f docker/docker-compose.production.yml down
+   
+   # Deploy with new settings
    docker-compose -f docker/docker-compose.production.yml up -d --build
    ```
 
-2. **Logs**
+## Maintenance & Troubleshooting
+
+### Common Operations
+
+1. **Update Deployment**
    ```bash
-   # View service logs
-   docker-compose logs -f [service_name]
+   git pull
+   docker-compose -f docker/docker-compose.production.yml up -d --build
    ```
 
-## Troubleshooting
-
-1. **Service Issues**
+2. **View Logs**
    ```bash
-   # Restart services
+   # All services
+   docker-compose logs -f
+   
+   # Specific service
+   docker-compose logs -f [backend|frontend|db]
+   ```
+
+3. **Service Management**
+   ```bash
+   # Restart specific service
    docker-compose restart [service_name]
    
-   # Check logs
-   docker-compose logs [service_name]
+   # Check service status
+   docker-compose ps
    ```
 
-2. **Health Checks**
-   - Frontend: http://localhost:8085/health
-   - Backend: http://localhost:8000/health 
+### Health Monitoring
+- Production Frontend: http://3.21.246.147:8085/health
+- Production Backend: http://3.21.246.147:8000/health
+
+## Security & CI/CD
+
+### Security Measures
+- Production credentials in Jenkins credentials store
+- AWS Secrets Manager for sensitive data
+- SSL certificates via AWS Certificate Manager
+
+### CI/CD Pipeline
+1. Environment validation
+2. Container builds and tests
+3. Production deployment
+4. Health check verification
