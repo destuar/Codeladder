@@ -1,3 +1,9 @@
+/**
+ * Main application configuration file for CodeLadder API Server
+ * This file sets up the Express application with all necessary middleware,
+ * security configurations, and route handlers.
+ */
+
 import express, { Request, Response, NextFunction } from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
@@ -10,27 +16,39 @@ import { requestDebugger } from './middleware/debugger';
 
 const app = express();
 
-// Add near the start of your app.ts
+// Log environment configuration for debugging purposes
 console.log('Current environment:', process.env.NODE_ENV);
 console.log('CORS origins allowed:', process.env.NODE_ENV === 'production' 
   ? [process.env.CORS_ORIGIN]
   : ['http://localhost:5173', process.env.CORS_ORIGIN].filter(Boolean)
 );
 
-// Middleware
+/**
+ * Security Middleware Configuration
+ * helmet: Adds various HTTP headers to help protect the application
+ * - crossOriginResourcePolicy: Allows resources to be shared across origins
+ * - crossOriginOpenerPolicy: Configures window.opener behavior for cross-origin links
+ */
 app.use(helmet({
   crossOriginResourcePolicy: { policy: "cross-origin" },
   crossOriginOpenerPolicy: { policy: "unsafe-none" },
 }));
 
-// CORS configuration for development
+/**
+ * CORS Configuration
+ * Implements a flexible CORS policy that:
+ * - Allows different origins based on environment (production vs development)
+ * - Supports credentials for authenticated requests
+ * - Configures allowed HTTP methods and headers
+ * - Includes proper error handling for unauthorized origins
+ */
 const corsOptions = {
   origin: (origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) => {
     const allowedOrigins = process.env.NODE_ENV === 'production'
       ? [process.env.CORS_ORIGIN]
       : ['http://localhost:5173', process.env.CORS_ORIGIN];
     
-    // Remove any undefined/null values and filter empty strings
+    // Filter out invalid origins
     const validOrigins = allowedOrigins.filter(Boolean);
     
     // Allow requests with no origin (like mobile apps or curl requests)
@@ -53,19 +71,34 @@ const corsOptions = {
 
 app.use(cors(corsOptions));
 
+/**
+ * Request Processing Middleware
+ * - express.json(): Parses JSON payloads in requests
+ * - cookieParser: Handles HTTP cookies
+ * - requestDebugger: Custom middleware for request logging and debugging
+ */
 app.use(express.json());
 app.use(cookieParser());
 app.use(requestDebugger);
 
-// Rate limiting
+/**
+ * Rate Limiting Configuration
+ * Implements tiered rate limiting for different API endpoints:
+ * - General API endpoints
+ * - Authentication endpoints
+ * - Registration endpoint (stricter limits)
+ */
 app.use('/api/', apiLimiter);
 app.use('/api/auth', authLimiter);
 app.use('/api/auth/register', registerLimiter);
 
-// Mount all routes under /api
+// Mount all API routes under the /api prefix
 app.use('/api', apiRouter);
 
-// Root endpoint
+/**
+ * Root Endpoint
+ * Provides basic API information and available endpoints
+ */
 app.get('/', (req, res) => {
   res.json({
     message: 'CodeLadder API Server',
@@ -75,12 +108,18 @@ app.get('/', (req, res) => {
   });
 });
 
-// Health check endpoint
+/**
+ * Health Check Endpoint
+ * Used for monitoring and load balancer checks
+ */
 app.get('/api/health', (req, res) => {
   res.status(200).json({ status: 'ok' });
 });
 
-// Error handling
+/**
+ * Global Error Handler
+ * Catches and processes all errors thrown within the application
+ */
 app.use((err: Error, req: Request, res: Response, next: NextFunction) => {
   errorHandler(err, req, res, next);
 });
