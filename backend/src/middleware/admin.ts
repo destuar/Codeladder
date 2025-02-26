@@ -1,4 +1,6 @@
 /**
+ * @file backend/src/middleware/admin.ts
+ * 
  * Admin Authorization Middleware
  * Provides role-based access control (RBAC) for administrative endpoints.
  * 

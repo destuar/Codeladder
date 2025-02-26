@@ -1,4 +1,6 @@
 /**
+ * @file backend/src/middleware/rateLimit.ts
+ * 
  * Rate Limiting System
  * Implements tiered rate limiting for different types of requests to prevent abuse.
  * Uses express-rate-limit to track and limit requests based on IP address.

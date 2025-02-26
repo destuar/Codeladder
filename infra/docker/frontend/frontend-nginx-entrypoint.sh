@@ -18,6 +18,10 @@ cat /usr/share/nginx/html/config.js
 echo "Testing nginx configuration..."
 nginx -t
 
+# Replace environment variables in the Nginx configuration
+envsubst '${VITE_API_URL}' < /etc/nginx/conf.d/default.conf > /etc/nginx/conf.d/default.conf.tmp
+mv /etc/nginx/conf.d/default.conf.tmp /etc/nginx/conf.d/default.conf
+
 # Start nginx in the foreground
 echo "Starting nginx..."
 exec nginx -g "daemon off;"

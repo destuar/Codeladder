@@ -1,126 +1,112 @@
 # CodeLadder
 
-A robust full-stack application with automated deployment pipeline and containerized services.
+A learning platform focused on Data Structures & Algorithms (DSA) using a Mastery-Based Learning Model.
 
-## System Overview
+## Project Structure
 
-CodeLadder is a containerized web application consisting of a React frontend and Node.js backend, deployed through an automated CI/CD pipeline on AWS infrastructure.
+```
+codeladder/
+├── frontend/           # React frontend application
+│   ├── src/           # Source code
+│   ├── components/    # Reusable UI components
+│   └── public/        # Static assets
+├── backend/           # Express backend application
+│   ├── src/          # Source code
+│   └── prisma/       # Database schema and migrations
+├── infra/            # Infrastructure configurations
+│   ├── docker/       # Docker configurations
+│   ├── jenkins/      # CI/CD pipelines
+│   └── scripts/      # Utility scripts
+└── docs/             # Project documentation
+```
 
-## Technical Stack
+## Tech Stack
 
-Frontend:
-- React
-- TypeScript
-- Vite build system
-- Nginx
+- **Frontend**: React, TypeScript, Tailwind CSS, shadcn/ui
+- **Backend**: Node.js, Express, Prisma ORM
+- **Database**: PostgreSQL
+- **Infrastructure**: Docker, Jenkins, AWS
 
-Backend:
-- Node.js
-- Express
-- Prisma ORM
-- JWT Authentication
-- AWS SDK
+## Prerequisites
 
-Infrastructure:
+- Node.js >= 18.0.0
+- PostgreSQL >= 14.0.0
 - Docker
-- AWS (EC2, S3)
-- Jenkins
-- PostgreSQL
+- AWS Account (for deployment)
 
-## Architecture
+## Development Setup
 
-### Frontend Service
-- React-based web application
-- Nginx server for production deployment
-- Port: 8085
-- Environment-aware configuration
-- API proxy integration
+1. Clone the repository:
+```bash
+git clone https://github.com/yourusername/codeladder.git
+cd codeladder
+```
 
-### Backend Service
-- Node.js API service
-- Prisma ORM for database operations
-- JWT-based authentication system
-- AWS S3 integration for file storage
-- Port: 8000
-- Health monitoring endpoint
+2. Install dependencies:
+```bash
+# Install root dependencies
+npm install
 
-### Infrastructure Components
-- Docker containerization with isolated network
-- AWS EC2 hosting
-- Jenkins pipeline automation
-- PostgreSQL database
-- AWS S3 bucket for file storage
+# Install frontend dependencies
+cd frontend && npm install
 
-## System Requirements
+# Install backend dependencies
+cd ../backend && npm install
+```
 
-Infrastructure:
-- AWS EC2 instance
-- Jenkins server with required plugins
-- Docker runtime environment
-- PostgreSQL database instance
+3. Set up environment variables:
+```bash
+# Copy example env files
+cp .env.example .env
+cd frontend && cp .env.example .env
+cd ../backend && cp .env.example .env
+```
 
-Ports:
-- Frontend: 8085
-- Backend: 8000
+4. Start development servers:
 
-Network:
-- Isolated Docker network (app-network)
-- Proxy configuration for API communication
+Using Docker:
+```bash
+docker-compose -f infra/docker/docker-compose.yml up
+```
 
-## Environment Configuration
+Or manually:
+```bash
+# Terminal 1 - Frontend
+cd frontend && npm run dev
 
-The application supports multiple environment configurations through environment variables:
-- Database connection
-- JWT secrets
-- AWS credentials
-- CORS settings
-- Port configurations
-- Environment-specific settings
+# Terminal 2 - Backend
+cd backend && npm run dev
+```
 
-## Deployment Process
+## Testing
 
-The deployment process is fully automated through Jenkins pipeline:
+```bash
+# Run frontend tests
+cd frontend && npm test
 
-1. Environment Preparation
-   - Dynamic environment file generation
-   - Secure credential management
-   - Port configuration
+# Run backend tests
+cd backend && npm test
+```
 
-2. Build Process
-   - Docker image building for both services
-   - Multi-stage builds for optimization
-   - Production-ready configurations
+## Deployment
 
-3. Deployment
-   - Container cleanup and network reset
-   - Isolated network creation
-   - Container orchestration
-   - Health verification
+See [Infrastructure Documentation](./infra/README.md) for detailed deployment instructions.
 
-4. Monitoring
-   - Container health checks
-   - Service availability verification
-   - Automated retry mechanism
-   - Comprehensive logging
+## Contributing
 
-## Maintenance
+1. Fork the repository
+2. Create your feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit your changes (`git commit -m 'Add amazing feature'`)
+4. Push to the branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
 
-The system includes automated maintenance procedures:
+## License
 
-1. Disk Space Management
-   - Regular Docker system pruning
-   - Volume cleanup
-   - Old build removal
-   - Continuous monitoring
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
-2. Health Monitoring
-   - Container status verification
-   - Service endpoint checking
-   - Automated recovery procedures
-   - Failure logging and notification
+## Documentation
 
-3. Environment Management
-   - Secure credential handling
-   - Dynamic environment configuration
-   - Multi-environment support
-   - Configuration verification
+- [Frontend Documentation](./frontend/README.md)
+- [Backend Documentation](./backend/README.md)
+- [Infrastructure Documentation](./infra/README.md)
+- [API Documentation](./docs/api.md)

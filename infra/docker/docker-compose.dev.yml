@@ -1,0 +1,56 @@
+version: '3.8'
+
+services:
+  backend:
+    build:
+      context: ../../backend
+      dockerfile: ../infra/docker/backend/Dockerfile.backend
+    env_file:
+      - ../../.env
+    environment:
+      - NODE_ENV=development
+    ports:
+      - "8000:8000"
+    volumes:
+      - ../../backend:/app
+      - /app/node_modules
+    networks:
+      - app-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/health"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 30s
+
+  frontend:
+    build:
+      context: ../../frontend
+      dockerfile: ../infra/docker/frontend/Dockerfile.frontend
+    env_file:
+      - ../../.env
+    environment:
+      - VITE_NODE_ENV=development
+    ports:
+      - "8085:8085"
+    volumes:
+      - ../../frontend:/app
+      - /app/node_modules
+      - ./frontend/frontend-nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./frontend/frontend-nginx-entrypoint.sh:/docker-entrypoint.d/frontend-nginx-entrypoint.sh:ro
+    entrypoint: ["/docker-entrypoint.d/frontend-nginx-entrypoint.sh"]
+    depends_on:
+      backend:
+        condition: service_healthy
+    networks:
+      - app-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8085/health"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 30s
+
+networks:
+  app-network:
+    driver: bridge 

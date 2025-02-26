@@ -1,4 +1,6 @@
 /**
+ * @file backend/src/middleware/debugger.ts
+ * 
  * Request/Response Debugging System
  * Provides comprehensive logging and debugging capabilities for HTTP requests and responses.
  * Only logs detailed information in non-production environments for security and performance.

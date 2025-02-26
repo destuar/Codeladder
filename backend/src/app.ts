@@ -1,4 +1,6 @@
 /**
+ * @file backend/src/app.ts
+ * 
  * Main application configuration file for CodeLadder API Server
  * This file sets up the Express application with all necessary middleware,
  * security configurations, and route handlers.

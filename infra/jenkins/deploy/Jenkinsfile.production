@@ -1,0 +1,63 @@
+pipeline {
+    agent any
+    
+    environment {
+        EC2_HOST = '3.21.246.147'
+        DEPLOY_PATH = '/home/ec2-user/codeladder'
+        FRONTEND_PORT = '8085'
+        BACKEND_PORT = '8000'
+        DATABASE_URL = credentials('DATABASE_URL')
+        JWT_SECRET = credentials('JWT_SECRET')
+        JWT_REFRESH_SECRET = credentials('JWT_REFRESH_SECRET')
+        AWS_ACCESS_KEY_ID = credentials('AWS_ACCESS_KEY_ID')
+        AWS_SECRET_ACCESS_KEY = credentials('AWS_SECRET_ACCESS_KEY')
+        AWS_REGION = 'us-east-2'
+        S3_BUCKET = 'codeladder-s3'
+        CORS_ORIGIN = "http://${EC2_HOST}:${FRONTEND_PORT}"
+        NODE_ENV = 'production'
+        DOCKER_COMPOSE_FILE = 'infra/docker/docker-compose.production.yml'
+        ENV_FILE = '.env'  // Reference root .env file
+    }
+    
+    stages {
+        stage('Checkout') {
+            steps {
+                checkout scm
+            }
+        }
+        
+        stage('Load Environment') {
+            steps {
+                // Load environment variables from root .env
+                script {
+                    def props = readProperties file: ENV_FILE
+                    props.each { key, value ->
+                        env."${key}" = value
+                    }
+                }
+            }
+        }
+        
+        stage('Deploy') {
+            steps {
+                sh """
+                    docker-compose -f ${DOCKER_COMPOSE_FILE} --env-file ${ENV_FILE} pull
+                    docker-compose -f ${DOCKER_COMPOSE_FILE} --env-file ${ENV_FILE} up -d
+                """
+            }
+        }
+    }
+    
+    post {
+        failure {
+            echo 'Deployment failed! Check logs for details.'
+        }
+        success {
+            echo 'Deployment completed successfully!'
+        }
+        always {
+            // Clean workspace
+            cleanWs()
+        }
+    }
+} 

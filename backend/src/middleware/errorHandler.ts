@@ -1,4 +1,6 @@
 /**
+ * @file backend/src/middleware/errorHandler.ts
+ * 
  * Error Handling System
  * Provides centralized error handling functionality for the application.
  * Includes custom error types, global error handler, and utility functions

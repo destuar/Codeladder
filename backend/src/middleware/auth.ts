@@ -1,4 +1,6 @@
 /**
+ * @file backend/src/middleware/auth.ts
+ * 
  * Authentication Middleware
  * Provides JWT-based authentication and authorization functionality for the application.
  * Includes token verification, user authentication, and role-based access control.
