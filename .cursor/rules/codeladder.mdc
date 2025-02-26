@@ -1,0 +1,147 @@
+---
+description: This rule describes the CodeLadder project requirements, tech stack, build process, and outline
+globs: 
+---
+# YOU ARE A 10X DEVELOPER / 100X SENIOR ENGINEER
+
+# Important Rules
+
+- Think thoroughly before coding. Write 2-3 reasoning paragraphs.
+- ALWAYS write simple, clean and modular code.
+
+# CodeLadder Project Rules
+
+# Project Overview
+project:
+  name: "CodeLadder"
+  description: "A learning platform focused on Data Structures & Algorithms (DSA) using a Mastery-Based Learning Model. The platform features progressive levels, each focusing on core DSA topics, with spaced repetition and adaptive difficulty."
+
+# System Requirements
+requirements:
+  node: ">=18.0.0"
+  postgres: ">=14.0.0"
+  docker: "required"
+  ports:
+    backend: 8000
+    frontend: 8085
+    prisma studio: 5555
+
+# Technical Stack
+stack:
+  frontend:
+    framework: "React"
+    buildTool: "Vite"
+    language: "TypeScript"
+    styling: "Tailwind CSS"
+    components: "shadcn/ui"
+    editor: "Monaco Editor"
+    state: "@tanstack/react-query"
+    markdown: "react-markdown"
+    server: "Nginx"
+
+  backend:
+    runtime: "Node.js"
+    framework: "Express"
+    database: "PostgreSQL"
+    orm: "Prisma"
+    auth: "JWT"
+    storage: "AWS S3"
+    security:
+      rateLimit: true
+      helmet: true
+
+  infrastructure:
+    containerization: "Docker"
+    cicd: "Jenkins"
+    cloud: 
+      provider: "AWS"
+      services: ["EC2", "S3", "RDS"]
+      region: "us-east-2"
+
+# Data Models
+models:
+  core:
+    - User
+    - Level
+    - Topic
+    - Problem
+    - Progress
+    - StandaloneInfoPage
+
+  enums:
+    - Role: ["USER", "ADMIN", "DEVELOPER"]
+    - ProblemType: ["INFO", "CODING", "STANDALONE_INFO"]
+    - Difficulty
+
+# Authorization
+roles:
+  USER: "Default user role"
+  ADMIN: "Full system access"
+  DEVELOPER: "Same privileges as ADMIN"
+
+# Environment Configuration
+environment:
+  backend:
+    required:
+      - DATABASE_URL
+      - JWT_SECRET
+      - JWT_REFRESH_SECRET
+      - AWS_ACCESS_KEY_ID
+      - AWS_SECRET_ACCESS_KEY
+      - AWS_REGION
+      - S3_BUCKET
+      - CORS_ORIGIN
+      - NODE_ENV
+
+  frontend:
+    required:
+      - VITE_API_URL
+
+# File Upload
+uploads:
+  images:
+    maxSize: "5MB"
+    types: "image/*"
+    storage: "AWS S3"
+    access: "public-read"
+
+# Development
+development:
+  frontend:
+    commands:
+      - "npm install"
+      - "npm run dev"
+    ports: 5173
+    
+  backend:
+    commands:
+      - "npm install"
+      - "npm run dev"
+    ports: 8000
+
+# Fundamental Principles
+- Write clean, simple, readable code
+- Implement features in the simplest possible way
+- Keep files small and focused (<200 lines)
+- Test after every meaningful change
+- Use clear, consistent naming
+- Think thoroughly before coding. Write 2-3 reasoning paragraphs.
+- ALWAYS write simple, clean and modular code.
+
+# Error Fixing
+- DO NOT JUMP TO CONCLUSIONS! Consider multiple possible causes before deciding.
+- Make only the minimal necessary changes
+- in case of strange errors, ask the user to perform a Perplexity web search to find the latest up-to-date information
+
+# Building Process
+- Verify each new feature works by telling the user how to test it
+- DO NOT write complicated and confusing code. Opt for the simple & modular approach.
+- when not sure what to do, tell the user to perform a web search
+
+# Comments
+- ALWAYS try to add more helpful and explanatory comments into our code
+- NEVER delete old comments - unless they are obviously wrong / obsolete
+- Include LOTS of explanatory comments in your code. ALWAYS write well-documented code.
+- Document all changes and their reasoning IN THE COMMENTS YOU WRITE
+- when writing comments, use clear and easy-to-understand language and write in short sentences.
+  

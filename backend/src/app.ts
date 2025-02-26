@@ -20,10 +20,6 @@ const app = express();
 
 // Log environment configuration for debugging purposes
 console.log('Current environment:', process.env.NODE_ENV);
-console.log('CORS origins allowed:', process.env.NODE_ENV === 'production' 
-  ? [process.env.CORS_ORIGIN]
-  : ['http://localhost:5173', process.env.CORS_ORIGIN].filter(Boolean)
-);
 
 /**
  * Security Middleware Configuration
@@ -48,10 +44,11 @@ const corsOptions = {
   origin: (origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) => {
     const allowedOrigins = process.env.NODE_ENV === 'production'
       ? [process.env.CORS_ORIGIN]
-      : ['http://localhost:5173', process.env.CORS_ORIGIN];
+      : ['http://localhost:5173', 'http://localhost:8085', process.env.CORS_ORIGIN];
     
-    // Filter out invalid origins
+    // Filter out invalid origins and log allowed origins for debugging
     const validOrigins = allowedOrigins.filter(Boolean);
+    console.log('CORS origins allowed:', validOrigins);
     
     // Allow requests with no origin (like mobile apps or curl requests)
     if (!origin) {
@@ -61,7 +58,7 @@ const corsOptions = {
     if (validOrigins.includes(origin)) {
       callback(null, true);
     } else {
-      console.warn(`Origin ${origin} not allowed by CORS`);
+      console.warn(`Origin ${origin} not allowed by CORS. Allowed origins:`, validOrigins);
       callback(new Error('Not allowed by CORS'));
     }
   },

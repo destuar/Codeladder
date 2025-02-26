@@ -18,6 +18,9 @@ COPY . .
 # Build the application
 RUN npm run build
 
+# Create config template that ensures window.ENV is always defined
+RUN echo '(function(window) { window.ENV = { API_URL: "${VITE_API_URL}", NODE_ENV: "${VITE_NODE_ENV}" }; })(window);' > /app/dist/config.js.template
+
 # Production stage
 FROM nginx:alpine-slim
 

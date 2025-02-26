@@ -16,12 +16,25 @@ COPY tsconfig.json ./
 COPY prisma/ ./prisma/
 COPY src/ ./src/
 
-# Generate Prisma client and build
-RUN npx prisma generate && \
-    npm run build || { \
+# Debug: List contents before build
+RUN echo "Contents of /app:" && \
+    ls -la /app && \
+    echo "Contents of /app/src:" && \
+    ls -la /app/src
+
+# Generate Prisma client first
+RUN npx prisma generate
+
+# Build TypeScript code
+RUN npm run build || { \
         echo "Build failed. Check the logs above for errors."; \
+        ls -la /app/dist || true; \
         exit 1; \
     }
+
+# Debug: List contents after build
+RUN echo "Contents of /app/dist:" && \
+    ls -la /app/dist
 
 # Production stage
 FROM node:20-alpine
@@ -51,6 +64,12 @@ COPY --from=builder --chown=nodejs:nodejs /app/dist ./dist
 COPY --from=builder --chown=nodejs:nodejs /app/prisma ./prisma
 COPY --from=builder --chown=nodejs:nodejs /app/node_modules/.prisma ./node_modules/.prisma
 
+# Debug: List contents in production stage
+RUN echo "Contents of /app in production stage:" && \
+    ls -la /app && \
+    echo "Contents of /app/dist in production stage:" && \
+    ls -la /app/dist
+
 # Generate Prisma client for production
 RUN npx prisma generate
 
@@ -65,4 +84,4 @@ HEALTHCHECK --interval=30s --timeout=3s --start-period=30s \
 EXPOSE 8000
 
 # Start the application
-CMD ["node", "dist/index.js"] 
+CMD ["node", "dist/server.js"] 

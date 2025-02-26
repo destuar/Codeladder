@@ -1,8 +1,8 @@
 declare global {
   interface Window {
-    RUNTIME_CONFIG: {
+    ENV: {
       API_URL: string;
-      ENV: string;
+      NODE_ENV: string;
     };
   }
 }
@@ -10,7 +10,7 @@ declare global {
 // Debug logging helper
 const debug = {
   log: (...args: any[]) => {
-    if (window.RUNTIME_CONFIG.ENV !== 'production') {
+    if (window.ENV.NODE_ENV !== 'production') {
       console.log('[API Client]', ...args);
     }
   },
