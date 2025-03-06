@@ -11,6 +11,10 @@ declare global {
       DEFAULT_ERROR_MESSAGE: string;
       API_TIMEOUT: number;
     };
+    RUNTIME_CONFIG?: {
+      API_URL: string;
+      ENV: string;
+    };
   }
 }
 
@@ -19,6 +23,14 @@ if (!window.ENV && window.CONFIG) {
   window.ENV = {
     API_URL: window.CONFIG.API_URL,
     NODE_ENV: window.CONFIG.NODE_ENV
+  };
+}
+
+// Initialize ENV from RUNTIME_CONFIG if needed (for backward compatibility)
+if (!window.ENV && window.RUNTIME_CONFIG) {
+  window.ENV = {
+    API_URL: window.RUNTIME_CONFIG.API_URL,
+    NODE_ENV: window.RUNTIME_CONFIG.ENV // Note: using ENV from RUNTIME_CONFIG
   };
 }
 
