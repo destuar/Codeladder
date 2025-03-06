@@ -1,16 +1,40 @@
 declare global {
   interface Window {
-    ENV: {
+    ENV?: {
       API_URL: string;
       NODE_ENV: string;
     };
+    CONFIG?: {
+      API_URL: string;
+      NODE_ENV: string;
+      AUTH_ENABLED: boolean;
+      DEFAULT_ERROR_MESSAGE: string;
+      API_TIMEOUT: number;
+    };
   }
+}
+
+// Initialize ENV from CONFIG if needed
+if (!window.ENV && window.CONFIG) {
+  window.ENV = {
+    API_URL: window.CONFIG.API_URL,
+    NODE_ENV: window.CONFIG.NODE_ENV
+  };
+}
+
+// Ensure ENV exists with defaults
+if (!window.ENV) {
+  window.ENV = {
+    API_URL: '/api',
+    NODE_ENV: 'development'
+  };
+  console.warn('[API Client] window.ENV not found, using defaults');
 }
 
 // Debug logging helper
 const debug = {
   log: (...args: any[]) => {
-    if (window.ENV.NODE_ENV !== 'production') {
+    if (window.ENV?.NODE_ENV !== 'production') {
       console.log('[API Client]', ...args);
     }
   },

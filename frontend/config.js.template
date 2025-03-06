@@ -1,4 +1,4 @@
-window.CONFIG = {
+window.ENV = {
   API_URL: '${API_URL}',
   NODE_ENV: '${NODE_ENV}',
   AUTH_ENABLED: true,
