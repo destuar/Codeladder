@@ -106,6 +106,7 @@ export default function CodingProblem({
   
   // Calculate formatted time early
   const formattedTime = formatEstimatedTime(estimatedTime);
+  console.log('Estimated time:', estimatedTime, 'Formatted time:', formattedTime);
 
   // Parse test cases with error handling
   const testCases: TestCase[] = useMemo(() => {
