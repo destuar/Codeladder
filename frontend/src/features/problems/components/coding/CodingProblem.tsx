@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { Card } from "@/components/ui/card";
 import { Markdown } from "@/components/ui/markdown";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -31,6 +31,8 @@ export function CodingProblem({
   isCompleted = false,
   problemId,
 }: CodingProblemProps) {
+  console.log('CodingProblem component rendered'); // Debug log for component renders
+  
   const [activeTab, setActiveTab] = useState("code");
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [leftPanelWidth, setLeftPanelWidth] = useState(window.innerWidth * 0.4);
@@ -39,6 +41,16 @@ export function CodingProblem({
     isProblemCompleted,
     handleMarkAsComplete
   } = useProblemCompletion(problemId, isCompleted);
+
+  // Memoize the formatted time to prevent unnecessary recalculations
+  const formattedTime = useMemo(() => {
+    console.log('Recalculating estimated time format...'); // Debug log
+    if (!estimatedTime) return null;
+    if (estimatedTime < 60) return `${estimatedTime}m`;
+    const hours = Math.floor(estimatedTime / 60);
+    const minutes = estimatedTime % 60;
+    return minutes ? `${hours}h ${minutes}m` : `${hours}h`;
+  }, [estimatedTime]);
 
   // Parse test cases
   const testCases = (() => {
@@ -62,7 +74,7 @@ export function CodingProblem({
       <ProblemHeader
         title={title}
         difficulty={difficulty}
-        estimatedTime={estimatedTime}
+        estimatedTime={formattedTime}
         isCompleted={isProblemCompleted}
         isFullscreen={isFullscreen}
         onToggleFullscreen={() => setIsFullscreen(!isFullscreen)}

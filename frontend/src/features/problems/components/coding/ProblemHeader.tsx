@@ -3,12 +3,11 @@ import { Badge } from "@/components/ui/badge";
 import { Timer, Maximize2, Minimize2, CheckCircle2 } from "lucide-react";
 import { cn } from '@/lib/utils';
 import { ProblemTimer } from './timer/ProblemTimer';
-import { formatEstimatedTime } from '../../utils/time';
 
 interface ProblemHeaderProps {
   title: string;
   difficulty: string;
-  estimatedTime?: number;
+  estimatedTime?: string | null;
   isCompleted: boolean;
   isFullscreen: boolean;
   onToggleFullscreen: () => void;
@@ -33,8 +32,6 @@ export function ProblemHeader({
     return "text-red-500";
   };
 
-  const formattedTime = formatEstimatedTime(estimatedTime);
-
   return (
     <div className="flex justify-between items-center px-6 py-2 border-b">
       <div className="flex items-center gap-3">
@@ -46,10 +43,10 @@ export function ProblemHeader({
           <Badge variant="outline" className={cn("font-semibold", getDifficultyColor())}>
             {difficulty.replace(/_/g, ' ')}
           </Badge>
-          {formattedTime && (
+          {estimatedTime && (
             <div className="flex items-center text-sm text-muted-foreground">
               <Timer className="w-4 h-4 mr-1" />
-              <span>{formattedTime}</span>
+              <span>{estimatedTime}</span>
             </div>
           )}
         </div>
