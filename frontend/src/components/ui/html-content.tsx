@@ -19,13 +19,34 @@ export function HtmlContent({ content, className = '' }: HtmlContentProps) {
       node.setAttribute('rel', 'noopener noreferrer');
     }
     
-    // If this is a code block with a language class, preserve it
+    // If this is a code block with a language class, preserve it and add wrapping styles
     if (node.tagName === 'CODE' && node.parentNode && 
         (node.parentNode as Element).tagName === 'PRE') {
       const match = (node.className || '').match(/language-(\w+)/);
       if (match) {
         node.className = `language-${match[1]} bg-muted p-4 block rounded-md overflow-x-auto whitespace-pre-wrap break-words`;
+      } else {
+        // Add wrapping styles even if no language class
+        node.className = (node.className || '') + ' whitespace-pre-wrap break-words';
       }
+      
+      // Force inline styles for wrapping
+      const codeElement = node as HTMLElement;
+      codeElement.style.whiteSpace = 'pre-wrap';
+      codeElement.style.wordBreak = 'break-word';
+      codeElement.style.overflowWrap = 'break-word';
+    }
+    
+    // Add wrapping styles to pre elements directly
+    if (node.tagName === 'PRE') {
+      node.className = (node.className || '') + ' whitespace-pre-wrap break-words max-w-full overflow-x-auto';
+      
+      // Force inline styles for wrapping
+      const preElement = node as HTMLElement;
+      preElement.style.whiteSpace = 'pre-wrap';
+      preElement.style.wordBreak = 'break-word';
+      preElement.style.overflowWrap = 'break-word';
+      preElement.style.maxWidth = '100%';
     }
   });
 
@@ -89,6 +110,8 @@ export function HtmlContent({ content, className = '' }: HtmlContentProps) {
           // Horizontal rule
           "[&>hr]:my-8 [&>hr]:border-t [&>hr]:border-border",
         ],
+        // Always apply code wrapping styles regardless of existing classes
+        "!whitespace-normal [&_pre]:!whitespace-pre-wrap [&_pre]:!break-words [&_code]:!whitespace-pre-wrap [&_code]:!break-words [&_pre]:!max-w-full [&_pre]:!overflow-x-auto",
         // Always apply any additional classes
         className
       )}

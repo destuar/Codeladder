@@ -93,14 +93,14 @@ const InfoProblem: React.FC<InfoProblemProps> = ({
               <div className="prose dark:prose-invert max-w-full overflow-hidden">
                 <Markdown 
                   content={content} 
-                  className="max-w-full [&_pre]:whitespace-pre-wrap [&_pre]:break-words [&_code]:whitespace-pre-wrap [&_code]:break-words"
+                  className="max-w-full [&_pre]:!whitespace-pre-wrap [&_pre]:!break-words [&_code]:!whitespace-pre-wrap [&_code]:!break-words [&_pre]:!max-w-full [&_pre]:!overflow-x-auto"
                 />
               </div>
             ) : (
               // Use HtmlContent for HTML content
               <HtmlContent 
                 content={content} 
-                className="max-w-full [&_pre]:whitespace-pre-wrap [&_pre]:break-words [&_code]:whitespace-pre-wrap [&_code]:break-words"
+                className="max-w-full [&_pre]:!whitespace-pre-wrap [&_pre]:!break-words [&_code]:!whitespace-pre-wrap [&_code]:!break-words [&_pre]:!max-w-full [&_pre]:!overflow-x-auto"
               />
             )}
           </div>

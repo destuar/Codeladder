@@ -5,6 +5,7 @@ import { oneDark } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import remarkGfm from 'remark-gfm';
 import type { Components, ExtraProps } from 'react-markdown';
 import { Link } from 'react-router-dom';
+import { cn } from '@/lib/utils';
 
 interface MarkdownProps {
   content: string;
@@ -84,14 +85,28 @@ export function Markdown({ content, className = '' }: MarkdownProps) {
       );
     },
     pre: ({ children, ...props }) => (
-      <pre className="max-w-full whitespace-pre-wrap break-words" {...props}>
+      <pre 
+        className="max-w-full whitespace-pre-wrap break-words overflow-x-auto" 
+        style={{ 
+          whiteSpace: 'pre-wrap', 
+          wordBreak: 'break-word', 
+          overflowWrap: 'break-word',
+          maxWidth: '100%'
+        }}
+        {...props}
+      >
         {children}
       </pre>
     ),
   };
 
   return (
-    <div className={`prose dark:prose-invert max-w-none ${className}`}>
+    <div className={cn(
+      "prose dark:prose-invert max-w-none",
+      // Always apply code wrapping styles
+      "[&_pre]:!whitespace-pre-wrap [&_pre]:!break-words [&_code]:!whitespace-pre-wrap [&_code]:!break-words [&_pre]:!max-w-full [&_pre]:!overflow-x-auto",
+      className
+    )}>
       <ReactMarkdown remarkPlugins={[remarkGfm]} components={components}>
         {content}
       </ReactMarkdown>

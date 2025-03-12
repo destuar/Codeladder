@@ -45,6 +45,36 @@ function addClassesToTag(match: string, tagAttributes: string, classesToAdd: str
 }
 
 /**
+ * Helper function to add inline styles to an HTML tag
+ * @param match The matched HTML tag
+ * @param tagAttributes The existing attributes of the tag
+ * @param stylesToAdd The styles to add as an object
+ * @returns The HTML tag with the added styles
+ */
+function addStylesToTag(match: string, tagAttributes: string, stylesToAdd: Record<string, string>): string {
+  // Convert styles object to string
+  const styleString = Object.entries(stylesToAdd)
+    .map(([property, value]) => `${property}: ${value}`)
+    .join('; ');
+  
+  // Check if the tag already has a style attribute
+  const styleMatch = tagAttributes.match(/style\s*=\s*["']([^"']*)["']/i);
+  
+  if (styleMatch) {
+    // If it has a style attribute, append the new styles
+    const existingStyles = styleMatch[1];
+    const updatedStyles = existingStyles ? `${existingStyles}; ${styleString}` : styleString;
+    return match.replace(
+      /style\s*=\s*["']([^"']*)["']/i, 
+      `style="${updatedStyles}"`
+    );
+  } else {
+    // If it doesn't have a style attribute, add one
+    return match.replace('>', ` style="${styleString}">`);
+  }
+}
+
+/**
  * Adds Tailwind classes to HTML elements in the content
  * This is useful when converting existing content to use Tailwind
  * Uses string replacement instead of DOM manipulation for better compatibility
@@ -99,13 +129,21 @@ export function enhanceWithTailwind(htmlContent: string): string {
   // Add Tailwind classes to inline code (not in pre blocks)
   processedHtml = processedHtml.replace(
     /<code(?![^>]*class=)([^>]*)>/g, 
-    (match, attrs) => addClassesToTag(match, attrs, "px-1 py-0.5 bg-muted rounded-md text-sm")
+    (match, attrs) => addClassesToTag(match, attrs, "px-1 py-0.5 bg-muted rounded-md text-sm whitespace-pre-wrap break-words")
   );
   
   // Add Tailwind classes to pre blocks with improved wrapping
   processedHtml = processedHtml.replace(
     /<pre([^>]*)>/g, 
-    (match, attrs) => addClassesToTag(match, attrs, "bg-muted p-4 rounded-md overflow-x-auto mb-4 max-w-full whitespace-pre-wrap break-words")
+    (match, attrs) => {
+      const withClasses = addClassesToTag(match, attrs, "bg-muted p-4 rounded-md overflow-x-auto mb-4 max-w-full whitespace-pre-wrap break-words");
+      return addStylesToTag(withClasses, attrs, {
+        'white-space': 'pre-wrap',
+        'word-break': 'break-word',
+        'overflow-wrap': 'break-word',
+        'max-width': '100%'
+      });
+    }
   );
   
   // Add Tailwind classes to code blocks inside pre with improved wrapping
@@ -113,7 +151,12 @@ export function enhanceWithTailwind(htmlContent: string): string {
     /<pre[^>]*><code([^>]*)>/g,
     (match, attrs) => {
       const codeWithClasses = addClassesToTag(`<code${attrs}>`, attrs, "bg-transparent p-0 block whitespace-pre-wrap break-words");
-      return match.replace(/<code[^>]*>/, codeWithClasses);
+      const codeWithStyles = addStylesToTag(codeWithClasses, attrs, {
+        'white-space': 'pre-wrap',
+        'word-break': 'break-word',
+        'overflow-wrap': 'break-word'
+      });
+      return match.replace(/<code[^>]*>/, codeWithStyles);
     }
   );
   
