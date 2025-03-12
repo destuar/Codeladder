@@ -4,6 +4,8 @@ import { Markdown } from "@/components/ui/markdown";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from '@/lib/utils';
+import { Badge } from "@/components/ui/badge";
+import { Timer } from "lucide-react";
 import { CodingProblemProps } from '../../types/coding';
 import { ResizablePanel } from './ResizablePanel';
 import { ProblemTimer } from './timer/ProblemTimer';
@@ -11,6 +13,8 @@ import { CodeEditor } from './editor/CodeEditor';
 import { TestRunner } from './test-runner/TestRunner';
 import { ProblemHeader } from '@/features/problems/components/coding/ProblemHeader';
 import { useProblemCompletion } from '@/features/problems/hooks/useProblemCompletion';
+import { Console } from "@/components/ui/console";
+import { formatEstimatedTime } from '../../utils/time';
 
 const MIN_PANEL_WIDTH = 300;
 const MAX_PANEL_WIDTH = 800;
@@ -18,7 +22,7 @@ const MAX_PANEL_WIDTH = 800;
 /**
  * Main component for the coding problem interface
  */
-export function CodingProblem({
+export default function CodingProblem({
   title,
   content,
   codeTemplate,
@@ -34,6 +38,9 @@ export function CodingProblem({
   const [activeTab, setActiveTab] = useState("code");
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [leftPanelWidth, setLeftPanelWidth] = useState(window.innerWidth * 0.4);
+  const [consoleResults, setConsoleResults] = useState([]);
+  const [isConsoleOpen, setIsConsoleOpen] = useState(true);
+  const [isRunning, setIsRunning] = useState(false);
 
   const {
     isProblemCompleted,
@@ -54,15 +61,20 @@ export function CodingProblem({
     }
   })();
 
+  const getDifficultyColor = () => {
+    if (difficulty.startsWith('EASY')) return "text-green-500";
+    if (difficulty === 'MEDIUM') return "text-yellow-500";
+    return "text-red-500";
+  };
+
+  const formattedTime = formatEstimatedTime(estimatedTime);
+
   return (
     <div className={cn(
       "flex flex-col bg-background",
       isFullscreen ? "fixed inset-0 z-50" : "h-[calc(100vh-3.5rem)]"
     )}>
       <ProblemHeader
-        title={title}
-        difficulty={difficulty}
-        estimatedTime={estimatedTime}
         isCompleted={isProblemCompleted}
         isFullscreen={isFullscreen}
         onToggleFullscreen={() => setIsFullscreen(!isFullscreen)}
@@ -78,8 +90,22 @@ export function CodingProblem({
           className="border-r"
         >
           <ScrollArea className="h-full" type="hover">
-            <div className="p-6 space-y-6">
-              <div className="prose dark:prose-invert max-w-none overflow-x-auto">
+            <div className="p-6 space-y-6 min-w-[500px]">
+              <div className="space-y-4">
+                <h1 className="text-3xl font-bold">{title}</h1>
+                <div className="flex items-center gap-2">
+                  <Badge variant="outline" className={cn("font-semibold", getDifficultyColor())}>
+                    {difficulty.replace(/_/g, ' ')}
+                  </Badge>
+                  {formattedTime && (
+                    <div className="flex items-center text-sm text-muted-foreground">
+                      <Timer className="w-4 h-4 mr-1" />
+                      <span>{formattedTime}</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+              <div className="prose dark:prose-invert max-w-none">
                 <Markdown content={content} />
               </div>
             </div>
@@ -100,6 +126,13 @@ export function CodingProblem({
                 <CodeEditor
                   initialCode={codeTemplate}
                   className="flex-1 relative"
+                />
+                <Console
+                  results={consoleResults}
+                  isOpen={isConsoleOpen}
+                  onToggle={() => setIsConsoleOpen(!isConsoleOpen)}
+                  onClear={() => setConsoleResults([])}
+                  isRunning={isRunning}
                 />
               </TabsContent>
 
