@@ -5,6 +5,8 @@ import { useAuth } from "@/features/auth/AuthContext";
 import { toast } from "sonner";
 import { Timer } from "lucide-react";
 import { Markdown } from "@/components/ui/markdown";
+import { HtmlContent } from "@/components/ui/html-content";
+import { isMarkdown } from "@/lib/markdown-to-html";
 
 type InfoPage = {
   id: string;
@@ -76,8 +78,19 @@ export function InfoPage() {
           </div>
 
           {/* Main content */}
-          <div className="prose dark:prose-invert max-w-4xl mx-auto prose-a:text-primary prose-a:font-semibold hover:prose-a:text-primary/80 prose-a:no-underline hover:prose-a:underline">
-            <Markdown content={page.content} />
+          <div className="max-w-4xl mx-auto">
+            {isMarkdown(page.content) ? (
+              // For backward compatibility, use Markdown for existing markdown content
+              <div className="prose dark:prose-invert prose-a:text-primary prose-a:font-semibold hover:prose-a:text-primary/80 prose-a:no-underline hover:prose-a:underline">
+                <Markdown content={page.content} />
+              </div>
+            ) : (
+              // Use HtmlContent for HTML content
+              <HtmlContent 
+                content={page.content} 
+                className="prose-a:text-primary prose-a:font-semibold hover:prose-a:text-primary/80 prose-a:no-underline hover:prose-a:underline"
+              />
+            )}
           </div>
         </div>
       </div>

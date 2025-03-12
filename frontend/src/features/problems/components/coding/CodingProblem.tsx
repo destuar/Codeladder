@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import { Card } from "@/components/ui/card";
 import { Markdown } from "@/components/ui/markdown";
+import { HtmlContent } from "@/components/ui/html-content";
+import { isMarkdown } from "@/lib/markdown-to-html";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from '@/lib/utils';
@@ -105,8 +107,16 @@ export default function CodingProblem({
                   )}
                 </div>
               </div>
-              <div className="prose dark:prose-invert max-w-none">
-                <Markdown content={content} />
+              <div className="max-w-none">
+                {isMarkdown(content) ? (
+                  // For backward compatibility, use Markdown for existing markdown content
+                  <div className="prose dark:prose-invert">
+                    <Markdown content={content} />
+                  </div>
+                ) : (
+                  // Use HtmlContent for HTML content
+                  <HtmlContent content={content} />
+                )}
               </div>
             </div>
           </ScrollArea>

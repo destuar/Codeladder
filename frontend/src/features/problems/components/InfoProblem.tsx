@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Markdown } from "@/components/ui/markdown";
+import { HtmlContent } from "@/components/ui/html-content";
 import { Button } from "@/components/ui/button";
 import { ChevronRight, Timer, CheckCircle, CheckCircle2 } from "lucide-react";
 import { useNavigate } from 'react-router-dom';
@@ -8,6 +9,7 @@ import { api } from '@/lib/api';
 import { useAuth } from '@/features/auth/AuthContext';
 import { useQueryClient } from '@tanstack/react-query';
 import { useAdmin } from '@/features/admin/AdminContext';
+import { ensureHtml, isMarkdown } from '@/lib/markdown-to-html';
 
 function formatEstimatedTime(minutes: number | null | undefined): string | null {
   if (!minutes) return null;
@@ -85,8 +87,16 @@ const InfoProblem: React.FC<InfoProblemProps> = ({
           )}
 
           {/* Main content */}
-          <div className="prose dark:prose-invert max-w-4xl mx-auto">
-            <Markdown content={content} />
+          <div className="max-w-4xl mx-auto">
+            {isMarkdown(content) ? (
+              // For backward compatibility, use Markdown for existing markdown content
+              <div className="prose dark:prose-invert">
+                <Markdown content={content} />
+              </div>
+            ) : (
+              // Use HtmlContent for HTML content
+              <HtmlContent content={content} />
+            )}
           </div>
         </div>
       </div>
