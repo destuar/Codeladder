@@ -24,7 +24,7 @@ export function HtmlContent({ content, className = '' }: HtmlContentProps) {
         (node.parentNode as Element).tagName === 'PRE') {
       const match = (node.className || '').match(/language-(\w+)/);
       if (match) {
-        node.className = `language-${match[1]} bg-muted p-4 block rounded-md overflow-x-auto`;
+        node.className = `language-${match[1]} bg-muted p-4 block rounded-md overflow-x-auto whitespace-pre-wrap break-words`;
       }
     }
   });
@@ -67,10 +67,10 @@ export function HtmlContent({ content, className = '' }: HtmlContentProps) {
           "[&>blockquote]:border-l-4 [&>blockquote]:border-primary [&>blockquote]:pl-4 [&>blockquote]:italic [&>blockquote]:my-4",
           // Link styles
           "[&>a]:font-semibold [&>a]:text-primary [&>a:hover]:text-primary/80 [&>a:hover]:underline",
-          // Code styles
+          // Code styles - updated for better wrapping
           "[&>code]:px-1 [&>code]:py-0.5 [&>code]:bg-muted [&>code]:rounded-md [&>code]:text-sm",
-          "[&>pre]:bg-muted [&>pre]:p-4 [&>pre]:rounded-md [&>pre]:overflow-x-auto [&>pre]:mb-4",
-          "[&>pre>code]:bg-transparent [&>pre>code]:p-0 [&>pre>code]:block",
+          "[&>pre]:bg-muted [&>pre]:p-4 [&>pre]:rounded-md [&>pre]:overflow-x-auto [&>pre]:mb-4 [&>pre]:max-w-full [&>pre]:whitespace-pre-wrap [&>pre]:break-words",
+          "[&>pre>code]:bg-transparent [&>pre>code]:p-0 [&>pre>code]:block [&>pre>code]:whitespace-pre-wrap [&>pre>code]:break-words",
           // Code block language-specific styling
           "[&>pre>code.language-javascript]:text-yellow-600 [&>pre>code.language-js]:text-yellow-600",
           "[&>pre>code.language-typescript]:text-blue-600 [&>pre>code.language-ts]:text-blue-600",

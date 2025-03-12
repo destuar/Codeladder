@@ -102,10 +102,19 @@ export function enhanceWithTailwind(htmlContent: string): string {
     (match, attrs) => addClassesToTag(match, attrs, "px-1 py-0.5 bg-muted rounded-md text-sm")
   );
   
-  // Add Tailwind classes to pre blocks
+  // Add Tailwind classes to pre blocks with improved wrapping
   processedHtml = processedHtml.replace(
     /<pre([^>]*)>/g, 
-    (match, attrs) => addClassesToTag(match, attrs, "bg-muted p-4 rounded-md overflow-x-auto mb-4")
+    (match, attrs) => addClassesToTag(match, attrs, "bg-muted p-4 rounded-md overflow-x-auto mb-4 max-w-full whitespace-pre-wrap break-words")
+  );
+  
+  // Add Tailwind classes to code blocks inside pre with improved wrapping
+  processedHtml = processedHtml.replace(
+    /<pre[^>]*><code([^>]*)>/g,
+    (match, attrs) => {
+      const codeWithClasses = addClassesToTag(`<code${attrs}>`, attrs, "bg-transparent p-0 block whitespace-pre-wrap break-words");
+      return match.replace(/<code[^>]*>/, codeWithClasses);
+    }
   );
   
   // Add Tailwind classes to tables

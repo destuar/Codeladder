@@ -92,7 +92,7 @@ export default function CodingProblem({
           className="border-r"
         >
           <ScrollArea className="h-full" type="hover">
-            <div className="p-6 space-y-6 min-w-[500px]">
+            <div className="p-6 space-y-6 w-full overflow-hidden">
               <div className="space-y-4">
                 <h1 className="text-3xl font-bold">{title}</h1>
                 <div className="flex items-center gap-2">
@@ -107,15 +107,18 @@ export default function CodingProblem({
                   )}
                 </div>
               </div>
-              <div className="max-w-none">
+              <div className="max-w-full overflow-hidden">
                 {isMarkdown(content) ? (
                   // For backward compatibility, use Markdown for existing markdown content
-                  <div className="prose dark:prose-invert">
+                  <div className="prose dark:prose-invert max-w-full overflow-hidden">
                     <Markdown content={content} />
                   </div>
                 ) : (
                   // Use HtmlContent for HTML content
-                  <HtmlContent content={content} />
+                  <HtmlContent 
+                    content={content} 
+                    className="max-w-full [&_pre]:whitespace-pre-wrap [&_pre]:break-words [&_code]:whitespace-pre-wrap [&_code]:break-words"
+                  />
                 )}
               </div>
             </div>

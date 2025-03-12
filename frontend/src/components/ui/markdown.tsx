@@ -28,11 +28,19 @@ const CodeBlock: ComponentType<{ node?: any; inline?: boolean; className?: strin
       style={oneDark as any}
       language={language}
       PreTag="div"
+      wrapLines={true}
+      wrapLongLines={true}
+      customStyle={{
+        maxWidth: '100%',
+        wordBreak: 'break-word',
+        whiteSpace: 'pre-wrap',
+        overflowWrap: 'break-word'
+      }}
     >
       {String(children).replace(/\n$/, '')}
     </SyntaxHighlighter>
   ) : (
-    <code className={className} {...props}>
+    <code className={`${className} whitespace-pre-wrap break-words`} {...props}>
       {children}
     </code>
   );
@@ -75,6 +83,11 @@ export function Markdown({ content, className = '' }: MarkdownProps) {
         </a>
       );
     },
+    pre: ({ children, ...props }) => (
+      <pre className="max-w-full whitespace-pre-wrap break-words" {...props}>
+        {children}
+      </pre>
+    ),
   };
 
   return (

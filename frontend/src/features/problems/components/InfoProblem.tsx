@@ -87,15 +87,21 @@ const InfoProblem: React.FC<InfoProblemProps> = ({
           )}
 
           {/* Main content */}
-          <div className="max-w-4xl mx-auto">
+          <div className="max-w-4xl mx-auto overflow-hidden">
             {isMarkdown(content) ? (
               // For backward compatibility, use Markdown for existing markdown content
-              <div className="prose dark:prose-invert">
-                <Markdown content={content} />
+              <div className="prose dark:prose-invert max-w-full overflow-hidden">
+                <Markdown 
+                  content={content} 
+                  className="max-w-full [&_pre]:whitespace-pre-wrap [&_pre]:break-words [&_code]:whitespace-pre-wrap [&_code]:break-words"
+                />
               </div>
             ) : (
               // Use HtmlContent for HTML content
-              <HtmlContent content={content} />
+              <HtmlContent 
+                content={content} 
+                className="max-w-full [&_pre]:whitespace-pre-wrap [&_pre]:break-words [&_code]:whitespace-pre-wrap [&_code]:break-words"
+              />
             )}
           </div>
         </div>
