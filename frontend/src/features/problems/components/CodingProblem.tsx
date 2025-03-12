@@ -1,3 +1,9 @@
+// This is the old CodingProblem.tsx file that is no longer used it was replaced because it was large and complex
+// The new CodingProblem.tsx file is in the components/coding folder and it is more compartmentalized and easier to manage
+// I made this change on Fri Mar 07 2025 (7/3/25)
+
+
+/*
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Markdown } from "@/components/ui/markdown";
@@ -417,7 +423,7 @@ export default function CodingProblem({
       "flex flex-col bg-background",
       isFullscreen ? "fixed inset-0 z-50" : "h-[calc(100vh-3.5rem)]"
     )}>
-      {/* Top header bar */}
+      {/* Top header bar */} 
       <div className="flex justify-between items-center px-6 py-2 border-b">
         <div className="flex items-center gap-3">
           <div className="relative">
@@ -691,3 +697,5 @@ export default function CodingProblem({
     </div>
   );
 } 
+
+*/
