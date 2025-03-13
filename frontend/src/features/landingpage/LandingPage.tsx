@@ -3,6 +3,8 @@ import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/features/auth/AuthContext';
 import { ArrowRight, Code, Brain, Layers, Trophy } from 'lucide-react';
+import { DashboardShowcase } from './components/DashboardShowcase';
+import { StatsSection } from './components/StatsSection';
 
 /**
  * LandingPage component
@@ -19,11 +21,10 @@ export default function LandingPage() {
       <section className="py-20 px-4 md:px-6 lg:px-8 max-w-7xl mx-auto">
         <div className="flex flex-col items-center text-center">
           <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold tracking-tight mb-6">
-            Master Data Structures & Algorithms
+            Technical interviews are changing—your preparation should too.
           </h1>
           <p className="text-xl text-muted-foreground max-w-3xl mb-10">
-            A structured learning path to help you build strong foundations in DSA through
-            progressive challenges and mastery-based learning.
+            Learn smarter with CodeLadder.
           </p>
           <div className="flex flex-col sm:flex-row gap-4">
             {user ? (
@@ -47,7 +48,15 @@ export default function LandingPage() {
               </>
             )}
           </div>
+          
+          {/* Stats Section */}
+          <StatsSection />
         </div>
+      </section>
+
+      {/* Dashboard Showcase Section */}
+      <section className="py-16">
+        <DashboardShowcase />
       </section>
 
       {/* Features Section */}
