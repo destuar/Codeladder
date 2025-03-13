@@ -17,7 +17,7 @@ export function Navigation() {
       <nav className="fixed top-0 left-0 right-0 border-b bg-background z-50">
         <div className="container flex items-center justify-between h-16">
           <div className="flex items-center gap-6">
-            <Link to="/" className="text-xl font-bold" style={{ fontFamily: "'Patrick Hand', cursive" }}>
+            <Link to="/landing" className="text-xl font-bold" style={{ fontFamily: "'Patrick Hand', cursive" }}>
               CodeLadder
             </Link>
             <div className="w-72">

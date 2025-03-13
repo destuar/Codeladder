@@ -1,3 +1,4 @@
+import { Link } from 'react-router-dom';
 import { ThemeToggle } from "./ThemeToggle";
 
 export function Navbar() {
@@ -5,9 +6,9 @@ export function Navbar() {
     <nav className="border-b">
       <div className="container flex items-center justify-between h-16">
         <div className="flex items-center gap-6">
-          <h1 className="text-xl font-bold" style={{ fontFamily: "'Patrick Hand', cursive" }}>
+          <Link to="/landing" className="text-xl font-bold" style={{ fontFamily: "'Patrick Hand', cursive" }}>
             CodeLadder
-          </h1>
+          </Link>
         </div>
         <div className="flex items-center gap-4">
           <ThemeToggle />
