@@ -18,6 +18,7 @@ import { LevelSystem } from '@/components/LevelSystem';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { LearningPathAdmin } from "./components/LearningPathAdmin";
 import { StandaloneInfoAdmin } from "./components/StandaloneInfoAdmin";
+import { ContentMigrationTool } from "./components/ContentMigrationTool";
 import { Card } from "@/components/ui/card";
 
 interface AdminData {
@@ -208,6 +209,7 @@ export function AdminDashboard() {
           <TabsList>
             <TabsTrigger value="editor">Learning Path Editor</TabsTrigger>
             <TabsTrigger value="info">Standalone Info Pages</TabsTrigger>
+            <TabsTrigger value="tools">Content Tools</TabsTrigger>
             <TabsTrigger value="preview">User View Preview</TabsTrigger>
           </TabsList>
 
@@ -217,6 +219,10 @@ export function AdminDashboard() {
 
           <TabsContent value="info" className="space-y-4">
             <StandaloneInfoAdmin />
+          </TabsContent>
+
+          <TabsContent value="tools" className="space-y-4">
+            <ContentMigrationTool />
           </TabsContent>
 
           <TabsContent value="preview" className="space-y-4">

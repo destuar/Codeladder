@@ -5,6 +5,8 @@ import { useAuth } from "@/features/auth/AuthContext";
 import { toast } from "sonner";
 import { Timer } from "lucide-react";
 import { Markdown } from "@/components/ui/markdown";
+import { HtmlContent } from "@/components/ui/html-content";
+import { isMarkdown } from "@/lib/markdown-to-html";
 
 type InfoPage = {
   id: string;
@@ -76,8 +78,22 @@ export function InfoPage() {
           </div>
 
           {/* Main content */}
-          <div className="prose dark:prose-invert max-w-4xl mx-auto prose-a:text-primary prose-a:font-semibold hover:prose-a:text-primary/80 prose-a:no-underline hover:prose-a:underline">
-            <Markdown content={page.content} />
+          <div className="max-w-4xl mx-auto overflow-hidden">
+            {isMarkdown(page.content) ? (
+              // For backward compatibility, use Markdown for existing markdown content
+              <div className="prose dark:prose-invert prose-a:text-primary prose-a:font-semibold hover:prose-a:text-primary/80 prose-a:no-underline hover:prose-a:underline max-w-full overflow-hidden">
+                <Markdown 
+                  content={page.content} 
+                  className="max-w-full [&_pre]:!whitespace-pre-wrap [&_pre]:!break-words [&_code]:!whitespace-pre-wrap [&_code]:!break-words [&_pre]:!max-w-full [&_pre]:!overflow-x-auto"
+                />
+              </div>
+            ) : (
+              // Use HtmlContent for HTML content
+              <HtmlContent 
+                content={page.content} 
+                className="prose-a:text-primary prose-a:font-semibold hover:prose-a:text-primary/80 prose-a:no-underline hover:prose-a:underline max-w-full [&_pre]:!whitespace-pre-wrap [&_pre]:!break-words [&_code]:!whitespace-pre-wrap [&_code]:!break-words [&_pre]:!max-w-full [&_pre]:!overflow-x-auto"
+              />
+            )}
           </div>
         </div>
       </div>

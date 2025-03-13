@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import { Card } from "@/components/ui/card";
 import { Markdown } from "@/components/ui/markdown";
+import { HtmlContent } from "@/components/ui/html-content";
+import { isMarkdown } from "@/lib/markdown-to-html";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from '@/lib/utils';
@@ -90,7 +92,7 @@ export default function CodingProblem({
           className="border-r"
         >
           <ScrollArea className="h-full" type="hover">
-            <div className="p-6 space-y-6 min-w-[500px]">
+            <div className="p-6 space-y-6 w-full overflow-hidden">
               <div className="space-y-4">
                 <h1 className="text-3xl font-bold">{title}</h1>
                 <div className="flex items-center gap-2">
@@ -105,8 +107,22 @@ export default function CodingProblem({
                   )}
                 </div>
               </div>
-              <div className="prose dark:prose-invert max-w-none">
-                <Markdown content={content} />
+              <div className="max-w-full overflow-hidden">
+                {isMarkdown(content) ? (
+                  // For backward compatibility, use Markdown for existing markdown content
+                  <div className="prose dark:prose-invert max-w-full overflow-hidden">
+                    <Markdown 
+                      content={content}
+                      className="max-w-full [&_pre]:!whitespace-pre-wrap [&_pre]:!break-words [&_code]:!whitespace-pre-wrap [&_code]:!break-words [&_pre]:!max-w-full [&_pre]:!overflow-x-auto"
+                    />
+                  </div>
+                ) : (
+                  // Use HtmlContent for HTML content
+                  <HtmlContent 
+                    content={content} 
+                    className="max-w-full [&_pre]:!whitespace-pre-wrap [&_pre]:!break-words [&_code]:!whitespace-pre-wrap [&_code]:!break-words [&_pre]:!max-w-full [&_pre]:!overflow-x-auto"
+                  />
+                )}
               </div>
             </div>
           </ScrollArea>
