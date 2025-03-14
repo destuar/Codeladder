@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { StickyScroll } from '@/components/ui/sticky-scroll-reveal';
 import { cn } from '@/lib/utils';
 
@@ -11,6 +11,36 @@ import { cn } from '@/lib/utils';
  * 3. Problem Library - Comprehensive collection of coding challenges
  */
 export function FeatureShowcase() {
+  // Track the active card index
+  const [activeCardIndex, setActiveCardIndex] = useState(0);
+  const scrollContainerRef = useRef<HTMLDivElement | null>(null);
+  
+  // Function to handle indicator click
+  const handleIndicatorClick = (index: number) => {
+    setActiveCardIndex(index);
+    
+    // Get the scroll container from the StickyScroll component
+    if (scrollContainerRef.current) {
+      const container = scrollContainerRef.current.querySelector('div[class*="overflow-y-auto"]');
+      if (container) {
+        // Calculate the scroll position based on the index
+        const scrollHeight = container.scrollHeight;
+        const containerHeight = container.clientHeight;
+        const scrollableDistance = scrollHeight - containerHeight;
+        const cardCount = features.length;
+        
+        // Calculate the target scroll position
+        const targetScrollPosition = (index / (cardCount - 1)) * scrollableDistance;
+        
+        // Scroll to the position with smooth behavior
+        container.scrollTo({
+          top: targetScrollPosition,
+          behavior: 'smooth'
+        });
+      }
+    }
+  };
+  
   // Content for the sticky scroll component
   const features = [
     {
@@ -170,37 +200,56 @@ export function FeatureShowcase() {
   ];
 
   return (
-    <div className="py-10 pb-32">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="text-center mb-10">
+    <div className="py-16 pb-32 relative">
+      {/* Background elements */}
+      <div className="absolute inset-0 bg-dot-[#5b5bf7]/[0.15] [mask-image:radial-gradient(ellipse_at_center,transparent_20%,black)]" />
+      <div className="absolute -top-24 -left-24 w-96 h-96 bg-[#5b5bf7]/5 rounded-full filter blur-3xl opacity-60"></div>
+      <div className="absolute -bottom-24 -right-24 w-96 h-96 bg-[#5b5bf7]/5 rounded-full filter blur-3xl opacity-60"></div>
+      
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
+        <div className="text-center mb-12">
           <h2 className="text-3xl md:text-4xl font-bold mb-4 bg-clip-text text-transparent bg-gradient-to-r from-[#5b5bf7] to-[#7a7aff]">
             Powerful Features for Effective Learning
           </h2>
           <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
-            Learn faster, retain more, and solve smarter
+            Learn faster, retain more, and solve smarter with our specialized tools
           </p>
         </div>
         
-        <div className="mt-8 rounded-xl overflow-hidden border border-[#5b5bf7]/20 relative">
-          {/* Custom background that matches the main page but with subtle scroll indicators */}
-          <div className="absolute inset-0 bg-dot-[#5b5bf7]/[0.1] [mask-image:radial-gradient(ellipse_at_center,transparent_20%,black)]" />
+        <div className="mt-8 relative">
+          {/* Animated glow effect */}
+          <div className="absolute -inset-0.5 bg-gradient-to-r from-[#5b5bf7]/30 via-[#7a7aff]/20 to-[#5b5bf7]/30 rounded-xl blur-md opacity-75 group-hover:opacity-100 transition duration-1000 animate-pulse"></div>
           
-          {/* Subtle scroll indicators */}
-          <div className="absolute top-4 left-1/2 -translate-x-1/2 flex gap-1 z-10">
-            <div className="w-8 h-1 rounded-full bg-[#5b5bf7]/30"></div>
-            <div className="w-8 h-1 rounded-full bg-[#5b5bf7]/10"></div>
-            <div className="w-8 h-1 rounded-full bg-[#5b5bf7]/10"></div>
-          </div>
-          
-          {/* Subtle gradient overlay to indicate scrollable area */}
-          <div className="absolute inset-x-0 top-0 h-16 bg-gradient-to-b from-background/80 to-transparent pointer-events-none z-[1]"></div>
-          <div className="absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t from-background/80 to-transparent pointer-events-none z-[1]"></div>
-          
-          <div className="relative z-[2]">
-            <StickyScroll 
-              content={features}
-              contentClassName="w-[350px] h-[350px] sm:w-[450px] sm:h-[450px] lg:w-[550px] lg:h-[550px]"
-            />
+          {/* Main container with glass effect */}
+          <div className="relative rounded-xl overflow-hidden backdrop-blur-sm bg-background/80 border border-[#5b5bf7]/20 shadow-[0_8px_30px_rgb(0,0,0,0.06)]">
+            {/* Subtle dot pattern background */}
+            <div className="absolute inset-0 bg-dot-[#5b5bf7]/[0.1] [mask-image:radial-gradient(ellipse_at_center,transparent_20%,black)]" />
+            
+            {/* Improved scroll indicators */}
+            <div className="absolute top-4 left-1/2 -translate-x-1/2 flex gap-2 z-10">
+              {features.map((_, index) => (
+                <button 
+                  key={index}
+                  onClick={() => handleIndicatorClick(index)}
+                  aria-label={`View ${features[index].title}`}
+                  className={`w-10 h-1.5 rounded-full transition-all duration-300 cursor-pointer hover:bg-[#5b5bf7]/50 ${
+                    index === activeCardIndex ? 'bg-[#5b5bf7]/70' : 'bg-[#5b5bf7]/20'
+                  }`}
+                ></button>
+              ))}
+            </div>
+            
+            {/* Subtle gradient overlays for better scroll indication */}
+            <div className="absolute inset-x-0 top-0 h-20 bg-gradient-to-b from-background/90 to-transparent pointer-events-none z-[1]"></div>
+            <div className="absolute inset-x-0 bottom-0 h-20 bg-gradient-to-t from-background/90 to-transparent pointer-events-none z-[1]"></div>
+            
+            <div className="relative z-[2]" ref={scrollContainerRef}>
+              <StickyScroll 
+                content={features}
+                contentClassName="w-[350px] h-[350px] sm:w-[450px] sm:h-[450px] lg:w-[550px] lg:h-[550px] shadow-lg"
+                onActiveCardChange={setActiveCardIndex}
+              />
+            </div>
           </div>
         </div>
       </div>

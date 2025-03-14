@@ -152,35 +152,39 @@ export default function LandingPage() {
       </section>
 
       {/* 3. Feature Showcase with Sticky Scroll */}
-      <section className="relative z-10 bg-background/80 backdrop-blur-sm pb-0">
+      <section className="relative z-10 py-16">
         <FeatureShowcase />
       </section>
 
       {/* 4. Dashboard Showcase Section */}
-      <section className="pt-0 pb-0 relative z-10 bg-background/80 backdrop-blur-sm">
-        <div className="max-w-7xl mx-auto px-4 md:px-6 lg:px-8 mb-0">
-          <div className="text-center mb-4">
-            <h2 className="text-3xl md:text-4xl font-bold mb-0 bg-clip-text text-transparent bg-gradient-to-r from-[#5b5bf7] to-[#7a7aff]">
+      <section className="pt-16 pb-0 relative z-10">
+        {/* Subtle background gradient for section transition */}
+        <div className="absolute inset-0 bg-gradient-to-b from-background via-background/95 to-background/90 pointer-events-none"></div>
+        
+        <div className="max-w-7xl mx-auto px-4 md:px-6 lg:px-8 mb-0 relative z-10">
+          <div className="text-center mb-2">
+            <h2 className="text-3xl md:text-4xl font-bold mb-2 bg-clip-text text-transparent bg-gradient-to-r from-[#5b5bf7] to-[#7a7aff]">
               Mastery-Based Learning Dashboard
             </h2>
-            <p className="text-lg text-muted-foreground max-w-2xl mx-auto mb-0">
+            <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
               Track your progress and visualize your climb up the ladder
             </p>
           </div>
         </div>
         <DashboardShowcase />
-        {/* Gradient overlay for smooth transition */}
-        <div className="absolute bottom-0 left-0 right-0 h-64 bg-gradient-to-t from-muted/50 to-transparent pointer-events-none"></div>
+        
+        {/* Gradient overlay for smooth transition to next section */}
+        <div className="absolute bottom-0 left-0 right-0 h-64 bg-gradient-to-t from-muted/80 to-transparent pointer-events-none"></div>
       </section>
 
       {/* 5. Why CodeLadder? - Features Section with Rotating Cards */}
-      <section className="-mt-96 md:-mt-120 pt-16 pb-16 px-4 md:px-6 lg:px-8 bg-muted/50 relative overflow-hidden z-20">
-        <div className="absolute inset-0 bg-gradient-to-b from-transparent to-background/20 pointer-events-none"></div>
+      <section className="-mt-80 md:-mt-88 pt-8 pb-8 px-4 md:px-6 lg:px-8 bg-muted/50 relative overflow-hidden z-20">
+        <div className="absolute inset-0 bg-gradient-to-b from-transparent via-background/5 to-background/20 pointer-events-none"></div>
         <div className="max-w-7xl mx-auto relative z-10">
-          <div className="text-center mb-10">
-            <h2 className="text-4xl font-bold mb-4 bg-clip-text text-transparent bg-gradient-to-r from-[#5b5bf7] to-[#7a7aff]">Why CodeLadder?</h2>
+          <div className="text-center mb-6">
+            <h2 className="text-4xl font-bold mb-2 bg-clip-text text-transparent bg-gradient-to-r from-[#5b5bf7] to-[#7a7aff]">Why CodeLadder?</h2>
             <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
-              The technical interview is changing with the development of AI-tools. We are getting ahead, saving hours by prioritizing only the most important skills to crack the coding interview.
+              Save hours and land your dream job by prioritizing only the most important skills to crack the coding interview.
             </p>
           </div>
           
@@ -190,12 +194,12 @@ export default function LandingPage() {
       </section>
 
       {/* 6. Company Logos Section */}
-      <div className="py-10">
+      <div className="py-16">
         <CompanyLogos />
       </div>
 
       {/* 7. Enhanced CTA Section - Level up your interview skills */}
-      <section className="pb-24 pt-8 px-4 md:px-6 lg:px-8 max-w-7xl mx-auto relative z-10">
+      <section className="pb-24 pt-12 px-4 md:px-6 lg:px-8 max-w-7xl mx-auto relative z-10">
         <div className="bg-gradient-to-br from-[#5b5bf7]/10 via-[#6e6ef8]/5 to-[#5b5bf7]/10 border border-[#5b5bf7]/20 rounded-2xl overflow-hidden relative">
           {/* Background elements */}
           <div className="absolute -top-24 -left-24 w-96 h-96 bg-[#5b5bf7]/10 rounded-full filter blur-3xl opacity-60"></div>
