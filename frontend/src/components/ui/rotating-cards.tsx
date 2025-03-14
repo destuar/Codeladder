@@ -13,7 +13,7 @@ interface RotatingCardsProps {
 
 export function RotatingCards({ items, className }: RotatingCardsProps) {
   return (
-    <div className={cn("w-full overflow-hidden py-10 rotating-cards-container", className)}>
+    <div className={cn("w-full overflow-hidden py-10 rotating-cards-container relative z-20 [mask-image:linear-gradient(to_right,transparent,white_20%,white_80%,transparent)]", className)}>
       <div className="relative w-full">
         {/* First row - moves right to left */}
         <div className="flex animate-marquee space-x-6 pb-8">
