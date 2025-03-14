@@ -1,4 +1,5 @@
 import React from 'react';
+import companyLogosSvg from '../images/company-logos.svg';
 
 /**
  * CompanyLogos component
@@ -7,9 +8,6 @@ import React from 'react';
  * Used on the landing page to build credibility and showcase success stories.
  */
 export function CompanyLogos() {
-  // Import the image directly to ensure proper bundling
-  const logoImage = new URL('../images/FAAAAANG.png', import.meta.url).href;
-  
   return (
     <div className="w-full py-10 bg-background">
       <div className="max-w-7xl mx-auto px-4 md:px-6 lg:px-8">
@@ -23,7 +21,7 @@ export function CompanyLogos() {
           <div className="w-full max-w-3xl mx-auto">
             <div className="flex justify-center items-center">
               <img 
-                src={logoImage} 
+                src={companyLogosSvg} 
                 alt="Top tech companies including Meta, Netflix, Amazon, Salesforce, Google, Microsoft, Apple, Uber, Airbnb, and OpenAI" 
                 className="w-full max-w-2xl h-auto opacity-85 transition-opacity duration-300 hover:opacity-95"
               />

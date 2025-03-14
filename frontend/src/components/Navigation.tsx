@@ -6,6 +6,7 @@ import { ThemeToggle } from './ThemeToggle';
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { useProfile } from '@/features/profile/ProfileContext';
 import { GlobalSearch } from './GlobalSearch';
+import codeladderSvgLogo from '@/features/landingpage/images/CodeLadder.svg';
 
 export function Navigation() {
   const { user, logout } = useAuth();
@@ -17,8 +18,9 @@ export function Navigation() {
       <nav className="fixed top-0 left-0 right-0 border-b bg-background z-50">
         <div className="container flex items-center justify-between h-16">
           <div className="flex items-center gap-6">
-            <Link to="/landing" className="text-xl font-bold" style={{ fontFamily: "'Patrick Hand', cursive" }}>
-              CodeLadder
+            <Link to="/landing" className="flex items-center gap-2">
+              <img src={codeladderSvgLogo} alt="CodeLadder Logo" className="h-10 w-auto" />
+              <span className="text-xl font-bold" style={{ fontFamily: "'Patrick Hand', cursive" }}>CodeLadder</span>
             </Link>
             <div className="w-72">
               <GlobalSearch />

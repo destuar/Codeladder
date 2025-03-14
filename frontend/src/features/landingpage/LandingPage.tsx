@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/features/auth/AuthContext';
@@ -10,6 +10,8 @@ import { GlowingEffect } from '@/components/ui/glowing-effect';
 import { cn } from '@/lib/utils';
 import { RotatingFeatureCards } from './components/RotatingFeatureCards';
 import { CompanyLogos } from './components/CompanyLogos';
+import { Spotlight } from '@/components/ui/spotlight-new';
+import { FeatureShowcase } from './components/FeatureShowcase';
 
 /**
  * LandingPage component
@@ -23,18 +25,68 @@ import { CompanyLogos } from './components/CompanyLogos';
  */
 export default function LandingPage() {
   const { user } = useAuth();
+  const [isDarkMode, setIsDarkMode] = useState(false);
+  
+  // Check for dark mode on component mount and when theme changes
+  useEffect(() => {
+    // Initial check
+    const checkDarkMode = () => {
+      const isDark = document.documentElement.classList.contains('dark') || 
+                    window.matchMedia('(prefers-color-scheme: dark)').matches;
+      setIsDarkMode(isDark);
+    };
+    
+    checkDarkMode();
+    
+    // Set up a mutation observer to detect theme changes
+    const observer = new MutationObserver((mutations) => {
+      mutations.forEach((mutation) => {
+        if (mutation.attributeName === 'class') {
+          checkDarkMode();
+        }
+      });
+    });
+    
+    observer.observe(document.documentElement, { attributes: true });
+    
+    return () => observer.disconnect();
+  }, []);
 
   return (
-    <div className="min-h-[calc(100vh-4rem)] bg-background relative">
+    <div className="min-h-[calc(100vh-4rem)] bg-background relative overflow-hidden">
       {/* Background patterns */}
       <div className="absolute inset-0 bg-dot-[#5b5bf7]/[0.2] [mask-image:radial-gradient(ellipse_at_center,transparent_20%,black)]" />
       
-      {/* Hero Section */}
-      <section className="pt-28 pb-16 px-4 md:px-6 lg:px-8 max-w-7xl mx-auto relative">
-        <div className="flex flex-col items-center text-center">
+      {/* Spotlight effect - Only visible in dark mode */}
+      {isDarkMode ? (
+        <Spotlight
+          gradientFirst="radial-gradient(68.54% 68.72% at 55.02% 31.46%, hsla(240, 100%, 85%, .08) 0, hsla(240, 100%, 55%, .02) 50%, hsla(240, 100%, 45%, 0) 80%)"
+          gradientSecond="radial-gradient(50% 50% at 50% 50%, hsla(240, 100%, 85%, .06) 0, hsla(240, 100%, 55%, .02) 80%, transparent 100%)"
+          gradientThird="radial-gradient(50% 50% at 50% 50%, hsla(240, 100%, 85%, .04) 0, hsla(240, 100%, 45%, .02) 80%, transparent 100%)"
+          translateY={-300}
+          width={600}
+          height={1200}
+          duration={10}
+        />
+      ) : (
+        <Spotlight
+          gradientFirst="radial-gradient(68.54% 68.72% at 55.02% 31.46%, hsla(240, 100%, 85%, .02) 0, hsla(240, 100%, 55%, .005) 50%, hsla(240, 100%, 45%, 0) 80%)"
+          gradientSecond="radial-gradient(50% 50% at 50% 50%, hsla(240, 100%, 85%, .015) 0, hsla(240, 100%, 55%, .005) 80%, transparent 100%)"
+          gradientThird="radial-gradient(50% 50% at 50% 50%, hsla(240, 100%, 85%, .01) 0, hsla(240, 100%, 45%, .005) 80%, transparent 100%)"
+          translateY={-300}
+          width={600}
+          height={1200}
+          duration={10}
+        />
+      )}
+      
+      {/* 1. Hero Section */}
+      <section className="flex items-center justify-center min-h-[calc(100vh-4rem)] px-4 md:px-6 lg:px-8 max-w-7xl mx-auto relative">
+        <div className="flex flex-col items-center text-center py-16">
           <div className="relative">
             <div className="absolute -top-16 -left-16 w-64 h-64 bg-[#5b5bf7]/10 rounded-full filter blur-3xl opacity-70"></div>
             <div className="absolute -bottom-16 -right-16 w-64 h-64 bg-[#5b5bf7]/10 rounded-full filter blur-3xl opacity-70"></div>
+            
             <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold tracking-tight mb-6 relative z-10">
               Technical interviews are adapting— <br />
               <span className="bg-clip-text text-transparent bg-gradient-to-r from-[#5b5bf7] to-[#7a7aff]">your preparation should too.</span>
@@ -92,23 +144,40 @@ export default function LandingPage() {
             )}
           </div>
           
-          {/* Stats Section */}
+          {/* 2. Stats Section */}
           <div className="mt-4">
             <StatsSection />
           </div>
         </div>
       </section>
 
-      {/* Dashboard Showcase Section */}
-      <section className="py-16 relative z-10 bg-background/80 backdrop-blur-sm">
-        <DashboardShowcase />
+      {/* 3. Feature Showcase with Sticky Scroll */}
+      <section className="relative z-10 bg-background/80 backdrop-blur-sm pb-0">
+        <FeatureShowcase />
       </section>
 
-      {/* Features Section */}
-      <section className="py-24 px-4 md:px-6 lg:px-8 bg-muted/50 relative overflow-hidden">
+      {/* 4. Dashboard Showcase Section */}
+      <section className="pt-0 pb-0 relative z-10 bg-background/80 backdrop-blur-sm">
+        <div className="max-w-7xl mx-auto px-4 md:px-6 lg:px-8 mb-0">
+          <div className="text-center mb-4">
+            <h2 className="text-3xl md:text-4xl font-bold mb-0 bg-clip-text text-transparent bg-gradient-to-r from-[#5b5bf7] to-[#7a7aff]">
+              Mastery-Based Learning Dashboard
+            </h2>
+            <p className="text-lg text-muted-foreground max-w-2xl mx-auto mb-0">
+              Track your progress and visualize your climb up the ladder
+            </p>
+          </div>
+        </div>
+        <DashboardShowcase />
+        {/* Gradient overlay for smooth transition */}
+        <div className="absolute bottom-0 left-0 right-0 h-64 bg-gradient-to-t from-muted/50 to-transparent pointer-events-none"></div>
+      </section>
+
+      {/* 5. Why CodeLadder? - Features Section with Rotating Cards */}
+      <section className="-mt-96 md:-mt-120 pt-16 pb-16 px-4 md:px-6 lg:px-8 bg-muted/50 relative overflow-hidden z-20">
         <div className="absolute inset-0 bg-gradient-to-b from-transparent to-background/20 pointer-events-none"></div>
         <div className="max-w-7xl mx-auto relative z-10">
-          <div className="text-center mb-16">
+          <div className="text-center mb-10">
             <h2 className="text-4xl font-bold mb-4 bg-clip-text text-transparent bg-gradient-to-r from-[#5b5bf7] to-[#7a7aff]">Why CodeLadder?</h2>
             <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
               The technical interview is changing with the development of AI-tools. We are getting ahead, saving hours by prioritizing only the most important skills to crack the coding interview.
@@ -120,12 +189,12 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* Company Logos Section - Wrapped with custom spacing */}
-      <div className="py-16">
+      {/* 6. Company Logos Section */}
+      <div className="py-10">
         <CompanyLogos />
       </div>
 
-      {/* Enhanced CTA Section */}
+      {/* 7. Enhanced CTA Section - Level up your interview skills */}
       <section className="pb-24 pt-8 px-4 md:px-6 lg:px-8 max-w-7xl mx-auto relative z-10">
         <div className="bg-gradient-to-br from-[#5b5bf7]/10 via-[#6e6ef8]/5 to-[#5b5bf7]/10 border border-[#5b5bf7]/20 rounded-2xl overflow-hidden relative">
           {/* Background elements */}
