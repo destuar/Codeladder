@@ -13,11 +13,11 @@ export function DashboardShowcase() {
   const dashboardImage = new URL('../images/screenshot of dashboard.png', import.meta.url).href;
   
   return (
-    <div className="flex flex-col overflow-hidden">
+    <div className="flex flex-col overflow-hidden -mt-8">
       <ContainerScroll
         titleComponent={
-          <h1 className="text-3xl font-bold text-center mb-8">
-            Structured <span className="text-primary">Learning Path</span> for DSA Mastery
+          <h1 className="text-3xl font-bold text-center mb-6">
+            <span className="text-primary">Track Your Progress</span> on the Leveling Dashboard
           </h1>
         }
       >
@@ -35,23 +35,23 @@ export function DashboardShowcase() {
           
           {/* Feature Cards */}
           <Card className="bg-white dark:bg-black overflow-hidden border border-neutral-200 dark:border-white/[0.1] shadow-xl rounded-xl p-6">
-            <h3 className="text-xl font-semibold mb-2">Progressive Levels</h3>
+            <h3 className="text-xl font-semibold mb-2">Learn with Custom Coding Problems</h3>
             <p className="text-neutral-600 dark:text-neutral-300">
-              Advance through carefully designed levels that build upon each other, ensuring a solid foundation.
+              Practice with tailored coding challenges designed to build your skills progressively.
             </p>
           </Card>
           
           <Card className="bg-white dark:bg-black overflow-hidden border border-neutral-200 dark:border-white/[0.1] shadow-xl rounded-xl p-6">
-            <h3 className="text-xl font-semibold mb-2">Topic-Based Learning</h3>
+            <h3 className="text-xl font-semibold mb-2">Complete Leveling Assessments to Unlock</h3>
             <p className="text-neutral-600 dark:text-neutral-300">
-              Each level contains focused topics like Arrays, Hashing, and Linked Lists to master core concepts.
+              Test your knowledge with comprehensive assessments that unlock new content as you advance.
             </p>
           </Card>
           
           <Card className="bg-white dark:bg-black overflow-hidden border border-neutral-200 dark:border-white/[0.1] shadow-xl rounded-xl p-6">
-            <h3 className="text-xl font-semibold mb-2">Progress Tracking</h3>
+            <h3 className="text-xl font-semibold mb-2">Spaced Repetition Practice Problems</h3>
             <p className="text-neutral-600 dark:text-neutral-300">
-              Monitor your learning journey with visual progress indicators for each topic and level.
+              Reinforce your learning with scientifically-proven spaced repetition techniques for long-term retention.
             </p>
           </Card>
         </div>

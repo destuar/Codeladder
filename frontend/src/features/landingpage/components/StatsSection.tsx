@@ -9,33 +9,33 @@ import { Trophy, Rocket, CheckCircle } from 'lucide-react';
  */
 export function StatsSection() {
   return (
-    <div className="w-full max-w-4xl mx-auto mt-16">
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-8 text-center">
+    <div className="w-full max-w-4xl mx-auto mt-24">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
         {/* Custom Levels Stat */}
         <div className="flex flex-col items-center">
-          <div className="mb-4">
-            <Trophy className="h-12 w-12 text-primary" />
+          <div className="flex items-center justify-center">
+            <Trophy className="h-8 w-8 text-primary mr-3" />
+            <span className="text-3xl font-bold text-foreground">7</span>
           </div>
-          <h3 className="text-4xl font-bold text-foreground">7</h3>
-          <p className="text-xl text-muted-foreground">Custom Levels</p>
+          <p className="text-lg text-muted-foreground mt-1">Custom Levels</p>
         </div>
 
         {/* DSA Topics Stat */}
         <div className="flex flex-col items-center">
-          <div className="mb-4">
-            <Rocket className="h-12 w-12 text-primary" />
+          <div className="flex items-center justify-center">
+            <Rocket className="h-8 w-8 text-primary mr-3" />
+            <span className="text-3xl font-bold text-foreground">15+</span>
           </div>
-          <h3 className="text-4xl font-bold text-foreground">15+</h3>
-          <p className="text-xl text-muted-foreground">DSA Topics</p>
+          <p className="text-lg text-muted-foreground mt-1">DSA Topics</p>
         </div>
 
         {/* Learning Efficiency Stat */}
         <div className="flex flex-col items-center">
-          <div className="mb-4">
-            <CheckCircle className="h-12 w-12 text-primary" />
+          <div className="flex items-center justify-center">
+            <CheckCircle className="h-8 w-8 text-primary mr-3" />
+            <span className="text-3xl font-bold text-foreground">70%</span>
           </div>
-          <h3 className="text-4xl font-bold text-foreground">3x</h3>
-          <p className="text-xl text-muted-foreground">Learning Efficiency</p>
+          <p className="text-lg text-muted-foreground mt-1">Better Retention</p>
         </div>
       </div>
     </div>
