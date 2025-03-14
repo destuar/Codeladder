@@ -78,12 +78,33 @@ module.exports = {
           from: { height: "var(--radix-collapsible-content-height)" },
           to: { height: "0" },
         },
+        scroll: {
+          to: {
+            transform: "translate(calc(-50% - 0.5rem))",
+          },
+        },
+        marquee: {
+          '0%': { transform: 'translateX(0%)' },
+          '100%': { transform: 'translateX(-100%)' }
+        },
+        'marquee-reverse': {
+          '0%': { transform: 'translateX(-100%)' },
+          '100%': { transform: 'translateX(0%)' }
+        },
+        'bounce-subtle': {
+          '0%, 100%': { transform: 'translateX(0)' },
+          '50%': { transform: 'translateX(4px)' }
+        }
       },
       animation: {
         "accordion-down": "accordion-down 0.2s ease-out",
         "accordion-up": "accordion-up 0.2s ease-out",
         "collapsible-down": "collapsible-down 0.2s ease-out",
         "collapsible-up": "collapsible-up 0.2s ease-out",
+        scroll: "scroll var(--animation-duration, 40s) var(--animation-direction, forwards) linear infinite",
+        marquee: 'marquee 60s linear infinite',
+        'marquee-reverse': 'marquee-reverse 60s linear infinite',
+        'bounce-subtle': 'bounce-subtle 1.5s ease-in-out infinite'
       },
     },
   },

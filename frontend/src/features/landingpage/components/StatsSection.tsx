@@ -9,33 +9,33 @@ import { Trophy, Rocket, CheckCircle } from 'lucide-react';
  */
 export function StatsSection() {
   return (
-    <div className="w-full max-w-4xl mx-auto mt-24">
+    <div className="w-full max-w-4xl mx-auto">
       <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
         {/* Custom Levels Stat */}
         <div className="flex flex-col items-center">
           <div className="flex items-center justify-center">
-            <Trophy className="h-8 w-8 text-primary mr-3" />
-            <span className="text-3xl font-bold text-foreground">7</span>
+            <Trophy className="h-8 w-8 text-primary/70 mr-3" />
+            <span className="text-3xl font-bold text-foreground/70">7</span>
           </div>
-          <p className="text-lg text-muted-foreground mt-1">Custom Levels</p>
+          <p className="text-lg text-muted-foreground/90 mt-1">Custom Levels</p>
         </div>
 
         {/* DSA Topics Stat */}
         <div className="flex flex-col items-center">
           <div className="flex items-center justify-center">
-            <Rocket className="h-8 w-8 text-primary mr-3" />
-            <span className="text-3xl font-bold text-foreground">15+</span>
+            <Rocket className="h-8 w-8 text-primary/70 mr-3" />
+            <span className="text-3xl font-bold text-foreground/70">15+</span>
           </div>
-          <p className="text-lg text-muted-foreground mt-1">DSA Topics</p>
+          <p className="text-lg text-muted-foreground/90 mt-1">DSA Topics</p>
         </div>
 
         {/* Learning Efficiency Stat */}
         <div className="flex flex-col items-center">
           <div className="flex items-center justify-center">
-            <CheckCircle className="h-8 w-8 text-primary mr-3" />
-            <span className="text-3xl font-bold text-foreground">70%</span>
+            <CheckCircle className="h-8 w-8 text-primary/70 mr-3" />
+            <span className="text-3xl font-bold text-foreground/70">70%</span>
           </div>
-          <p className="text-lg text-muted-foreground mt-1">Better Retention</p>
+          <p className="text-lg text-muted-foreground/90 mt-1">Better Retention</p>
         </div>
       </div>
     </div>

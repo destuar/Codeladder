@@ -13,15 +13,15 @@ export function DashboardShowcase() {
   const dashboardImage = new URL('../images/screenshot of dashboard.png', import.meta.url).href;
   
   return (
-    <div className="flex flex-col overflow-hidden -mt-8">
+    <div className="flex flex-col overflow-hidden -mt-8 pb-0">
       <ContainerScroll
         titleComponent={
-          <h1 className="text-3xl font-bold text-center mb-6">
-            <span className="text-primary">Track Your Progress</span> on the Leveling Dashboard
+          <h1 className="text-3xl font-bold text-center mb-4">
+            <span className="text-primary">Track Your Progress</span> on the Learning Dashboard
           </h1>
         }
       >
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 px-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 px-4 mb-0">
           {/* Main Dashboard Card */}
           <div className="col-span-1 md:col-span-2 lg:col-span-3">
             <Card className="bg-white dark:bg-black overflow-hidden border border-neutral-200 dark:border-white/[0.1] shadow-xl rounded-xl p-4">
