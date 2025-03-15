@@ -20,6 +20,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useAuth } from "@/features/auth/AuthContext";
 import { Link } from "react-router-dom";
 import { Badge } from "@/components/ui/badge";
+import { cn } from "@/lib/utils";
 
 type ProblemDifficulty = 'EASY_IIII' | 'EASY_III' | 'EASY_II' | 'EASY_I' | 'MEDIUM' | 'HARD';
 type ProblemType = 'INFO' | 'CODING';
@@ -91,6 +92,48 @@ const updateProblem = (problem: Problem, updates: Partial<Problem>): Problem => 
   content: updates.content ?? problem.content ?? "",
   reqOrder: updates.reqOrder ?? problem.reqOrder ?? 1
 });
+
+/**
+ * Displays a badge for a problem collection with appropriate styling
+ */
+function CollectionBadge({ collection }: { collection: ProblemCollection }) {
+  const getColor = () => {
+    switch (collection) {
+      case 'PROBLEMS_LIST':
+        return 'bg-blue-500/15 text-blue-600 hover:bg-blue-500/25 border-blue-500/20';
+      case 'LEETCODE_100':
+        return 'bg-purple-500/15 text-purple-600 hover:bg-purple-500/25 border-purple-500/20';
+      case 'CODELADDER_150':
+        return 'bg-orange-500/15 text-orange-600 hover:bg-orange-500/25 border-orange-500/20';
+      case 'NONE':
+      default:
+        return 'bg-gray-500/15 text-gray-600 hover:bg-gray-500/25 border-gray-500/20';
+    }
+  };
+
+  const getLabel = () => {
+    switch (collection) {
+      case 'PROBLEMS_LIST':
+        return 'PL';
+      case 'LEETCODE_100':
+        return 'LC100';
+      case 'CODELADDER_150':
+        return 'CL150';
+      case 'NONE':
+      default:
+        return 'NONE';
+    }
+  };
+
+  return (
+    <Badge 
+      variant="outline" 
+      className={cn("font-medium transition-colors text-xs ml-1", getColor())}
+    >
+      {getLabel()}
+    </Badge>
+  );
+}
 
 export function LearningPathAdmin() {
   const { token } = useAuth();
@@ -621,6 +664,13 @@ export function LearningPathAdmin() {
                                       {problem.required ? `REQ ${problem.reqOrder}` : `OPT ${problem.reqOrder}`}
                                     </Badge>
                                     {problem.difficulty} • {problem.problemType}
+                                    {problem.collection && problem.collection.length > 0 && (
+                                      <span className="ml-2 inline-flex items-center">
+                                        {problem.collection.map((col) => (
+                                          <CollectionBadge key={col} collection={col as ProblemCollection} />
+                                        ))}
+                                      </span>
+                                    )}
                                   </span>
                                 </div>
                               </div>
