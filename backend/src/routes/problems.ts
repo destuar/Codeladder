@@ -2,7 +2,7 @@ import express from 'express';
 import { prisma } from '../lib/prisma';
 import { authenticateToken } from '../middleware/auth';
 import { authorizeRoles } from '../middleware/authorize';
-import { Prisma, Role, ProblemType } from '@prisma/client';
+import { Prisma, Role, ProblemType, ProblemCollection } from '@prisma/client';
 import type { RequestHandler } from 'express-serve-static-core';
 
 // Define the request body types
@@ -13,6 +13,7 @@ interface CreateProblemBody {
   required?: boolean;
   reqOrder?: number;
   problemType?: ProblemType;
+  collection?: ProblemCollection[];
   codeTemplate?: string;
   testCases?: string;
   topicId?: string;
@@ -26,6 +27,7 @@ interface UpdateProblemBody {
   required?: boolean;
   reqOrder?: number;
   problemType?: ProblemType;
+  collection?: ProblemCollection[];
   codeTemplate?: string;
   testCases?: string;
   estimatedTime?: string | number;
@@ -109,6 +111,7 @@ router.get('/', authenticateToken, (async (req, res) => {
         required: true,
         reqOrder: true,
         problemType: true,
+        collection: true,
         codeTemplate: true,
         testCases: true,
         estimatedTime: true,
@@ -158,6 +161,7 @@ router.post('/', authenticateToken, authorizeRoles([Role.ADMIN, Role.DEVELOPER])
       required = false,
       reqOrder,
       problemType = 'INFO' as const,
+      collection,
       codeTemplate,
       testCases,
       topicId,
@@ -171,6 +175,7 @@ router.post('/', authenticateToken, authorizeRoles([Role.ADMIN, Role.DEVELOPER])
       required,
       reqOrder,
       problemType,
+      collection,
       codeTemplate,
       testCases,
       topicId,
@@ -220,6 +225,7 @@ router.post('/', authenticateToken, authorizeRoles([Role.ADMIN, Role.DEVELOPER])
         required,
         reqOrder,
         problemType,
+        collection,
         codeTemplate,
         testCases: testCases ? JSON.parse(testCases) : undefined,
         estimatedTime: parsedEstimatedTime,
@@ -249,6 +255,7 @@ router.put('/:problemId', authenticateToken, authorizeRoles([Role.ADMIN, Role.DE
       required = false,
       reqOrder,
       problemType,
+      collection,
       codeTemplate,
       testCases,
       estimatedTime
@@ -307,6 +314,7 @@ router.put('/:problemId', authenticateToken, authorizeRoles([Role.ADMIN, Role.DE
         required,
         reqOrder,
         ...(problemType && { problemType: problemType }),
+        ...(collection !== undefined && { collection }),
         ...(codeTemplate !== undefined && { codeTemplate }),
         ...(testCases !== undefined && { testCases: parsedTestCases }),
         ...(estimatedTime !== undefined && { estimatedTime: parsedEstimatedTime })

@@ -70,6 +70,13 @@ enum ProblemType {
   STANDALONE_INFO
 }
 
+enum ProblemCollection {
+  NONE
+  PROBLEMS_LIST
+  LEETCODE_100
+  CODELADDER_150
+}
+
 model Problem {
   id          String    @id @default(cuid())
   name        String
@@ -87,6 +94,7 @@ model Problem {
   topicId     String?   // Make topicId optional for standalone info
   completedBy User[]    @relation("UserCompletedProblems")
   progress    Progress[]
+  collection  ProblemCollection[] // Note the array notation
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
 

@@ -23,6 +23,7 @@ import { Badge } from "@/components/ui/badge";
 
 type ProblemDifficulty = 'EASY_IIII' | 'EASY_III' | 'EASY_II' | 'EASY_I' | 'MEDIUM' | 'HARD';
 type ProblemType = 'INFO' | 'CODING';
+type ProblemCollection = 'NONE' | 'PROBLEMS_LIST' | 'LEETCODE_100' | 'CODELADDER_150';
 
 type NewLevel = {
   name: string;
@@ -44,6 +45,7 @@ type NewProblem = {
   required: boolean;
   reqOrder: number;
   problemType: ProblemType;
+  collection: ProblemCollection[];
   codeTemplate?: string;
   testCases?: string;
   estimatedTime?: number;
@@ -61,6 +63,7 @@ type ProblemData = {
   required: boolean;
   reqOrder: number;
   problemType: ProblemType;
+  collection: ProblemCollection[];
   topicId: string;
   codeTemplate?: string;
   testCases?: string;
@@ -123,6 +126,7 @@ export function LearningPathAdmin() {
     required: false,
     reqOrder: 1,
     problemType: "INFO",
+    collection: [],
     codeTemplate: "",
     testCases: "",
     estimatedTime: undefined
@@ -226,6 +230,7 @@ export function LearningPathAdmin() {
         required: newProblem.required,
         reqOrder: newProblem.reqOrder,
         problemType: newProblem.problemType,
+        collection: newProblem.collection,
         topicId: selectedTopic.id,
         ...(newProblem.estimatedTime ? { estimatedTime: newProblem.estimatedTime } : {})
       };
@@ -257,6 +262,7 @@ export function LearningPathAdmin() {
         required: false,
         reqOrder: 1,
         problemType: "INFO",
+        collection: [],
         codeTemplate: "",
         testCases: "",
         estimatedTime: undefined
@@ -277,6 +283,9 @@ export function LearningPathAdmin() {
   const handleEditProblem = async () => {
     if (!selectedProblem) return;
     try {
+      // Ensure collection is always an array, even if it's undefined in the selectedProblem
+      const collection = selectedProblem.collection || [];
+      
       const updatedProblem = {
         name: selectedProblem.name,
         content: selectedProblem.content || "",
@@ -284,12 +293,15 @@ export function LearningPathAdmin() {
         required: selectedProblem.required,
         reqOrder: selectedProblem.reqOrder || 1,
         problemType: selectedProblem.problemType,
+        collection, // Always include the collection field
         ...(selectedProblem.problemType === 'CODING' ? {
           codeTemplate: selectedProblem.codeTemplate,
           testCases: selectedProblem.testCases
         } : {}),
         ...(selectedProblem.estimatedTime ? { estimatedTime: selectedProblem.estimatedTime } : {})
       };
+      
+      console.log('Updating problem with data:', updatedProblem);
       await api.put(`/problems/${selectedProblem.id}`, updatedProblem, token);
       setIsEditingProblem(false);
       setSelectedProblem(null);
@@ -880,6 +892,78 @@ export function LearningPathAdmin() {
                 </SelectContent>
               </Select>
             </div>
+            
+            <div className="grid gap-2">
+              <Label htmlFor="collection">Collections (Optional)</Label>
+              <div className="space-y-2 border rounded-md p-3">
+                <div className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    id="collection-problems-list"
+                    checked={newProblem.collection.includes('PROBLEMS_LIST')}
+                    onChange={(e) => {
+                      if (e.target.checked) {
+                        setNewProblem(prev => ({
+                          ...prev,
+                          collection: [...prev.collection, 'PROBLEMS_LIST']
+                        }));
+                      } else {
+                        setNewProblem(prev => ({
+                          ...prev,
+                          collection: prev.collection.filter(c => c !== 'PROBLEMS_LIST')
+                        }));
+                      }
+                    }}
+                  />
+                  <Label htmlFor="collection-problems-list">Problems List</Label>
+                </div>
+                
+                <div className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    id="collection-leetcode-100"
+                    checked={newProblem.collection.includes('LEETCODE_100')}
+                    onChange={(e) => {
+                      if (e.target.checked) {
+                        setNewProblem(prev => ({
+                          ...prev,
+                          collection: [...prev.collection, 'LEETCODE_100']
+                        }));
+                      } else {
+                        setNewProblem(prev => ({
+                          ...prev,
+                          collection: prev.collection.filter(c => c !== 'LEETCODE_100')
+                        }));
+                      }
+                    }}
+                  />
+                  <Label htmlFor="collection-leetcode-100">LeetCode 100</Label>
+                </div>
+                
+                <div className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    id="collection-codeladder-150"
+                    checked={newProblem.collection.includes('CODELADDER_150')}
+                    onChange={(e) => {
+                      if (e.target.checked) {
+                        setNewProblem(prev => ({
+                          ...prev,
+                          collection: [...prev.collection, 'CODELADDER_150']
+                        }));
+                      } else {
+                        setNewProblem(prev => ({
+                          ...prev,
+                          collection: prev.collection.filter(c => c !== 'CODELADDER_150')
+                        }));
+                      }
+                    }}
+                  />
+                  <Label htmlFor="collection-codeladder-150">CodeLadder 150</Label>
+                </div>
+              </div>
+            </div>
+            
             {newProblem.problemType === 'CODING' && (
               <>
                 <div className="grid gap-2">
@@ -1028,6 +1112,87 @@ export function LearningPathAdmin() {
                 min={1}
               />
             </div>
+            
+            <div className="grid gap-2">
+              <Label htmlFor="edit-problem-collection">Collections (Optional)</Label>
+              <div className="space-y-2 border rounded-md p-3">
+                <div className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    id="edit-collection-problems-list"
+                    checked={selectedProblem?.collection?.includes('PROBLEMS_LIST') || false}
+                    onChange={(e) => {
+                      if (!selectedProblem) return;
+                      
+                      const currentCollections = selectedProblem.collection || [];
+                      let newCollections: string[];
+                      
+                      if (e.target.checked) {
+                        newCollections = [...currentCollections, 'PROBLEMS_LIST'];
+                      } else {
+                        newCollections = currentCollections.filter(c => c !== 'PROBLEMS_LIST');
+                      }
+                      
+                      setSelectedProblem(prev => 
+                        prev ? updateProblem(prev, { collection: newCollections }) : null
+                      );
+                    }}
+                  />
+                  <Label htmlFor="edit-collection-problems-list">Problems List</Label>
+                </div>
+                
+                <div className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    id="edit-collection-leetcode-100"
+                    checked={selectedProblem?.collection?.includes('LEETCODE_100') || false}
+                    onChange={(e) => {
+                      if (!selectedProblem) return;
+                      
+                      const currentCollections = selectedProblem.collection || [];
+                      let newCollections: string[];
+                      
+                      if (e.target.checked) {
+                        newCollections = [...currentCollections, 'LEETCODE_100'];
+                      } else {
+                        newCollections = currentCollections.filter(c => c !== 'LEETCODE_100');
+                      }
+                      
+                      setSelectedProblem(prev => 
+                        prev ? updateProblem(prev, { collection: newCollections }) : null
+                      );
+                    }}
+                  />
+                  <Label htmlFor="edit-collection-leetcode-100">LeetCode 100</Label>
+                </div>
+                
+                <div className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    id="edit-collection-codeladder-150"
+                    checked={selectedProblem?.collection?.includes('CODELADDER_150') || false}
+                    onChange={(e) => {
+                      if (!selectedProblem) return;
+                      
+                      const currentCollections = selectedProblem.collection || [];
+                      let newCollections: string[];
+                      
+                      if (e.target.checked) {
+                        newCollections = [...currentCollections, 'CODELADDER_150'];
+                      } else {
+                        newCollections = currentCollections.filter(c => c !== 'CODELADDER_150');
+                      }
+                      
+                      setSelectedProblem(prev => 
+                        prev ? updateProblem(prev, { collection: newCollections }) : null
+                      );
+                    }}
+                  />
+                  <Label htmlFor="edit-collection-codeladder-150">CodeLadder 150</Label>
+                </div>
+              </div>
+            </div>
+            
             <div className="grid gap-2">
               <Label htmlFor="edit-problem-estimatedTime">Estimated Time (minutes)</Label>
               <Input

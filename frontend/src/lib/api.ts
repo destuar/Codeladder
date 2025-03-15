@@ -177,6 +177,7 @@ export const api = {
   },
 
   async post(endpoint: string, data: any, token?: string | null) {
+    debug.log(`API POST request to ${endpoint}`, data);
     return request(endpoint, {
       method: 'POST',
       token,
