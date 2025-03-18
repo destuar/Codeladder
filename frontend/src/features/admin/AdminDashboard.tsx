@@ -19,6 +19,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { LearningPathAdmin } from "./components/LearningPathAdmin";
 import { StandaloneInfoAdmin } from "./components/StandaloneInfoAdmin";
 import { ContentMigrationTool } from "./components/ContentMigrationTool";
+import { ProblemListAdmin } from "./components/ProblemListAdmin";
 import { Card } from "@/components/ui/card";
 
 interface AdminData {
@@ -208,6 +209,7 @@ export function AdminDashboard() {
         <Tabs defaultValue="editor" className="space-y-4">
           <TabsList>
             <TabsTrigger value="editor">Learning Path Editor</TabsTrigger>
+            <TabsTrigger value="problem-list">Problem List Editor</TabsTrigger>
             <TabsTrigger value="info">Standalone Info Pages</TabsTrigger>
             <TabsTrigger value="tools">Content Tools</TabsTrigger>
             <TabsTrigger value="preview">User View Preview</TabsTrigger>
@@ -215,6 +217,10 @@ export function AdminDashboard() {
 
           <TabsContent value="editor" className="space-y-4">
             <LearningPathAdmin />
+          </TabsContent>
+
+          <TabsContent value="problem-list" className="space-y-4">
+            <ProblemListAdmin />
           </TabsContent>
 
           <TabsContent value="info" className="space-y-4">
