@@ -1,5 +1,5 @@
 import { Button } from "@/components/ui/button";
-import { Maximize2, Minimize2, CheckCircle2 } from "lucide-react";
+import { Maximize2, Minimize2, CheckCircle2, ChevronRight, ChevronLeft } from "lucide-react";
 import { cn } from '@/lib/utils';
 import { ProblemTimer } from './timer/ProblemTimer';
 
@@ -8,6 +8,9 @@ interface ProblemHeaderProps {
   isFullscreen: boolean;
   onToggleFullscreen: () => void;
   onMarkComplete: () => void;
+  nextProblemId?: string;
+  prevProblemId?: string;
+  onNavigate: (id: string) => void;
 }
 
 /**
@@ -18,6 +21,9 @@ export function ProblemHeader({
   isFullscreen,
   onToggleFullscreen,
   onMarkComplete,
+  nextProblemId,
+  prevProblemId,
+  onNavigate,
 }: ProblemHeaderProps) {
   return (
     <div className="flex justify-between items-center px-6 py-2 border-b">
@@ -44,6 +50,27 @@ export function ProblemHeader({
             )}
           </div>
         </Button>
+        
+        {/* Navigation buttons */}
+        <div className="flex gap-2">
+          <Button
+            variant="outline"
+            onClick={() => prevProblemId && onNavigate(prevProblemId)}
+            disabled={!prevProblemId}
+            className="shadow-sm"
+          >
+            Previous
+          </Button>
+          <Button
+            onClick={() => nextProblemId && onNavigate(nextProblemId)}
+            disabled={!nextProblemId}
+            className="shadow-sm"
+          >
+            <span>Next</span>
+            <ChevronRight className="w-4 h-4 ml-2" />
+          </Button>
+        </div>
+        
         <Button variant="ghost" size="icon" onClick={onToggleFullscreen}>
           {isFullscreen ? (
             <Minimize2 className="h-4 w-4" />

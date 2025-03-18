@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Markdown } from "@/components/ui/markdown";
 import { HtmlContent } from "@/components/ui/html-content";
 import { Button } from "@/components/ui/button";
@@ -51,6 +51,11 @@ const InfoProblem: React.FC<InfoProblemProps> = ({
   const { canAccessAdmin } = useAdmin();
   const queryClient = useQueryClient();
   const [isProblemCompleted, setIsProblemCompleted] = useState(isCompleted);
+
+  // Update the state when problemId or isCompleted changes
+  useEffect(() => {
+    setIsProblemCompleted(isCompleted);
+  }, [problemId, isCompleted]);
 
   const handleMarkAsComplete = async () => {
     // Optimistically update the UI

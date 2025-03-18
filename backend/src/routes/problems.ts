@@ -53,7 +53,8 @@ router.get('/:problemId', authenticateToken, (async (req, res) => {
         progress: {
           where: { userId },
           select: { status: true }
-        }
+        },
+        topic: true // Include the topic to get related problems
       }
     });
 
@@ -61,10 +62,47 @@ router.get('/:problemId', authenticateToken, (async (req, res) => {
       return res.status(404).json({ error: 'Problem not found' });
     }
 
-    // Transform the response to include isCompleted
+    // Find next and previous problems if this problem belongs to a topic
+    let nextProblemId = null;
+    let prevProblemId = null;
+
+    if (problem.topicId) {
+      // Get all problems in the same topic, ordered by reqOrder
+      const topicProblems = await prisma.problem.findMany({
+        where: { 
+          topicId: problem.topicId 
+        },
+        orderBy: { 
+          reqOrder: 'asc' 
+        },
+        select: { 
+          id: true, 
+          reqOrder: true 
+        }
+      });
+
+      // Find the current problem's index in the ordered list
+      const currentIndex = topicProblems.findIndex(p => p.id === problemId);
+      
+      if (currentIndex !== -1) {
+        // Get previous problem if not the first
+        if (currentIndex > 0) {
+          prevProblemId = topicProblems[currentIndex - 1].id;
+        }
+        
+        // Get next problem if not the last
+        if (currentIndex < topicProblems.length - 1) {
+          nextProblemId = topicProblems[currentIndex + 1].id;
+        }
+      }
+    }
+
+    // Transform the response to include isCompleted and navigation IDs
     const response = {
       ...problem,
       isCompleted: problem.completedBy.length > 0 || problem.progress.some(p => p.status === 'COMPLETED'),
+      nextProblemId,
+      prevProblemId,
       completedBy: undefined, // Remove these from the response
       progress: undefined
     };
