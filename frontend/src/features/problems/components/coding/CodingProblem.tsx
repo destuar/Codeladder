@@ -81,6 +81,9 @@ export default function CodingProblem({
         isFullscreen={isFullscreen}
         onToggleFullscreen={() => setIsFullscreen(!isFullscreen)}
         onMarkComplete={handleMarkAsComplete}
+        nextProblemId={nextProblemId}
+        prevProblemId={prevProblemId}
+        onNavigate={onNavigate}
       />
 
       <div className="flex flex-1 min-h-0">

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 import { useAuth } from '@/features/auth/AuthContext';
@@ -18,6 +18,11 @@ export function useProblemCompletion(
   const [isProblemCompleted, setIsProblemCompleted] = useState(initialCompletionState);
   const { token } = useAuth();
   const queryClient = useQueryClient();
+
+  // Update the state when problemId or initialCompletionState changes
+  useEffect(() => {
+    setIsProblemCompleted(initialCompletionState);
+  }, [problemId, initialCompletionState]);
 
   const handleMarkAsComplete = async () => {
     // Optimistically update the UI
