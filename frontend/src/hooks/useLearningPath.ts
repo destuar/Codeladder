@@ -11,7 +11,7 @@ export interface Problem {
   content?: string;
   completed?: boolean;
   problemType: 'INFO' | 'CODING';
-  collection?: string[];
+  collectionIds?: string[];
   codeTemplate?: string;
   testCases?: string;
   estimatedTime?: number;

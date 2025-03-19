@@ -39,6 +39,16 @@ router.get('/levels', authenticateToken, (async (req, res) => {
                 progress: {
                   where: { userId },
                   select: { status: true }
+                },
+                collections: {
+                  include: {
+                    collection: {
+                      select: {
+                        id: true,
+                        name: true
+                      }
+                    }
+                  }
                 }
               }
             },
@@ -47,7 +57,7 @@ router.get('/levels', authenticateToken, (async (req, res) => {
       },
     });
 
-    // Transform the response to include completion status
+    // Transform the response to include completion status and collection IDs
     const transformedLevels = levels.map(level => ({
       ...level,
       topics: level.topics.map(topic => ({
@@ -55,8 +65,10 @@ router.get('/levels', authenticateToken, (async (req, res) => {
         problems: topic.problems.map(problem => ({
           ...problem,
           completed: problem.completedBy.length > 0 || problem.progress.some(p => p.status === 'COMPLETED'),
+          collectionIds: problem.collections.map(pc => pc.collection.id),
           completedBy: undefined,
-          progress: undefined
+          progress: undefined,
+          collections: undefined
         }))
       }))
     }));
