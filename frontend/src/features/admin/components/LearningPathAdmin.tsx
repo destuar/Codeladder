@@ -1,25 +1,18 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { useLearningPath, Level, Topic, Problem } from "@/hooks/useLearningPath";
-import { useState } from "react";
-import { api } from "@/lib/api";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
-import { toast } from "sonner";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { useAuth } from "@/features/auth/AuthContext";
-import { Link } from "react-router-dom";
 import { Badge } from "@/components/ui/badge";
+import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Link } from "react-router-dom";
+import { useAuth } from "@/features/auth/AuthContext";
+import { api } from "@/lib/api";
+import { useLearningPath, Topic, Level, Problem } from "@/hooks/useLearningPath";
+import { toast } from "sonner";
+import { cn } from "@/lib/utils";
+import { useState, useEffect } from "react";
 
 type ProblemDifficulty = 'EASY_IIII' | 'EASY_III' | 'EASY_II' | 'EASY_I' | 'MEDIUM' | 'HARD';
 type ProblemType = 'INFO' | 'CODING';
@@ -44,9 +37,10 @@ type NewProblem = {
   required: boolean;
   reqOrder: number;
   problemType: ProblemType;
-  codeTemplate?: string;
-  testCases?: string;
+  codeTemplate: string;
+  testCases: string;
   estimatedTime?: number;
+  collectionIds: string[];
 };
 
 type DraggedProblem = Problem & {
@@ -65,7 +59,14 @@ type ProblemData = {
   codeTemplate?: string;
   testCases?: string;
   estimatedTime?: number;
+  collectionIds: string[];
 };
+
+interface DynamicCollection {
+  id: string;
+  name: string;
+  description: string | null;
+}
 
 const updateLevel = (level: Level, updates: Partial<Level>): Level => ({
   ...level,
@@ -88,6 +89,66 @@ const updateProblem = (problem: Problem, updates: Partial<Problem>): Problem => 
   content: updates.content ?? problem.content ?? "",
   reqOrder: updates.reqOrder ?? problem.reqOrder ?? 1
 });
+
+/**
+ * Displays a badge for a problem collection with appropriate styling
+ */
+function CollectionBadge({ 
+  collectionId, 
+  collectionsData 
+}: { 
+  collectionId: string; 
+  collectionsData: DynamicCollection[] 
+}) {
+  // Get collection info based on ID
+  const collectionInfo = collectionsData.find(c => c.id === collectionId);
+    
+  if (!collectionInfo) return null;
+  
+  // Generate a consistent color based on the collection name
+  const getColorFromName = (name: string) => {
+    // Simple hash function to derive a number from a string
+    const hash = name.split('').reduce((acc, char) => {
+      return acc + char.charCodeAt(0);
+    }, 0);
+    
+    // Use the hash to select from a predefined set of colors
+    const colors = [
+      'bg-blue-500/15 text-blue-600 hover:bg-blue-500/25 border-blue-500/20',
+      'bg-purple-500/15 text-purple-600 hover:bg-purple-500/25 border-purple-500/20',
+      'bg-orange-500/15 text-orange-600 hover:bg-orange-500/25 border-orange-500/20',
+      'bg-green-500/15 text-green-600 hover:bg-green-500/25 border-green-500/20',
+      'bg-red-500/15 text-red-600 hover:bg-red-500/25 border-red-500/20',
+      'bg-teal-500/15 text-teal-600 hover:bg-teal-500/25 border-teal-500/20',
+      'bg-indigo-500/15 text-indigo-600 hover:bg-indigo-500/25 border-indigo-500/20',
+      'bg-pink-500/15 text-pink-600 hover:bg-pink-500/25 border-pink-500/20',
+    ];
+    
+    return colors[hash % colors.length];
+  };
+
+  // Generate a short label (first letter of each word or first 2-3 letters)
+  const getShortLabel = (name: string) => {
+    const words = name.split(' ');
+    if (words.length > 1) {
+      // Use first letter of each word for multi-word names
+      return words.map(word => word[0]).join('').toUpperCase();
+    } else {
+      // Use first 2-3 letters for single-word names
+      return name.slice(0, Math.min(3, name.length)).toUpperCase();
+    }
+  };
+
+  return (
+    <Badge 
+      variant="outline" 
+      className={cn("font-medium transition-colors text-xs ml-1", getColorFromName(collectionInfo.name))}
+      title={collectionInfo.name} // Add title for full name on hover
+    >
+      {getShortLabel(collectionInfo.name)}
+    </Badge>
+  );
+}
 
 export function LearningPathAdmin() {
   const { token } = useAuth();
@@ -125,11 +186,33 @@ export function LearningPathAdmin() {
     problemType: "INFO",
     codeTemplate: "",
     testCases: "",
-    estimatedTime: undefined
+    estimatedTime: undefined,
+    collectionIds: []
   });
 
   const [isDragging, setIsDragging] = useState(false);
   const [draggedProblem, setDraggedProblem] = useState<DraggedProblem | null>(null);
+
+  const [collections, setCollections] = useState<DynamicCollection[]>([]);
+  const [loadingCollections, setLoadingCollections] = useState(false);
+
+  useEffect(() => {
+    const fetchCollections = async () => {
+      if (!token) return;
+      
+      setLoadingCollections(true);
+      try {
+        const data = await api.get("/admin/collections", token);
+        setCollections(data);
+      } catch (error) {
+        console.error("Error fetching collections:", error);
+      } finally {
+        setLoadingCollections(false);
+      }
+    };
+    
+    fetchCollections();
+  }, [token]);
 
   const handleAddLevel = async () => {
     try {
@@ -218,8 +301,8 @@ export function LearningPathAdmin() {
   const handleAddProblem = async () => {
     if (!selectedTopic) return;
     try {
-      // Base problem data without coding-specific fields
-      const problemData: ProblemData = {
+      // Create problem with necessary data
+      const problemData = {
         name: newProblem.name,
         content: newProblem.content,
         difficulty: newProblem.difficulty,
@@ -227,41 +310,31 @@ export function LearningPathAdmin() {
         reqOrder: newProblem.reqOrder,
         problemType: newProblem.problemType,
         topicId: selectedTopic.id,
+        collectionIds: newProblem.collectionIds,
+        ...(newProblem.problemType === 'CODING' ? {
+          codeTemplate: newProblem.codeTemplate,
+          testCases: newProblem.testCases
+        } : {}),
         ...(newProblem.estimatedTime ? { estimatedTime: newProblem.estimatedTime } : {})
       };
-
-      // Add coding-specific fields only if it's a coding problem
-      if (newProblem.problemType === 'CODING') {
-        if (newProblem.codeTemplate) {
-          problemData.codeTemplate = newProblem.codeTemplate;
-        }
-
-        if (newProblem.testCases && newProblem.testCases.trim() !== '') {
-          try {
-            const testCasesObj = JSON.parse(newProblem.testCases);
-            problemData.testCases = JSON.stringify(testCasesObj);
-          } catch (e) {
-            console.error('Error parsing test cases:', e);
-            toast.error('Invalid test cases JSON format');
-            return;
-          }
-        }
-      }
-
-      await api.post('/problems', problemData, token);
+      
+      await api.post("/problems", problemData, token);
       setIsAddingProblem(false);
-      setNewProblem({ 
-        name: "", 
-        content: "", 
+      
+      // Reset form state
+      setNewProblem({
+        name: "",
+        content: "",
         difficulty: "EASY_I",
         required: false,
         reqOrder: 1,
         problemType: "INFO",
         codeTemplate: "",
         testCases: "",
-        estimatedTime: undefined
+        estimatedTime: undefined,
+        collectionIds: []
       });
-      setSelectedTopic(null);
+      
       toast.success("Problem added successfully");
       refresh();
     } catch (err) {
@@ -288,8 +361,11 @@ export function LearningPathAdmin() {
           codeTemplate: selectedProblem.codeTemplate,
           testCases: selectedProblem.testCases
         } : {}),
-        ...(selectedProblem.estimatedTime ? { estimatedTime: selectedProblem.estimatedTime } : {})
+        ...(selectedProblem.estimatedTime ? { estimatedTime: selectedProblem.estimatedTime } : {}),
+        collectionIds: selectedProblem.collectionIds || [],
       };
+      
+      console.log('Updating problem with data:', updatedProblem);
       await api.put(`/problems/${selectedProblem.id}`, updatedProblem, token);
       setIsEditingProblem(false);
       setSelectedProblem(null);
@@ -609,6 +685,18 @@ export function LearningPathAdmin() {
                                       {problem.required ? `REQ ${problem.reqOrder}` : `OPT ${problem.reqOrder}`}
                                     </Badge>
                                     {problem.difficulty} • {problem.problemType}
+                                    {/* Display badges for both old enum collections and new dynamic collections */}
+                                    <span className="ml-2 inline-flex items-center">
+                                      {problem.collectionIds && problem.collectionIds.length > 0 && (
+                                        problem.collectionIds.map((colId) => (
+                                          <CollectionBadge 
+                                            key={`collection-${colId}`} 
+                                            collectionId={colId} 
+                                            collectionsData={collections}
+                                          />
+                                        ))
+                                      )}
+                                    </span>
                                   </span>
                                 </div>
                               </div>
@@ -880,6 +968,42 @@ export function LearningPathAdmin() {
                 </SelectContent>
               </Select>
             </div>
+            
+            <div className="grid gap-2">
+              <Label htmlFor="collectionIds">Collections (Optional)</Label>
+              <div className="space-y-2 border rounded-md p-3">
+                {loadingCollections ? (
+                  <div className="py-2 text-center text-muted-foreground">Loading collections...</div>
+                ) : collections.length === 0 ? (
+                  <div className="py-2 text-center text-muted-foreground">No collections found</div>
+                ) : (
+                  collections.map(collection => (
+                    <div key={collection.id} className="flex items-center gap-2">
+                      <input
+                        type="checkbox"
+                        id={`collection-${collection.id}`}
+                        checked={newProblem.collectionIds?.includes(collection.id) || false}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            setNewProblem(prev => ({
+                              ...prev,
+                              collectionIds: [...(prev.collectionIds || []), collection.id]
+                            }));
+                          } else {
+                            setNewProblem(prev => ({
+                              ...prev,
+                              collectionIds: (prev.collectionIds || []).filter(id => id !== collection.id)
+                            }));
+                          }
+                        }}
+                      />
+                      <Label htmlFor={`collection-${collection.id}`}>{collection.name}</Label>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+            
             {newProblem.problemType === 'CODING' && (
               <>
                 <div className="grid gap-2">
@@ -1028,6 +1152,45 @@ export function LearningPathAdmin() {
                 min={1}
               />
             </div>
+            
+            <div className="grid gap-2">
+              <Label htmlFor="edit-problem-collectionIds">Collections (Optional)</Label>
+              <div className="space-y-2 border rounded-md p-3">
+                {loadingCollections ? (
+                  <div className="py-2 text-center text-muted-foreground">Loading collections...</div>
+                ) : collections.length === 0 ? (
+                  <div className="py-2 text-center text-muted-foreground">No collections found</div>
+                ) : (
+                  collections.map(collection => (
+                    <div key={collection.id} className="flex items-center gap-2">
+                      <input
+                        type="checkbox"
+                        id={`edit-collection-${collection.id}`}
+                        checked={selectedProblem?.collectionIds?.includes(collection.id) || false}
+                        onChange={(e) => {
+                          if (!selectedProblem) return;
+                          
+                          const currentCollectionIds = selectedProblem.collectionIds || [];
+                          let newCollectionIds: string[];
+                          
+                          if (e.target.checked) {
+                            newCollectionIds = [...currentCollectionIds, collection.id];
+                          } else {
+                            newCollectionIds = currentCollectionIds.filter(id => id !== collection.id);
+                          }
+                          
+                          setSelectedProblem(prev => 
+                            prev ? updateProblem(prev, { collectionIds: newCollectionIds }) : null
+                          );
+                        }}
+                      />
+                      <Label htmlFor={`edit-collection-${collection.id}`}>{collection.name}</Label>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+            
             <div className="grid gap-2">
               <Label htmlFor="edit-problem-estimatedTime">Estimated Time (minutes)</Label>
               <Input

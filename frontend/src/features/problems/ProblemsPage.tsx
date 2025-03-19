@@ -24,6 +24,11 @@ export default function ProblemsPage() {
     navigate(`/problems/${problemId}`);
   };
 
+  // Filter problems to only include those with at least one collection
+  const filteredProblems = problems?.filter(problem => 
+    problem.collection && problem.collection.length > 0
+  ) || [];
+
   if (isLoading) {
     return (
       <div className="container py-8">
@@ -51,9 +56,9 @@ export default function ProblemsPage() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          {problems && problems.length > 0 ? (
+          {filteredProblems.length > 0 ? (
             <ProblemList
-              problems={problems}
+              problems={filteredProblems}
               onProblemStart={handleProblemStart}
               itemsPerPage={50}
               showTopicName={true}

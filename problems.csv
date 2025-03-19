@@ -1,0 +1,1468 @@
+"id","name","description","difficulty","required","reqOrder","content","solution","topicId","createdAt","updatedAt","codeTemplate","problemType","testCases","estimatedTime","collection"
+"cm7a5qgoc0009aooe3217kdfq","Our Guiding Principles",NULL,"EASY_I",True,2,"<div class=""max-w-4xl mx-auto px-4"">
+  <!-- Our Guiding Principles Section -->
+  <h2 class=""text-2xl font-bold mt-6 mb-3"">
+    <strong>Our Guiding Principles</strong>
+  </h2>
+  <p class=""mb-4"">
+    Our motivation for CodeLadder is built upon three guiding principles: prepare for the next generation of coding interviews, cultivate problem solving intuition, and build future-proof skills. These principles are central to our mission and form the basis of the CodeLadder approach to learning.
+  </p>
+
+  <!-- Prepare for the Next Generation of Coding Interviews -->
+  <h3 class=""text-2xl font-bold mt-6 mb-3"">
+    <strong>Prepare for the Next Generation of Coding Interviews</strong>
+  </h3>
+  <p class=""mb-4"">
+    Technical interviews are evolving rapidly, driven in-part by the widespread adoption of AI tools.
+  </p>
+  <div class=""text-center mb-4"">
+    <img class=""mx-auto"" src=""InterviewCoder.jpg"" alt=""Interview Coder"">
+  </div>
+  <p class=""mb-4"">
+    This shift is challenging traditional programming assessments, prompting companies to rethink how they evaluate technical skills. The future of interviews will prioritize deep intuition, problem-solving skills, and communicated conceptual understanding. Now more than ever, candidates need a new approach to preparing for the technical interview (and it isn’t memorizing LeetCode solutions). With CodeLadder, you will build these necessary skills: intuitive reasoning, strategic thinking, and adaptability to new technical challenges.
+  </p>
+
+  <hr class=""my-8 border-t border-border"">
+
+  <!-- Cultivate Problem Solving Intuition -->
+  <h3 class=""text-2xl font-bold mt-6 mb-3"">
+    <strong>Cultivate Problem Solving Intuition</strong>
+  </h3>
+  <p class=""mb-4"">
+    Problem solving intuition extends far beyond the technical job interview—a strong intuition differentiates outstanding engineers from the average. Those who can quickly adapt and reason through complex or unseen scenarios are also those that climb the career ladder the fastest.
+  </p>
+  <div class=""text-center mb-4"">
+    <img class=""mx-auto"" src=""climbing-career-ladder.jpg"" alt=""Climbing Career Ladder"">
+  </div>
+  <p class=""mb-4"">
+    CodeLadder intentionally develops your problem solving intuition through targeted practice, strategic reasoning exercises, and real-world examples. This intuitive and research-backed approach will both prepare you for interviews and accelerate your career.
+  </p>
+
+  <hr class=""my-8 border-t border-border"">
+
+  <!-- Build Future-Proof Skills -->
+  <h3 class=""text-2xl font-bold mt-6 mb-3"">
+    <strong>Build Future-Proof Skills</strong>
+  </h3>
+  <p class=""mb-4"">
+    Will AI render the analysis of algorithms obsolete? In reality, the opposite is likely true. As computational efficiency scales in line with Moore’s Law, the problems we tackle also grow in size and complexity. An emphasis on larger and larger problems will demand algorithmic efficiency, making an understanding of these concepts increasingly critical.
+  </p>
+  <div class=""text-center mb-4"">
+    <img class=""mx-auto"" src=""complexity-scaling.jpg"" alt=""Complexity Scaling"">
+  </div>
+  <p class=""mb-4"">
+    Learning DSA with CodeLadder equips you with the essential skills to address these expanding problem spaces, ensuring your expertise remains relevant and in demand far into the future.
+  </p>
+
+  <p class=""mb-4"">
+    In the next section, you’ll be introduced to the core concepts behind CodeLadder’s pedagogy, which will give you a better understanding of the structure for this course.
+  </p>
+</div>
+",NULL,"cm7a5qgoc0008aooebxyajkll","2025-02-18 07:23:00.973","2025-03-15 02:50:23.879",NULL,"INFO",NULL,5,"{}"
+"cm7a5qhlo000haooe12uhy98i","Array Basics",NULL,"EASY_II",True,1,"# Introduction to Arrays
+
+Learn what arrays are and how they work.",NULL,"cm7a5qhlo000gaooek2n9htrt","2025-02-18 07:23:02.172","2025-02-18 18:59:21.383",NULL,"INFO",NULL,NULL,"{}"
+"cm7a5qhlo000iaooe7uj9bk7b","Array Reversal",NULL,"EASY_II",True,2,"# Reverse an Array
+
+Implement a function to reverse the elements of an array.",NULL,"cm7a5qhlo000gaooek2n9htrt","2025-02-18 07:23:02.172","2025-03-15 08:18:31.049","function reverseArray(arr) {
+  // Your code here
+}","CODING","[{""input"": [[1, 2, 3]], ""expected"": [3, 2, 1]}]",NULL,"{PROBLEMS_LIST,CODELADDER_150}"
+"cm7a5qi01000laooedchot6o4","Hash Tables Explained",NULL,"MEDIUM",True,1,"# Understanding Hash Tables
+
+Learn the fundamentals of hash tables and hashing functions.",NULL,"cm7a5qi01000kaooelzvkh7eg","2025-02-18 07:23:02.69","2025-02-18 07:23:02.69",NULL,"INFO",NULL,NULL,"{}"
+"cm7a5qidy000oaooeotx4nplc","Linked List Implementation",NULL,"MEDIUM",True,1,"# Implement a Linked List
+
+Create a basic linked list implementation.",NULL,"cm7a5qidy000naooefrwjcata","2025-02-18 07:23:03.19","2025-02-18 07:23:03.19","class LinkedList {
+  // Your code here
+}","CODING","""[{\""input\"":[\""insert 1\"",\""insert 2\""],\""expected\"":\""[1, 2]\""}]""",NULL,"{}"
+"cm7a5td090001aorzw8m5534b","ga",NULL,"EASY_I",False,NULL,"ag",NULL,NULL,"2025-02-18 07:25:16.185","2025-02-18 07:25:16.185",NULL,"STANDALONE_INFO",NULL,NULL,"{}"
+"cm7atq0jt0002aorzeeela9ym","Info test 2",NULL,"EASY_I",False,NULL,"No content",NULL,NULL,"2025-02-18 18:34:30.775","2025-02-18 18:34:30.775",NULL,"STANDALONE_INFO",NULL,12,"{}"
+"cm7avslwh0001aoo0yovms44r","What is CodeLadder.io?",NULL,"EASY_I",True,1,"<div class=""max-w-4xl mx-auto px-4"">
+  <!-- Why CodeLadder Section -->
+  <h2 class=""text-2xl font-bold mt-6 mb-3"">
+    <strong>Why CodeLadder?</strong>
+  </h2>
+  <p class=""mb-4"">
+    AI is changing the way we code. From Co-Pilot to Cursor to Claude Code, new tools release every day that promise increased efficiency, faster workflows, and better code for engineers. Although most AI-tools have yet to fully live up to these expectations, they are surprisingly proficient at competitive programming and LeetCode-style problems.
+  </p>
+  <div class=""text-center mb-4"">
+    <img class=""mx-auto"" src=""example-image-1.jpg"" alt=""Example image"">
+  </div>
+
+  <hr class=""my-8 border-t border-border"">
+
+  <!-- Cracking the Interview Section -->
+  <h2 class=""text-2xl font-bold mt-6 mb-3"">
+    <strong>Cracking the Interview</strong>
+  </h2>
+  <p class=""mb-4"">
+    At many of the top companies, passing a technical interview (especially given the time constraints) seemed to require candidates to know the optimal solution, even before seeing the question. This meant hours and hours of rote memorization for every LeetCode solution in the book. Now, driven by advances in AI tools, a new engineer can solve difficult coding questions optimally, in real time, and with little to no effort.
+  </p>
+  <div class=""text-center mb-4"">
+    <img class=""mx-auto"" src=""example-image-2.jpg"" alt=""Example image"">
+  </div>
+  <p class=""mb-4"">
+    What does this mean for you? Traditional interviewing methods are shifting focus, giving way to assessments that better emphasize <strong>conceptual understanding</strong> and require <strong>demonstrated problem-solving</strong>. Even with this awareness, too many engineers continue to approach interview preparation the same way they would have a decade ago—and we’re here to change that.
+  </p>
+
+  <hr class=""my-8 border-t border-border"">
+
+  <!-- Welcome to Codeladder Section -->
+  <h2 class=""text-2xl font-bold mt-6 mb-3"">
+    <strong>Welcome to Codeladder</strong>
+  </h2>
+  <p class=""mb-4"">
+    Through CodeLadder, we are committed to equipping you with the tools necessary to excel in the technical interview and thrive in your broader career. Our learning approach is specifically designed around new industry expectations, emphasizing skills that we believe differentiate exceptional engineers: intuitive reasoning, strategic adaptability, and problem-solving capabilities.
+  </p>
+  <p class=""mb-4"">
+    In the next section, you’ll be introduced to CodeLadder’s mission, guiding principles, and what you can expect to gain by climbing the ladder.
+  </p>
+</div>
+",NULL,"cm7a5qgoc0008aooebxyajkll","2025-02-18 19:32:31.073","2025-03-15 02:50:23.879",NULL,"INFO",NULL,5,"{}"
+"cm7egdho90008aowp96ko0zyu","Kth Largest Element",NULL,"EASY_I",True,1,"<h2 class=""text-2xl font-bold mt-6 mb-3"">Problem Statement</h2>
+<p class=""mb-4"">Given an integer array, find the <strong>kth largest</strong> element in the array.</p>
+<p class=""mb-4"">Note: It is the kth largest element in the <strong>sorted order</strong>, not the kth distinct element.</p>
+<p class=""mb-4"">Can you solve it <strong>without sorting</strong>?</p>
+<hr class=""border-t border-border my-8 my-8 border-t border-border"" />
+<h3 class=""text-xl font-semibold mt-4 mb-2"">Example 1:</h3>
+<pre class=""mb-4 bg-muted p-4 rounded-md overflow-x-auto mb-4 max-w-full whitespace-pre-wrap break-words""><code class=""language-bash bg-transparent p-0 block whitespace-pre-wrap break-words"">Input: nums = [3,2,1,5,6,4], k = 2
+Output: 5
+</code></pre>
+<h3 class=""text-xl font-semibold mt-4 mb-2"">Example 2:</h3>
+<pre class=""mb-4 bg-muted p-4 rounded-md overflow-x-auto mb-4 max-w-full whitespace-pre-wrap break-words""><code class=""language-bash bg-transparent p-0 block whitespace-pre-wrap break-words"">Input: nums = [3,2,3,1,2,4,5,5,6], k = 4 Output: 4
+</code></pre>
+<hr class=""border-t border-border my-8 my-8 border-t border-border"" />
+<p class=""mb-4""><strong>Constraints:</strong></p>
+<ul class=""list-disc pl-6 mb-4"">
+<li><code class=""px-1 py-0.5 bg-muted rounded-md text-sm"">1 &lt;= k &lt;= nums.length &lt;= 10^5</code></li>
+<li><code class=""px-1 py-0.5 bg-muted rounded-md text-sm"">-10^4 &lt;= nums[i] &lt;= 10^4</code></li>
+</ul>
+",NULL,"cm7a5qj6l0010aooeflmwl4fh","2025-02-21 07:31:56.217","2025-03-12 07:56:55.759","class Solution:
+    def findKthLargest(self, nums: List[int], k: int) -> int:
+        ","CODING","null",40,"{}"
+"cm87syex300006w4aa5h6256m","Review of Our Pedagogy",NULL,"EASY_I",True,3,"<div class=""max-w-4xl mx-auto px-4"">
+  <!-- Review of Our Pedagogy Section -->
+  <h2 class=""text-2xl font-bold mt-6 mb-3"">
+    <strong>Review of Our Pedagogy</strong>
+  </h2>
+  
+  <!-- Mastery-Based Learning -->
+  <h3 class=""text-2xl font-bold mt-6 mb-3"">
+    <strong>Mastery-Based Learning</strong>
+  </h3>
+  <p class=""mb-4"">
+    Educational research shows us that, in order to enhance long-term retention and understanding, learners must consistently reinforce foundational knowledge before advancing to more complex topics. Known as “mastery-based learning”, this idea is integrated into CodeLadder through our prerequisite knowledge checkpoints, called <strong>leveling assessments</strong>, which combines theoretical understanding with practical coding skills.
+  </p>
+  <div class=""text-center mb-4"">
+    <img class=""mx-auto"" src=""dashboard-unlock-diagram.jpg"" alt=""Dashboard Unlock Diagram"">
+  </div>
+  <p class=""mb-4"">
+    Until the leveling assessment for a ladder has been completed, all content within that ladder will remain locked. By progressing through clearly defined levels, you are incentivized to master each foundational concept fully before advancing onwards. These leveling assessments can also be taken at any time, accommodating varying degrees of prior experience and allowing you to “test out of” prerequisite requirements, wherever you may be.
+  </p>
+  <div class=""text-center mb-4"">
+    <img class=""mx-auto"" src=""mastery-chart.jpg"" alt=""Mastery Chart"">
+  </div>
+  
+  <!-- Spaced Repetition -->
+  <h3 class=""text-2xl font-bold mt-6 mb-3"">
+    <strong>Spaced Repetition</strong>
+  </h3>
+  <p class=""mb-4"">
+    Disappointing, but true—our memory of specific tasks fades rapidly without regular reinforcement. When building CodeLadder, we knew how important the strategic integration of spaced repetition into the learning model would be. This idea leverages findings from cognitive psychology, like Ebbinghaus’s Forgetting Curve and contemporary retrieval practice research, to systematically reinforce previously learned concepts at optimal intervals.
+  </p>
+  <div class=""text-center mb-4"">
+    <img class=""mx-auto"" src=""forgetting-curve.jpg"" alt=""Forgetting Curve"">
+  </div>
+  <p class=""mb-4"">
+    Through spaced repetition, learners can revisit and strengthen their memory of critical topics, significantly improving retention, recall, and adaptability when facing new and complex problems. With CodeLadder, you will have the option to strategically revisit previously learned problems through the “spaced repetition” tab, which explores a combination of both seen and unseen problems to strengthen your recall of previously learned material.
+  </p>
+  <div class=""text-center mb-4"">
+    <img class=""mx-auto"" src=""spaced-rep-button.jpg"" alt=""Spaced Repetition Button"">
+  </div>
+  
+  <!-- Emphasis on Real-World Application -->
+  <h3 class=""text-2xl font-bold mt-6 mb-3"">
+    <strong>Emphasis on Real-World Application</strong>
+  </h3>
+  <p class=""mb-4"">
+    During our research and preparation for CodeLadder, we found that learning effectiveness significantly improves when tied to practical, real-world experiences. Every lesson provided through CodeLadder explicitly connects theoretical concepts to industry-relevant applications, creating contextual maps in learners' minds. This connection facilitates deeper, intuitive understanding and long-term retention.
+  </p>
+  <p class=""mb-4"">
+    For each concept taught, we clearly illustrate:
+  </p>
+  <ul class=""list-disc pl-6 mb-4"">
+    <li><strong>Why</strong> it's important.</li>
+    <li><strong>How</strong> it connects to and differs from related concepts.</li>
+    <li><strong>Where</strong> and <strong>when</strong> you might encounter it in professional scenarios.</li>
+  </ul>
+  <p class=""mb-4"">
+    By highlighting real-world use-cases, you’ll not only improve your recall when it counts, but also be able to apply this knowledge practically in your career.
+  </p>
+  <div class=""text-center mb-4"">
+    <img class=""mx-auto"" src=""example-image.jpg"" alt=""Real-World Application Example"">
+  </div>
+  
+  <p class=""mb-4"">
+    In the next section, you’ll learn CodeLadder’s 5-step problem-solving approach for solving any LeetCode-style question.
+  </p>
+</div>
+",NULL,"cm7a5qgoc0008aooebxyajkll","2025-03-13 20:29:26.919","2025-03-15 02:50:23.879",NULL,"INFO",NULL,10,"{}"
+"cm87t2zcy00016w4algn3bsr4","CODE I/O: The 5-Step Problem-Solving Approach",NULL,"EASY_I",True,4,"<div class=""max-w-4xl mx-auto px-4"">
+  <!-- Main Header -->
+  <h2 class=""text-2xl font-bold mt-6 mb-3"">
+    <strong>CODE I/O: The 5-Step Problem-Solving Approach </strong>
+  </h2>
+  <p class=""mb-4"">
+    When attempting CodeLadder leveling assessments (and any technical interview), you will be expected to verbalize the problem requirements, reason about time and space complexity, and brainstorm multiple solution avenues <strong>before</strong> jumping into the code. We’ve reworked our original five-step framework— Review, Brainstorm, Justify, Implement, Optimize— into an acronym you can remember: <strong>CODE I/O</strong>.
+  </p>
+  
+  <hr class=""my-8 border-t border-border"">
+  
+  <!-- Step 1: Clarify the Problem -->
+  <h3 class=""text-2xl font-bold mt-6 mb-3"">
+    <strong>C: Clarify the Problem</strong>
+  </h3>
+  <ol class=""list-decimal pl-6 mb-4"">
+    <li>
+      <strong>Objective:</strong> Fully understand the task by restating it, clarifying constraints, and pinpointing edge cases.
+    </li>
+    <li>
+      <strong>Why It Matters:</strong> <strong>Misinterpretation</strong> can lead you astray. Interviewers also assess how well you communicate and validate requirements.
+    </li>
+    <li>
+      <strong>In Practice:</strong>
+      <ul class=""list-disc pl-6"">
+        <li>Walk through provided examples or create your own.</li>
+        <li>Ask about data limits (time, memory, data type constraints).</li>
+        <li>Surface any assumptions: e.g., “Are negative numbers possible?”</li>
+      </ul>
+    </li>
+  </ol>
+  
+  <!-- Step 2: Outline Possible Solutions -->
+  <h3 class=""text-2xl font-bold mt-6 mb-3"">
+    <strong>O: Outline Possible Solutions</strong>
+  </h3>
+  <ol class=""list-decimal pl-6 mb-4"">
+    <li>
+      <strong>Objective:</strong> Brainstorm strategies, comparing time/space complexity and feasibility.
+    </li>
+    <li>
+      <strong>Why It Matters:</strong> Interviewers want to see a process, not just a final answer. Evaluating options demonstrates depth of knowledge.
+    </li>
+    <li>
+      <strong>In Practice:</strong>
+      <ul class=""list-disc pl-6"">
+        <li>Start with brute-force, then refine.</li>
+        <li>Consider relevant data structures (arrays, sets, trees, heaps, etc.).</li>
+        <li>Weigh trade-offs: e.g., O(N) space vs O(N log N) time.</li>
+      </ul>
+    </li>
+  </ol>
+  
+  <!-- Step 3: Decide on Your Approach -->
+  <h3 class=""text-2xl font-bold mt-6 mb-3"">
+    <strong>D: Decide on Your Approach</strong>
+  </h3>
+  <ol class=""list-decimal pl-6 mb-4"">
+    <li>
+      <strong>Objective:</strong> Logically choose and justify one strategy over others.
+    </li>
+    <li>
+      <strong>Why It Matters:</strong> Shows the ability to defend decisions (e.g., balancing performance vs. complexity).
+    </li>
+    <li>
+      <strong>In Practice:</strong>
+      <ul class=""list-disc pl-6"">
+        <li>Cite estimated Big-O complexities for each candidate solution.</li>
+        <li>Highlight which constraints your choice satisfies best.</li>
+        <li>Address potential interviewer questions like “Can it be faster?”</li>
+      </ul>
+    </li>
+  </ol>
+  
+  <!-- Step 4: Execute Your Plan -->
+  <h3 class=""text-2xl font-bold mt-6 mb-3"">
+    <strong>E: Execute Your Plan</strong>
+  </h3>
+  <ol class=""list-decimal pl-6 mb-4"">
+    <li>
+      <strong>Objective:</strong> Implement clean, well-structured code, verifying correctness along the way.
+    </li>
+    <li>
+      <strong>Why It Matters:</strong> The ability to narrate your logic and proactively test fosters confidence.
+    </li>
+    <li>
+      <strong>In Practice:</strong>
+      <ul class=""list-disc pl-6"">
+        <li>Write modular code with sensible variable names.</li>
+        <li>Comment on tricky logic, or break it into functions.</li>
+        <li>Manually walk through a sample input (or multiple) before the final run.</li>
+      </ul>
+    </li>
+  </ol>
+  
+  <!-- Step 5: Improve & Optimize -->
+  <h3 class=""text-2xl font-bold mt-6 mb-3"">
+    <strong>I/O: Improve & Optimize</strong>
+  </h3>
+  <ol class=""list-decimal pl-6 mb-4"">
+    <li>
+      <strong>Objective:</strong> Review efficiency and refactor if needed.
+    </li>
+    <li>
+      <strong>Why It Matters:</strong> Even if your solution is acceptable, exploring optimizations highlights advanced thinking.
+    </li>
+    <li>
+      <strong>In Practice:</strong>
+      <ul class=""list-disc pl-6"">
+        <li>Use asymptotic notation to describe your final approach.</li>
+        <li>Check for repeated or unnecessary work that can be cached.</li>
+        <li>Assess edge cases: does it handle maximum input sizes?</li>
+      </ul>
+    </li>
+  </ol>
+  
+  <hr class=""my-8 border-t border-border"">
+  
+  <!-- Real Interview Reflection -->
+  <h3 class=""text-2xl font-bold mt-6 mb-3"">
+    <strong>Real Interview Reflection</strong>
+  </h3>
+  <p class=""mb-4"">
+    The CodeLadder approach, now anchored by <strong>CODE I/O</strong>, emulates a real interview environment where you first clarify the problem statement, show off your brainstorming and analytical skills, and only then code a reasoned solution. <strong>Verbalize</strong> each step to demonstrate your methodology and depth of understanding:
+  </p>
+  <ul class=""list-disc pl-6 mb-4"">
+    <li><strong>Clarify</strong> the problem constraints, input types, edge scenarios.</li>
+    <li><strong>Outline</strong> multiple solutions (time vs. space complexity, feasibility).</li>
+    <li><strong>Decide</strong> which path best fits the constraints.</li>
+    <li><strong>Execute</strong> your logic in code, referencing examples.</li>
+    <li><strong>Improve & Optimize</strong> by analyzing complexity and looking for final polish.</li>
+  </ul>
+  <p class=""mb-4"">
+    By integrating these steps into your daily problem-solving routine, you’ll sharpen your coding interview skills and adopt a clearer, more methodical mindset under pressure.
+  </p>
+  
+  <hr class=""my-8 border-t border-border"">
+  
+  <!-- Example Walkthrough -->
+  <h3 class=""text-2xl font-bold mt-6 mb-3"">
+    <strong>Example Walkthrough: Finding Duplicates in Large Datasets</strong>
+  </h3>
+  <ol class=""list-decimal pl-6 mb-4"">
+    <li>
+      <strong>Clarify:</strong> Confirm the goal—detect duplicates. Check how many entries are possible, plus any memory constraints.
+    </li>
+    <li>
+      <strong>Outline:</strong>
+      <ul class=""list-disc pl-6"">
+        <li><strong>Brute-Force:</strong> O(N<sup>2</sup>)</li>
+        <li><strong>Sorting:</strong> O(N log N), then scan adjacent pairs</li>
+        <li><strong>Hashing:</strong> ~O(N) average, extra memory</li>
+      </ul>
+    </li>
+    <li>
+      <strong>Decide:</strong> Hashing is typically best for large N, given time efficiency.
+    </li>
+    <li>
+      <strong>Execute:</strong>
+      <div class=""mb-4"">
+        <pre class=""mb-4 bg-muted p-4 rounded-md overflow-x-auto max-w-full whitespace-pre-wrap break-words"">
+<code class=""language-python"">def has_duplicates(dataset):
+    seen = set()
+    for item in dataset:
+        if item in seen:
+            return True
+        seen.add(item)
+    return False
+</code>
+        </pre>
+      </div>
+      <p class=""mb-4"">Check sample inputs before finalizing.</p>
+    </li>
+    <li>
+      <strong>Improve & Optimize:</strong>
+      <ul class=""list-disc pl-6"">
+        <li>If memory is tight, consider a bitmap or a counting approach.</li>
+        <li>For restricted integer ranges, a boolean array might be good enough.</li>
+      </ul>
+    </li>
+  </ol>
+  
+  <p class=""mb-4"">
+    In the next section, you will learn a concept <strong>critical</strong> to the analysis of algorithms: <strong>Big O Notation</strong>.
+  </p>
+</div>
+",NULL,"cm7a5qgoc0008aooebxyajkll","2025-03-13 20:33:00.035","2025-03-15 02:50:23.879",NULL,"CODING","null",15,"{}"
+"cm87tbxr20000pzqqc81s4tlc","Big O Notation",NULL,"EASY_I",True,5,"<div class=""max-w-4xl mx-auto px-4"">
+  <!-- Big O Notation Section -->
+  <h2 class=""text-2xl font-bold mt-6 mb-3"">
+    <strong>Big O Notation</strong>
+  </h2>
+  <p class=""mb-4"">
+    Big O notation describes the <strong>growth rate</strong> of functions, often in the context of algorithm analysis, to classify how efficiently an algorithm scales as input size <code>n</code> increases.
+  </p>
+  <p class=""mb-4"">
+    The key idea is that <strong>Big O notation suppresses constant factors and lower-order terms</strong>, making it possible to compare algorithms without focusing on hardware or specific implementation details.
+  </p>
+  <div class=""text-center mb-4"">
+    <img class=""mx-auto"" src=""big-o-notation-concept.jpg"" alt=""Big O Notation Concept"">
+  </div>
+  
+  <hr class=""my-8 border-t border-border"">
+  
+  <!-- Why Big O Matters -->
+  <h3 class=""text-2xl font-bold mt-6 mb-3"">
+    <strong>Why Big O Matters</strong>
+  </h3>
+  <ol class=""list-decimal pl-6 mb-4"">
+    <li>
+      <strong>Clarity</strong>: Reveals how an algorithm’s performance or memory usage changes as <code>n</code> input grows.
+    </li>
+    <li>
+      <strong>Comparisons</strong>: Enables a high-level comparison of solutions, ignoring constants and lesser terms.
+    </li>
+    <li>
+      <strong>Performance Boundaries</strong>: Functions as an <strong>upper bound</strong> (worst-case) on performance.
+    </li>
+  </ol>
+  
+  <hr class=""my-8 border-t border-border"">
+  
+  <!-- Time Complexity vs. Space Complexity -->
+  <h3 class=""text-2xl font-bold mt-6 mb-3"">
+    <strong>Time Complexity vs. Space Complexity</strong>
+  </h3>
+  <ul class=""list-disc pl-6 mb-4"">
+    <li>
+      <strong>Time Complexity</strong>: Rate at which runtime increases relative to input size.
+    </li>
+    <li>
+      <strong>Space Complexity</strong>: Rate at which memory usage grows with input size.
+    </li>
+  </ul>
+  <p class=""mb-4"">
+    In interviews, time complexity tends to be a more important focus, but space complexity is also critical in many real-world scenarios.
+  </p>
+  <div class=""text-center mb-4"">
+    <img class=""mx-auto"" src=""time-space-complexity.jpg"" alt=""Time &amp; Space Complexity"">
+  </div>
+  
+  <hr class=""my-8 border-t border-border"">
+  
+  <!-- Common Complexity Classes -->
+  <h3 class=""text-2xl font-bold mt-6 mb-3"">
+    <strong>Common Complexity Classes (Big O)</strong>
+  </h3>
+  <p class=""mb-4"">
+    Below are the most common Big O time complexities you’ll encounter, from most efficient to least:
+  </p>
+  <ul class=""list-disc pl-6 mb-4"">
+    <li>
+      <strong>O(1)</strong> → <strong>Constant Time</strong><br>
+      <span class=""ml-4"">Runtime unaffected by input size (array index access)</span>
+    </li>
+    <li>
+      <strong>O(log n)</strong> → <strong>Logarithmic Time</strong><br>
+      <span class=""ml-4"">Often found in divide-and-conquer (binary search)</span>
+    </li>
+    <li>
+      <strong>O(n)</strong> → <strong>Linear Time</strong><br>
+      <span class=""ml-4"">Typically iterating over all elements at once</span>
+    </li>
+    <li>
+      <strong>O(n log n)</strong> → <strong>Linearithmic Time</strong><br>
+      <span class=""ml-4"">Common in efficient sorts (merge sort)</span>
+    </li>
+    <li>
+      <strong>O(n²)</strong> → <strong>Quadratic Time</strong><br>
+      <span class=""ml-4"">Typical of naive nested loops</span>
+    </li>
+    <li>
+      <strong>O(2<sup>n</sup>)</strong> → <strong>Exponential Time</strong><br>
+      <span class=""ml-4"">Doubling input size doubles the exponent</span>
+    </li>
+    <li>
+      <strong>O(n!)</strong> → <strong>Factorial Time</strong><br>
+      <span class=""ml-4"">Even faster growth than exponential (exhaustive permutations)</span>
+    </li>
+  </ul>
+  <div class=""text-center mb-4"">
+    <img class=""mx-auto"" src=""complexity-chart.jpg"" alt=""Complexity Chart"">
+  </div>
+  
+  <hr class=""my-8 border-t border-border"">
+  
+  <!-- Example: Merge Sort -->
+  <h3 class=""text-2xl font-bold mt-6 mb-3"">
+    <strong>Example: Merge Sort</strong>
+  </h3>
+  <p class=""mb-4"">
+    <strong>Merge Sort</strong> divides the list in half repeatedly (<code>log n</code> divisions) and merges those halves in <code>n</code> time each level, giving a total time complexity of <strong>O(n log n)</strong>. Space complexity is also O(n) for the temporary arrays used during merging.
+  </p>
+  <div class=""text-center mb-4"">
+    <img class=""mx-auto"" src=""merge-sort.jpg"" alt=""Merge Sort"">
+  </div>
+  
+  <hr class=""my-8 border-t border-border"">
+  
+  <!-- Real-World Application & Industry Expectation -->
+  <h3 class=""text-2xl font-bold mt-6 mb-3"">
+    <strong>Real-World Application &amp; Industry Expectation</strong>
+  </h3>
+  
+  <h4 class=""text-xl font-bold mt-4 mb-2"">
+    1. How It’s Used in Industry
+  </h4>
+  <ul class=""list-disc pl-6 mb-4"">
+    <li>
+      <strong>Scalability Planning</strong>: Teams often estimate whether a new feature or product can handle future growth by analyzing time/space complexity.
+    </li>
+    <li>
+      <strong>Architecture Decisions</strong>: When designing systems (e.g., microservices, data pipelines), Big O helps engineers choose efficient data structures and plan for high-traffic scenarios.
+    </li>
+    <li>
+      <strong>Performance Troubleshooting</strong>: Bottlenecks often emerge from poorly scaled algorithms; Big O analysis helps pinpoint where code is too slow.
+    </li>
+  </ul>
+  
+  <h4 class=""text-xl font-bold mt-4 mb-2"">
+    2. Technical Interview Expectation
+  </h4>
+  <ul class=""list-disc pl-6 mb-4"">
+    <li>
+      <strong>Problem Analysis</strong>: Interviewers typically expect you to discuss the complexity of your approach and rationalize any trade-offs (time vs. space, or code clarity vs. efficiency).
+    </li>
+    <li>
+      <strong>Comparison of Solutions</strong>: If you propose multiple solutions, you should compare them using Big O. For instance, explaining why <code>O(n log n)</code> might be preferable to <code>O(n²)</code>.
+    </li>
+    <li>
+      <strong>Demonstrating Depth</strong>: You don’t need to delve into exact constants, but you should show that you can identify if a loop is <code>O(n)</code>, nested loops are <code>O(n²)</code>, or if dividing the problem leads to <code>O(log n)</code>.
+    </li>
+  </ul>
+  
+  <h4 class=""text-xl font-bold mt-4 mb-2"">
+    3. It’s Not Just “Math for Math’s Sake”
+  </h4>
+  <p class=""mb-4"">
+    Real systems must handle large inputs. An <code>O(n²)</code> approach might be fine for small data but become impractical at scale. Knowing Big O helps you conserve computing resources and reducing complexity can decrease server costs and speed up processing. This is a real concept used in practice, so it’s worth taking the time to understand and get comfortable with.
+  </p>
+  
+  <p class=""mb-4"">
+    Next, we’ll talk about Big O’s younger siblings, Big Omega and Big Theta, also commonly referenced as <strong>asymptotic notations</strong>.
+  </p>
+</div>
+",NULL,"cm7a5qgoc0008aooebxyajkll","2025-03-13 20:39:57.854","2025-03-15 02:50:23.879",NULL,"INFO",NULL,10,"{}"
+"cm87tch1x0001pzqqso7vtnlg","Asymptotic Notations",NULL,"EASY_I",True,6,"<div class=""max-w-4xl mx-auto px-4"">
+  <h2 class=""text-2xl font-bold mt-6 mb-3"">
+    <strong>Asymptotic Notations</strong>
+  </h2>
+  <p class=""mb-4"">
+    Beyond <strong>Big O</strong>, which is most commonly used in practice, there are two other notations important for thorough algorithm analysis.
+  </p>
+
+  <!-- Big O Notation -->
+  <h3 class=""text-2xl font-bold mt-6 mb-3"">
+    <strong>1. Big O Notation (<strong>O</strong>)</strong>
+  </h3>
+  <ul class=""list-disc pl-6 mb-4"">
+    <li><strong>Definition</strong>: Describes an <strong>upper bound</strong> on growth rate.</li>
+    <li><strong>Meaning</strong>: For sufficiently large <code>n</code>, <code>f(n)</code> does not grow faster than <code>g(n)</code> up to constant factors.</li>
+    <li><strong>Example</strong>: If <code>f(n) = O(n)</code>, <code>f(n)</code> grows at most as fast as some constant multiple of <code>n</code>.</li>
+  </ul>
+
+  <!-- Big Omega Notation -->
+  <h3 class=""text-2xl font-bold mt-6 mb-3"">
+    <strong>2. Big Omega Notation (<strong>Ω</strong>)</strong>
+  </h3>
+  <ul class=""list-disc pl-6 mb-4"">
+    <li><strong>Definition</strong>: Describes a <strong>lower bound</strong> on growth rate.</li>
+    <li><strong>Meaning</strong>: For large <code>n</code>, <code>f(n)</code> grows at least as fast as <code>g(n)</code> up to constant factors.</li>
+    <li><strong>Example</strong>: If <code>f(n) = Ω(n)</code>, <code>f(n)</code> grows at least as fast as some constant multiple of <code>n</code>.</li>
+  </ul>
+
+  <!-- Big Theta Notation -->
+  <h3 class=""text-2xl font-bold mt-6 mb-3"">
+    <strong>3. Big Theta Notation (<strong>Θ</strong>)</strong>
+  </h3>
+  <ul class=""list-disc pl-6 mb-4"">
+    <li><strong>Definition</strong>: Describes a <strong>tight bound</strong>, where <code>f(n)</code> is both O(<code>g(n)</code>) and Ω(<code>g(n)</code>).</li>
+    <li><strong>Meaning</strong>: <code>f(n)</code> grows at the same rate as <code>g(n)</code>, ignoring lower-order terms and constant factors.</li>
+    <li><strong>Example</strong>: <code>f(n) = Θ(n)</code> means it’s sandwiched by two linear functions for large <code>n</code>.</li>
+  </ul>
+
+  <div class=""text-center mb-4"">
+    <img class=""mx-auto"" src=""asymptotic-notation-overview.jpg"" alt=""Asymptotic Notation Overview"">
+  </div>
+
+  <!-- Focus on the Big Picture -->
+  <h3 class=""text-2xl font-bold mt-6 mb-3"">
+    <strong>Focus on the Big Picture</strong>
+  </h3>
+  <ol class=""list-decimal pl-6 mb-4"">
+    <li><strong>Ignore constants</strong>: 3n + 10 is O(n).</li>
+    <li><strong>Ignore lower-order terms</strong>: n² + n is O(n²).</li>
+    <li><strong>Seek dominating behavior</strong> at large <code>n</code>.</li>
+  </ol>
+
+  <p class=""mb-4"">
+    In the next section, let’s break down how to use the analysis of algorithms to actually identify the asymptotic time complexity for any LeetCode-style problem.
+  </p>
+</div>
+",NULL,"cm7a5qgoc0008aooebxyajkll","2025-03-13 20:40:22.869","2025-03-15 08:15:40.072",NULL,"INFO",NULL,5,"{PROBLEMS_LIST,LEETCODE_100,CODELADDER_150}"
+"cm87tejoh0002pzqqh0aibwmk","Analyzing Big O in Code",NULL,"EASY_I",True,7,"<div class=""max-w-4xl mx-auto px-4"">
+  <h2 class=""text-2xl font-bold mt-6 mb-3"">
+    <strong>Analyzing Big O in Code</strong>
+  </h2>
+  <p class=""mb-4"">
+    When you see a data structure and algorithm (DSA) problem, you can break it down in a systematic way to determine its complexity:
+  </p>
+  
+  <ol class=""list-decimal pl-6 mb-4"">
+    <li>
+      <strong>Identify the Input Size (n)</strong>
+      <ul class=""list-disc pl-6 mt-2"">
+        <li>Determine the primary variable that governs growth (e.g., length of an array, number of nodes in a tree, etc.).</li>
+        <li>If multiple inputs are involved (e.g., arrays of different sizes), consider how each size affects the algorithm.</li>
+      </ul>
+    </li>
+    <li>
+      <strong>Examine Loops and Iterations</strong>
+      <ul class=""list-disc pl-6 mt-2"">
+        <li>Check how many times each loop runs. A loop from 1 to n suggests O(n) for that section.</li>
+        <li>If you have nested loops, multiply their complexities (e.g., O(n) * O(n) = O(n²)).</li>
+        <li>For consecutive loops (one after the other), add them (e.g., O(n) + O(n) = O(n) in Big O terms).</li>
+      </ul>
+    </li>
+    <li>
+      <strong>Inspect Recursion</strong>
+      <ul class=""list-disc pl-6 mt-2"">
+        <li>If the function calls itself recursively, determine how many recursive calls happen and how large the problem gets each time.</li>
+        <li>Use well-known recurrences if possible (e.g., merge sort’s T(n) = 2T(n/2) + O(n) → O(n log n)).</li>
+      </ul>
+    </li>
+    <li>
+      <strong>Look at Data Structure Operations</strong>
+      <ul class=""list-disc pl-6 mt-2"">
+        <li>Are you accessing elements by index in an array (O(1))?</li>
+        <li>Searching for an element in a balanced tree (O(log n)) or in a list (O(n))?</li>
+        <li>Adding items to a queue, stack, or hash table (often O(1) amortized)?</li>
+      </ul>
+    </li>
+    <li>
+      <strong>Combine Results</strong>
+      <ul class=""list-disc pl-6 mt-2"">
+        <li>For sequential operations, sum their complexities (dominant term prevails, e.g., O(n) + O(n²) = O(n²)).</li>
+        <li>For nested operations, multiply complexities.</li>
+        <li>Simplify by dropping constants and lower-order terms.</li>
+      </ul>
+    </li>
+    <li>
+      <strong>Check for Any Special Cases</strong>
+      <ul class=""list-disc pl-6 mt-2"">
+        <li>Some algorithms have different best/worst/average cases. Make sure you know which scenario is being analyzed.</li>
+        <li>Example: Quicksort is O(n log n) average but O(n²) worst.</li>
+      </ul>
+    </li>
+    <li>
+      <strong>State the Final Complexity</strong>
+      <ul class=""list-disc pl-6 mt-2"">
+        <li>Express the simplified Big O (or Big Ω, Big Θ) notation.</li>
+        <li>Mention if it’s best, average, or worst case, as appropriate.</li>
+      </ul>
+    </li>
+  </ol>
+  
+  <h3 class=""text-2xl font-bold mt-6 mb-3"">
+    <strong>Integrating Big O Analysis with CODE I/O</strong>
+  </h3>
+  <p class=""mb-4"">
+    You can apply this complexity breakdown at various points of the <strong>CODE I/O</strong> (Clarify, Outline, Decide, Execute, Improve &amp; Optimize) approach:
+  </p>
+  <ol class=""list-decimal pl-6 mb-4"">
+    <li>
+      <strong>Clarify</strong>: Note <strong>scale requirements</strong>— large input sizes, strict time constraints, etc. This guides whether O(n²) might be acceptable or too slow.
+    </li>
+    <li>
+      <strong>Outline</strong>: Sketch multiple solution ideas, each with a quick complexity estimate— O(n log n) vs. O(n²), for instance.
+    </li>
+    <li>
+      <strong>Decide</strong>: Pick the approach that best balances performance and ease of implementation, explaining why.
+    </li>
+    <li>
+      <strong>Execute</strong>: Implement carefully, watching for hidden nested loops or extra passes.
+    </li>
+    <li>
+      <strong>Improve/Optimize</strong>: Revisit your analysis to see if a more advanced data structure or memoization can cut runtime/space.
+    </li>
+  </ol>
+  
+  <p class=""mb-4"">
+    By referencing Big O notation throughout <strong>CODE I/O</strong>, you will not only produce a more robust solution but also demonstrate clear, methodical thinking both in interviews and real-world design discussions.
+  </p>
+</div>
+",NULL,"cm7a5qgoc0008aooebxyajkll","2025-03-13 20:41:59.586","2025-03-15 02:50:23.879",NULL,"INFO",NULL,15,"{}"
+"cm87ti0me0003pzqqazc0rlpu","Python Review: Lists",NULL,"EASY_I",False,8,"<div class=""max-w-4xl mx-auto px-4"">
+  <h2 class=""text-2xl font-bold mt-6 mb-3"">
+    <strong>Python Review: Lists</strong>
+  </h2>
+  <p class=""mb-4"">
+    A <strong>list</strong> in Python is a built-in data structure that can store an ordered collection of items. Unlike arrays in some other languages, lists are not fixed in size and can be dynamically expanded or reduced, making them highly versatile for everyday tasks.
+  </p>
+  
+  <h3 class=""text-2xl font-bold mt-6 mb-3"">
+    <strong>Why Use Them?</strong>
+  </h3>
+  <ul class=""list-disc pl-6 mb-4"">
+    <li>Easy insertion and removal of elements.</li>
+    <li>Maintains order, so you can rely on a consistent sequence.</li>
+    <li>Ideal for tasks that need random or iterative access to elements.</li>
+  </ul>
+  
+  <h3 class=""text-2xl font-bold mt-6 mb-3"">
+    <strong>Key Methods</strong>
+  </h3>
+  <ul class=""list-disc pl-6 mb-4"">
+    <li><code>append()</code>: Appends an item to the <strong>end</strong> of the list.</li>
+    <li><code>pop()</code>: Removes and returns the <strong>last</strong> item in the list (or a specified index if provided, e.g. <code>pop(2)</code>).</li>
+    <li><code>extend()</code>: Adds multiple elements to the <strong>end</strong> of a list.</li>
+    <li><code>insert()</code>: Inserts an item at a specific index, shifting existing items to the right.</li>
+    <li><code>enumerate()</code>: Iterates over a list while also keeping track of the index (often used in a for-loop).</li>
+    <li><code>zip()</code>: Combines multiple iterables element-wise.</li>
+  </ul>
+  
+  <h3 class=""text-2xl font-bold mt-6 mb-3"">
+    <strong>Code Example</strong>
+  </h3>
+  <pre class=""mb-4 bg-muted p-4 rounded-md overflow-x-auto max-w-full whitespace-pre-wrap break-words"">
+<code class=""language-python"">numbers = [10, 20, 30]
+numbers.append(40)        # add to end
+numbers.pop()             # remove last element by default
+numbers.extend([50, 60])  # add multiple elements
+numbers.insert(1, 15)     # insert at specific index
+
+# Using enumerate and zip
+for idx, val in enumerate(numbers):
+    print(idx, val)
+
+list_a = [1, 2]
+list_b = [3, 4]
+for a, b in zip(list_a, list_b):
+    print(a, b)
+</code>
+  </pre>
+  
+  <h3 class=""text-2xl font-bold mt-6 mb-3"">
+    <strong>Typical Use Cases in Industry</strong>
+  </h3>
+  <ul class=""list-disc pl-6 mb-4"">
+    <li>
+      <strong>Maintaining a Backlog of Tasks</strong>: In agile teams, you might store upcoming tasks or tickets in a list. You can append new tasks as they come in, pop the last one for immediate processing, or insert a high-priority task at a specific position.
+    </li>
+    <li>
+      <strong>Managing a Sequence of User Events</strong>: For instance, storing and updating user event data (like clicks, page views, etc.) in a data pipeline.
+    </li>
+  </ul>
+  
+  <h3 class=""text-2xl font-bold mt-6 mb-3"">
+    <strong>When to Use in DSA</strong>
+  </h3>
+  <ul class=""list-disc pl-6 mb-4"">
+    <li>Your solution requires <strong>dynamic resizing</strong> or <strong>frequent insertions/deletions</strong>.</li>
+    <li>You need <strong>ordered access</strong> or <strong>random indexing</strong> (e.g., <code>list[i]</code>).</li>
+    <li>You’re simulating arrays but need them to <strong>grow and shrink</strong> more flexibly.</li>
+  </ul>
+  
+  <p class=""mb-4"">
+    <a href=""additional-documentation.html"" class=""text-blue-600 hover:underline"">Link to Additional Documentation</a>
+  </p>
+</div>
+",NULL,"cm7a5qgoc0008aooebxyajkll","2025-03-13 20:44:41.51","2025-03-15 02:50:23.879","def process_list(nums):
+    """"""
+    Process the input list by performing a series of list operations:
+      1. Append 40.
+      2. Pop the last element.
+      3. Extend with [50, 60].
+      4. Insert 15 at index 1.
+      
+    Returns the modified list.
+    """"""
+    numbers = list(nums)  # Make a copy of the input list
+    numbers.append(40)        # Add to the end
+    numbers.pop()             # Remove last element (40)
+    numbers.extend([50, 60])  # Add multiple elements to the end
+    numbers.insert(1, 15)     # Insert 15 at index 1
+    return numbers
+
+if __name__ == ""__main__"":
+    # Demonstrate process_list with several test inputs.
+    test_inputs = [
+        [10, 20, 30],
+        [1, 2, 3],
+        [7, 8],
+        []
+    ]
+    for inp in test_inputs:
+        result = process_list(inp)
+        print(""Input:"", inp)
+        print(""Processed:"", result)
+        print(""-"" * 40)
+
+    # Demonstrate additional list operations: enumerate and zip.
+    numbers = process_list([10, 20, 30])
+    print(""Enumerate results:"")
+    for idx, val in enumerate(numbers):
+        print(f""Index {idx}: {val}"")
+
+    list_a = [1, 2]
+    list_b = [3, 4]
+    print(""Zipped pairs:"")
+    for a, b in zip(list_a, list_b):
+        print(a, b)
+","CODING","[{""input"": [10, 20, 30], ""expected_output"": [10, 15, 20, 30, 50, 60]}, {""input"": [1, 2, 3], ""expected_output"": [1, 15, 2, 3, 50, 60]}, {""input"": [7, 8], ""expected_output"": [7, 15, 8, 50, 60]}, {""input"": [], ""expected_output"": [50, 15, 60]}]",10,"{}"
+"cm87tkqdt0004pzqqghdrrpqo","Python Review: Dictionaries",NULL,"EASY_I",False,9,"<div class=""max-w-4xl mx-auto px-4"">
+  <h2 class=""text-2xl font-bold mt-6 mb-3"">
+    <strong>Python Review: Dictionaries</strong>
+  </h2>
+  <p class=""mb-4"">
+    A <strong>dictionary</strong> is a collection of key-value pairs. Each key acts as an identifier (like a name or ID), and it maps to a value (like a user record or some configuration). In Python, dictionaries are hash-based, enabling near-instant lookups.
+  </p>
+  
+  <h3 class=""text-2xl font-bold mt-6 mb-3"">
+    <strong>Why Use Them?</strong>
+  </h3>
+  <ul class=""list-disc pl-6 mb-4"">
+    <li>Efficient retrieval and storage of data using keys.</li>
+    <li>Flexible structure: keys and values can be of any hashable type.</li>
+  </ul>
+  
+  <h3 class=""text-2xl font-bold mt-6 mb-3"">
+    <strong>Key Methods</strong>
+  </h3>
+  <ul class=""list-disc pl-6 mb-4"">
+    <li><code>get()</code>: Retrieves the value for a given key, returning a default if the key isn’t found.</li>
+    <li><code>items()</code>: Returns an iterable of (key, value) pairs.</li>
+    <li><code>keys()</code>: Returns an iterable of all dictionary keys.</li>
+    <li><code>values()</code>: Returns an iterable of all dictionary values.</li>
+  </ul>
+  
+  <h3 class=""text-2xl font-bold mt-6 mb-3"">
+    <strong>Code Example</strong>
+  </h3>
+  <pre class=""mb-4 bg-muted p-4 rounded-md overflow-x-auto max-w-full whitespace-pre-wrap break-words"">
+<code class=""language-python"">ages = {""Alice"": 30, ""Bob"": 25}
+age = ages.get(""Alice"")  # retrieve Alice's age
+
+for name, age in ages.items():
+    print(name, age)
+
+print(ages.keys())   # dict_keys(['Alice', 'Bob'])
+print(ages.values()) # dict_values([30, 25])
+</code>
+  </pre>
+  
+  <h3 class=""text-2xl font-bold mt-6 mb-3"">
+    <strong>Typical Use Cases in Industry</strong>
+  </h3>
+  <ul class=""list-disc pl-6 mb-4"">
+    <li>
+      <strong>Feature Flags</strong>: Mapping user IDs to experimental features (enabled/disabled) for quick lookups.
+    </li>
+    <li>
+      <strong>Configuration Settings</strong>: Storing environment-specific configurations (e.g., database URIs, service endpoints). Using <code>get()</code> allows safe lookups with default fallbacks.
+    </li>
+  </ul>
+  
+  <h3 class=""text-2xl font-bold mt-6 mb-3"">
+    <strong>When to Use in DSA</strong>
+  </h3>
+  <ul class=""list-disc pl-6 mb-4"">
+    <li>You need to <strong>map unique keys to values</strong>, such as counting frequencies or storing data by ID.</li>
+    <li>Repeated lookups must be <strong>fast</strong>.</li>
+    <li>You want a simple way to handle <strong>default values</strong> when a key might not exist.</li>
+  </ul>
+  
+  <p class=""mb-4"">
+    <a href=""additional-documentation.html"" class=""text-blue-600 hover:underline"">Link to Additional Documentation</a>
+  </p>
+</div>
+",NULL,"cm7a5qgoc0008aooebxyajkll","2025-03-13 20:46:48.209","2025-03-15 02:50:23.879","def get_age(ages, name):
+    """"""
+    Retrieves the age for a given name from the ages dictionary.
+    Returns 0 if the name is not found.
+    """"""
+    return ages.get(name, 0)
+
+def increment_ages(ages):
+    """"""
+    Increments the age for each key in the dictionary by 1.
+    Returns a new dictionary with updated ages.
+    """"""
+    new_ages = {}
+    for key, value in ages.items():
+        new_ages[key] = value + 1
+    return new_ages
+
+if __name__ == ""__main__"":
+    # Example dictionary of ages
+    ages = {""Alice"": 30, ""Bob"": 25}
+    
+    # Demonstrate get_age using the get() method
+    print(""Alice's age:"", get_age(ages, ""Alice""))
+    print(""Charlie's age (default 0):"", get_age(ages, ""Charlie""))
+    
+    # Demonstrate increment_ages using items() to iterate over key-value pairs
+    updated_ages = increment_ages(ages)
+    print(""Original ages:"", ages)
+    print(""Updated ages:"", updated_ages)
+    
+    # Demonstrate keys() and values()
+    print(""Keys:"", list(ages.keys()))
+    print(""Values:"", list(ages.values()))
+","CODING","[{""input"": {""ages"": {""Bob"": 25, ""Alice"": 30}, ""name"": ""Alice""}, ""function"": ""get_age"", ""expected_output"": 30}, {""input"": {""ages"": {""Bob"": 25, ""Alice"": 30}, ""name"": ""Charlie""}, ""function"": ""get_age"", ""expected_output"": 0}, {""input"": {""Bob"": 25, ""Alice"": 30}, ""function"": ""increment_ages"", ""expected_output"": {""Bob"": 26, ""Alice"": 31}}]",10,"{}"
+"cm87tmrfk0005pzqqbuf788fh","Python Review: Lambda Functions",NULL,"EASY_I",False,10,"<div class=""max-w-4xl mx-auto px-4"">
+  <h2 class=""text-2xl font-bold mt-6 mb-3"">
+    <strong>Python Review: Lambda Functions</strong>
+  </h2>
+  <p class=""mb-4"">
+    A <strong>lambda function</strong> is a small, anonymous function defined with the <code>lambda</code> keyword. It’s especially handy for quick, throwaway functions without the overhead of a formal definition.
+  </p>
+  
+  <h3 class=""text-2xl font-bold mt-6 mb-3"">
+    <strong>Why Use Them?</strong>
+  </h3>
+  <ul class=""list-disc pl-6 mb-4"">
+    <li>Keeps code concise, particularly when passing functions as arguments to methods like <code>sort</code>, <code>map</code>, or <code>filter</code>.</li>
+    <li>Ideal for short, one-off use cases where a named function would be excessive.</li>
+  </ul>
+  
+  <h3 class=""text-2xl font-bold mt-6 mb-3"">
+    <strong>Code Example</strong>
+  </h3>
+  <pre class=""mb-4 bg-muted p-4 rounded-md overflow-x-auto max-w-full whitespace-pre-wrap break-words"">
+<code class=""language-python"">pairs = [(1, 'b'), (2, 'a')]
+pairs.sort(key=lambda x: x[1])  # sorting by second element
+print(pairs)  # Expected output: [(2, 'a'), (1, 'b')]
+</code>
+  </pre>
+  
+  <h3 class=""text-2xl font-bold mt-6 mb-3"">
+    <strong>Typical Use Cases in Industry</strong>
+  </h3>
+  <ul class=""list-disc pl-6 mb-4"">
+    <li><strong>Custom Sorting</strong>: When sorting lists of complex data structures (like user logs or product search results) without having to define a separate function.</li>
+    <li><strong>Map/Filter in Pipelines</strong>: When processing streaming data, inline lambda functions are useful to map or filter records on the fly.</li>
+  </ul>
+  
+  <h3 class=""text-2xl font-bold mt-6 mb-3"">
+    <strong>When to Use in DSA</strong>
+  </h3>
+  <ul class=""list-disc pl-6 mb-4"">
+    <li>You have a <strong>one-off function</strong> for a custom <strong>sort or filter criterion</strong>.</li>
+    <li>You’re passing a <strong>simple transformation</strong> into <code>map()</code> or <code>filter()</code>.</li>
+    <li>A separate named function would be overkill.</li>
+  </ul>
+  
+  <p class=""mb-4"">
+    <a href=""additional-documentation.html"" class=""text-blue-600 hover:underline"">Link to Additional Documentation</a>
+  </p>
+</div>
+",NULL,"cm7a5qgoc0008aooebxyajkll","2025-03-13 20:48:22.88","2025-03-15 02:50:23.879","def sort_pairs_by_second(pairs):
+    """"""
+    Sorts a list of pairs by the second element using a lambda function.
+    """"""
+    # Use sorted to avoid mutating the original list.
+    sorted_pairs = sorted(pairs, key=lambda x: x[1])
+    return sorted_pairs
+
+def filter_even_numbers(numbers):
+    """"""
+    Returns a list of even numbers from the input list using filter and a lambda function.
+    """"""
+    return list(filter(lambda x: x % 2 == 0, numbers))
+
+def apply_transformation(numbers):
+    """"""
+    Applies a lambda function using map to double each number in the list.
+    """"""
+    return list(map(lambda x: x * 2, numbers))
+
+if __name__ == ""__main__"":
+    # Demonstration for sort_pairs_by_second
+    pairs = [(1, 'b'), (2, 'a'), (3, 'c')]
+    sorted_result = sort_pairs_by_second(pairs)
+    print(""Sorted Pairs:"", sorted_result)  # Expected: [(2, 'a'), (1, 'b'), (3, 'c')]
+    
+    # Demonstration for filter_even_numbers
+    nums = [1, 2, 3, 4, 5, 6]
+    evens = filter_even_numbers(nums)
+    print(""Even Numbers:"", evens)  # Expected: [2, 4, 6]
+    
+    # Demonstration for apply_transformation
+    doubled = apply_transformation([1, 2, 3, 4])
+    print(""Doubled Numbers:"", doubled)  # Expected: [2, 4, 6, 8]
+","CODING","[{""input"": {""pairs"": [[1, ""b""], [2, ""a""], [3, ""c""]]}, ""function"": ""sort_pairs_by_second"", ""expected_output"": [[2, ""a""], [1, ""b""], [3, ""c""]]}, {""input"": {""numbers"": [1, 2, 3, 4, 5, 6]}, ""function"": ""filter_even_numbers"", ""expected_output"": [2, 4, 6]}, {""input"": {""numbers"": [1, 2, 3, 4]}, ""function"": ""apply_transformation"", ""expected_output"": [2, 4, 6, 8]}]",10,"{}"
+"cm87tns9g0006pzqqc44xrdbp","Python Review: Understanding .self in Classes",NULL,"EASY_I",False,11,"<div class=""max-w-4xl mx-auto px-4"">
+  <h2 class=""text-2xl font-bold mt-6 mb-3"">
+    <strong>Python Review: Understanding <code>self</code> in Classes </strong>
+  </h2>
+  <p class=""mb-4"">
+    In Python, <code>self</code> refers to the instance of the class. It’s used to access instance attributes and methods within class definitions. Whenever you define a method in a class, you include <code>self</code> as the first parameter so Python can pass the instance object automatically.
+  </p>
+  
+  <h3 class=""text-2xl font-bold mt-6 mb-3"">
+    <strong>Code Example</strong>
+  </h3>
+  <pre class=""mb-4 bg-muted p-4 rounded-md overflow-x-auto max-w-full whitespace-pre-wrap break-words"">
+<code class=""language-python"">class Person:
+    def __init__(self, name, age):
+        self.name = name  # 'self.name' is an instance variable
+        self.age = age
+
+    def greet(self):
+        # Instead of printing, we return the greeting for easier testing.
+        return f""Hello, my name is {self.name} and I'm {self.age} years old.""
+
+# Example usage:
+person1 = Person(""Alice"", 30)
+print(person1.greet())  # Hello, my name is Alice and I'm 30 years old.
+</code>
+  </pre>
+  
+  <h3 class=""text-2xl font-bold mt-6 mb-3"">
+    <strong>Why Is It Useful?</strong>
+  </h3>
+  <ul class=""list-disc pl-6 mb-4"">
+    <li>Keeps code organized by associating data (attributes) with behaviors (methods).</li>
+    <li>Makes it clear which data belongs to which specific object.</li>
+  </ul>
+  
+  <h3 class=""text-2xl font-bold mt-6 mb-3"">
+    <strong>Typical Use Cases in Industry</strong>
+  </h3>
+  <ul class=""list-disc pl-6 mb-4"">
+    <li><strong>OOP Design</strong>: Classes are fundamental in Python for building maintainable, large-scale applications.</li>
+    <li><strong>Stateful Objects</strong>: Each instance can maintain its own internal state (e.g., user sessions, network connections, or modeling real-world entities).</li>
+  </ul>
+  
+  <p class=""mb-4"">
+    <a href=""additional-documentation.html"" class=""text-blue-600 hover:underline"">Link to Additional Documentation</a>
+  </p>
+</div>
+",NULL,"cm7a5qgoc0008aooebxyajkll","2025-03-13 20:49:10.613","2025-03-15 02:50:23.879","class Person:
+    def __init__(self, name, age):
+        self.name = name  # Instance attribute for the person's name
+        self.age = age    # Instance attribute for the person's age
+
+    def greet(self):
+        """"""
+        Returns a greeting string that includes the instance's name and age.
+        """"""
+        return f""Hello, my name is {self.name} and I'm {self.age} years old.""
+
+if __name__ == ""__main__"":
+    # Demonstrate the Person class
+    person1 = Person(""Alice"", 30)
+    greeting = person1.greet()
+    print(greeting)
+","CODING","[{""input"": {""age"": 30, ""name"": ""Alice""}, ""function"": ""greet"", ""expected_output"": ""Hello, my name is Alice and I'm 30 years old.""}, {""input"": {""age"": 25, ""name"": ""Bob""}, ""function"": ""greet"", ""expected_output"": ""Hello, my name is Bob and I'm 25 years old.""}]",10,"{}"
+"cm87tpjy00007pzqq2rodgd0b","Python Review: Recursion",NULL,"MEDIUM",False,12,"<div class=""max-w-4xl mx-auto px-4"">
+  <h2 class=""text-2xl font-bold mt-6 mb-3"">
+    <strong>Python Review: Recursion</strong>
+  </h2>
+  <p class=""mb-4"">
+    <strong>Recursion</strong> occurs when a function calls itself to solve a smaller or simpler version of the original problem. It relies on well-defined base cases to avoid infinite loops.
+  </p>
+  
+  <h3 class=""text-2xl font-bold mt-6 mb-3"">
+    <strong>Why Use It?</strong>
+  </h3>
+  <ul class=""list-disc pl-6 mb-4"">
+    <li>More intuitive for certain problems, such as tree or graph traversals.</li>
+    <li>Can lead to simpler, more readable code than iterative solutions.</li>
+  </ul>
+  
+  <h3 class=""text-2xl font-bold mt-6 mb-3"">
+    <strong>Key Concepts</strong>
+  </h3>
+  <ul class=""list-disc pl-6 mb-4"">
+    <li><strong>Base Case</strong>: The simplest form of the problem that ends the recursion.</li>
+    <li><strong>Recursive Case</strong>: The part where the function calls itself with parameters moving toward the base case.</li>
+  </ul>
+  
+  <h3 class=""text-2xl font-bold mt-6 mb-3"">
+    <strong>Code Example</strong>
+  </h3>
+  <pre class=""mb-4 bg-muted p-4 rounded-md overflow-x-auto max-w-full whitespace-pre-wrap break-words"">
+<code class=""language-python"">def factorial(n):
+    # Base Case: factorial(0) is 1.
+    if n == 0:
+        return 1
+    # Recursive Case: n! = n * (n-1)!
+    return n * factorial(n - 1)
+
+# Example usage:
+print(factorial(5))  # Expected output: 120
+</code>
+  </pre>
+  
+  <h3 class=""text-2xl font-bold mt-6 mb-3"">
+    <strong>Typical Use Cases in Industry</strong>
+  </h3>
+  <ul class=""list-disc pl-6 mb-4"">
+    <li><strong>Tree or Graph Traversal</strong>: Recursion is commonly used to explore hierarchical data structures.</li>
+    <li><strong>Dynamic Programming</strong>: Problems like optimization or path calculations often employ recursion with memoization.</li>
+  </ul>
+  
+  <h3 class=""text-2xl font-bold mt-6 mb-3"">
+    <strong>When to Use in DSA</strong>
+  </h3>
+  <ul class=""list-disc pl-6 mb-4"">
+    <li>You spot a <strong>self-similar</strong> pattern (e.g., dividing a problem into smaller subproblems).</li>
+    <li>The solution is naturally approached with <strong>DFS, backtracking,</strong> or repeated subdivision.</li>
+    <li>A <strong>stack-like</strong> approach or a naturally recursive structure is evident.</li>
+  </ul>
+  
+  <p class=""mb-4"">
+    <a href=""additional-documentation.html"" class=""text-blue-600 hover:underline"">Link to Additional Documentation</a>
+  </p>
+</div>
+",NULL,"cm7a5qgoc0008aooebxyajkll","2025-03-13 20:50:33.145","2025-03-15 02:50:23.879","def factorial(n):
+    """"""
+    Computes the factorial of a non-negative integer n using recursion.
+    
+    Parameters:
+        n (int): A non-negative integer.
+    
+    Returns:
+        int: The factorial of n.
+        
+    Example:
+        factorial(5) returns 120.
+    """"""
+    if n == 0:  # Base Case
+        return 1
+    return n * factorial(n - 1)  # Recursive Case
+
+if __name__ == ""__main__"":
+    # Demonstrate the factorial function with several test cases
+    test_values = [0, 1, 3, 5]
+    for value in test_values:
+        result = factorial(value)
+        print(f""factorial({value}) = {result}"")
+","CODING","[{""input"": {""n"": 0}, ""function"": ""factorial"", ""expected_output"": 1}, {""input"": {""n"": 1}, ""function"": ""factorial"", ""expected_output"": 1}, {""input"": {""n"": 3}, ""function"": ""factorial"", ""expected_output"": 6}, {""input"": {""n"": 5}, ""function"": ""factorial"", ""expected_output"": 120}]",10,"{}"
+"cm87tqehw0008pzqqzcqggnbl","Python Review: List Comprehension",NULL,"EASY_I",False,13,"<div class=""max-w-4xl mx-auto px-4"">
+  <h2 class=""text-2xl font-bold mt-6 mb-3"">
+    <strong>Python Review: List Comprehension</strong>
+  </h2>
+  <p class=""mb-4"">
+    A <strong>list comprehension</strong> is a concise way to create lists by iterating over an iterable (like a list or range) and optionally applying conditions and transformations.
+  </p>
+  
+  <h3 class=""text-2xl font-bold mt-6 mb-3"">
+    <strong>Why Use Them?</strong>
+  </h3>
+  <ul class=""list-disc pl-6 mb-4"">
+    <li>More compact and often faster than equivalent for-loops.</li>
+    <li>Reads more cleanly when the transformation is straightforward.</li>
+  </ul>
+  
+  <h3 class=""text-2xl font-bold mt-6 mb-3"">
+    <strong>Code Example</strong>
+  </h3>
+  <pre class=""mb-4 bg-muted p-4 rounded-md overflow-x-auto max-w-full whitespace-pre-wrap break-words"">
+<code class=""language-python"">squares = [x**2 for x in range(5)]  # [0, 1, 4, 9, 16]
+print(squares)
+</code>
+  </pre>
+  
+  <h3 class=""text-2xl font-bold mt-6 mb-3"">
+    <strong>Typical Use Cases in Industry</strong>
+  </h3>
+  <ul class=""list-disc pl-6 mb-4"">
+    <li><strong>Data Transformation</strong>: Quickly transform incoming data into a standard format.</li>
+    <li><strong>Building Test Fixtures</strong>: Generating sets of mock data for unit tests.</li>
+  </ul>
+  
+  <h3 class=""text-2xl font-bold mt-6 mb-3"">
+    <strong>When to Use in DSA</strong>
+  </h3>
+  <ul class=""list-disc pl-6 mb-4"">
+    <li>You only need a <strong>concise one-line transformation</strong> or filtering.</li>
+    <li>A standard loop could be <strong>condensed for clarity</strong>.</li>
+    <li>The challenge is more about <strong>transforming data</strong> than complex logic.</li>
+  </ul>
+  
+  <p class=""mb-4"">
+    <a href=""additional-documentation.html"" class=""text-blue-600 hover:underline"">Link to Additional Documentation</a>
+  </p>
+</div>
+",NULL,"cm7a5qgoc0008aooebxyajkll","2025-03-13 20:51:12.74","2025-03-15 02:50:23.879","def generate_squares(n):
+    """"""
+    Generates a list of squares from 0 to n-1 using a list comprehension.
+    
+    Parameters:
+        n (int): The number of elements.
+        
+    Returns:
+        list: A list containing squares of numbers from 0 to n-1.
+        
+    Example:
+        generate_squares(5) returns [0, 1, 4, 9, 16]
+    """"""
+    return [x**2 for x in range(n)]
+
+if __name__ == ""__main__"":
+    # Demonstrate generate_squares with various inputs.
+    print(""Squares for n = 5:"", generate_squares(5))  # Expected: [0, 1, 4, 9, 16]
+    print(""Squares for n = 0:"", generate_squares(0))  # Expected: []
+    print(""Squares for n = 3:"", generate_squares(3))  # Expected: [0, 1, 4]
+","CODING","[{""input"": {""n"": 5}, ""function"": ""generate_squares"", ""expected_output"": [0, 1, 4, 9, 16]}, {""input"": {""n"": 0}, ""function"": ""generate_squares"", ""expected_output"": []}, {""input"": {""n"": 3}, ""function"": ""generate_squares"", ""expected_output"": [0, 1, 4]}]",10,"{}"
+"cm87tv9vt000apzqq9lqbl736","Python Review: Sets",NULL,"EASY_I",False,14,"<div class=""max-w-4xl mx-auto px-4"">
+  <h2 class=""text-2xl font-bold mt-6 mb-3"">
+    <strong>Python Review: Sets</strong>
+  </h2>
+  <p class=""mb-4"">
+    A <strong>set</strong> is an unordered collection of unique elements. You can add items to it, remove items from it, and check membership quickly.
+  </p>
+  
+  <h3 class=""text-2xl font-bold mt-6 mb-3"">
+    <strong>Why Use Them?</strong>
+  </h3>
+  <ul class=""list-disc pl-6 mb-4"">
+    <li>Automatically handles duplicates by ignoring them.</li>
+    <li>Fast membership testing (e.g., <code>x in my_set</code>) due to hash-based implementation.</li>
+  </ul>
+  
+  <h3 class=""text-2xl font-bold mt-6 mb-3"">
+    <strong>Code Example</strong>
+  </h3>
+  <pre class=""mb-4 bg-muted p-4 rounded-md overflow-x-auto max-w-full whitespace-pre-wrap break-words"">
+<code class=""language-python"">unique_numbers = set([1, 2, 2, 3, 4, 4])  # {1, 2, 3, 4}
+print(unique_numbers)
+</code>
+  </pre>
+  
+  <h3 class=""text-2xl font-bold mt-6 mb-3"">
+    <strong>Typical Use Cases in Industry</strong>
+  </h3>
+  <ul class=""list-disc pl-6 mb-4"">
+    <li><strong>Removing Duplicate IDs</strong>: Ensuring you don’t send duplicate messages in a pipeline.</li>
+    <li><strong>Quick Membership Checks</strong>: Verifying if a user’s ID is in a blocklist or feature-allowed list.</li>
+  </ul>
+  
+  <h3 class=""text-2xl font-bold mt-6 mb-3"">
+    <strong>When to Use in DSA</strong>
+  </h3>
+  <ul class=""list-disc pl-6 mb-4"">
+    <li>You need to <strong>remove duplicates</strong> automatically.</li>
+    <li>Frequent <strong>membership checks</strong> (<code>in</code>) are required.</li>
+    <li>You only care about <strong>existence</strong>, not ordering.</li>
+  </ul>
+  
+  <p class=""mb-4"">
+    <a href=""additional-documentation.html"" class=""text-blue-600 hover:underline"">Link to Additional Documentation</a>
+  </p>
+</div>
+",NULL,"cm7a5qgoc0008aooebxyajkll","2025-03-13 20:55:00.041","2025-03-15 02:50:23.879","def process_set(numbers):
+    """"""
+    Processes a list of numbers using set operations.
+    
+    The function performs the following:
+      1. Converts the list to a set to automatically remove duplicates.
+      2. Adds the number 5 to the set.
+      3. Removes the number 2 from the set if it exists.
+      4. Returns a sorted list of the unique numbers.
+      
+    Parameters:
+        numbers (list): A list of numbers, possibly with duplicates.
+        
+    Returns:
+        list: A sorted list of unique numbers after performing the operations.
+        
+    Example:
+        process_set([1, 2, 2, 3, 4, 4]) returns [1, 3, 4, 5]
+    """"""
+    unique_numbers = set(numbers)
+    unique_numbers.add(5)         # Add 5 to the set.
+    if 2 in unique_numbers:       # Remove 2 if it exists.
+        unique_numbers.remove(2)
+    return sorted(unique_numbers)
+
+if __name__ == ""__main__"":
+    # Demonstrate process_set with various inputs.
+    test_inputs = [
+        [1, 2, 2, 3, 4, 4],
+        [2, 2, 2],
+        [6, 7, 8],
+        []
+    ]
+    
+    for inp in test_inputs:
+        result = process_set(inp)
+        print(""Input:"", inp)
+        print(""Processed Set (sorted):"", result)
+        print(""-"" * 40)
+","CODING","[{""input"": {""numbers"": [1, 2, 2, 3, 4, 4]}, ""function"": ""process_set"", ""expected_output"": [1, 3, 4, 5]}, {""input"": {""numbers"": [2, 2, 2]}, ""function"": ""process_set"", ""expected_output"": [5]}, {""input"": {""numbers"": [6, 7, 8]}, ""function"": ""process_set"", ""expected_output"": [5, 6, 7, 8]}, {""input"": {""numbers"": []}, ""function"": ""process_set"", ""expected_output"": [5]}]",10,"{}"
+"cm87tw08j000bpzqqsl1selip","Python Review: Tuples",NULL,"EASY_I",False,15,"<div class=""max-w-4xl mx-auto px-4"">
+  <h2 class=""text-2xl font-bold mt-6 mb-3"">
+    <strong>Python Review: Tuples</strong>
+  </h2>
+  <p class=""mb-4"">
+    A <strong>tuple</strong> is an immutable sequence of items. Once created, its contents cannot be changed, making it great for data consistency.
+  </p>
+  
+  <h3 class=""text-2xl font-bold mt-6 mb-3"">
+    <strong>Why Use Them?</strong>
+  </h3>
+  <ul class=""list-disc pl-6 mb-4"">
+    <li>Immutability prevents accidental modifications.</li>
+    <li>Can serve as reliable keys in dictionaries because they are hashable.</li>
+  </ul>
+  
+  <h3 class=""text-2xl font-bold mt-6 mb-3"">
+    <strong>Code Example</strong>
+  </h3>
+  <pre class=""mb-4 bg-muted p-4 rounded-md overflow-x-auto max-w-full whitespace-pre-wrap break-words"">
+<code class=""language-python"">coordinates = (10.0, 20.0)
+print(coordinates)  # Output: (10.0, 20.0)
+</code>
+  </pre>
+  
+  <h3 class=""text-2xl font-bold mt-6 mb-3"">
+    <strong>Typical Use Cases in Industry</strong>
+  </h3>
+  <ul class=""list-disc pl-6 mb-4"">
+    <li><strong>Immutable Returns</strong>: Returning multiple values from a function, ensuring the data remains stable if shared across threads.</li>
+    <li><strong>Dictionary Keys</strong>: Tuples can be used as dictionary keys for composite fields.</li>
+  </ul>
+  
+  <h3 class=""text-2xl font-bold mt-6 mb-3"">
+    <strong>When to Use in DSA</strong>
+  </h3>
+  <ul class=""list-disc pl-6 mb-4"">
+    <li>You need an <strong>immutable grouping</strong> of values that shouldn’t be changed once set.</li>
+    <li>You want to use <strong>pairs or triples</strong> as dictionary or set keys.</li>
+    <li>The data must remain <strong>constant</strong> after creation.</li>
+  </ul>
+  
+  <p class=""mb-4"">
+    <a href=""additional-documentation.html"" class=""text-blue-600 hover:underline"">Link to Additional Documentation</a>
+  </p>
+</div>
+",NULL,"cm7a5qgoc0008aooebxyajkll","2025-03-13 20:55:34.195","2025-03-15 02:50:23.879","def create_coordinates(x, y):
+    """"""
+    Creates a tuple representing coordinates.
+    
+    Parameters:
+        x (float): The x-coordinate.
+        y (float): The y-coordinate.
+    
+    Returns:
+        tuple: A tuple (x, y).
+        
+    Example:
+        create_coordinates(10.0, 20.0) returns (10.0, 20.0)
+    """"""
+    return (x, y)
+
+def add_points(p1, p2):
+    """"""
+    Adds two coordinate tuples element-wise.
+    
+    Parameters:
+        p1 (tuple): A tuple representing the first point (x1, y1).
+        p2 (tuple): A tuple representing the second point (x2, y2).
+    
+    Returns:
+        tuple: A tuple representing the sum of the two points.
+        
+    Example:
+        add_points((1, 2), (3, 4)) returns (4, 6)
+    """"""
+    return (p1[0] + p2[0], p1[1] + p2[1])
+
+if __name__ == ""__main__"":
+    # Demonstrate create_coordinates
+    coords = create_coordinates(10.0, 20.0)
+    print(""Coordinates:"", coords)  # Expected output: (10.0, 20.0)
+    
+    # Using tuples as dictionary keys
+    point_dict = {
+        (1, 2): ""Point A"",
+        (3, 4): ""Point B""
+    }
+    print(""Dictionary with tuple keys:"", point_dict)
+    
+    # Demonstrate add_points
+    p1 = (1, 2)
+    p2 = (3, 4)
+    summed_point = add_points(p1, p2)
+    print(""Added Points:"", summed_point)  # Expected output: (4, 6)
+","CODING","[{""input"": {""x"": 10, ""y"": 20}, ""function"": ""create_coordinates"", ""expected_output"": [10, 20]}, {""input"": {""p1"": [1, 2], ""p2"": [3, 4]}, ""function"": ""add_points"", ""expected_output"": [4, 6]}]",10,"{}"
+"cm87twlli000cpzqq6791kv8m","Python Review: Conditional Expressions",NULL,"EASY_I",False,16,"<div class=""max-w-4xl mx-auto px-4"">
+  <h2 class=""text-2xl font-bold mt-6 mb-3"">
+    <strong>Python Review: Conditional Expressions</strong>
+  </h2>
+  <p class=""mb-4"">
+    A <strong>conditional expression</strong> (ternary operator) lets you select one of two values based on a condition, all in one line.
+  </p>
+  
+  <h3 class=""text-2xl font-bold mt-6 mb-3"">
+    <strong>Why Use Them?</strong>
+  </h3>
+  <ul class=""list-disc pl-6 mb-4"">
+    <li>Makes code concise and expressive.</li>
+    <li>Great for small, simple conditions.</li>
+  </ul>
+  
+  <h3 class=""text-2xl font-bold mt-6 mb-3"">
+    <strong>Code Example</strong>
+  </h3>
+  <pre class=""mb-4 bg-muted p-4 rounded-md overflow-x-auto max-w-full whitespace-pre-wrap break-words"">
+<code class=""language-python"">age = 20
+status = ""Adult"" if age >= 18 else ""Minor""  # ""Adult""
+print(status)
+</code>
+  </pre>
+  
+  <h3 class=""text-2xl font-bold mt-6 mb-3"">
+    <strong>Typical Use Cases in Industry</strong>
+  </h3>
+  <ul class=""list-disc pl-6 mb-4"">
+    <li><strong>Ternary Operations in One-Liners</strong>: Quickly toggling flags or setting configurations.</li>
+    <li><strong>Inline Decision Making</strong>: Deciding how to parse incoming data if certain fields exist, all in a single expression.</li>
+  </ul>
+  
+  <h3 class=""text-2xl font-bold mt-6 mb-3"">
+    <strong>When to Use in DSA</strong>
+  </h3>
+  <ul class=""list-disc pl-6 mb-4"">
+    <li>A <strong>simple if-else</strong> can be condensed for clarity.</li>
+    <li>You just need to pick <strong>one of two values</strong> in a single step.</li>
+    <li>Multiple short if-else checks can be combined into a single line.</li>
+  </ul>
+  
+  <p class=""mb-4"">
+    <a href=""additional-documentation.html"" class=""text-blue-600 hover:underline"">Link to Additional Documentation</a>
+  </p>
+</div>
+",NULL,"cm7a5qgoc0008aooebxyajkll","2025-03-13 20:56:01.878","2025-03-15 02:50:23.879","def get_status(age):
+    """"""
+    Returns ""Adult"" if age is greater than or equal to 18, otherwise ""Minor"".
+
+    Parameters:
+        age (int): The age to check.
+
+    Returns:
+        str: ""Adult"" if age >= 18, ""Minor"" otherwise.
+    """"""
+    return ""Adult"" if age >= 18 else ""Minor""
+
+if __name__ == ""__main__"":
+    # Demonstrate the get_status function with various ages
+    test_ages = [20, 17, 18, 0]
+    for age in test_ages:
+        status = get_status(age)
+        print(f""Age: {age} -> Status: {status}"")
+","CODING","[{""input"": {""age"": 20}, ""function"": ""get_status"", ""expected_output"": ""Adult""}, {""input"": {""age"": 17}, ""function"": ""get_status"", ""expected_output"": ""Minor""}, {""input"": {""age"": 18}, ""function"": ""get_status"", ""expected_output"": ""Adult""}, {""input"": {""age"": 0}, ""function"": ""get_status"", ""expected_output"": ""Minor""}]",10,"{}"

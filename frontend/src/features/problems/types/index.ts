@@ -11,6 +11,7 @@ export interface Problem {
   completed: boolean;
   required?: boolean;
   reqOrder?: number;
+  collection?: string[];
   topic?: Topic;
 }
 

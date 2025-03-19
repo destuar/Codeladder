@@ -13,6 +13,7 @@ interface CreateProblemBody {
   required?: boolean;
   reqOrder?: number;
   problemType?: ProblemType;
+  collectionIds?: string[];
   codeTemplate?: string;
   testCases?: string;
   topicId?: string;
@@ -26,6 +27,7 @@ interface UpdateProblemBody {
   required?: boolean;
   reqOrder?: number;
   problemType?: ProblemType;
+  collectionIds?: string[];
   codeTemplate?: string;
   testCases?: string;
   estimatedTime?: string | number;
@@ -54,13 +56,26 @@ router.get('/:problemId', authenticateToken, (async (req, res) => {
           where: { userId },
           select: { status: true }
         },
-        topic: true // Include the topic to get related problems
+        topic: true, // Include the topic to get related problems
+        collections: {
+          select: {
+            collection: {
+              select: {
+                id: true,
+                name: true
+              }
+            }
+          }
+        }
       }
     });
 
     if (!problem) {
       return res.status(404).json({ error: 'Problem not found' });
     }
+
+    // Extract collection IDs for the frontend
+    const collectionIds = problem.collections.map(pc => pc.collection.id);
 
     // Find next and previous problems if this problem belongs to a topic
     let nextProblemId = null;
@@ -97,14 +112,16 @@ router.get('/:problemId', authenticateToken, (async (req, res) => {
       }
     }
 
-    // Transform the response to include isCompleted and navigation IDs
+    // Transform the response to include isCompleted, navigation IDs, and collections
     const response = {
       ...problem,
       isCompleted: problem.completedBy.length > 0 || problem.progress.some(p => p.status === 'COMPLETED'),
       nextProblemId,
       prevProblemId,
+      collectionIds,
       completedBy: undefined, // Remove these from the response
-      progress: undefined
+      progress: undefined,
+      collections: undefined // Remove raw collections data
     };
 
     res.json(response);
@@ -161,6 +178,16 @@ router.get('/', authenticateToken, (async (req, res) => {
         progress: {
           where: { userId },
           select: { status: true }
+        },
+        collections: {
+          select: {
+            collection: {
+              select: {
+                id: true,
+                name: true
+              }
+            }
+          }
         }
       },
       orderBy: [
@@ -171,13 +198,18 @@ router.get('/', authenticateToken, (async (req, res) => {
       ]
     });
 
-    // Transform the response to include completion status
-    const transformedProblems = problems.map(problem => ({
-      ...problem,
-      completed: problem.completedBy.length > 0 || problem.progress.some(p => p.status === 'COMPLETED'),
-      completedBy: undefined,
-      progress: undefined
-    }));
+    // Transform the response to include completion status and collection IDs
+    const transformedProblems = problems.map(problem => {
+      const collectionIds = problem.collections.map(pc => pc.collection.id);
+      return {
+        ...problem,
+        completed: problem.completedBy.length > 0 || problem.progress.some(p => p.status === 'COMPLETED'),
+        collectionIds,
+        completedBy: undefined,
+        progress: undefined,
+        collections: undefined // Remove raw collections data
+      };
+    });
 
     res.json(transformedProblems);
   } catch (error) {
@@ -196,6 +228,7 @@ router.post('/', authenticateToken, authorizeRoles([Role.ADMIN, Role.DEVELOPER])
       required = false,
       reqOrder,
       problemType = 'INFO' as const,
+      collectionIds = [],
       codeTemplate,
       testCases,
       topicId,
@@ -204,13 +237,14 @@ router.post('/', authenticateToken, authorizeRoles([Role.ADMIN, Role.DEVELOPER])
 
     console.log('Creating problem with data:', {
       name,
-      content,
+      content: content ? `${content.substring(0, 20)}...` : undefined,
       difficulty,
       required,
       reqOrder,
       problemType,
-      codeTemplate,
-      testCases,
+      collectionIds,
+      codeTemplate: codeTemplate ? 'Provided' : undefined,
+      testCases: testCases ? 'Provided' : undefined,
       topicId,
       estimatedTime
     });
@@ -250,29 +284,91 @@ router.post('/', authenticateToken, authorizeRoles([Role.ADMIN, Role.DEVELOPER])
       return res.status(400).json({ error: 'Estimated time must be a valid number' });
     }
 
-    const problem = await prisma.problem.create({
-      data: {
-        name,
-        content,
-        difficulty,
-        required,
-        reqOrder,
-        problemType,
-        codeTemplate,
-        testCases: testCases ? JSON.parse(testCases) : undefined,
-        estimatedTime: parsedEstimatedTime,
-        ...(topicId && {
-          topic: {
-            connect: { id: topicId }
-          }
-        })
-      }
-    });
+    // Use a transaction for the entire create process
+    const prismaAny = prisma as any;
+    
+    const newProblem = await prisma.$transaction(async (tx) => {
+      // Create the problem first (without collections)
+      const problem = await tx.problem.create({
+        data: {
+          name,
+          content,
+          difficulty,
+          required,
+          reqOrder,
+          problemType,
+          codeTemplate,
+          testCases: testCases ? JSON.parse(testCases) : undefined,
+          estimatedTime: parsedEstimatedTime,
+          ...(topicId && {
+            topic: {
+              connect: { id: topicId }
+            }
+          })
+        }
+      });
 
-    res.status(201).json(problem);
+      // Then associate with collections if collectionIds is provided
+      if (collectionIds.length > 0) {
+        const collectionConnections = collectionIds.map(collectionId => ({
+          problemId: problem.id,
+          collectionId
+        }));
+        
+        // Validate that all collections exist
+        for (const { collectionId } of collectionConnections) {
+          const collectionExists = await tx.collection.findUnique({
+            where: { id: collectionId },
+            select: { id: true }
+          });
+          
+          if (!collectionExists) {
+            console.error(`Collection ID ${collectionId} does not exist`);
+            throw new Error(`Collection with ID ${collectionId} does not exist`);
+          }
+        }
+        
+        // Create the associations
+        await tx.problemToCollection.createMany({
+          data: collectionConnections,
+          skipDuplicates: true
+        });
+        
+        console.log(`Created ${collectionConnections.length} collection associations for new problem`);
+      }
+      
+      // Return the problem with collections
+      return await tx.problem.findUnique({
+        where: { id: problem.id },
+        include: {
+          collections: {
+            include: {
+              collection: true
+            }
+          }
+        }
+      });
+    });
+    
+    if (!newProblem) {
+      throw new Error('Failed to retrieve created problem');
+    }
+    
+    // Transform the response to include collection IDs for frontend
+    const responseData = {
+      ...newProblem,
+      collectionIds: newProblem.collections.map((pc: any) => pc.collection.id),
+      collections: undefined // Remove raw collections from response
+    };
+
+    res.status(201).json(responseData);
   } catch (error) {
     console.error('Detailed error creating problem:', error);
-    res.status(500).json({ error: 'Failed to create problem', details: error instanceof Error ? error.message : 'Unknown error' });
+    res.status(500).json({ 
+      error: 'Failed to create problem', 
+      details: error instanceof Error ? error.message : 'Unknown error',
+      stack: process.env.NODE_ENV !== 'production' ? (error as Error).stack : undefined
+    });
   }
 }) as RequestHandler);
 
@@ -287,14 +383,36 @@ router.put('/:problemId', authenticateToken, authorizeRoles([Role.ADMIN, Role.DE
       required = false,
       reqOrder,
       problemType,
+      collectionIds, // Collection IDs for relationships
       codeTemplate,
       testCases,
       estimatedTime
     } = req.body as UpdateProblemBody;
 
+    console.log('Updating problem with ID:', problemId);
+    console.log('Request body:', {
+      name,
+      content: content ? `${content.substring(0, 20)}...` : undefined,
+      difficulty,
+      required,
+      reqOrder,
+      problemType,
+      collectionIds,
+      codeTemplate: codeTemplate ? 'Provided' : undefined,
+      testCases: testCases ? 'Provided' : undefined,
+      estimatedTime
+    });
+
     // Get the current problem to check its topic
     const currentProblem = await prisma.problem.findUnique({
-      where: { id: problemId }
+      where: { id: problemId },
+      include: {
+        collections: {
+          include: {
+            collection: true
+          }
+        }
+      }
     });
 
     if (!currentProblem) {
@@ -336,25 +454,109 @@ router.put('/:problemId', authenticateToken, authorizeRoles([Role.ADMIN, Role.DE
       return res.status(400).json({ error: 'Estimated time must be a valid number' });
     }
 
-    const problem = await prisma.problem.update({
-      where: { id: problemId },
-      data: {
-        name,
-        content,
-        difficulty,
-        required,
-        reqOrder,
-        ...(problemType && { problemType: problemType }),
-        ...(codeTemplate !== undefined && { codeTemplate }),
-        ...(testCases !== undefined && { testCases: parsedTestCases }),
-        ...(estimatedTime !== undefined && { estimatedTime: parsedEstimatedTime })
+    // Use a transaction to ensure problem and collections are updated atomically
+    const prismaAny = prisma as any;
+    
+    const updatedProblem = await prisma.$transaction(async (tx) => {
+      // 1. Update the problem
+      const problem = await tx.problem.update({
+        where: { id: problemId },
+        data: {
+          name,
+          content,
+          difficulty,
+          required,
+          reqOrder,
+          ...(problemType && { problemType: problemType }),
+          ...(codeTemplate !== undefined && { codeTemplate }),
+          ...(testCases !== undefined && { testCases: parsedTestCases }),
+          ...(estimatedTime !== undefined && { estimatedTime: parsedEstimatedTime })
+        },
+        include: {
+          collections: {
+            include: {
+              collection: true
+            }
+          }
+        }
+      });
+      
+      console.log(`Problem updated successfully. ID: ${problem.id}`);
+      
+      // 2. Update collections if collectionIds is explicitly provided
+      if (collectionIds !== undefined) {
+        console.log(`Updating collections for problem ${problemId}. Collection IDs:`, collectionIds);
+        
+        // Remove existing collection associations
+        const deleteResult = await tx.problemToCollection.deleteMany({
+          where: { problemId }
+        });
+        
+        console.log(`Deleted ${deleteResult.count} existing collection associations`);
+        
+        // Create new associations if there are any collections
+        if (collectionIds.length > 0) {
+          const collectionConnections = collectionIds.map(collectionId => ({
+            problemId,
+            collectionId
+          }));
+          
+          // Validate that all collections exist
+          for (const { collectionId } of collectionConnections) {
+            const collectionExists = await tx.collection.findUnique({
+              where: { id: collectionId },
+              select: { id: true }
+            });
+            
+            if (!collectionExists) {
+              console.error(`Collection ID ${collectionId} does not exist`);
+              throw new Error(`Collection with ID ${collectionId} does not exist`);
+            }
+          }
+          
+          // Create the associations
+          await tx.problemToCollection.createMany({
+            data: collectionConnections,
+            skipDuplicates: true
+          });
+          
+          console.log(`Created ${collectionConnections.length} new collection associations`);
+        }
       }
+      
+      // Always return the problem with updated collections
+      return await tx.problem.findUnique({
+        where: { id: problemId },
+        include: {
+          collections: {
+            include: {
+              collection: true
+            }
+          }
+        }
+      });
     });
-
-    res.json(problem);
+    
+    if (!updatedProblem) {
+      throw new Error(`Failed to retrieve updated problem`);
+    }
+    
+    // Transform the response to include collection IDs for frontend
+    const responseData = {
+      ...updatedProblem,
+      collectionIds: updatedProblem.collections.map((pc: any) => pc.collection.id),
+      collections: undefined // Remove raw collections from response
+    };
+    
+    res.json(responseData);
   } catch (error) {
-    console.error('Error updating problem:', error);
-    res.status(500).json({ error: 'Failed to update problem' });
+    console.error('Detailed error updating problem:', error);
+    // Send a more helpful error message
+    res.status(500).json({ 
+      error: 'Failed to update problem', 
+      details: error instanceof Error ? error.message : 'Unknown error',
+      stack: process.env.NODE_ENV !== 'production' ? (error as Error).stack : undefined
+    });
   }
 }) as RequestHandler);
 

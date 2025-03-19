@@ -70,6 +70,17 @@ enum ProblemType {
   STANDALONE_INFO
 }
 
+model Collection {
+  id          String    @id @default(cuid())
+  name        String
+  description String?   @db.Text
+  problems    ProblemToCollection[]
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@map("collections")
+}
+
 model Problem {
   id          String    @id @default(cuid())
   name        String
@@ -87,10 +98,21 @@ model Problem {
   topicId     String?   // Make topicId optional for standalone info
   completedBy User[]    @relation("UserCompletedProblems")
   progress    Progress[]
+  collections ProblemToCollection[] // Relation to collections
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
 
   @@map("problems")
+}
+
+model ProblemToCollection {
+  problem     Problem    @relation(fields: [problemId], references: [id])
+  problemId   String
+  collection  Collection @relation(fields: [collectionId], references: [id])
+  collectionId String
+
+  @@id([problemId, collectionId])
+  @@map("problem_collections")
 }
 
 model Progress {

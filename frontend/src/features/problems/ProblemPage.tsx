@@ -14,6 +14,7 @@ export type Problem = {
   difficulty: 'EASY_IIII' | 'EASY_III' | 'EASY_II' | 'EASY_I' | 'MEDIUM' | 'HARD';
   content: string;
   problemType: 'INFO' | 'CODING' | 'STANDALONE_INFO';
+  collection?: string[];
   codeTemplate?: string;
   testCases?: string;
   nextProblemId?: string;
