@@ -7,6 +7,7 @@ import learningRouter from './learning';
 import problemsRouter from './problems';
 import standaloneInfoRouter from './standalone-info';
 import imageUploadRouter from './image-upload';
+import collectionsRouter from './collections';
 
 const router = express.Router();
 
@@ -19,5 +20,6 @@ router.use('/learning', learningRouter);
 router.use('/problems', problemsRouter);
 router.use('/standalone-info', standaloneInfoRouter);
 router.use('/image-upload', imageUploadRouter);
+router.use('/collections', collectionsRouter);
 
 export default router; 

@@ -1,16 +1,26 @@
 import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
+import { useState } from 'react';
 import { useAuth } from '@/features/auth/AuthContext';
 import { api } from '@/lib/api';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { ProblemList } from '@/components/ProblemList';
 import type { Problem } from '@/hooks/useLearningPath';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+
+// Interface for our collection type
+interface Collection {
+  id: string;
+  name: string;
+}
 
 export default function ProblemsPage() {
   const navigate = useNavigate();
   const { token } = useAuth();
+  const [selectedCollection, setSelectedCollection] = useState<string>("all"); // Default to all problems
 
-  const { data: problems, isLoading } = useQuery<Problem[]>({
+  // Fetch all problems
+  const { data: problems, isLoading: isLoadingProblems } = useQuery<Problem[]>({
     queryKey: ['allProblems'],
     queryFn: async () => {
       if (!token) throw new Error('No token available');
@@ -20,14 +30,43 @@ export default function ProblemsPage() {
     enabled: !!token,
   });
 
+  // Fetch all collections from our new public endpoint
+  const { data: collections = [], isLoading: isLoadingCollections } = useQuery<Collection[]>({
+    queryKey: ['publicCollections'],
+    queryFn: async () => {
+      if (!token) throw new Error('No token available');
+      const response = await api.get('/collections/public', token);
+      return response;
+    },
+    enabled: !!token,
+  });
+
   const handleProblemStart = (problemId: string) => {
     navigate(`/problems/${problemId}`);
   };
 
-  // Filter problems to only include those with at least one collection
-  const filteredProblems = problems?.filter(problem => 
-    problem.collection && problem.collection.length > 0
-  ) || [];
+  // Handle collection change
+  const handleCollectionChange = (collectionId: string) => {
+    setSelectedCollection(collectionId);
+  };
+
+  // Filter problems based on selected collection
+  const filteredProblems = problems?.filter(problem => {
+    // If "all" is selected, show all problems
+    if (selectedCollection === 'all') {
+      return true;
+    }
+    
+    // Show problems from the selected collection
+    if (problem.collectionIds && problem.collectionIds.length > 0) {
+      return problem.collectionIds.includes(selectedCollection);
+    }
+    
+    return false;
+  }) || [];
+
+  // Show loading state while either problems or collections are loading
+  const isLoading = isLoadingProblems || isLoadingCollections;
 
   if (isLoading) {
     return (
@@ -55,7 +94,30 @@ export default function ProblemsPage() {
             Browse and practice all available problems across topics
           </CardDescription>
         </CardHeader>
-        <CardContent>
+        <CardContent className="space-y-4">
+          {/* Collection filter dropdown - always visible if collections exist */}
+          {collections.length > 0 && (
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-medium">Filter by collection:</span>
+              <Select 
+                value={selectedCollection} 
+                onValueChange={handleCollectionChange}
+              >
+                <SelectTrigger className="w-[250px]">
+                  <SelectValue placeholder="Select collection" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Problems</SelectItem>
+                  {collections.map(collection => (
+                    <SelectItem key={collection.id} value={collection.id}>
+                      {collection.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+
           {filteredProblems.length > 0 ? (
             <ProblemList
               problems={filteredProblems}
@@ -66,7 +128,11 @@ export default function ProblemsPage() {
             />
           ) : (
             <div className="text-center py-8 text-muted-foreground">
-              No problems available
+              {problems && problems.length > 0 ? 
+                `No problems available in ${selectedCollection !== 'all' ? 
+                  collections.find(c => c.id === selectedCollection)?.name || 'this collection' : 
+                  'any collection'}` : 
+                'No problems available'}
             </div>
           )}
         </CardContent>

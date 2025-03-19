@@ -12,6 +12,7 @@ import { Badge } from "@/components/ui/badge";
 import { ArrowUpDown, ChevronDown, ChevronUp, CheckCircle2, Circle, Book, Code2, Timer, Lock, PlayCircle, RepeatIcon } from "lucide-react";
 import { cn } from '@/lib/utils';
 import { Problem, Topic } from '@/hooks/useLearningPath';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 type Difficulty = 'EASY_IIII' | 'EASY_III' | 'EASY_II' | 'EASY_I' | 'MEDIUM' | 'HARD';
 type SortField = 'name' | 'difficulty' | 'order' | 'completed';
@@ -34,6 +35,9 @@ interface ProblemListProps {
   itemsPerPage?: number;
   showTopicName?: boolean;
   showOrder?: boolean;
+  collections?: { id: string; name: string }[];
+  selectedCollection?: string;
+  onCollectionChange?: (collectionId: string) => void;
 }
 
 const formatEstimatedTime = (time?: number) => {
@@ -76,6 +80,9 @@ export function ProblemList({
   itemsPerPage = 50,
   showTopicName = false,
   showOrder = false,
+  collections = [],
+  selectedCollection = 'all',
+  onCollectionChange,
 }: ProblemListProps) {
   const [sortField, setSortField] = useState<SortField>('order');
   const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
@@ -125,6 +132,29 @@ export function ProblemList({
 
   return (
     <div className="space-y-8">
+      {/* Collection filter dropdown - only show if we have collections and a change handler */}
+      {collections.length > 0 && onCollectionChange && (
+        <div className="flex items-center gap-2 mb-4">
+          <span className="text-sm font-medium">Filter by collection:</span>
+          <Select 
+            value={selectedCollection} 
+            onValueChange={onCollectionChange}
+          >
+            <SelectTrigger className="w-[250px]">
+              <SelectValue placeholder="Select collection" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Problems</SelectItem>
+              {collections.map(collection => (
+                <SelectItem key={collection.id} value={collection.id}>
+                  {collection.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      )}
+
       <div className="grid grid-cols-2 gap-4">
         <Button
           variant="outline"

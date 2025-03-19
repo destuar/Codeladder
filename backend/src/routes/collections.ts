@@ -7,6 +7,27 @@ import type { RequestHandler } from 'express-serve-static-core';
 
 const router = express.Router();
 
+// Public endpoint to get all collection names (no admin rights required)
+// This is specifically for the problem list filtering in the UI
+router.get('/public', authenticateToken, (async (req, res) => {
+  try {
+    // Using a type assertion to handle the missing type in the Prisma client
+    const prismaAny = prisma as any;
+    const collections = await prismaAny.collection.findMany({
+      select: {
+        id: true,
+        name: true
+      },
+      orderBy: { name: 'asc' }
+    });
+    
+    res.json(collections);
+  } catch (error) {
+    console.error('Error fetching public collections:', error);
+    res.status(500).json({ error: 'Failed to fetch collections' });
+  }
+}) as RequestHandler);
+
 // Get all collections
 router.get('/', authenticateToken, authorizeRoles([Role.ADMIN, Role.DEVELOPER]), (async (req, res) => {
   try {
