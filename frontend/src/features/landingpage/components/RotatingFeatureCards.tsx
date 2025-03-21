@@ -11,7 +11,8 @@ import {
   Zap, 
   CheckCircle, 
   Clock, 
-  Trophy 
+  Trophy,
+  Dumbbell
 } from 'lucide-react';
 import { RotatingCards } from '@/components/ui/rotating-cards';
 
@@ -50,7 +51,7 @@ export function RotatingFeatureCards() {
       description: "Master our 5-step approach: Clarify, Outline, Decide, Execute, Improve & Optimize for any technical challenge."
     },
     {
-      icon: <Brain className="h-8 w-8 text-[#5b5bf7]" />,
+      icon: <Dumbbell className="h-8 w-8 text-[#5b5bf7]" />,
       title: "Future-Proof Skills",
       description: "Build algorithmic efficiency expertise that remains relevant as computational problems grow in size and complexity."
     },

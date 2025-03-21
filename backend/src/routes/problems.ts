@@ -595,6 +595,15 @@ router.post('/:problemId/complete', authenticateToken, (async (req, res) => {
     const { problemId } = req.params;
     const userId = req.user?.id;
     const isAdmin = req.user?.role === Role.ADMIN || req.user?.role === Role.DEVELOPER;
+    const { preserveReviewData, forceComplete } = req.body; // Added forceComplete parameter
+
+    console.log('Problem completion request:', { 
+      problemId, 
+      userId, 
+      isAdmin, 
+      preserveReviewData,
+      forceComplete
+    });
 
     if (!userId) {
       return res.status(401).json({ error: 'User not authenticated' });
@@ -611,7 +620,14 @@ router.post('/:problemId/complete', authenticateToken, (async (req, res) => {
         },
         progress: {
           where: { userId },
-          select: { status: true }
+          select: { 
+            status: true,
+            reviewLevel: true,
+            reviewScheduledAt: true,
+            lastReviewedAt: true,
+            reviewHistory: true,
+            id: true
+          }
         }
       }
     });
@@ -622,34 +638,93 @@ router.post('/:problemId/complete', authenticateToken, (async (req, res) => {
 
     // Check if problem is already completed
     const isCompleted = problem.completedBy.length > 0 || problem.progress.some(p => p.status === 'COMPLETED');
+    
+    // Get existing review data if present
+    const existingProgress = problem.progress[0];
 
-    if (isCompleted && !isAdmin) {
+    console.log('Problem state before update:', {
+      problemId,
+      isCompleted,
+      preserveReviewData,
+      forceComplete,
+      existingProgressId: existingProgress?.id,
+      progressStatus: existingProgress?.status,
+      reviewLevel: existingProgress?.reviewLevel,
+      hasReviewHistory: existingProgress?.reviewHistory ? 
+        Array.isArray(existingProgress.reviewHistory) && existingProgress.reviewHistory.length > 0 : false
+    });
+
+    // If problem is completed and we're not forcing completion, and not admin, return error
+    // Otherwise, we either toggle off or force completion
+    if (isCompleted && !forceComplete && !isAdmin) {
       return res.status(400).json({ error: 'Problem is already completed' });
     }
 
-    if (isCompleted) {
+    let result;
+    
+    // Only uncomplete if explicitly toggling (not in force complete mode) and already completed
+    if (isCompleted && !forceComplete) {
       // Remove completion status
-      await prisma.$transaction([
-        prisma.progress.deleteMany({
+      result = await prisma.$transaction(async (tx) => {
+        await tx.progress.deleteMany({
           where: {
             userId,
             problemId,
             status: 'COMPLETED'
           }
-        }),
-        prisma.user.update({
+        });
+        
+        return await tx.user.update({
           where: { id: userId },
           data: {
             completedProblems: {
               disconnect: { id: problemId }
             }
           }
-        })
-      ]);
+        });
+      });
+      
+      console.log('Problem marked as uncompleted:', {
+        problemId,
+        userId
+      });
     } else {
-      // Mark as completed
-      await prisma.$transaction([
-        prisma.progress.upsert({
+      // Mark as completed (either newly or forced)
+      result = await prisma.$transaction(async (tx) => {
+        // First, get any existing progress to preserve review data if needed
+        const currentProgress = preserveReviewData ? await tx.progress.findFirst({
+          where: {
+            userId,
+            problemId
+          }
+        }) : null;
+        
+        console.log('Existing progress in transaction:', currentProgress ? {
+          id: currentProgress.id,
+          status: currentProgress.status,
+          reviewLevel: currentProgress.reviewLevel,
+          reviewScheduledAt: currentProgress.reviewScheduledAt
+        } : 'No existing progress');
+        
+        // Determine what review data to use
+        const reviewData = preserveReviewData && currentProgress && currentProgress.reviewLevel !== null ? {
+          // Keep existing review data
+          reviewLevel: currentProgress.reviewLevel,
+          reviewScheduledAt: currentProgress.reviewScheduledAt,
+          lastReviewedAt: currentProgress.lastReviewedAt,
+          reviewHistory: currentProgress.reviewHistory as Prisma.InputJsonValue
+        } : {
+          // Initialize new review data
+          reviewLevel: 0,
+          reviewScheduledAt: calculateNextReviewDate(0),
+          lastReviewedAt: new Date(),
+          reviewHistory: [] as Prisma.InputJsonValue
+        };
+        
+        console.log('Review data to be used:', reviewData);
+        
+        // Update or create progress
+        const progressResult = await tx.progress.upsert({
           where: {
             userId_topicId_problemId: {
               userId,
@@ -662,35 +737,48 @@ router.post('/:problemId/complete', authenticateToken, (async (req, res) => {
             topicId: problem.topicId!,
             problemId,
             status: 'COMPLETED',
-            // Initialize spaced repetition fields
-            reviewLevel: 0,
-            reviewScheduledAt: calculateNextReviewDate(0),
-            lastReviewedAt: new Date(),
-            reviewHistory: []
+            ...reviewData
           },
           update: {
             status: 'COMPLETED',
-            // Only set these fields if they don't exist yet
-            ...(!isCompleted && {
+            // Only update review fields if we're not preserving existing data
+            ...(!preserveReviewData && {
               reviewLevel: 0,
               reviewScheduledAt: calculateNextReviewDate(0),
               lastReviewedAt: new Date(),
-              reviewHistory: []
+              reviewHistory: [] as Prisma.InputJsonValue
             })
+            // When preserveReviewData is true, we don't modify any review fields
           }
-        }),
-        prisma.user.update({
+        });
+        
+        // Update user's completed problems
+        const userResult = await tx.user.update({
           where: { id: userId },
           data: {
             completedProblems: {
               connect: { id: problemId }
             }
           }
-        })
-      ]);
+        });
+        
+        return { progressResult, userResult };
+      });
+      
+      console.log('Problem marked as completed:', {
+        problemId,
+        userId,
+        progressId: result.progressResult.id,
+        reviewLevel: result.progressResult.reviewLevel,
+        reviewScheduledAt: result.progressResult.reviewScheduledAt
+      });
     }
 
-    res.json({ message: isCompleted ? 'Problem marked as uncompleted' : 'Problem marked as completed' });
+    res.json({ 
+      message: isCompleted && !forceComplete ? 'Problem marked as uncompleted' : 'Problem marked as completed',
+      preservedReviewData: preserveReviewData || false,
+      wasForced: forceComplete || false
+    });
   } catch (error) {
     console.error('Error toggling problem completion:', error);
     res.status(500).json({ error: 'Failed to toggle problem completion' });

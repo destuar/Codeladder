@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/features/auth/AuthContext';
-import { ArrowRight, Code, Brain, Layers, Trophy, CheckCircle } from 'lucide-react';
+import { ArrowRight, Code, Dumbbell, Layers, Trophy, CheckCircle } from 'lucide-react';
 import { DashboardShowcase } from './components/DashboardShowcase';
 import { StatsSection } from './components/StatsSection';
 import { FeatureCard } from './components/FeatureCard';

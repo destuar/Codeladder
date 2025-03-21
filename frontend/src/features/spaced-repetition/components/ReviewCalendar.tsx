@@ -14,10 +14,11 @@ import {
   isSameMonth,
   isWithinInterval,
   startOfDay,
-  endOfDay
+  endOfDay,
+  isAfter
 } from 'date-fns';
 import { Badge } from '@/components/ui/badge';
-import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Calendar, CalendarCheck } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { ReviewProblem, ReviewStats } from '../api/spacedRepetitionApi';
@@ -28,7 +29,11 @@ interface ReviewCalendarProps {
   onDaySelect: (date: Date, problems: ReviewProblem[]) => void;
 }
 
-export function ReviewCalendar({ stats, problems, onDaySelect }: ReviewCalendarProps) {
+export function ReviewCalendar({ 
+  stats, 
+  problems, 
+  onDaySelect
+}: ReviewCalendarProps) {
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [selectedDay, setSelectedDay] = useState(new Date());
   
@@ -52,6 +57,14 @@ export function ReviewCalendar({ stats, problems, onDaySelect }: ReviewCalendarP
     const weekEnd = endOfDay(addDays(now, 6)); // Next 7 days
     
     return isWithinInterval(date, { start: today, end: weekEnd });
+  };
+  
+  // Check if a date is beyond the next week (upcoming/future)
+  const isFutureDate = (date: Date) => {
+    const now = new Date();
+    const weekEnd = endOfDay(addDays(now, 6)); // End of next 7 days
+    
+    return isAfter(date, weekEnd);
   };
   
   // Handle selecting a day
@@ -89,9 +102,17 @@ export function ReviewCalendar({ stats, problems, onDaySelect }: ReviewCalendarP
   };
   
   const calendarDays = generateCalendarDays();
+  const selectedDayProblems = getDueProblems(selectedDay);
   
   return (
     <div className="space-y-2">
+      <div className="flex items-center justify-between mb-4">
+        <h3 className="text-base font-medium flex items-center gap-2">
+          <Calendar className="h-4 w-4 text-black" />
+          Review Calendar
+        </h3>
+      </div>
+      
       <div className="flex items-center justify-between">
         <h3 className="text-sm font-medium">
           {format(currentMonth, 'MMMM yyyy')}
@@ -126,41 +147,64 @@ export function ReviewCalendar({ stats, problems, onDaySelect }: ReviewCalendarP
               const isSelected = isSameDay(day, selectedDay);
               const isCurrentMonth = isSameMonth(day, currentMonth);
               const isDueThisWeek = isWithinNextWeek(day) && reviewCount > 0;
+              const isFuture = isFutureDate(day) && reviewCount > 0;
               
               return (
                 <div 
                   key={`${weekIndex}-${dayIndex}`} 
                   className={cn(
-                    "min-h-[45px] p-1.5 text-center",
+                    "aspect-square p-1.5 relative",
                     "flex flex-col items-center justify-center transition-colors cursor-pointer",
                     isCurrentMonth ? "" : "text-muted-foreground/50 bg-muted/30",
-                    isCurrentDay ? "bg-primary/10" : isDueThisWeek ? "bg-blue-50" : "hover:bg-muted/50",
+                    isCurrentDay ? "bg-primary/10" : 
+                      isDueThisWeek ? "bg-blue-50" : 
+                      isFuture ? "bg-purple-50" : 
+                      "hover:bg-muted/50",
                     isSelected ? "ring-2 ring-primary ring-inset" : ""
                   )}
                   onClick={() => handleDaySelect(day)}
                 >
                   <div className={cn(
-                    "inline-flex h-6 w-6 items-center justify-center rounded-full text-xs",
-                    isCurrentDay ? "bg-primary text-primary-foreground" : ""
+                    "h-7 w-7 flex items-center justify-center text-xs",
+                    isCurrentDay ? "font-bold text-primary" : ""
                   )}>
                     {format(day, 'd')}
                   </div>
+                  
+                  {/* Simplified task indicator - always a single dot */}
                   {reviewCount > 0 && (
-                    <Badge 
-                      variant="outline" 
-                      className={cn(
-                        "text-xs py-0 px-1.5 h-4 mt-1",
-                        isCurrentDay ? "bg-primary/20" : 
-                        isDueThisWeek ? "bg-blue-100 border-blue-200 text-blue-600" : "bg-muted"
-                      )}
-                    >
-                      {reviewCount}
-                    </Badge>
+                    <div className="absolute bottom-1 w-full flex justify-center">
+                      <div 
+                        className={cn(
+                          "h-1.5 w-1.5 rounded-full",
+                          isCurrentDay ? "bg-primary" : 
+                          isDueThisWeek ? "bg-blue-500" : 
+                          isFuture ? "bg-purple-500" : 
+                          "bg-gray-400"
+                        )}
+                      />
+                    </div>
                   )}
                 </div>
               );
             })
           ))}
+        </div>
+      </div>
+      
+      {/* Selected day info */}
+      <div className="text-center text-sm mt-4 p-2 border rounded-md bg-muted/20">
+        <div className="flex items-center justify-center gap-1.5">
+          <Calendar className="h-4 w-4 text-black" />
+          <span className="font-medium">{format(selectedDay, 'MMMM d')}</span>
+          {isToday(selectedDay) && (
+            <Badge variant="secondary" className="text-xs">Today</Badge>
+          )}
+        </div>
+        <div className="text-muted-foreground text-xs mt-1">
+          {selectedDayProblems.length === 0
+            ? "No reviews scheduled"
+            : `${selectedDayProblems.length} ${selectedDayProblems.length === 1 ? 'review' : 'reviews'} scheduled`}
         </div>
       </div>
     </div>

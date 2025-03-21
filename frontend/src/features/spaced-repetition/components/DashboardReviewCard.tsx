@@ -1,7 +1,7 @@
 import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from '@/components/ui/button';
-import { RepeatIcon, CalendarDays, Brain } from 'lucide-react';
+import { RepeatIcon, CalendarDays, Dumbbell } from 'lucide-react';
 import { useDashboardReviews } from '../hooks/useDashboardReviews';
 
 /**
@@ -21,7 +21,7 @@ export function DashboardReviewCard() {
       <Card>
         <CardHeader className="pb-2">
           <CardTitle className="text-lg flex items-center gap-2">
-            <Brain className="h-5 w-5 text-primary" />
+            <Dumbbell className="h-5 w-5 text-primary" />
             <span>Spaced Repetition</span>
           </CardTitle>
           <CardDescription>Review problems to strengthen your memory</CardDescription>
@@ -43,7 +43,7 @@ export function DashboardReviewCard() {
     <Card>
       <CardHeader className="pb-2">
         <CardTitle className="text-lg flex items-center gap-2">
-          <Brain className="h-5 w-5 text-primary" />
+          <Dumbbell className="h-5 w-5 text-primary" />
           <span>Spaced Repetition</span>
         </CardTitle>
         <CardDescription>Review problems to strengthen your memory</CardDescription>
