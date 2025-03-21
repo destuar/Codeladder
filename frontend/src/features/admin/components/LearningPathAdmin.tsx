@@ -12,7 +12,8 @@ import { api } from "@/lib/api";
 import { useLearningPath, Topic, Level, Problem } from "@/hooks/useLearningPath";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
+import { ProblemCollectionAdmin } from "./ProblemCollectionAdmin";
 
 type ProblemDifficulty = 'EASY_IIII' | 'EASY_III' | 'EASY_II' | 'EASY_I' | 'MEDIUM' | 'HARD';
 type ProblemType = 'INFO' | 'CODING';
@@ -46,6 +47,8 @@ type NewProblem = {
 type DraggedProblem = Problem & {
   originalIndex: number;
   currentIndex: number;
+  sourceType?: 'topic' | 'collection';
+  sourceId?: string;
 };
 
 type ProblemData = {
@@ -66,6 +69,24 @@ interface DynamicCollection {
   id: string;
   name: string;
   description: string | null;
+}
+
+type ProblemFormData = {
+  name: string;
+  content: string;
+  difficulty: ProblemDifficulty;
+  required: boolean;
+  estimatedTime?: number;
+  collectionIds?: string[];
+};
+
+// Add cache system for the admin dashboard
+// Define cache types
+interface ProblemCache {
+  [problemId: string]: {
+    data: Problem;
+    timestamp: number;
+  };
 }
 
 const updateLevel = (level: Level, updates: Partial<Level>): Level => ({
@@ -150,6 +171,21 @@ function CollectionBadge({
   );
 }
 
+// Add a global interface declaration to fix the typescript error
+declare global {
+  interface Window {
+    addProblemToCollection?: (problemId: string, collectionId: string) => Promise<boolean>;
+  }
+  
+  // Add custom event type for problem removal
+  interface ProblemRemovedFromTopicEvent extends CustomEvent {
+    detail: {
+      problemId: string;
+      topicId: string;
+    };
+  }
+}
+
 export function LearningPathAdmin() {
   const { token } = useAuth();
   const { levels, loading, error, refresh, setLevels } = useLearningPath();
@@ -163,6 +199,9 @@ export function LearningPathAdmin() {
   const [selectedLevel, setSelectedLevel] = useState<Level | null>(null);
   const [selectedTopic, setSelectedTopic] = useState<Topic | null>(null);
   const [selectedProblem, setSelectedProblem] = useState<Problem | null>(null);
+  const [selectedTopicForProblem, setSelectedTopicForProblem] = useState<string | null>(null);
+  const [draggedProblem, setDraggedProblem] = useState<DraggedProblem | null>(null);
+  const [dropTargetTopic, setDropTargetTopic] = useState<string | null>(null);
 
   const [newLevel, setNewLevel] = useState<NewLevel>({ 
     name: "", 
@@ -191,10 +230,76 @@ export function LearningPathAdmin() {
   });
 
   const [isDragging, setIsDragging] = useState(false);
-  const [draggedProblem, setDraggedProblem] = useState<DraggedProblem | null>(null);
 
   const [collections, setCollections] = useState<DynamicCollection[]>([]);
   const [loadingCollections, setLoadingCollections] = useState(false);
+
+  // Problem cache with 5 minute expiration
+  const problemCacheRef = useRef<ProblemCache>({});
+  const CACHE_EXPIRY = 5 * 60 * 1000; // 5 minutes in milliseconds
+  
+  // Listen for problem removal events from the ProblemCollectionAdmin component
+  useEffect(() => {
+    const handleProblemRemovedFromTopic = (event: ProblemRemovedFromTopicEvent) => {
+      const { problemId, topicId } = event.detail;
+      console.log(`Received event: Problem ${problemId} removed from topic ${topicId}`);
+      
+      // Update our local state to remove the problem from the topic
+      setLevels(currentLevels => 
+        currentLevels.map(level => ({
+          ...level,
+          topics: level.topics.map(topic => {
+            if (topic.id === topicId) {
+              return {
+                ...topic,
+                problems: topic.problems.filter(p => p.id !== problemId)
+              };
+            }
+            return topic;
+          })
+        }))
+      );
+    };
+    
+    // Add event listener
+    window.addEventListener('problem-removed-from-topic', handleProblemRemovedFromTopic as EventListener);
+    
+    // Clean up event listener when component unmounts
+    return () => {
+      window.removeEventListener('problem-removed-from-topic', handleProblemRemovedFromTopic as EventListener);
+    };
+  }, [setLevels]);
+
+  // Helper function to get a problem from cache or fetch it
+  const getProblem = async (problemId: string): Promise<Problem> => {
+    const now = Date.now();
+    const cached = problemCacheRef.current[problemId];
+    
+    // If we have a valid cached version, use it
+    if (cached && now - cached.timestamp < CACHE_EXPIRY) {
+      return cached.data;
+    }
+    
+    // Otherwise fetch and cache the problem
+    try {
+      const problem = await api.get(`/problems/${problemId}`, token) as Problem;
+      problemCacheRef.current[problemId] = {
+        data: problem,
+        timestamp: now
+      };
+      return problem;
+    } catch (error) {
+      console.error(`Error fetching problem ${problemId}:`, error);
+      throw error;
+    }
+  };
+  
+  // Function to clear a problem from cache when it's updated
+  const invalidateProblemCache = (problemId: string) => {
+    if (problemCacheRef.current[problemId]) {
+      delete problemCacheRef.current[problemId];
+    }
+  };
 
   useEffect(() => {
     const fetchCollections = async () => {
@@ -350,34 +455,121 @@ export function LearningPathAdmin() {
   const handleEditProblem = async () => {
     if (!selectedProblem) return;
     try {
-      const updatedProblem = {
-        name: selectedProblem.name,
-        content: selectedProblem.content || "",
-        difficulty: selectedProblem.difficulty,
-        required: selectedProblem.required,
-        reqOrder: selectedProblem.reqOrder || 1,
-        problemType: selectedProblem.problemType,
-        ...(selectedProblem.problemType === 'CODING' ? {
-          codeTemplate: selectedProblem.codeTemplate,
-          testCases: selectedProblem.testCases
-        } : {}),
-        ...(selectedProblem.estimatedTime ? { estimatedTime: selectedProblem.estimatedTime } : {}),
-        collectionIds: selectedProblem.collectionIds || [],
-      };
+      // Invalidate the problem cache for this problem
+      invalidateProblemCache(selectedProblem.id);
       
-      console.log('Updating problem with data:', updatedProblem);
-      await api.put(`/problems/${selectedProblem.id}`, updatedProblem, token);
+      // Check if we're changing the topic
+      if (selectedTopicForProblem !== selectedProblem.topic?.id) {
+        if (selectedTopicForProblem === null) {
+          // Moving to "no topic"
+          console.log(`Removing problem from topic ${selectedProblem.topic?.id || 'unknown'}`);
+          
+          // Updating basic problem data first
+          const basicUpdateProblem = {
+            name: selectedProblem.name,
+            content: selectedProblem.content || "",
+            difficulty: selectedProblem.difficulty,
+            required: selectedProblem.required,
+            problemType: selectedProblem.problemType,
+            ...(selectedProblem.problemType === 'CODING' ? {
+              codeTemplate: selectedProblem.codeTemplate,
+              testCases: selectedProblem.testCases
+            } : {}),
+            ...(selectedProblem.estimatedTime ? { estimatedTime: selectedProblem.estimatedTime } : {}),
+            collectionIds: selectedProblem.collectionIds || [],
+          };
+          
+          // First update without topic-related fields
+          await api.put(`/problems/${selectedProblem.id}`, basicUpdateProblem, token);
+          
+          // Try multiple approaches to handle removing the topic association
+          let topicRemovalSuccess = false;
+          
+          // Approach 1: Use the learning API endpoint
+          try {
+            await api.delete(`/learning/topics/problems/${selectedProblem.id}`, token);
+            topicRemovalSuccess = true;
+            console.log("Successfully removed topic using learning API endpoint");
+          } catch (err1) {
+            console.error("Approach 1 failed:", err1);
+            
+            // Approach 2: Use the dedicated remove-topic endpoint
+            try {
+              await api.put(`/problems/${selectedProblem.id}/remove-topic`, {}, token);
+              topicRemovalSuccess = true;
+              console.log("Successfully removed topic using dedicated endpoint");
+            } catch (err2) {
+              console.error("Approach 2 failed:", err2);
+              
+              // Approach 3: Direct update with null topicId
+              try {
+                await api.put(`/problems/${selectedProblem.id}`, {
+                  topicId: null,
+                  reqOrder: null
+                }, token);
+                topicRemovalSuccess = true;
+                console.log("Successfully removed topic using direct update");
+              } catch (err3) {
+                console.error("Approach 3 failed:", err3);
+              }
+            }
+          }
+          
+          if (topicRemovalSuccess) {
+            toast.success("Problem updated and removed from topic");
+          } else {
+            toast.error("Failed to remove problem from topic, but other changes were saved");
+          }
+        } else {
+          // Moving to a different topic
+          // First update basic properties
+          const updatedProblem = {
+            name: selectedProblem.name,
+            content: selectedProblem.content || "",
+            difficulty: selectedProblem.difficulty,
+            required: selectedProblem.required,
+            problemType: selectedProblem.problemType,
+            ...(selectedProblem.problemType === 'CODING' ? {
+              codeTemplate: selectedProblem.codeTemplate,
+              testCases: selectedProblem.testCases
+            } : {}),
+            ...(selectedProblem.estimatedTime ? { estimatedTime: selectedProblem.estimatedTime } : {}),
+            collectionIds: selectedProblem.collectionIds || [],
+          };
+          
+          await api.put(`/problems/${selectedProblem.id}`, updatedProblem, token);
+          
+          // Then move to the new topic
+          await api.post(`/learning/topics/${selectedTopicForProblem}/problems/${selectedProblem.id}`, {}, token);
+          toast.success("Problem updated and moved to new topic");
+        }
+      } else {
+        // Not changing topic, just updating properties
+        const updatedProblem = {
+          name: selectedProblem.name,
+          content: selectedProblem.content || "",
+          difficulty: selectedProblem.difficulty,
+          required: selectedProblem.required,
+          problemType: selectedProblem.problemType,
+          ...(selectedProblem.problemType === 'CODING' ? {
+            codeTemplate: selectedProblem.codeTemplate,
+            testCases: selectedProblem.testCases
+          } : {}),
+          ...(selectedProblem.estimatedTime ? { estimatedTime: selectedProblem.estimatedTime } : {}),
+          collectionIds: selectedProblem.collectionIds || [],
+        };
+        
+        await api.put(`/problems/${selectedProblem.id}`, updatedProblem, token);
+        toast.success("Problem updated successfully");
+      }
+      
       setIsEditingProblem(false);
       setSelectedProblem(null);
-      toast.success("Problem updated successfully");
+      setSelectedTopicForProblem(null);
       refresh();
     } catch (err) {
       console.error("Error updating problem:", err);
-      if (err instanceof Error) {
-        toast.error(`Failed to update problem: ${err.message}`);
-      } else {
-        toast.error("Failed to update problem");
-      }
+      toast.error("Failed to update problem");
     }
   };
 
@@ -449,22 +641,238 @@ export function LearningPathAdmin() {
     setSelectedProblem(prev => prev ? updateProblem(prev, { [name]: updatedValue }) : null);
   };
 
-  const handleDragStart = (problem: Problem, index: number) => {
+  // Add helper function to add problems to a specific collection
+  const addProblemToCollection = async (problemId: string, collectionId: string) => {
+    try {
+      await api.post(`/admin/collections/${collectionId}/problems`, { problemId }, token);
+      toast.success("Problem added to collection");
+      return true;
+    } catch (err) {
+      console.error("Error adding problem to collection:", err);
+      toast.error("Failed to add problem to collection");
+      return false;
+    }
+  };
+
+  // Update handleDragStart to expose method via the window interface
+  const handleDragStart = (e: React.DragEvent, problem: Problem, index: number, topicId: string) => {
     setIsDragging(true);
-    setDraggedProblem({ ...problem, originalIndex: index, currentIndex: index });
+    setDraggedProblem({ 
+      ...problem, 
+      originalIndex: index, 
+      currentIndex: index,
+      sourceType: 'topic',
+      sourceId: topicId
+    });
+    
+    // Prepare data for cross-component drag
+    const dragData = {
+      type: 'problem',
+      problemId: problem.id,
+      sourceType: 'topic',
+      sourceId: topicId,
+      problem: problem
+    };
+    
+    // Set the drag data in the dataTransfer object
+    e.dataTransfer.setData('application/json', JSON.stringify(dragData));
+    e.dataTransfer.effectAllowed = 'move';
+    
+    // Set a ghost image with the problem name and make it visible during drag
+    const ghostElement = document.createElement('div');
+    ghostElement.classList.add('fixed', 'bg-background', 'border', 'rounded-md', 'p-2', 'opacity-90', 'text-foreground', 'text-sm', 'font-medium', 'shadow-md', 'z-50');
+    ghostElement.innerText = problem.name;
+    document.body.appendChild(ghostElement);
+    
+    // Position the ghost element near the cursor but not directly under it
+    ghostElement.style.position = 'absolute';
+    ghostElement.style.top = `${e.clientY - 10}px`;
+    ghostElement.style.left = `${e.clientX + 15}px`;
+    e.dataTransfer.setDragImage(ghostElement, 10, 10);
+    
+    // Clean up ghost element after drag
+    setTimeout(() => {
+      try {
+        document.body.removeChild(ghostElement);
+      } catch (err) {
+        console.log('Ghost element already removed');
+      }
+    }, 100);
+    
+    // Make this function globally available during drag operations
+    window.addProblemToCollection = addProblemToCollection;
   };
 
   const handleDragOver = (e: React.DragEvent, overIndex: number) => {
     e.preventDefault();
+    e.stopPropagation();
+    
     if (!draggedProblem || draggedProblem.currentIndex === overIndex) return;
     
-    setDraggedProblem(prev => prev ? { ...prev, currentIndex: overIndex } : null);
+    // Only allow reordering within the same topic
+    if (draggedProblem.sourceType === 'topic') {
+      setDraggedProblem(prev => prev ? { ...prev, currentIndex: overIndex } : null);
+      e.dataTransfer.dropEffect = 'move';
+    } else {
+      e.dataTransfer.dropEffect = 'none';
+    }
   };
 
+  const handleDropOnTopic = async (e: React.DragEvent, targetTopicId: string) => {
+    e.preventDefault();
+    e.stopPropagation();
+    
+    // Remove visual indicator
+    e.currentTarget.classList.remove('border-dashed', 'border-2', 'border-primary', 'bg-primary/10');
+    
+    try {
+      // Get drag data
+      const dragDataString = e.dataTransfer.getData('application/json');
+      if (!dragDataString) {
+        console.log("No drag data found");
+        return;
+      }
+      
+      const dragData = JSON.parse(dragDataString);
+      console.log("Processing drop on topic with data:", dragData);
+      
+      // Only handle problem drags
+      if (dragData.type !== 'problem') return;
+      
+      // We will need this problem's full data, get it from cache if possible
+      let problem;
+      try {
+        problem = await getProblem(dragData.problemId);
+        // Immediately invalidate the cache as we'll be modifying this problem
+        invalidateProblemCache(dragData.problemId);
+      } catch (err) {
+        console.error("Error getting problem data for drop:", err);
+        toast.error("Failed to process drag - could not get problem data");
+        return;
+      }
+      
+      if (dragData.sourceType === 'topic') {
+        // Skip if source and target topics are the same
+        if (dragData.sourceId === targetTopicId) {
+          console.log("Same topic, skipping API call");
+          return;
+        }
+        
+        // Call API to move problem between topics
+        try {
+          await api.post(`/learning/topics/${targetTopicId}/problems/${dragData.problemId}`, {}, token);
+          toast.success("Problem moved to new topic");
+          
+          // Only refresh if needed or use a more targeted approach
+          const targetTopic = levels.flatMap(l => l.topics).find(t => t.id === targetTopicId);
+          const sourceTopic = levels.flatMap(l => l.topics).find(t => t.id === dragData.sourceId);
+          
+          if (targetTopic && sourceTopic) {
+            // Update specific topics instead of full refresh
+            const updatedTopics = [...levels.flatMap(l => l.topics)];
+            const targetIndex = updatedTopics.findIndex(t => t.id === targetTopicId);
+            const sourceIndex = updatedTopics.findIndex(t => t.id === dragData.sourceId);
+            
+            if (targetIndex !== -1 && sourceIndex !== -1) {
+              // Move problem from source to target in local state
+              const problemToMove = sourceTopic.problems.find(p => p.id === dragData.problemId);
+              if (problemToMove) {
+                // Update source topic
+                updatedTopics[sourceIndex] = {
+                  ...sourceTopic,
+                  problems: sourceTopic.problems.filter(p => p.id !== dragData.problemId)
+                };
+                
+                // Update target topic
+                updatedTopics[targetIndex] = {
+                  ...targetTopic,
+                  problems: [...targetTopic.problems, problemToMove]
+                };
+                
+                // Update all levels
+                const updatedLevels = levels.map(level => ({
+                  ...level,
+                  topics: level.topics.map(topic => {
+                    const updatedTopic = updatedTopics.find(t => t.id === topic.id);
+                    return updatedTopic || topic;
+                  })
+                }));
+                
+                setLevels(updatedLevels);
+              } else {
+                // Fall back to complete refresh if local update fails
+                refresh();
+              }
+            } else {
+              refresh(); // Fall back to complete refresh
+            }
+          } else {
+            refresh(); // Fall back to complete refresh
+          }
+        } catch (err) {
+          console.error("Error moving problem between topics:", err);
+          toast.error("Failed to move problem to new topic");
+        }
+      } 
+      else if (dragData.sourceType === 'collection') {
+        // Handle problem from collection added to topic
+        try {
+          // If the problem has a topic, first remove it from that topic
+          if (problem.topic) {
+            try {
+              await api.delete(`/learning/topics/problems/${problem.id}`, token);
+              console.log("Removed problem from previous topic");
+            } catch (removeError) {
+              console.error("Error removing from previous topic:", removeError);
+              // Try fallback method
+              try {
+                await api.put(`/problems/${problem.id}/remove-topic`, {}, token);
+                console.log("Removed problem from previous topic (fallback method)");
+              } catch (fallbackError) {
+                console.error("Failed with fallback method too:", fallbackError);
+                toast.error("Failed to move problem - could not remove from previous topic");
+                return;
+              }
+            }
+          }
+          
+          // Now add to the new topic
+          await api.post(`/learning/topics/${targetTopicId}/problems/${problem.id}`, {}, token);
+          toast.success("Problem added to topic");
+          
+          // Refresh to get updated state
+          refresh();
+          
+        } catch (err) {
+          console.error("Error adding collection problem to topic:", err);
+          toast.error("Failed to add problem to topic");
+        }
+      }
+      
+    } catch (error) {
+      console.error("Error handling drop on topic:", error);
+      toast.error("Failed to process drop operation");
+    } finally {
+      setDropTargetTopic(null);
+      setDraggedProblem(null);
+    }
+  };
+
+  // Clean up global window method when drag ends
   const handleDragEnd = async (topicId: string, problems: Problem[]) => {
     if (!draggedProblem) return;
     
     setIsDragging(false);
+    
+    // Clean up the window method
+    window.addProblemToCollection = undefined;
+    
+    if (draggedProblem.sourceType === 'collection') {
+      // Handle drop from collection to topic (no action needed yet)
+      setDraggedProblem(null);
+      return;
+    }
+    
     const { originalIndex, currentIndex } = draggedProblem;
     if (originalIndex === currentIndex) {
       setDraggedProblem(null);
@@ -509,6 +917,25 @@ export function LearningPathAdmin() {
     }
     
     setDraggedProblem(null);
+  };
+
+  // Update the click handler to set the selected topic for the problem when opening the edit dialog
+  const handleEditProblemClick = (problem: Problem) => {
+    // Fetch the latest problem details to ensure we have up-to-date collection and topic info
+    api.get(`/problems/${problem.id}`, token)
+      .then(problemDetails => {
+        setSelectedProblem(problemDetails);
+        setSelectedTopicForProblem(problemDetails.topic?.id || null);
+        setIsEditingProblem(true);
+      })
+      .catch(err => {
+        console.error("Error fetching problem details:", err);
+        // If API call fails, fall back to using the data we already have
+        setSelectedProblem(problem);
+        setSelectedTopicForProblem(problem.topic?.id || null);
+        setIsEditingProblem(true);
+        toast.error("Could not fetch latest problem details");
+      });
   };
 
   if (loading) {
@@ -658,7 +1085,42 @@ export function LearningPathAdmin() {
                         </Button>
                       </div>
                     </CardHeader>
-                    <CardContent>
+                    <CardContent
+                      onDragOver={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        e.dataTransfer.dropEffect = 'move';
+                        
+                        // Add visual indicator for valid drop target
+                        const target = e.currentTarget;
+                        target.classList.add('border-dashed', 'border-2', 'border-primary', 'bg-primary/10');
+                        
+                        // Add pulsing animation for better visibility
+                        if (!target.classList.contains('animate-pulse')) {
+                          target.classList.add('animate-pulse');
+                        }
+                      }}
+                      onDragLeave={(e) => {
+                        e.preventDefault();
+                        // Remove visual indicator when leaving drop zone
+                        const target = e.currentTarget;
+                        target.classList.remove('border-dashed', 'border-2', 'border-primary', 'bg-primary/10', 'animate-pulse');
+                      }}
+                      onDrop={(e) => {
+                        // Ensure event doesn't propagate to parent elements
+                        e.stopPropagation();
+                        
+                        // Remove visual indicator
+                        const target = e.currentTarget;
+                        target.classList.remove('border-dashed', 'border-2', 'border-primary', 'bg-primary/10', 'animate-pulse');
+                        
+                        handleDropOnTopic(e, topic.id);
+                      }}
+                      className={cn(
+                        "transition-colors min-h-[100px]",
+                        isDragging && "border-dashed border-2 border-muted-foreground/30 rounded-lg"
+                      )}
+                    >
                       <div className="space-y-2">
                         {topic.problems.map((problem, index) => (
                           <div 
@@ -669,7 +1131,7 @@ export function LearningPathAdmin() {
                               draggedProblem?.id === problem.id ? 'opacity-50' : ''
                             }`}
                             draggable
-                            onDragStart={() => handleDragStart(problem, index)}
+                            onDragStart={(e) => handleDragStart(e, problem, index, topic.id)}
                             onDragOver={(e) => handleDragOver(e, index)}
                             onDragEnd={() => handleDragEnd(topic.id, topic.problems)}
                           >
@@ -712,10 +1174,7 @@ export function LearningPathAdmin() {
                               <Button 
                                 variant="ghost" 
                                 size="sm"
-                                onClick={() => {
-                                  setSelectedProblem(problem);
-                                  setIsEditingProblem(true);
-                                }}
+                                onClick={() => handleEditProblemClick(problem)}
                               >
                                 Edit
                               </Button>
@@ -737,6 +1196,19 @@ export function LearningPathAdmin() {
             </CardContent>
           </Card>
         ))}
+      </div>
+
+      {/* Add Problem Collection Admin section */}
+      <div className="mt-12">
+        <Card className="mb-6">
+          <CardHeader>
+            <CardTitle className="text-2xl font-bold">Problem Collection Management</CardTitle>
+            <CardDescription>Organize problems by collection/category</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <ProblemCollectionAdmin />
+          </CardContent>
+        </Card>
       </div>
 
       {/* Edit Level Dialog */}
@@ -1207,6 +1679,33 @@ export function LearningPathAdmin() {
                 min={1}
                 placeholder="Leave empty for no estimate"
               />
+            </div>
+
+            {/* Add topic dropdown after collections section */}
+            <div className="grid gap-2">
+              <Label htmlFor="edit-problem-topic">Topic</Label>
+              <Select 
+                value={selectedTopicForProblem || 'none'} 
+                onValueChange={(value) => setSelectedTopicForProblem(value === 'none' ? null : value)}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select a topic or none" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">None (No Topic)</SelectItem>
+                  {levels.flatMap(level => 
+                    level.topics.map(topic => (
+                      <SelectItem key={topic.id} value={topic.id}>
+                        {level.name} - {topic.name}
+                      </SelectItem>
+                    ))
+                  )}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground mt-1">
+                You can move this problem to a different topic or set it to "None" to remove it from the learning path.
+                Problems can be in both topics and collections simultaneously.
+              </p>
             </div>
           </div>
           <DialogFooter>

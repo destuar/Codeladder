@@ -684,4 +684,163 @@ router.post('/:problemId/complete', authenticateToken, (async (req, res) => {
   }
 }) as RequestHandler);
 
+// Add a route to remove a problem from its topic
+router.put('/:problemId/remove-topic', authenticateToken, authorizeRoles([Role.ADMIN, Role.DEVELOPER]), (async (req, res) => {
+  try {
+    const { problemId } = req.params;
+    
+    // Check if problem exists
+    const problem = await prisma.problem.findUnique({
+      where: { id: problemId },
+      include: { topic: true }
+    });
+    
+    if (!problem) {
+      return res.status(404).json({ error: 'Problem not found' });
+    }
+    
+    // Update the problem to remove its topic association
+    const updatedProblem = await prisma.problem.update({
+      where: { id: problemId },
+      data: { 
+        topicId: null,
+        reqOrder: null  // Reset reqOrder as it's only relevant within a topic
+      }
+    });
+    
+    res.json({
+      ...updatedProblem,
+      message: 'Problem removed from topic successfully'
+    });
+  } catch (error) {
+    console.error('Error removing problem from topic:', error);
+    res.status(500).json({ 
+      error: 'Failed to remove problem from topic',
+      details: error instanceof Error ? error.message : 'Unknown error',
+      stack: process.env.NODE_ENV !== 'production' ? (error as Error).stack : undefined
+    });
+  }
+}) as RequestHandler);
+
+// Add a new comprehensive endpoint for admin dashboard use
+router.get('/admin/dashboard', authenticateToken, authorizeRoles([Role.ADMIN, Role.DEVELOPER]), (async (req, res) => {
+  try {
+    const { collection, withTopics } = req.query;
+    const userId = req.user?.id;
+
+    if (!userId) {
+      return res.status(401).json({ error: 'User not authenticated' });
+    }
+
+    // Build the where clause based on query parameters
+    const where: any = {};
+    
+    // Basic query params for filtering
+    if (req.query.search) {
+      where.name = { contains: req.query.search as string, mode: 'insensitive' };
+    }
+    
+    if (req.query.type) {
+      where.problemType = req.query.type as ProblemType;
+    }
+    
+    // If requesting problems without topics
+    if (req.query.noTopic === 'true') {
+      where.topicId = null;
+    }
+    
+    // Include detailed information needed for the dashboard
+    const problems = await prisma.problem.findMany({
+      where,
+      select: {
+        id: true,
+        name: true,
+        content: true,
+        description: true,
+        difficulty: true,
+        required: true,
+        reqOrder: true,
+        problemType: true,
+        codeTemplate: true,
+        testCases: true,
+        estimatedTime: true,
+        createdAt: true,
+        updatedAt: true,
+        topic: true,
+        topicId: true,
+        completedBy: {
+          where: { id: userId },
+          select: { id: true }
+        },
+        progress: {
+          where: { userId },
+          select: { status: true }
+        },
+        collections: {
+          select: {
+            collection: {
+              select: {
+                id: true,
+                name: true,
+                description: true
+              }
+            }
+          }
+        }
+      },
+      orderBy: [{ name: 'asc' }]
+    });
+
+    // Transform the response for the frontend
+    const transformedProblems = problems.map(problem => {
+      // Extract collection details
+      const collections = problem.collections.map(pc => pc.collection);
+      const collectionIds = collections.map(c => c.id);
+      
+      // Format the response
+      return {
+        ...problem,
+        completed: problem.completedBy.length > 0 || problem.progress.some(p => p.status === 'COMPLETED'),
+        collectionIds,
+        collections, // Include full collection objects for the admin dashboard
+        completedBy: undefined,
+        progress: undefined
+      };
+    });
+
+    // If we're filtering by collection
+    if (collection && collection !== 'no-collection') {
+      const filteredProblems = transformedProblems.filter(problem => 
+        problem.collectionIds.includes(collection as string)
+      );
+      
+      // Further filter by topic status if requested
+      if (withTopics === 'false') {
+        return res.json(filteredProblems.filter(p => !p.topic));
+      }
+      
+      return res.json(filteredProblems);
+    } 
+    // If we're getting "no collection" problems
+    else if (collection === 'no-collection') {
+      const problemsWithoutCollections = transformedProblems.filter(
+        problem => !problem.collectionIds.length
+      );
+      
+      // Further filter by topic status if requested
+      if (withTopics === 'false') {
+        return res.json(problemsWithoutCollections.filter(p => !p.topic));
+      }
+      
+      return res.json(problemsWithoutCollections);
+    }
+
+    // Return all problems
+    res.json(transformedProblems);
+  } catch (error) {
+    console.error('Error fetching admin dashboard problems:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+}) as RequestHandler);
+
 export default router; 
