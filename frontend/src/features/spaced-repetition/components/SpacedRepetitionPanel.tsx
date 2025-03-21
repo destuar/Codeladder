@@ -3,18 +3,79 @@ import { useSpacedRepetition } from '../hooks/useSpacedRepetition';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { format, formatDistanceToNow, isSameDay, isToday, addDays, isWithinInterval, startOfDay, endOfDay } from 'date-fns';
+import { format, formatDistanceToNow, isSameDay, isToday, addDays, isWithinInterval, startOfDay, endOfDay, isAfter } from 'date-fns';
 import { MemoryStrengthIndicator } from './MemoryStrengthIndicator';
 import { ReviewCalendar } from './ReviewCalendar';
 import { ReviewProblem } from '../api/spacedRepetitionApi';
-import { CalendarIcon, Clock, Calendar, ClockIcon, RefreshCw } from 'lucide-react';
+import { CalendarIcon, Clock, Calendar, ClockIcon, RefreshCw, ChevronDown, ChevronUp, ArrowLeft, Dumbbell, Check, Brain } from 'lucide-react';
+import { useLocation, useNavigate } from 'react-router-dom';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
+import { MemoryProgressionJourney } from './MemoryProgressionJourney';
+
+/**
+ * A component to handle the memory journey button and state
+ */
+function MemoryJourneyButton({ problem }: { problem: ReviewProblem }) {
+  const [showMemoryJourney, setShowMemoryJourney] = useState(false);
+  
+  // Get previous review data from localStorage if available
+  const storageKey = `review-level-${problem.id}`;
+  let previousLevel = null;
+  
+  // Check if we have a stored previous level
+  try {
+    const storedData = localStorage.getItem(storageKey);
+    if (storedData) {
+      previousLevel = parseInt(storedData, 10);
+      // If current level is different, update storage after a delay
+      if (previousLevel !== problem.reviewLevel) {
+        setTimeout(() => {
+          localStorage.setItem(storageKey, problem.reviewLevel.toString());
+        }, 5000); // Update after animation completes
+      }
+    } else {
+      // Store current level for future reference
+      localStorage.setItem(storageKey, problem.reviewLevel.toString());
+    }
+  } catch (e) {
+    console.error('Error accessing localStorage:', e);
+  }
+  
+  return (
+    <>
+      <div 
+        className="cursor-pointer" 
+        onClick={() => setShowMemoryJourney(true)}
+        title="View memory progression"
+      >
+        <MemoryStrengthIndicator 
+          level={problem.reviewLevel} 
+          previousLevel={previousLevel}
+        />
+      </div>
+      
+      {/* Memory progression journey modal */}
+      {showMemoryJourney && (
+        <MemoryProgressionJourney
+          problemId={problem.id}
+          currentLevel={problem.reviewLevel}
+          reviewHistory={problem.reviewHistory || []}
+          onClose={() => setShowMemoryJourney(false)}
+        />
+      )}
+    </>
+  );
+}
 
 /**
  * Panel component that displays problems due for review and allows users to start reviews
  */
 export function SpacedRepetitionPanel() {
+  const location = useLocation();
+  const navigate = useNavigate();
   const { 
     dueReviews, 
+    allScheduledReviews,
     stats,
     isLoading, 
     startReview,
@@ -26,6 +87,15 @@ export function SpacedRepetitionPanel() {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [selectedDayProblems, setSelectedDayProblems] = useState<ReviewProblem[]>([]);
+  const [isCalendarDateSelected, setIsCalendarDateSelected] = useState(false);
+  
+  // Expansion states for each section
+  const [isTodayOpen, setIsTodayOpen] = useState(true);
+  const [isThisWeekOpen, setIsThisWeekOpen] = useState(false);
+  const [isThisMonthOpen, setIsThisMonthOpen] = useState(false);
+  const [isLaterOpen, setIsLaterOpen] = useState(false);
+  
+  const [showMemoryInfo, setShowMemoryInfo] = useState(false);
   
   // Ensure the review panel is open when this component is mounted
   useEffect(() => {
@@ -33,6 +103,33 @@ export function SpacedRepetitionPanel() {
       toggleReviewPanel();
     }
   }, [isReviewPanelOpen, toggleReviewPanel]);
+  
+  // Handle refresh button click
+  const handleRefresh = async () => {
+    setIsRefreshing(true);
+    try {
+      await refreshReviews();
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
+  
+  // Check if we need to refresh data based on URL parameter
+  useEffect(() => {
+    const searchParams = new URLSearchParams(location.search);
+    const refreshParam = searchParams.get('refresh');
+    
+    if (refreshParam) {
+      console.log('Detected refresh parameter, refreshing data...');
+      handleRefresh();
+      
+      // Remove the refresh parameter from the URL to avoid repeated refreshes
+      searchParams.delete('refresh');
+      const newSearch = searchParams.toString();
+      const newPath = `${location.pathname}${newSearch ? `?${newSearch}` : ''}`;
+      navigate(newPath, { replace: true });
+    }
+  }, [location.search, handleRefresh, location.pathname, navigate]);
   
   const getDifficultyColor = (difficulty: string) => {
     if (difficulty.includes('EASY')) return 'bg-emerald-500/15 text-emerald-600 border-emerald-500/20';
@@ -44,48 +141,17 @@ export function SpacedRepetitionPanel() {
   const handleDaySelect = (date: Date, problems: ReviewProblem[]) => {
     setSelectedDate(date);
     setSelectedDayProblems(problems);
-  };
-
-  // Group problems by timeframe (Today and This Week)
-  const groupProblemsByTimeframe = () => {
-    const now = new Date();
-    const today = startOfDay(now);
-    const todayEnd = endOfDay(now);
-    const weekEnd = endOfDay(addDays(now, 6)); // Next 7 days
-
-    const todayProblems = dueReviews.filter(problem => {
-      if (!problem.dueDate) return false;
-      const dueDate = new Date(problem.dueDate);
-      return isWithinInterval(dueDate, { start: today, end: todayEnd });
-    });
-
-    // Match backend logic: "This Week" = problems due after today and within the next 7 days
-    const thisWeekProblems = dueReviews.filter(problem => {
-      if (!problem.dueDate) return false;
-      const dueDate = new Date(problem.dueDate);
-      
-      // Backend criteria: gt: now, lte: nextWeek
-      return dueDate > todayEnd && dueDate <= weekEnd;
-    });
-
-    return {
-      today: todayProblems,
-      thisWeek: thisWeekProblems
-    };
-  };
-
-  // Handle refresh button click
-  const handleRefresh = async () => {
-    setIsRefreshing(true);
-    try {
-      await refreshReviews();
-    } finally {
-      setIsRefreshing(false);
+    setIsCalendarDateSelected(true);
+    
+    // Reset to today view
+    if (isToday(date)) {
+      setIsCalendarDateSelected(false);
     }
   };
-
+  
   // Render a problem card
-  const renderProblemCard = (problem: ReviewProblem, isActiveDay: boolean) => (
+  const renderProblemCard = (problem: ReviewProblem, isActiveDay: boolean) => {
+    return (
     <div 
       key={problem.id} 
       className="flex items-center justify-between p-3 border rounded-lg hover:bg-muted/50 transition-colors"
@@ -93,7 +159,11 @@ export function SpacedRepetitionPanel() {
       <div>
         <div className="font-medium">{problem.name}</div>
         <div className="text-sm text-muted-foreground flex items-center gap-2 mt-1">
+            {typeof problem.topic === 'string' ? (
+              <span>{problem.topic}</span>
+            ) : problem.topic && typeof problem.topic === 'object' && 'name' in problem.topic ? (
           <span>{problem.topic.name}</span>
+            ) : null}
           <span>•</span>
           <Badge variant="outline" className={getDifficultyColor(problem.difficulty)}>
             {problem.difficulty.replace(/_/g, ' ')}
@@ -106,29 +176,62 @@ export function SpacedRepetitionPanel() {
           )}
         </div>
       </div>
-      <div className="flex items-center gap-3">
-        <MemoryStrengthIndicator level={problem.reviewLevel} />
+        <div className="flex items-center gap-2">
+          <MemoryJourneyButton problem={problem} />
+          
         <Button 
           size="sm" 
-          onClick={() => startReview(problem.id)}
-          disabled={!isActiveDay}
-          variant={isActiveDay ? "default" : "outline"}
+          onClick={() => startReview(
+            problem.id, 
+            !isActiveDay ? { 
+              isEarly: true, 
+              dueDate: problem.dueDate || undefined 
+            } : undefined
+          )}
+          variant={isActiveDay ? "default" : "secondary"}
+          className={!isActiveDay ? "text-primary hover:text-primary" : ""}
         >
-          {isActiveDay ? 'Review' : 'View'}
+            Review
         </Button>
       </div>
     </div>
   );
+  };
   
-  // Render section with problems
-  const renderProblemSection = (title: string, icon: React.ReactNode, problems: ReviewProblem[], isActiveSection: boolean) => (
-    <div className="space-y-3">
-      <div className="flex items-center gap-2 text-sm font-medium border-b pb-2">
+  // Render expandable section with problems
+  const renderCollapsibleSection = (
+    title: string, 
+    icon: React.ReactNode, 
+    problems: ReviewProblem[], 
+    isActiveSection: boolean,
+    isOpen: boolean,
+    setIsOpen: React.Dispatch<React.SetStateAction<boolean>>
+  ) => (
+    <Collapsible 
+      open={isOpen} 
+      onOpenChange={setIsOpen}
+      className="space-y-2"
+    >
+      <CollapsibleTrigger asChild>
+        <Button 
+          variant="ghost" 
+          size="sm" 
+          className="w-full justify-between border text-left h-10 mb-2"
+        >
+          <div className="flex items-center gap-2 text-sm font-medium">
         {icon}
         <span>{title} ({problems.length})</span>
       </div>
+          {isOpen ? (
+            <ChevronUp className="h-4 w-4" />
+          ) : (
+            <ChevronDown className="h-4 w-4" />
+          )}
+        </Button>
+      </CollapsibleTrigger>
+      <CollapsibleContent className="space-y-2">
       {problems.length > 0 ? (
-        <div className="grid gap-2">
+          <div className="grid gap-2 max-h-[300px] overflow-y-auto pr-1">
           {problems.map(problem => renderProblemCard(problem, isActiveSection))}
         </div>
       ) : (
@@ -136,15 +239,14 @@ export function SpacedRepetitionPanel() {
           No problems due {title.toLowerCase()}.
         </div>
       )}
-    </div>
+      </CollapsibleContent>
+    </Collapsible>
   );
   
-  // Render problems section (Today and This Week)
+  // Render problems section
   const renderProblemsSection = () => {
-    const isSelectedToday = isToday(selectedDate);
-    
-    // If not viewing today, show the selected day's problems
-    if (!isSelectedToday) {
+    // If a specific calendar date is selected
+    if (isCalendarDateSelected && !isToday(selectedDate)) {
       return (
         <div className="space-y-4">
           <div className="flex justify-between items-center text-sm font-medium mb-2">
@@ -152,9 +254,19 @@ export function SpacedRepetitionPanel() {
               <CalendarIcon className="h-4 w-4 text-primary" />
               <span>Due on {format(selectedDate, 'MMMM d, yyyy')}</span>
             </div>
+            <div className="flex items-center gap-2">
             <Badge variant="outline" className="bg-muted/50">
               {formatDistanceToNow(selectedDate, { addSuffix: true })}
             </Badge>
+              <Button 
+                variant="ghost" 
+                size="sm"
+                onClick={() => setIsCalendarDateSelected(false)}
+              >
+                <ArrowLeft className="h-4 w-4 mr-1" />
+                Back to All
+              </Button>
+            </div>
           </div>
           
           {selectedDayProblems.length > 0 ? (
@@ -171,10 +283,7 @@ export function SpacedRepetitionPanel() {
       );
     }
     
-    // If viewing today, group problems by timeframe
-    const { today, thisWeek } = groupProblemsByTimeframe();
-    const totalProblems = today.length + thisWeek.length;
-    
+    // Default view showing all scheduled reviews
     if (isLoading) {
       return (
         <div className="flex justify-center p-6">
@@ -183,16 +292,11 @@ export function SpacedRepetitionPanel() {
       );
     }
     
-    // If stats show we should have problems but we don't, something might be wrong
-    const expectedProblems = (stats?.dueNow || 0) + (stats?.dueThisWeek || 0);
-    if (totalProblems === 0 && expectedProblems > 0) {
+    if (!allScheduledReviews) {
       return (
         <div className="space-y-4">
           <div className="text-center text-muted-foreground p-6">
             <p>Loading review problems...</p>
-            <p className="text-sm mt-2">
-              {stats?.dueNow || 0} problem(s) due today and {stats?.dueThisWeek || 0} problem(s) due this week.
-            </p>
             <Button 
               variant="outline" 
               size="sm" 
@@ -208,90 +312,312 @@ export function SpacedRepetitionPanel() {
       );
     }
     
-    // If there are truly no problems
-    if (totalProblems === 0 && expectedProblems === 0) {
+    const { dueToday, dueThisWeek, dueThisMonth, dueLater } = allScheduledReviews;
+    const totalProblems = dueToday.length + dueThisWeek.length + dueThisMonth.length + dueLater.length;
+    
+    if (totalProblems === 0) {
       return (
         <div className="text-center text-muted-foreground p-6">
-          <p>No problems due for review this week.</p>
-          <p className="text-sm mt-2">
-            Complete more problems to add them to your review schedule.
-          </p>
+          <p>No problems due for review at the moment.</p>
+          <p className="text-sm mt-2">Great job! Your queue is clear.</p>
         </div>
       );
     }
     
     return (
-      <div className="space-y-6 max-h-[500px] overflow-y-auto pr-1">
-        {renderProblemSection("Today", <ClockIcon className="h-4 w-4 text-primary" />, today, true)}
-        {renderProblemSection("This Week", <Calendar className="h-4 w-4 text-blue-500" />, thisWeek, false)}
+      <div className="space-y-6">
+        {/* Due Today */}
+        {renderCollapsibleSection(
+          'Due Today', 
+          <Calendar className="h-4 w-4 text-black" />, 
+          dueToday, 
+          true,
+          isTodayOpen,
+          setIsTodayOpen
+        )}
+        
+        {/* Due This Week */}
+        {renderCollapsibleSection(
+          'Due This Week', 
+          <Calendar className="h-4 w-4 text-black" />, 
+          dueThisWeek, 
+          false,
+          isThisWeekOpen,
+          setIsThisWeekOpen
+        )}
+        
+        {/* Due This Month */}
+        {renderCollapsibleSection(
+          'Due This Month', 
+          <Calendar className="h-4 w-4 text-black" />, 
+          dueThisMonth, 
+          false,
+          isThisMonthOpen,
+          setIsThisMonthOpen
+        )}
+        
+        {/* Due Later */}
+        {renderCollapsibleSection(
+          'Due Later', 
+          <Calendar className="h-4 w-4 text-black" />, 
+          dueLater, 
+          false,
+          isLaterOpen,
+          setIsLaterOpen
+        )}
       </div>
     );
   };
   
   return (
-    <Card className="mb-6">
-      <CardHeader className="pb-3">
-        <div className="flex justify-between items-start">
-          <div>
-            <CardTitle className="text-xl">Spaced Repetition Reviews</CardTitle>
-            <CardDescription>
-              Review these problems to strengthen your memory
-            </CardDescription>
-          </div>
-          <div className="flex items-center gap-3">
-            {stats && (
-              <div className="flex gap-2">
-                <Badge variant="outline" className="bg-primary/10 hover:bg-primary/20">
-                  {stats.dueNow} Today
-                </Badge>
-                <Badge variant="outline" className="bg-primary/5 hover:bg-primary/10">
-                  {stats.dueThisWeek} This Week
-                </Badge>
-              </div>
-            )}
+    <div className="grid grid-cols-1 lg:grid-cols-7 gap-4">
+      {/* Calendar Card */}
+      <Card className="lg:col-span-2">
+        <CardHeader className="pb-2">
+          <div className="flex justify-between items-center mb-3">
             <Button 
-              variant="ghost" 
-              size="icon" 
-              onClick={handleRefresh} 
-              disabled={isRefreshing}
-              title="Refresh data"
+              variant="outline" 
+              size="sm" 
+              className="flex items-center gap-2 w-full justify-center bg-gradient-to-r from-indigo-50 to-blue-50 hover:from-indigo-100 hover:to-blue-100 border-indigo-200 text-indigo-700"
+              onClick={() => setShowMemoryInfo(true)}
             >
-              <RefreshCw className={`h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`} />
+              <Brain className="h-4 w-4 text-indigo-700" />
+              <span>About Your Memory</span>
             </Button>
           </div>
+          <CardTitle className="text-xl">Review Schedule</CardTitle>
+          <CardDescription>
+            Track your completed spaced repetition reviews
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-6">
+            {stats && (
+              <div className="grid grid-cols-3 gap-2 text-center">
+                <div className="p-2 rounded-lg bg-muted/50 border">
+                  <div className="text-2xl font-bold">{stats.completedToday || 0}</div>
+                  <div className="text-xs text-muted-foreground">Today</div>
+                </div>
+                <div className="p-2 rounded-lg bg-muted/50 border">
+                  <div className="text-2xl font-bold">{stats.completedThisWeek || 0}</div>
+                  <div className="text-xs text-muted-foreground">This Week</div>
+                </div>
+                <div className="p-2 rounded-lg bg-muted/50 border">
+                  <div className="text-2xl font-bold">{stats.totalReviewed || 0}</div>
+                  <div className="text-xs text-muted-foreground">All Time</div>
+                </div>
+              </div>
+            )}
+            
+            <ReviewCalendar 
+              stats={stats} 
+              problems={allScheduledReviews ? allScheduledReviews.all : dueReviews} 
+              onDaySelect={handleDaySelect} 
+            />
+          </div>
+        </CardContent>
+      </Card>
+      
+      {/* Problems Card */}
+      <Card className="lg:col-span-5">
+        <CardHeader className="pb-2">
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle className="text-xl">
+                {isCalendarDateSelected && !isToday(selectedDate)
+                  ? `Reviews for ${format(selectedDate, 'MMMM d, yyyy')}`
+                  : "All Scheduled Reviews"
+                }
+              </CardTitle>
+              <CardDescription>
+                {isCalendarDateSelected && !isToday(selectedDate)
+                  ? "Reviews scheduled for the selected date"
+                  : "View and manage all your upcoming review sessions"
+                }
+              </CardDescription>
+            </div>
+            <Button 
+              variant="outline" 
+              size="sm" 
+              className="gap-1"
+              onClick={handleRefresh} 
+              disabled={isRefreshing}
+            >
+              <RefreshCw className={`h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`} />
+              {isRefreshing ? 'Refreshing...' : 'Refresh'}
+            </Button>
         </div>
       </CardHeader>
       <CardContent>
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Left side: Calendar */}
-          <div className="lg:col-span-1">
-            <div className="border rounded-lg p-4">
-              <ReviewCalendar 
-                stats={stats}
-                problems={dueReviews} 
-                onDaySelect={handleDaySelect}
-              />
-              
-              {/* Legend */}
-              <div className="mt-4 pt-4 border-t text-sm text-muted-foreground">
-                <div className="flex items-center gap-2 mb-2">
-                  <CalendarIcon className="h-3.5 w-3.5" />
-                  <span>Calendar shows reviews by day</span>
-                </div>
+          {renderProblemsSection()}
+        </CardContent>
+      </Card>
+      
+      {/* Memory strengthening info modal */}
+      {showMemoryInfo && (
+        <div className="fixed inset-0 flex items-center justify-center z-50 bg-black/50 backdrop-blur-sm p-4">
+          <Card className="w-full max-w-2xl max-h-[80vh] overflow-y-auto">
+            <CardHeader>
+              <div className="flex justify-between items-center">
                 <div className="flex items-center gap-2">
-                  <Clock className="h-3.5 w-3.5" />
-                  <span>Regular reviews improve retention</span>
+                  <Brain className="h-5 w-5 text-indigo-700" />
+                  <CardTitle>About Your Memory</CardTitle>
+                </div>
+                <Button variant="ghost" size="sm" onClick={() => setShowMemoryInfo(false)}>
+                  Close
+                </Button>
+              </div>
+              <CardDescription>
+                How spaced repetition helps you retain knowledge more effectively
+              </CardDescription>
+            </CardHeader>
+            
+            <CardContent className="space-y-6">
+              <div className="space-y-4">
+                <h3 className="text-lg font-medium">How Memory Works</h3>
+                <p>
+                  Your brain forms memories through a process called <span className="font-medium">memory consolidation</span>. 
+                  When you learn something new, your brain creates temporary neural connections, but these fade 
+                  quickly unless reinforced.
+                </p>
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-6">
+                  <div className="border rounded-lg p-4 space-y-2">
+                    <h4 className="font-medium flex items-center gap-2 text-blue-600">
+                      <div className="w-6 h-6 rounded-full bg-blue-100 flex items-center justify-center text-blue-600">1</div>
+                      The Forgetting Curve
+                    </h4>
+                    <p className="text-sm">
+                      Without review, your memory of new information drops rapidly. In just 24 hours, you may 
+                      forget up to 70% of what you learned.
+                    </p>
+                    <div className="relative h-32 mt-3">
+                      <div className="absolute inset-0 bg-gradient-to-b from-blue-50 to-blue-100 rounded-lg overflow-hidden">
+                        <div className="w-full h-full relative">
+                          <div className="absolute top-0 left-0 w-full h-full">
+                            <svg viewBox="0 0 100 100" preserveAspectRatio="none" className="w-full h-full">
+                              <path 
+                                d="M0,10 C30,70 60,90 100,90" 
+                                stroke="rgba(59, 130, 246, 0.5)" 
+                                strokeWidth="3" 
+                                fill="none" 
+                              />
+                            </svg>
+                          </div>
+                          <div className="absolute bottom-2 left-2 text-xs text-blue-600">Time</div>
+                          <div className="absolute top-2 left-2 text-xs text-blue-600">Memory</div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <div className="border rounded-lg p-4 space-y-2">
+                    <h4 className="font-medium flex items-center gap-2 text-indigo-600">
+                      <div className="w-6 h-6 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-600">2</div>
+                      Spaced Repetition
+                    </h4>
+                    <p className="text-sm">
+                      By reviewing information right before you would forget it, you strengthen the memory 
+                      each time, making it last longer.
+                    </p>
+                    <div className="relative h-32 mt-3">
+                      <div className="absolute inset-0 bg-gradient-to-b from-indigo-50 to-indigo-100 rounded-lg overflow-hidden">
+                        <div className="w-full h-full relative">
+                          <div className="absolute top-0 left-0 w-full h-full">
+                            <svg viewBox="0 0 100 100" preserveAspectRatio="none" className="w-full h-full">
+                              <path 
+                                d="M0,80 L10,40 L20,70 L30,20 L40,50 L50,10 L60,30 L70,5 L80,20 L90,3 L100,15" 
+                                stroke="rgba(99, 102, 241, 0.5)" 
+                                strokeWidth="3" 
+                                fill="none" 
+                              />
+                              <circle cx="10" cy="40" r="2" fill="rgba(99, 102, 241, 0.7)" />
+                              <circle cx="20" cy="70" r="2" fill="rgba(99, 102, 241, 0.7)" />
+                              <circle cx="30" cy="20" r="2" fill="rgba(99, 102, 241, 0.7)" />
+                              <circle cx="40" cy="50" r="2" fill="rgba(99, 102, 241, 0.7)" />
+                              <circle cx="50" cy="10" r="2" fill="rgba(99, 102, 241, 0.7)" />
+                            </svg>
+                </div>
+                          <div className="absolute bottom-2 left-2 text-xs text-indigo-600">Time</div>
+                          <div className="absolute top-2 left-2 text-xs text-indigo-600">Memory</div>
+                </div>
                 </div>
               </div>
             </div>
           </div>
           
-          {/* Right side: Problem list */}
-          <div className="lg:col-span-2 border rounded-lg p-4">
-            {renderProblemsSection()}
+                <h3 className="text-lg font-medium mt-8">Our Spaced Repetition System</h3>
+                <p>
+                  We use a Fibonacci-based spacing system optimized for efficient learning:
+                </p>
+                
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-4">
+                  {[1, 2, 3, 4].map(level => (
+                    <div key={level} className="border rounded-md p-3 text-center">
+                      <div className={`text-xl font-bold ${level <= 1 ? 'text-blue-500' : level <= 3 ? 'text-indigo-500' : 'text-violet-500'}`}>
+                        Level {level}
+                      </div>
+                      <div className="text-sm mt-1">
+                        {level === 1 && 'Review tomorrow'}
+                        {level === 2 && 'Review in 2 days'}
+                        {level === 3 && 'Review in 3 days'}
+                        {level === 4 && 'Review in 5 days'}
+                      </div>
+                      <div className="mt-2 text-xs text-muted-foreground">
+                        {level === 1 && '~40% retention'}
+                        {level === 2 && '~60% retention'}
+                        {level === 3 && '~70% retention'}
+                        {level === 4 && '~80% retention'}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-3 mt-3">
+                  {[5, 6, 7].map(level => (
+                    <div key={level} className="border rounded-md p-3 text-center">
+                      <div className={`text-xl font-bold ${level <= 5 ? 'text-violet-500' : 'text-purple-500'}`}>
+                        Level {level}
+                      </div>
+                      <div className="text-sm mt-1">
+                        {level === 5 && 'Review in 8 days'}
+                        {level === 6 && 'Review in 13 days'}
+                        {level === 7 && 'Review in 21 days'}
+                      </div>
+                      <div className="mt-2 text-xs text-muted-foreground">
+                        {level === 5 && '~85% retention'}
+                        {level === 6 && '~90% retention'}
+                        {level === 7 && '~95% retention'}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                
+                <div className="bg-blue-50 dark:bg-blue-950 border border-blue-100 dark:border-blue-900 rounded-lg p-4 mt-6">
+                  <h4 className="font-medium mb-2">Tips for Effective Learning</h4>
+                  <ul className="space-y-2 text-sm">
+                    <li className="flex items-start gap-2">
+                      <Check className="h-4 w-4 text-green-500 mt-0.5" />
+                      <span>Stay consistent with your reviews - do them when they're due.</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <Check className="h-4 w-4 text-green-500 mt-0.5" />
+                      <span>Be honest about how well you remember - this optimizes your learning schedule.</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <Check className="h-4 w-4 text-green-500 mt-0.5" />
+                      <span>Explain concepts in your own words as you review them to strengthen recall.</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <Check className="h-4 w-4 text-green-500 mt-0.5" />
+                      <span>Connect new information to things you already know to build stronger neural pathways.</span>
+                    </li>
+                  </ul>
           </div>
         </div>
       </CardContent>
     </Card>
+        </div>
+      )}
+    </div>
   );
 } 

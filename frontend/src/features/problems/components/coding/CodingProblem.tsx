@@ -8,7 +8,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from '@/lib/utils';
 import { Badge } from "@/components/ui/badge";
 import { Timer } from "lucide-react";
-import { CodingProblemProps } from '../../types/coding';
+import { CodingProblemProps } from '../../types';
 import { ResizablePanel } from './ResizablePanel';
 import { ProblemTimer } from './timer/ProblemTimer';
 import { CodeEditor } from './editor/CodeEditor';
@@ -36,6 +36,8 @@ export default function CodingProblem({
   estimatedTime,
   isCompleted = false,
   problemId,
+  isReviewMode = false,
+  onCompleted,
 }: CodingProblemProps) {
   const [activeTab, setActiveTab] = useState("code");
   const [isFullscreen, setIsFullscreen] = useState(false);
@@ -47,7 +49,7 @@ export default function CodingProblem({
   const {
     isProblemCompleted,
     handleMarkAsComplete
-  } = useProblemCompletion(problemId, isCompleted);
+  } = useProblemCompletion(problemId, isCompleted, onCompleted, isReviewMode);
 
   // Parse test cases
   const testCases = (() => {

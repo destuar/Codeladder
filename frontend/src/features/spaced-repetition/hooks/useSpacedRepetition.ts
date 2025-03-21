@@ -1,24 +1,27 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '@/features/auth/AuthContext';
 import { 
   getDueReviews, 
   recordReview, 
   getReviewStats,
+  getAllScheduledReviews,
   ReviewProblem, 
   ReviewResult,
-  ReviewStats
+  ReviewStats,
+  ScheduledReviews
 } from '../api/spacedRepetitionApi';
 
 export interface UseSpacedRepetitionResult {
   dueReviews: ReviewProblem[];
+  allScheduledReviews: ScheduledReviews | undefined;
   stats: ReviewStats | undefined;
   isLoading: boolean;
   isReviewPanelOpen: boolean;
   toggleReviewPanel: () => void;
   submitReview: (result: ReviewResult) => void;
-  startReview: (problemId: string) => void;
+  startReview: (problemId: string, options?: { isEarly?: boolean; dueDate?: string }) => void;
   refreshReviews: () => Promise<void>;
 }
 
@@ -29,6 +32,7 @@ export function useSpacedRepetition(): UseSpacedRepetitionResult {
   const { token } = useAuth();
   const queryClient = useQueryClient();
   const navigate = useNavigate();
+  const location = useLocation();
   const [isReviewPanelOpen, setIsReviewPanelOpen] = useState(false);
   
   // Get due reviews
@@ -41,6 +45,21 @@ export function useSpacedRepetition(): UseSpacedRepetitionResult {
     queryFn: async () => {
       if (!token) throw new Error('No token available');
       return getDueReviews(token);
+    },
+    enabled: !!token,
+    staleTime: 1000 * 60, // 1 minute
+  });
+  
+  // Get all scheduled reviews (including beyond the current week)
+  const {
+    data: allScheduledReviews,
+    isLoading: isLoadingAllReviews,
+    refetch: refetchAllReviews
+  } = useQuery({
+    queryKey: ['allScheduledReviews'],
+    queryFn: async () => {
+      if (!token) throw new Error('No token available');
+      return getAllScheduledReviews(token);
     },
     enabled: !!token,
     staleTime: 1000 * 60, // 1 minute
@@ -70,6 +89,7 @@ export function useSpacedRepetition(): UseSpacedRepetitionResult {
     onSuccess: () => {
       // Invalidate relevant queries to refresh the data
       queryClient.invalidateQueries({ queryKey: ['dueReviews'] });
+      queryClient.invalidateQueries({ queryKey: ['allScheduledReviews'] });
       queryClient.invalidateQueries({ queryKey: ['reviewStats'] });
       queryClient.invalidateQueries({ queryKey: ['learningPath'] });
       queryClient.invalidateQueries({ queryKey: ['topic'] });
@@ -83,22 +103,34 @@ export function useSpacedRepetition(): UseSpacedRepetitionResult {
   }, []);
   
   // Start a review for a specific problem
-  const startReview = useCallback((problemId: string) => {
-    navigate(`/problems/${problemId}?mode=review`);
-  }, [navigate]);
+  const startReview = useCallback((problemId: string, options?: { isEarly?: boolean; dueDate?: string }) => {
+    let url = `/problems/${problemId}?mode=review&referrer=${encodeURIComponent(location.pathname + location.search)}`;
+    
+    // Keep tracking if this is an early review internally, but don't emphasize this in the UI
+    if (options?.isEarly) {
+      url += `&early=true`;
+      if (options.dueDate) {
+        url += `&dueDate=${options.dueDate}`;
+      }
+    }
+    
+    navigate(url);
+  }, [navigate, location]);
   
   // Force refresh all spaced repetition data
   const refreshReviews = useCallback(async (): Promise<void> => {
     await Promise.all([
       refetchReviews(),
+      refetchAllReviews(),
       refetchStats()
     ]);
-  }, [refetchReviews, refetchStats]);
+  }, [refetchReviews, refetchAllReviews, refetchStats]);
   
   return {
     dueReviews,
+    allScheduledReviews,
     stats,
-    isLoading: isLoadingReviews || isLoadingStats,
+    isLoading: isLoadingReviews || isLoadingAllReviews || isLoadingStats,
     isReviewPanelOpen,
     toggleReviewPanel,
     submitReview,
