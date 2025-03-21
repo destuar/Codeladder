@@ -15,32 +15,7 @@ import { Problem, Topic } from '@/hooks/useLearningPath';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useSpacedRepetition } from '@/features/spaced-repetition/hooks/useSpacedRepetition';
 import { SpacedRepetitionPanel } from '@/features/spaced-repetition/components/SpacedRepetitionPanel';
-
-type Difficulty = 'EASY_IIII' | 'EASY_III' | 'EASY_II' | 'EASY_I' | 'MEDIUM' | 'HARD';
-type SortField = 'name' | 'difficulty' | 'order' | 'completed';
-type SortDirection = 'asc' | 'desc';
-
-const DIFFICULTY_ORDER: Record<Difficulty, number> = {
-  'EASY_IIII': 1,
-  'EASY_III': 2,
-  'EASY_II': 3,
-  'EASY_I': 4,
-  'MEDIUM': 5,
-  'HARD': 6
-};
-
-interface ProblemListProps {
-  problems: Problem[];
-  isLocked?: boolean;
-  canAccessAdmin?: boolean;
-  onProblemStart: (problemId: string) => void;
-  itemsPerPage?: number;
-  showTopicName?: boolean;
-  showOrder?: boolean;
-  collections?: { id: string; name: string }[];
-  selectedCollection?: string;
-  onCollectionChange?: (collectionId: string) => void;
-}
+import { Difficulty, SortField, SortDirection, ProblemListProps, DIFFICULTY_ORDER } from '@/features/problems/types';
 
 const formatEstimatedTime = (time?: number) => {
   if (!time) return null;
@@ -72,6 +47,13 @@ const DifficultyBadge = ({ difficulty }: { difficulty: Difficulty }) => {
       {difficulty.replace(/_/g, ' ')}
     </Badge>
   );
+};
+
+// Helper function to convert estimatedTime to number when needed
+const parseEstimatedTime = (time?: string | number): number | undefined => {
+  if (time === undefined) return undefined;
+  if (typeof time === 'number') return time;
+  return parseInt(time, 10);
 };
 
 export function ProblemList({
@@ -331,10 +313,12 @@ export function ProblemList({
                   >
                     {isLocked && canAccessAdmin ? "Start (Admin)" : "Start"}
                   </Button>
-                  {formatEstimatedTime(problem.estimatedTime) && (
-                    <div className="flex items-center gap-1 text-sm text-muted-foreground whitespace-nowrap">
-                      <Timer className="h-4 w-4" />
-                      <span>{formatEstimatedTime(problem.estimatedTime)}</span>
+                  {problem.estimatedTime && (
+                    <div className="flex items-center gap-1">
+                      <Timer className="h-4 w-4 text-muted-foreground" />
+                      <span className="text-xs text-muted-foreground">
+                        {formatEstimatedTime(parseEstimatedTime(problem.estimatedTime))}
+                      </span>
                     </div>
                   )}
                 </div>

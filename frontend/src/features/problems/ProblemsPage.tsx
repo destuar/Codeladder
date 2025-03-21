@@ -5,13 +5,12 @@ import { useAuth } from '@/features/auth/AuthContext';
 import { api } from '@/lib/api';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { ProblemList } from '@/components/ProblemList';
-import type { Problem } from '@/hooks/useLearningPath';
+import { Problem, Difficulty as ProblemDifficulty } from '@/features/problems/types';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { X, PlayCircle, RepeatIcon } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { Difficulty as ProblemDifficulty } from '@/features/problems/types';
 import { useSpacedRepetition } from '@/features/spaced-repetition/hooks/useSpacedRepetition';
 import { SpacedRepetitionPanel } from '@/features/spaced-repetition/components/SpacedRepetitionPanel';
 
