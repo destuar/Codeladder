@@ -53,7 +53,7 @@ export default function App() {
                 <main>
                   <Routes>
                     {/* Public routes */}
-                    <Route path="/landing" element={<LandingPage />} />
+                    <Route path="/landing" element={<AdminViewWrapper><LandingPage /></AdminViewWrapper>} />
                     <Route path="/login" element={<LoginPage />} />
                     <Route path="/register" element={<RegisterPage />} />
                     <Route path="/unauthorized" element={<UnauthorizedPage />} />
@@ -97,7 +97,9 @@ export default function App() {
                       path="/problems"
                       element={
                         <ProtectedRoute>
-                          <ProblemsPage />
+                          <AdminViewWrapper>
+                            <ProblemsPage />
+                          </AdminViewWrapper>
                         </ProtectedRoute>
                       }
                     />
@@ -117,7 +119,9 @@ export default function App() {
                       path="/info/:id"
                       element={
                         <ProtectedRoute>
-                          <InfoPage />
+                          <AdminViewWrapper>
+                            <InfoPage />
+                          </AdminViewWrapper>
                         </ProtectedRoute>
                       }
                     />

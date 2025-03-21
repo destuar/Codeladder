@@ -4,6 +4,7 @@ import { authenticateToken } from '../middleware/auth';
 import { authorizeRoles } from '../middleware/authorize';
 import { Prisma, Role, ProblemType } from '@prisma/client';
 import type { RequestHandler } from 'express-serve-static-core';
+import { calculateNextReviewDate } from '../lib/spacedRepetition';
 
 // Define the request body types
 interface CreateProblemBody {
@@ -660,10 +661,22 @@ router.post('/:problemId/complete', authenticateToken, (async (req, res) => {
             userId,
             topicId: problem.topicId!,
             problemId,
-            status: 'COMPLETED'
+            status: 'COMPLETED',
+            // Initialize spaced repetition fields
+            reviewLevel: 0,
+            reviewScheduledAt: calculateNextReviewDate(0),
+            lastReviewedAt: new Date(),
+            reviewHistory: []
           },
           update: {
-            status: 'COMPLETED'
+            status: 'COMPLETED',
+            // Only set these fields if they don't exist yet
+            ...(!isCompleted && {
+              reviewLevel: 0,
+              reviewScheduledAt: calculateNextReviewDate(0),
+              lastReviewedAt: new Date(),
+              reviewHistory: []
+            })
           }
         }),
         prisma.user.update({
