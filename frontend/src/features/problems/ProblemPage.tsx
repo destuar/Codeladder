@@ -9,21 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { ReviewControls } from '@/features/spaced-repetition/components/ReviewControls';
 import { useSpacedRepetition } from '@/features/spaced-repetition/hooks/useSpacedRepetition';
-
-export type Problem = {
-  id: string;
-  name: string;
-  difficulty: 'EASY_IIII' | 'EASY_III' | 'EASY_II' | 'EASY_I' | 'MEDIUM' | 'HARD';
-  content: string;
-  problemType: 'INFO' | 'CODING' | 'STANDALONE_INFO';
-  collection?: string[];
-  codeTemplate?: string;
-  testCases?: string;
-  nextProblemId?: string;
-  prevProblemId?: string;
-  isCompleted?: boolean;
-  estimatedTime?: string | number;
-};
+import { Problem, ProblemType } from './types';
 
 const ProblemPage: React.FC = () => {
   const { problemId } = useParams<{ problemId: string }>();
@@ -69,7 +55,7 @@ const ProblemPage: React.FC = () => {
       {(problem.problemType === 'INFO' || problem.problemType === 'STANDALONE_INFO') ? (
         <>
           <InfoProblem 
-            content={problem.content}
+            content={problem.content || ''}
             isCompleted={problem.isCompleted}
             nextProblemId={problem.nextProblemId}
             prevProblemId={problem.prevProblemId}
@@ -91,13 +77,13 @@ const ProblemPage: React.FC = () => {
           <>
             <CodingProblem 
               title={problem.name}
-              content={problem.content}
+              content={problem.content || ''}
               codeTemplate={problem.codeTemplate}
               testCases={problem.testCases}
               difficulty={problem.difficulty}
               nextProblemId={problem.nextProblemId}
               prevProblemId={problem.prevProblemId}
-              onNavigate={(id) => navigate(`/problems/${id}`)}
+              onNavigate={(id: string) => navigate(`/problems/${id}`)}
               estimatedTime={estimatedTimeNum}
               isCompleted={problem.isCompleted}
               problemId={problem.id}
