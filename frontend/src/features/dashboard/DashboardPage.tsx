@@ -10,7 +10,8 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      <div className="grid gap-8">
+      {/* Simplified layout - full width for level system */}
+      <div className="w-full">
         <LevelSystem />
       </div>
     </div>

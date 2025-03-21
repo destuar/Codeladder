@@ -13,6 +13,8 @@ import { ArrowUpDown, ChevronDown, ChevronUp, CheckCircle2, Circle, Book, Code2,
 import { cn } from '@/lib/utils';
 import { Problem, Topic } from '@/hooks/useLearningPath';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { useSpacedRepetition } from '@/features/spaced-repetition/hooks/useSpacedRepetition';
+import { SpacedRepetitionPanel } from '@/features/spaced-repetition/components/SpacedRepetitionPanel';
 
 type Difficulty = 'EASY_IIII' | 'EASY_III' | 'EASY_II' | 'EASY_I' | 'MEDIUM' | 'HARD';
 type SortField = 'name' | 'difficulty' | 'order' | 'completed';
@@ -87,8 +89,13 @@ export function ProblemList({
   const [sortField, setSortField] = useState<SortField>('order');
   const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
   const [currentPage, setCurrentPage] = useState(1);
+  
+  const { 
+    toggleReviewPanel, 
+    isReviewPanelOpen,
+    stats
+  } = useSpacedRepetition();
 
-  // Find the next problem to continue with (first incomplete required problem)
   const nextProblem = problems
     .filter(p => !p.completed && p.required)
     .sort((a, b) => (a.reqOrder || Infinity) - (b.reqOrder || Infinity))[0];
@@ -132,7 +139,6 @@ export function ProblemList({
 
   return (
     <div className="space-y-8">
-      {/* Collection filter dropdown - only show if we have collections and a change handler */}
       {collections.length > 0 && onCollectionChange && (
         <div className="flex items-center gap-2 mb-4">
           <span className="text-sm font-medium">Filter by collection:</span>
@@ -183,15 +189,22 @@ export function ProblemList({
           variant="outline"
           size="lg"
           className="h-32 flex flex-col items-center justify-center gap-2 border-2 hover:border-primary"
-          onClick={() => {/* TODO: Implement spaced repetition */}}
+          onClick={toggleReviewPanel}
         >
           <RepeatIcon className="h-8 w-8" />
           <div className="text-center">
             <div className="font-semibold">Spaced Repetition</div>
-            <div className="text-sm text-muted-foreground mt-1">Review completed problems</div>
+            <div className="text-sm text-muted-foreground mt-1">
+              {stats?.dueNow 
+                ? `${stats.dueNow} problem${stats.dueNow !== 1 ? 's' : ''} due for review` 
+                : 'Review completed problems'}
+            </div>
           </div>
         </Button>
       </div>
+      
+      {isReviewPanelOpen && <SpacedRepetitionPanel />}
+      
       <Table>
         <TableHeader>
           <TableRow>
