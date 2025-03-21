@@ -116,16 +116,23 @@ model ProblemToCollection {
 }
 
 model Progress {
-  id          String    @id @default(cuid())
-  user        User      @relation(fields: [userId], references: [id])
-  userId      String
-  topic       Topic     @relation(fields: [topicId], references: [id])
-  topicId     String
-  problem     Problem?  @relation(fields: [problemId], references: [id])
-  problemId   String?
-  status      ProgressStatus @default(NOT_STARTED)
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+  id                String         @id @default(cuid())
+  user              User           @relation(fields: [userId], references: [id])
+  userId            String
+  topic             Topic          @relation(fields: [topicId], references: [id])
+  topicId           String
+  problem           Problem?       @relation(fields: [problemId], references: [id])
+  problemId         String?
+  status            ProgressStatus @default(NOT_STARTED)
+  
+  // New fields for spaced repetition
+  reviewScheduledAt DateTime?      // When this problem is scheduled to be reviewed next
+  reviewLevel       Int?           // Current review level (determines intervals)
+  lastReviewedAt    DateTime?      // When the problem was last reviewed
+  reviewHistory     Json?          // JSON array of past review sessions with dates and success
+  
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
 
   @@unique([userId, topicId, problemId])
   @@map("progress")

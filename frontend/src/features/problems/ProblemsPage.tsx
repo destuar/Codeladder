@@ -12,6 +12,8 @@ import { Button } from '@/components/ui/button';
 import { X, PlayCircle, RepeatIcon } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Difficulty as ProblemDifficulty } from '@/features/problems/types';
+import { useSpacedRepetition } from '@/features/spaced-repetition/hooks/useSpacedRepetition';
+import { SpacedRepetitionPanel } from '@/features/spaced-repetition/components/SpacedRepetitionPanel';
 
 // Interface for our collection type
 interface Collection {
@@ -27,6 +29,9 @@ export default function ProblemsPage() {
   const { token } = useAuth();
   const [selectedCollection, setSelectedCollection] = useState<string>("all");
   const [selectedDifficulty, setSelectedDifficulty] = useState<DifficultyFilter>("all");
+  
+  // Add spaced repetition hook
+  const { toggleReviewPanel, isReviewPanelOpen, stats } = useSpacedRepetition();
 
   // Add CSS to hide the buttons in ProblemList
   useEffect(() => {
@@ -204,22 +209,33 @@ export default function ProblemsPage() {
                 </div>
               </Button>
               
-              {/* Spaced Repetition button */}
+              {/* Update Spaced Repetition button */}
               <Button
                 variant="outline"
                 size="lg"
                 className="h-32 flex flex-col items-center justify-center gap-2 border-2 hover:border-primary"
-                onClick={() => {/* TODO: Implement spaced repetition */}}
+                onClick={toggleReviewPanel}
               >
                 <div className="flex flex-col items-center gap-2">
                   <RepeatIcon className="h-8 w-8" />
                   <div className="text-center">
                     <div className="font-semibold">Spaced Repetition</div>
-                    <div className="text-sm text-muted-foreground mt-1">Review completed problems</div>
+                    <div className="text-sm text-muted-foreground mt-1">
+                      {stats?.dueNow 
+                        ? `${stats.dueNow} problem${stats.dueNow !== 1 ? 's' : ''} due for review` 
+                        : 'Review completed problems'}
+                    </div>
                   </div>
                 </div>
               </Button>
             </div>
+
+            {/* Add spaced repetition panel */}
+            {isReviewPanelOpen && (
+              <div className="mb-8 mt-4">
+                <SpacedRepetitionPanel />
+              </div>
+            )}
 
             {/* Filters Section - positioned below the buttons */}
             <div className="space-y-4 pt-4 border-t mb-8">
