@@ -294,4 +294,87 @@ router.put('/levels/:id', async (req, res) => {
   }
 });
 
+// Add problem to topic or move between topics
+router.post('/topics/:topicId/problems/:problemId', (async (req, res) => {
+  try {
+    const { topicId, problemId } = req.params;
+    
+    // Check if topic exists
+    const topic = await prisma.topic.findUnique({
+      where: { id: topicId }
+    });
+    
+    if (!topic) {
+      return res.status(404).json({ error: 'Topic not found' });
+    }
+    
+    // Check if problem exists
+    const problem = await prisma.problem.findUnique({
+      where: { id: problemId }
+    });
+    
+    if (!problem) {
+      return res.status(404).json({ error: 'Problem not found' });
+    }
+    
+    // Get the highest reqOrder in the destination topic to append the problem at the end
+    const maxOrderProblem = await prisma.problem.findFirst({
+      where: { topicId },
+      orderBy: { reqOrder: 'desc' },
+      select: { reqOrder: true }
+    });
+    
+    const newOrder = maxOrderProblem ? (maxOrderProblem.reqOrder || 0) + 1 : 1;
+    
+    // Update the problem to move it to the new topic
+    await prisma.problem.update({
+      where: { id: problemId },
+      data: { 
+        topicId,
+        reqOrder: newOrder 
+      }
+    });
+    
+    res.status(200).json({ message: 'Problem moved successfully' });
+  } catch (error) {
+    console.error('Error moving problem:', error);
+    res.status(500).json({ error: 'Failed to move problem' });
+  }
+}) as RequestHandler);
+
+// Remove a problem from a topic
+router.delete('/topics/problems/:problemId', (async (req, res) => {
+  try {
+    const { problemId } = req.params;
+    
+    // Check if problem exists
+    const problem = await prisma.problem.findUnique({
+      where: { id: problemId },
+      include: { topic: true }
+    });
+    
+    if (!problem) {
+      return res.status(404).json({ error: 'Problem not found' });
+    }
+    
+    if (!problem.topicId) {
+      return res.status(400).json({ error: 'Problem is not associated with any topic' });
+    }
+    
+    // Remove problem from topic by setting topicId to null
+    await prisma.problem.update({
+      where: { id: problemId },
+      data: { 
+        topicId: null,
+        reqOrder: null  // Reset reqOrder as it's only relevant within a topic
+      }
+    });
+    
+    res.status(200).json({ message: 'Problem removed from topic successfully' });
+  } catch (error) {
+    console.error('Error removing problem from topic:', error);
+    res.status(500).json({ error: 'Failed to remove problem from topic' });
+  }
+}) as RequestHandler);
+
 export default router; 

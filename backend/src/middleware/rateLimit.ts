@@ -10,6 +10,27 @@
 import { Request, Response } from 'express';
 import rateLimit from 'express-rate-limit';
 import { AppError } from './errorHandler';
+import { prisma } from '../lib/prisma';
+import { Role } from '@prisma/client';
+import jwt from 'jsonwebtoken';
+import env from '../config/env';
+
+// Helper function to extract user role from token
+const extractUserRole = (req: Request): Role | null => {
+  try {
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return null;
+    }
+    
+    const token = authHeader.split(' ')[1];
+    const decoded = jwt.verify(token, env.JWT_SECRET) as any;
+    
+    return decoded.role || null;
+  } catch (error) {
+    return null;
+  }
+};
 
 /**
  * General API Rate Limiter
@@ -17,21 +38,47 @@ import { AppError } from './errorHandler';
  * 
  * Configuration:
  * - Window: 15 minutes
- * - Max Requests: 100 per IP
+ * - Max Requests: 100 per IP for regular users, 500 for admin users
  * - Applies to: All general API endpoints
  * 
  * This limit is designed to:
  * - Prevent abuse while allowing normal API usage
  * - Protect server resources from excessive requests
  * - Allow for reasonable burst traffic
+ * - Provide higher limits for admin users who need to make more requests
  */
 export const apiLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100, // Limit each IP to 100 requests per windowMs
+  max: (req: Request) => {
+    const role = extractUserRole(req);
+    return (role === Role.ADMIN || role === Role.DEVELOPER) ? 500 : 100;
+  },
   message: 'Too many requests from this IP, please try again later',
   handler: (req: Request, res: Response) => {
     throw new AppError(429, 'Too many requests, please try again later');
   },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+/**
+ * Admin API Rate Limiter
+ * Provides higher rate limits specifically for admin endpoints.
+ * 
+ * Configuration:
+ * - Window: 15 minutes
+ * - Max Requests: 1000 per IP for admin users
+ * - Applies to: Admin-only API endpoints
+ */
+export const adminApiLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 1000, // Higher limit for admin endpoints
+  message: 'Too many admin requests, please try again later',
+  handler: (req: Request, res: Response) => {
+    throw new AppError(429, 'Too many admin requests, please try again later');
+  },
+  standardHeaders: true,
+  legacyHeaders: false,
 });
 
 /**
@@ -56,6 +103,8 @@ export const authLimiter = rateLimit({
     throw new AppError(429, 'Too many login attempts, please try again later');
   },
   skipSuccessfulRequests: true, // Don't count successful logins against the limit
+  standardHeaders: true,
+  legacyHeaders: false,
 });
 
 /**
@@ -79,4 +128,6 @@ export const registerLimiter = rateLimit({
   handler: (req: Request, res: Response) => {
     throw new AppError(429, 'Too many registration attempts, please try again later');
   },
+  standardHeaders: true,
+  legacyHeaders: false,
 }); 
