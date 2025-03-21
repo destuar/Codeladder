@@ -41,6 +41,7 @@ export interface Problem {
   prevProblemId?: string;
   isCompleted?: boolean;
   estimatedTime?: string | number;
+  reviewLevel?: number;
 }
 
 /**
@@ -106,6 +107,8 @@ export interface CodingProblemProps {
   estimatedTime?: number;
   isCompleted?: boolean;
   problemId: string;
+  isReviewMode?: boolean;
+  onCompleted?: () => void;
 }
 
 /**

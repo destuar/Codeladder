@@ -17,17 +17,37 @@ export interface ReviewProblem {
   lastReviewedAt: string | null;
   dueDate: string | null;
   progressId: string;
+  reviewHistory?: Array<{
+    date: string;
+    wasSuccessful: boolean;
+    reviewLevel: number;
+    reviewOption?: 'easy' | 'difficult' | 'forgot';
+  }>;
 }
 
 export interface ReviewResult {
   problemId: string;
   wasSuccessful: boolean;
+  reviewOption?: 'easy' | 'difficult' | 'forgot';
 }
 
 export interface ReviewStats {
   byLevel: Record<number, number>;
   dueNow: number;
   dueThisWeek: number;
+  totalReviewed: number;
+  levelCounts?: { level: number; count: number }[];
+  completedToday?: number;
+  completedThisWeek?: number;
+  completedThisMonth?: number;
+}
+
+export interface ScheduledReviews {
+  dueToday: ReviewProblem[];
+  dueThisWeek: ReviewProblem[];
+  dueThisMonth: ReviewProblem[]; 
+  dueLater: ReviewProblem[];
+  all: ReviewProblem[];
 }
 
 /**
@@ -58,6 +78,43 @@ export async function getDueReviews(token: string): Promise<ReviewProblem[]> {
 }
 
 /**
+ * Get all scheduled reviews (including those beyond the current week)
+ */
+export async function getAllScheduledReviews(token: string): Promise<ScheduledReviews> {
+  try {
+    const response = await api.get('/spaced-repetition/all-scheduled', token);
+    
+    // Normalize all review problems
+    if (response) {
+      return {
+        dueToday: Array.isArray(response.dueToday) ? response.dueToday.map(normalizeReviewProblem) : [],
+        dueThisWeek: Array.isArray(response.dueThisWeek) ? response.dueThisWeek.map(normalizeReviewProblem) : [],
+        dueThisMonth: Array.isArray(response.dueThisMonth) ? response.dueThisMonth.map(normalizeReviewProblem) : [],
+        dueLater: Array.isArray(response.dueLater) ? response.dueLater.map(normalizeReviewProblem) : [],
+        all: Array.isArray(response.all) ? response.all.map(normalizeReviewProblem) : []
+      };
+    }
+    
+    return {
+      dueToday: [],
+      dueThisWeek: [],
+      dueThisMonth: [],
+      dueLater: [],
+      all: []
+    };
+  } catch (error) {
+    console.error('Error fetching all scheduled reviews:', error);
+    return {
+      dueToday: [],
+      dueThisWeek: [],
+      dueThisMonth: [],
+      dueLater: [],
+      all: []
+    };
+  }
+}
+
+/**
  * Record a problem review result
  */
 export async function recordReview(token: string, result: ReviewResult): Promise<any> {
@@ -76,7 +133,11 @@ export async function getReviewStats(token: string): Promise<ReviewStats> {
     return {
       byLevel: {},
       dueNow: 0,
-      dueThisWeek: 0
+      dueThisWeek: 0,
+      totalReviewed: 0,
+      completedToday: 0,
+      completedThisWeek: 0,
+      completedThisMonth: 0
     };
   }
 } 
