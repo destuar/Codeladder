@@ -13,7 +13,7 @@ import env from './config/env';
 import apiRouter from './routes/index';
 import cookieParser from 'cookie-parser';
 import { errorHandler } from './middleware/errorHandler';
-import { apiLimiter, authLimiter, registerLimiter } from './middleware/rateLimit';
+import { apiLimiter, authLimiter, registerLimiter, adminApiLimiter } from './middleware/rateLimit';
 import { requestDebugger } from './middleware/debugger';
 
 const app = express();
@@ -86,10 +86,15 @@ app.use(requestDebugger);
  * - General API endpoints
  * - Authentication endpoints
  * - Registration endpoint (stricter limits)
+ * - Admin endpoints (higher limits)
  */
 app.use('/api/', apiLimiter);
 app.use('/api/auth', authLimiter);
 app.use('/api/auth/register', registerLimiter);
+// Apply the more generous admin rate limiter to admin routes
+app.use('/api/admin', adminApiLimiter);
+// Also give the learning path admin routes higher limits
+app.use('/api/learning', adminApiLimiter);
 
 // Mount all API routes under the /api prefix
 app.use('/api', apiRouter);
