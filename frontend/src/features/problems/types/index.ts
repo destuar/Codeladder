@@ -109,6 +109,7 @@ export interface CodingProblemProps {
   problemId: string;
   isReviewMode?: boolean;
   onCompleted?: () => void;
+  problemType?: string;
 }
 
 /**

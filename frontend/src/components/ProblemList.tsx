@@ -290,6 +290,15 @@ export function ProblemList({
                     <Code2 className="h-4 w-4 text-muted-foreground" />
                   )}
                   {problem.name}
+                  {problem.reviewLevel !== undefined && (
+                    <Badge 
+                      variant="outline" 
+                      className="text-xs text-primary border-primary/30 bg-primary/10 hover:bg-primary/15"
+                    >
+                      <RepeatIcon className="h-3 w-3 mr-1" />
+                      SR
+                    </Badge>
+                  )}
                 </div>
               </TableCell>
               {showTopicName && (

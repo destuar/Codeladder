@@ -128,6 +128,7 @@ const ProblemPage: React.FC = () => {
   // Handler for when a problem is completed
   const handleProblemCompleted = () => {
     logWorkflowStep('ProblemCompleted', { problemId, isReviewMode });
+    // Immediately set this flag to show review controls faster
     setHasJustCompleted(true);
   };
 
@@ -178,6 +179,7 @@ const ProblemPage: React.FC = () => {
               problemId={problem.id}
               isReviewMode={isReviewMode}
               onCompleted={handleProblemCompleted}
+              problemType={problem.problemType}
             />
           </div>
           {shouldShowReviewControls && (
@@ -209,6 +211,7 @@ const ProblemPage: React.FC = () => {
                 problemId={problem.id}
                 isReviewMode={isReviewMode}
                 onCompleted={handleProblemCompleted}
+                problemType={problem.problemType}
               />
             </div>
             {shouldShowReviewControls && (
