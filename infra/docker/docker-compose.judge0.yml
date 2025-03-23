@@ -1,0 +1,48 @@
+version: '3'
+
+services:
+  judge0:
+    image: judge0/judge0:latest
+    volumes:
+      - ../../judge0-config.yml:/judge0.conf
+    ports:
+      - "2358:2358"
+    privileged: true
+    depends_on:
+      - judge0-db
+      - judge0-redis
+    restart: always
+    networks:
+      - codeladder-network
+
+  judge0-db:
+    image: postgres:13.0
+    environment:
+      - POSTGRES_USER=judge0
+      - POSTGRES_PASSWORD=judge0
+      - POSTGRES_DB=judge0
+    volumes:
+      - judge0-db-data:/var/lib/postgresql/data
+    restart: always
+    networks:
+      - codeladder-network
+
+  judge0-redis:
+    image: redis:6.0
+    command: [
+      "redis-server",
+      "--requirepass", "judge0"
+    ]
+    volumes:
+      - judge0-redis-data:/data
+    restart: always
+    networks:
+      - codeladder-network
+
+volumes:
+  judge0-db-data:
+  judge0-redis-data:
+
+networks:
+  codeladder-network:
+    external: true 
