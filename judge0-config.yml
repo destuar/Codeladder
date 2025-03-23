@@ -1,0 +1,40 @@
+# Judge0 configuration for CodeLadder
+
+# Authentication
+enable_auth: true
+auth_token: "$JUDGE0_AUTH_TOKEN"  # Will be set via environment variable
+
+# Database configuration
+postgres_host: judge0-db
+postgres_port: 5432
+postgres_db: judge0
+postgres_username: judge0
+postgres_password: judge0
+
+# Redis configuration
+redis_host: judge0-redis
+redis_port: 6379
+redis_password: judge0
+
+# Execution options
+cpu_time_limit: 2
+cpu_extra_time: 0.5
+wall_time_limit: 5
+memory_limit: 128000  # 128 MB
+stack_limit: 64000    # 64 MB
+max_processes_and_or_threads: 30
+enable_per_process_and_thread_time_limit: false
+enable_per_process_and_thread_memory_limit: true
+max_file_size: 10240  # 10 MB
+
+# Security options
+enable_network: false                    # Disable network access
+allow_enable_network: false              # Prevent enabling network even if requested
+enable_per_process_and_thread_time_limit: true  # Enable process time limit
+allow_usage_of_problematic_languages: false      # Disable problematic languages
+
+# Callbacks
+enable_callbacks: false                  # No callbacks required
+
+# Rate limiting
+max_queue_size: 100                     # Limit queue size 

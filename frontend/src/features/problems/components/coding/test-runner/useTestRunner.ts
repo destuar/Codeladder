@@ -1,12 +1,32 @@
 import { useState, useCallback } from 'react';
 import { TestCase, TestResult } from '../../../types/coding';
+import axios from 'axios';
+
+interface ExecuteCodeResponse {
+  results: TestResult[];
+  allPassed: boolean;
+  submissionId: string;
+}
+
+interface ExecuteCustomTestResponse {
+  passed?: boolean;
+  output?: string;
+  input?: any[];
+  expected?: any;
+  executionTime?: number;
+  memory?: number;
+  error?: string;
+  compilationOutput?: string;
+  statusDescription?: string;
+  statusId?: number;
+  exitCode?: number;
+}
 
 interface UseTestRunnerResult {
   isRunning: boolean;
   testResults: TestResult[];
-  consoleOutput: string[];
-  runTests: (code: string, testCases: TestCase[]) => Promise<void>;
-  clearConsole: () => void;
+  runTests: (code: string, testCases: TestCase[], problemId: string, language: string) => Promise<void>;
+  runCustomTest: (code: string, input: any[], functionName: string, language: string) => Promise<TestResult>;
 }
 
 /**
@@ -15,64 +35,125 @@ interface UseTestRunnerResult {
 export function useTestRunner(): UseTestRunnerResult {
   const [isRunning, setIsRunning] = useState(false);
   const [testResults, setTestResults] = useState<TestResult[]>([]);
-  const [consoleOutput, setConsoleOutput] = useState<string[]>([]);
 
-  const runTests = useCallback(async (code: string, testCases: TestCase[]) => {
+  const runTests = useCallback(async (code: string, testCases: TestCase[], problemId: string, language: string) => {
     setIsRunning(true);
     setTestResults([]);
-    setConsoleOutput([]);
 
     try {
-      // TODO: Replace with actual test execution logic
-      // This is a mock implementation
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      // Get the auth token from localStorage
+      const token = localStorage.getItem('token');
+      
+      // Call the backend API to execute the code
+      const response = await axios.post<ExecuteCodeResponse>('/api/code/execute', 
+        {
+          code,
+          language,
+          problemId
+        },
+        {
+          headers: {
+            'Content-Type': 'application/json',
+            ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+          }
+        }
+      );
 
-      const results = testCases.map((testCase, index) => {
-        const passed = index === 0; // Mock result
-        const runtime = Math.floor(Math.random() * 100) + 1;
-        const memory = Math.floor(Math.random() * 40) + 10;
-
-        return {
-          passed,
-          input: testCase.input,
-          expected: testCase.expected,
-          output: passed ? testCase.expected : "different result",
-          runtime,
-          memory
-        };
-      });
-
-      // If no test cases, show a message
-      if (results.length === 0) {
-        results.push({
-          passed: false,
-          input: [],
-          expected: "N/A",
-          output: "N/A",
-          runtime: 0,
-          memory: 0
-        });
+      const data = response.data;
+      
+      // Process the results
+      if (data && data.results && Array.isArray(data.results)) {
+        setTestResults(data.results);
+      } else {
+        throw new Error('Invalid response format from server');
       }
-
-      setTestResults(results);
-      setConsoleOutput(['Test execution completed']);
     } catch (error) {
       console.error('Error running tests:', error);
-      setConsoleOutput([`Error: ${error instanceof Error ? error.message : 'Unknown error'}`]);
+      
+      // Provide empty results to avoid UI issues
+      setTestResults([{
+        passed: false,
+        input: [],
+        expected: "Error",
+        output: "Failed to execute tests",
+        runtime: 0,
+        memory: 0,
+        error: error instanceof Error ? error.message : 'Unknown error'
+      }]);
     } finally {
       setIsRunning(false);
     }
   }, []);
 
-  const clearConsole = useCallback(() => {
-    setConsoleOutput([]);
+  const runCustomTest = useCallback(async (
+    code: string, 
+    input: any[], 
+    functionName: string, 
+    language: string
+  ): Promise<TestResult> => {
+    setIsRunning(true);
+    
+    try {
+      // Get the auth token from localStorage
+      const token = localStorage.getItem('token');
+      
+      // Call the backend API to execute the custom test
+      const response = await axios.post<ExecuteCustomTestResponse>('/api/code/custom-test', 
+        {
+          code,
+          language,
+          input,
+          functionName
+        },
+        {
+          headers: {
+            'Content-Type': 'application/json',
+            ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+          }
+        }
+      );
+      
+      // Process and return the result
+      const result = response.data;
+      
+      // Ensure result has the right shape
+      const formattedResult: TestResult = {
+        passed: result.passed || false,
+        input: input,
+        expected: result.expected || 'N/A',
+        output: result.output || '',
+        runtime: result.executionTime || 0,
+        memory: result.memory || 0,
+        error: result.error,
+        compilationOutput: result.compilationOutput,
+        statusDescription: result.statusDescription,
+        statusId: result.statusId,
+        exitCode: result.exitCode
+      };
+      
+      return formattedResult;
+    } catch (error) {
+      console.error('Error running custom test:', error);
+      
+      // Return error result
+      return {
+        passed: false,
+        input: input,
+        expected: "N/A",
+        output: "Error",
+        runtime: 0,
+        memory: 0,
+        error: error instanceof Error ? error.message : 'Unknown error'
+      };
+    } finally {
+      setIsRunning(false);
+    }
   }, []);
 
   return {
     isRunning,
     testResults,
-    consoleOutput,
     runTests,
-    clearConsole,
+    runCustomTest,
   };
 } 
