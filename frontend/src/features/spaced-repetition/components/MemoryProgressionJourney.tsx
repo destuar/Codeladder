@@ -257,7 +257,7 @@ export function MemoryProgressionJourney({
                                     )}
                                   />
                                 </TooltipTrigger>
-                                <TooltipContent className="p-3 space-y-1">
+                                <TooltipContent className="px-3 py-1.5 text-sm bg-white text-slate-800 font-medium border border-slate-200 space-y-1">
                                   <div className="font-medium">
                                     {entry.wasSuccessful ? (
                                       <div className="flex items-center gap-1 text-green-500">

@@ -32,6 +32,9 @@ model User {
   // Code submissions
   submissions  Submission[]
   
+  // Quiz attempts
+  quizAttempts QuizAttempt[]
+  
   // Timestamps
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
@@ -61,6 +64,10 @@ model Topic {
   levelId     String
   problems    Problem[]
   progress    Progress[]
+  
+  // Quiz relationship
+  quizzes     Quiz[]
+  
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
 
@@ -184,6 +191,199 @@ model Submission {
   @@index([userId])
   @@index([problemId])
   @@map("submissions")
+}
+
+// New Quiz-related models
+model Quiz {
+  id            String          @id @default(cuid())
+  name          String
+  description   String?         @db.Text
+  topic         Topic           @relation(fields: [topicId], references: [id], onDelete: Cascade)
+  topicId       String
+  orderNum      Int?            // For sorting quizzes within a topic
+  estimatedTime Int?            // Estimated time in minutes
+  passingScore  Int             @default(70) // Percentage required to pass
+  
+  // Relationships
+  questions     QuizQuestion[]
+  attempts      QuizAttempt[]
+  
+  // Timestamps
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+
+  @@index([topicId])
+  @@map("quizzes")
+}
+
+model QuizQuestion {
+  id            String          @id @default(cuid())
+  quiz          Quiz            @relation(fields: [quizId], references: [id], onDelete: Cascade)
+  quizId        String
+  questionText  String          @db.Text
+  questionType  String          // 'MC' or 'CODE'
+  points        Int             @default(1)
+  orderNum      Int?            // For sorting questions within a quiz
+  difficulty    String?         
+  
+  // Type-specific question details
+  mcProblem     McProblem?
+  codeProblem   CodeProblem?
+  
+  // Responses to this question
+  responses     QuizResponse[]
+  
+  // Timestamps
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+
+  @@index([quizId])
+  @@map("quiz_questions")
+}
+
+model McProblem {
+  questionId      String        @id
+  question        QuizQuestion  @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  explanation     String?       @db.Text
+  shuffleOptions  Boolean       @default(true)
+  
+  // Options for this question
+  options         McOption[]
+  
+  @@map("mc_problems")
+}
+
+model McOption {
+  id             String        @id @default(cuid())
+  mcProblem      McProblem     @relation(fields: [questionId], references: [questionId], onDelete: Cascade)
+  questionId     String
+  optionText     String        @db.Text
+  isCorrect      Boolean       @default(false)
+  explanation    String?       @db.Text
+  orderNum       Int?
+  
+  // Track which responses selected this option
+  selectedIn     McResponse[]
+  
+  @@index([questionId])
+  @@map("mc_options")
+}
+
+model CodeProblem {
+  questionId     String        @id
+  question       QuizQuestion  @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  codeTemplate   String?       @db.Text
+  functionName   String?
+  language       String        @default("javascript")
+  timeLimit      Int           @default(5000) // Execution time limit in ms
+  memoryLimit    Int?          // Memory limit in MB if applicable
+  
+  // Test cases for this problem
+  testCases      TestCase[]
+  
+  @@map("code_problems")
+}
+
+model TestCase {
+  id              String       @id @default(cuid())
+  codeProblem     CodeProblem  @relation(fields: [codeProblemId], references: [questionId], onDelete: Cascade)
+  codeProblemId   String
+  input           String       @db.Text
+  expectedOutput  String       @db.Text
+  isHidden        Boolean      @default(false)
+  orderNum        Int?
+  
+  // Results for this test case
+  results         TestCaseResult[]
+  
+  @@index([codeProblemId])
+  @@map("test_cases")
+}
+
+model QuizAttempt {
+  id              String       @id @default(cuid())
+  user            User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId          String
+  quiz            Quiz         @relation(fields: [quizId], references: [id], onDelete: Cascade)
+  quizId          String
+  score           Int?
+  passed          Boolean?
+  startedAt       DateTime     @default(now())
+  completedAt     DateTime?
+  
+  // Responses in this attempt
+  responses       QuizResponse[]
+  
+  // Timestamps
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+
+  @@index([userId])
+  @@index([quizId])
+  @@map("quiz_attempts")
+}
+
+model QuizResponse {
+  id              String       @id @default(cuid())
+  attempt         QuizAttempt  @relation(fields: [attemptId], references: [id], onDelete: Cascade)
+  attemptId       String
+  question        QuizQuestion @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  questionId      String
+  isCorrect       Boolean?
+  points          Int?
+  
+  // Type-specific responses
+  mcResponse      McResponse?
+  codeResponse    CodeResponse?
+  
+  // Timestamps
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+
+  @@index([attemptId])
+  @@index([questionId])
+  @@map("quiz_responses")
+}
+
+model McResponse {
+  responseId      String       @id
+  response        QuizResponse @relation(fields: [responseId], references: [id], onDelete: Cascade)
+  selectedOption  McOption?    @relation(fields: [selectedOptionId], references: [id], onDelete: SetNull)
+  selectedOptionId String?
+
+  @@map("mc_responses")
+}
+
+model CodeResponse {
+  responseId      String          @id
+  response        QuizResponse    @relation(fields: [responseId], references: [id], onDelete: Cascade)
+  codeSubmission  String?         @db.Text
+  compilationError String?        @db.Text
+  runtimeError    String?         @db.Text
+  testCasesPassed Int?
+  totalTestCases  Int?
+  executionTime   Int?            // in milliseconds
+  
+  // Individual test case results
+  testResults     TestCaseResult[]
+
+  @@map("code_responses")
+}
+
+model TestCaseResult {
+  id              String        @id @default(cuid())
+  codeResponse    CodeResponse  @relation(fields: [codeResponseId], references: [responseId], onDelete: Cascade)
+  codeResponseId  String
+  testCase        TestCase      @relation(fields: [testCaseId], references: [id], onDelete: Cascade)
+  testCaseId      String
+  passed          Boolean
+  actualOutput    String?       @db.Text
+  errorMessage    String?       @db.Text
+  executionTime   Int?          // in milliseconds
+
+  @@index([codeResponseId])
+  @@index([testCaseId])
+  @@map("test_case_results")
 }
 
 enum Role {

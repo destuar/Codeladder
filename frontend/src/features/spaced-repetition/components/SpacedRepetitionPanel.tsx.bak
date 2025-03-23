@@ -165,23 +165,11 @@ export function SpacedRepetitionPanel() {
   };
   
   const handleDaySelect = (date: Date, problems: ReviewProblem[]) => {
-    // Update state
     setSelectedDate(date);
     setSelectedDayProblems(problems);
     setIsCalendarDateSelected(true);
     
-    // If there are due problems on this date, scroll to the problems section
-    if (problems.length > 0) {
-      // Add a small delay to ensure DOM is updated
-      setTimeout(() => {
-        const problemsCard = document.querySelector('[data-section="problems-card"]');
-        if (problemsCard) {
-          problemsCard.scrollIntoView({ behavior: 'smooth', block: 'start' });
-        }
-      }, 100);
-    }
-    
-    // Reset to today view if today is selected
+    // Reset to today view
     if (isToday(date)) {
       setIsCalendarDateSelected(false);
     }
@@ -232,12 +220,12 @@ export function SpacedRepetitionPanel() {
     return (
     <div 
       key={problem.id} 
-      className={`flex items-center justify-between p-3 border border-slate-200 rounded-lg transition-colors ${
+      className={`flex items-center justify-between p-3 border rounded-lg transition-colors ${
         isEditMode 
           ? selectedProblems.has(problem.id)
-            ? 'bg-blue-50 border-blue-200' 
-            : 'hover:bg-slate-50 cursor-pointer' 
-          : 'hover:bg-slate-50'
+            ? 'bg-primary/10 border-primary' 
+            : 'hover:bg-muted/70 cursor-pointer' 
+          : 'hover:bg-muted/50'
       }`}
       onClick={isEditMode ? () => toggleProblemSelection(problem.id) : undefined}
     >
@@ -245,15 +233,15 @@ export function SpacedRepetitionPanel() {
         {isEditMode && (
           <div className={`w-5 h-5 flex-shrink-0 border rounded ${
             selectedProblems.has(problem.id) 
-              ? 'bg-blue-500 border-blue-500 text-white flex items-center justify-center' 
-              : 'border-slate-300'
+              ? 'bg-primary border-primary text-white flex items-center justify-center' 
+              : 'border-muted-foreground'
           }`}>
             {selectedProblems.has(problem.id) && <Check className="h-3 w-3" />}
           </div>
         )}
         <div>
-          <div className="font-medium text-slate-900">{problem.name}</div>
-          <div className="text-sm text-slate-500 flex items-center gap-2 mt-1">
+          <div className="font-medium">{problem.name}</div>
+          <div className="text-sm text-muted-foreground flex items-center gap-2 mt-1">
               {typeof problem.topic === 'string' ? (
                 <span>{problem.topic}</span>
               ) : problem.topic && typeof problem.topic === 'object' && 'name' in problem.topic ? (
@@ -292,12 +280,12 @@ export function SpacedRepetitionPanel() {
                     );
                   }}
                   variant={isActiveDay ? "default" : "secondary"}
-                  className={!isActiveDay ? "bg-white text-blue-600 border border-slate-200 hover:bg-slate-50 hover:text-blue-600" : ""}
+                  className={!isActiveDay ? "text-primary hover:text-primary" : ""}
                 >
                   Review
                 </Button>
               </TooltipTrigger>
-              <TooltipContent side="top" className="px-3 py-1.5 text-sm bg-white text-slate-800 font-medium border border-slate-200">
+              <TooltipContent side="top">
                 <p>{isActiveDay ? "Start review now" : "Review ahead of schedule"}</p>
               </TooltipContent>
             </Tooltip>
@@ -344,7 +332,7 @@ export function SpacedRepetitionPanel() {
         <Button 
           variant="ghost" 
           size="sm" 
-          className="w-full justify-between border border-slate-200 text-left h-10 mb-2 hover:bg-slate-50"
+          className="w-full justify-between border text-left h-10 mb-2"
         >
           <div className="flex items-center gap-2 text-sm font-medium">
             {icon}
@@ -367,7 +355,7 @@ export function SpacedRepetitionPanel() {
                     <Button
                       variant="outline"
                       size="sm"
-                      className="text-xs border-slate-200 hover:bg-slate-50 hover:text-blue-600"
+                      className="text-xs"
                       onClick={() => handleShufflePractice(problems, isActiveSection)}
                       disabled={problems.length === 0}
                     >
@@ -375,7 +363,7 @@ export function SpacedRepetitionPanel() {
                       Shuffle Practice
                     </Button>
                   </TooltipTrigger>
-                  <TooltipContent side="top" className="px-3 py-1.5 text-sm bg-white text-slate-800 font-medium border border-slate-200">
+                  <TooltipContent side="top">
                     <p>Randomly select a problem to review from this section</p>
                   </TooltipContent>
                 </Tooltip>
@@ -386,7 +374,7 @@ export function SpacedRepetitionPanel() {
             </div>
           </>
         ) : (
-          <div className="text-sm text-slate-500 italic py-2">
+          <div className="text-sm text-muted-foreground italic py-2">
             No problems due {title.toLowerCase()}.
           </div>
         )}
@@ -421,7 +409,7 @@ export function SpacedRepetitionPanel() {
                       Back to All
                     </Button>
                   </TooltipTrigger>
-                  <TooltipContent side="top" className="px-3 py-1.5 text-sm bg-white text-slate-800 font-medium border border-slate-200">
+                  <TooltipContent side="top">
                     <p>Return to all scheduled reviews</p>
                   </TooltipContent>
                 </Tooltip>
@@ -434,7 +422,7 @@ export function SpacedRepetitionPanel() {
               {selectedDayProblems.map(problem => renderProblemCard(problem, false))}
             </div>
           ) : (
-            <div className="text-center text-slate-500 p-6">
+            <div className="text-center text-muted-foreground p-6">
               <p>No problems due for review on this day.</p>
               <p className="text-sm mt-2">Try selecting a different day.</p>
             </div>
@@ -447,7 +435,7 @@ export function SpacedRepetitionPanel() {
     if (isLoading) {
       return (
         <div className="flex justify-center p-6">
-          <div className="animate-spin rounded-full h-8 w-8 border-2 border-blue-500 border-t-transparent" />
+          <div className="animate-spin rounded-full h-8 w-8 border-2 border-primary border-t-transparent" />
         </div>
       );
     }
@@ -455,12 +443,12 @@ export function SpacedRepetitionPanel() {
     if (!allScheduledReviews) {
       return (
         <div className="space-y-4">
-          <div className="text-center text-slate-500 p-6">
+          <div className="text-center text-muted-foreground p-6">
             <p>Loading review problems...</p>
             <Button 
               variant="outline" 
               size="sm" 
-              className="mt-4 border-slate-200 hover:bg-slate-50 hover:text-blue-600"
+              className="mt-4"
               onClick={handleRefresh}
               disabled={isRefreshing}
             >
@@ -477,7 +465,7 @@ export function SpacedRepetitionPanel() {
     
     if (totalProblems === 0) {
       return (
-        <div className="text-center text-slate-500 p-6">
+        <div className="text-center text-muted-foreground p-6">
           <p>No problems due for review at the moment.</p>
           <p className="text-sm mt-2">Great job! Your queue is clear.</p>
         </div>
@@ -486,39 +474,26 @@ export function SpacedRepetitionPanel() {
     
     // Add stats summary section
     const statsSection = (
-      <div className="bg-white rounded-lg p-5 mb-6 grid grid-cols-3 gap-4 text-center border border-slate-200 shadow-sm">
-        <div className="flex flex-col items-center p-2 rounded-md transition-all hover:bg-slate-50 group">
-          <span className="text-sm text-slate-500 mb-1.5">Due Today</span>
-          <div className="flex items-center justify-center">
-            <span className="text-2xl font-bold text-slate-900">
-              {dueToday.length}
-            </span>
-            {dueToday.length > 0 && 
-              <div className="ml-2 w-2 h-2 rounded-full bg-blue-500 animate-pulse"></div>
-            }
-          </div>
+      <div className="bg-muted/40 rounded-lg p-4 mb-6 grid grid-cols-3 gap-3 text-center">
+        <div className="flex flex-col items-center">
+          <span className="text-sm text-muted-foreground">Due Today</span>
+          <span className="text-2xl font-bold text-primary">{dueToday.length}</span>
         </div>
-        <div className="flex flex-col items-center p-2 rounded-md transition-all hover:bg-slate-50 group">
-          <span className="text-sm text-slate-500 mb-1.5">Total Problems</span>
-          <div className="flex items-center justify-center">
-            <span className="text-2xl font-bold text-slate-900">
-              {totalProblems}
-            </span>
-          </div>
+        <div className="flex flex-col items-center">
+          <span className="text-sm text-muted-foreground">Total Problems</span>
+          <span className="text-2xl font-bold">{totalProblems}</span>
         </div>
-        <div className="flex flex-col items-center p-2 rounded-md transition-all hover:bg-slate-50 group">
-          <span className="text-sm text-slate-500 mb-1.5">Next Review</span>
-          <div className="flex items-center justify-center">
-            <span className="text-lg font-medium text-slate-900">
-              {dueToday.length > 0 
-                ? 'Today' 
-                : dueThisWeek.length > 0 
-                  ? 'This Week' 
-                  : dueThisMonth.length > 0 
-                    ? 'This Month' 
-                    : 'Later'}
-            </span>
-          </div>
+        <div className="flex flex-col items-center">
+          <span className="text-sm text-muted-foreground">Next Review</span>
+          <span className="text-lg font-medium">
+            {dueToday.length > 0 
+              ? 'Today' 
+              : dueThisWeek.length > 0 
+                ? 'This Week' 
+                : dueThisMonth.length > 0 
+                  ? 'This Month' 
+                  : 'Later'}
+          </span>
         </div>
       </div>
     );
@@ -530,7 +505,7 @@ export function SpacedRepetitionPanel() {
         {/* Due Today */}
         {renderCollapsibleSection(
           'Due Today', 
-          <Calendar className="h-4 w-4 text-slate-600" />, 
+          <Calendar className="h-4 w-4 text-black" />, 
           dueToday, 
           true,
           isTodayOpen,
@@ -540,7 +515,7 @@ export function SpacedRepetitionPanel() {
         {/* Due This Week */}
         {renderCollapsibleSection(
           'Due This Week', 
-          <Calendar className="h-4 w-4 text-slate-600" />, 
+          <Calendar className="h-4 w-4 text-black" />, 
           dueThisWeek, 
           false,
           isThisWeekOpen,
@@ -550,7 +525,7 @@ export function SpacedRepetitionPanel() {
         {/* Due This Month */}
         {renderCollapsibleSection(
           'Due This Month', 
-          <Calendar className="h-4 w-4 text-slate-600" />, 
+          <Calendar className="h-4 w-4 text-black" />, 
           dueThisMonth, 
           false,
           isThisMonthOpen,
@@ -560,7 +535,7 @@ export function SpacedRepetitionPanel() {
         {/* Due Later */}
         {renderCollapsibleSection(
           'Due Later', 
-          <Calendar className="h-4 w-4 text-slate-600" />, 
+          <Calendar className="h-4 w-4 text-black" />, 
           dueLater, 
           false,
           isLaterOpen,
@@ -573,8 +548,8 @@ export function SpacedRepetitionPanel() {
   return (
     <div className="grid grid-cols-1 lg:grid-cols-7 gap-4">
       {/* Calendar Card */}
-      <Card className="lg:col-span-2 border border-slate-200 shadow-sm overflow-hidden">
-        <CardHeader className="pb-2 bg-white">
+      <Card className="lg:col-span-2">
+        <CardHeader className="pb-2">
           <div className="flex justify-between items-center mb-3">
             <TooltipProvider delayDuration={300}>
               <Tooltip>
@@ -582,71 +557,67 @@ export function SpacedRepetitionPanel() {
                   <Button 
                     variant="outline" 
                     size="sm" 
-                    className="flex items-center gap-2 w-full justify-center bg-gradient-to-r from-blue-50/60 to-blue-50/90 hover:from-blue-50/80 hover:to-blue-100 border-blue-100 text-blue-600 shadow-sm transition-all duration-300 hover:shadow font-medium rounded-md py-2.5"
+                    className="flex items-center gap-2 w-full justify-center bg-gradient-to-r from-indigo-50 to-blue-50 hover:from-indigo-100 hover:to-blue-100 border-indigo-200 text-indigo-700"
                     onClick={() => setShowMemoryInfo(true)}
                   >
-                    <Brain className="h-4 w-4 text-blue-500" />
+                    <Brain className="h-4 w-4 text-indigo-700" />
                     <span>About Your Memory</span>
                   </Button>
                 </TooltipTrigger>
-                <TooltipContent side="bottom" className="px-3 py-1.5 text-sm bg-white text-slate-800 font-medium border border-slate-200">
+                <TooltipContent side="bottom">
                   <p>Learn how spaced repetition helps your memory</p>
                 </TooltipContent>
               </Tooltip>
             </TooltipProvider>
           </div>
-          <CardTitle className="text-xl text-slate-900 flex items-center gap-2">
-            Your Review Stats
-          </CardTitle>
-          <CardDescription className="text-slate-500">
-            Track your completed problems using spaced repetition— keep climbing the CodeLadder!
+          <CardTitle className="text-xl">Review Schedule</CardTitle>
+          <CardDescription>
+            Track your completed spaced repetition reviews
           </CardDescription>
         </CardHeader>
-        <CardContent className="p-4">
-          <div className="space-y-5">
+        <CardContent>
+          <div className="space-y-6">
             {stats && (
-              <div className="grid grid-cols-3 gap-3 text-center">
-                <div className="p-3 rounded-lg bg-white border border-slate-200 shadow-sm transition-all duration-200 hover:shadow hover:border-indigo-200 transform hover:-translate-y-0.5 cursor-pointer">
-                  <div className="text-2xl font-bold text-slate-900">{stats.completedToday || 0}</div>
-                  <div className="text-xs font-medium text-slate-500 mt-1">Today</div>
+              <div className="grid grid-cols-3 gap-2 text-center">
+                <div className="p-2 rounded-lg bg-muted/50 border">
+                  <div className="text-2xl font-bold">{stats.completedToday || 0}</div>
+                  <div className="text-xs text-muted-foreground">Today</div>
                 </div>
-                <div className="p-3 rounded-lg bg-white border border-slate-200 shadow-sm transition-all duration-200 hover:shadow hover:border-indigo-200 transform hover:-translate-y-0.5 cursor-pointer">
-                  <div className="text-2xl font-bold text-slate-900">{stats.completedThisWeek || 0}</div>
-                  <div className="text-xs font-medium text-slate-500 mt-1">This Week</div>
+                <div className="p-2 rounded-lg bg-muted/50 border">
+                  <div className="text-2xl font-bold">{stats.completedThisWeek || 0}</div>
+                  <div className="text-xs text-muted-foreground">This Week</div>
                 </div>
-                <div className="p-3 rounded-lg bg-white border border-slate-200 shadow-sm transition-all duration-200 hover:shadow hover:border-indigo-200 transform hover:-translate-y-0.5 cursor-pointer">
-                  <div className="text-2xl font-bold text-slate-900">{stats.totalReviewed || 0}</div>
-                  <div className="text-xs font-medium text-slate-500 mt-1">All Time</div>
+                <div className="p-2 rounded-lg bg-muted/50 border">
+                  <div className="text-2xl font-bold">{stats.totalReviewed || 0}</div>
+                  <div className="text-xs text-muted-foreground">All Time</div>
                 </div>
               </div>
             )}
             
-            <div className="border-slate-200 rounded-lg">
-              <ReviewCalendar 
-                stats={stats} 
-                problems={allScheduledReviews ? allScheduledReviews.all : dueReviews} 
-                onDaySelect={handleDaySelect} 
-              />
-            </div>
+            <ReviewCalendar 
+              stats={stats} 
+              problems={allScheduledReviews ? allScheduledReviews.all : dueReviews} 
+              onDaySelect={handleDaySelect} 
+            />
           </div>
         </CardContent>
       </Card>
       
       {/* Problems Card */}
-      <Card className="lg:col-span-5" data-section="problems-card">
+      <Card className="lg:col-span-5">
         <CardHeader className="pb-2">
           <div className="flex items-center justify-between">
             <div>
               <CardTitle className="text-xl">
                 {isCalendarDateSelected && !isToday(selectedDate)
                   ? `Reviews for ${format(selectedDate, 'MMMM d, yyyy')}`
-                  : "All Practice Problems"
+                  : "All Scheduled Reviews"
                 }
               </CardTitle>
               <CardDescription>
                 {isCalendarDateSelected && !isToday(selectedDate)
                   ? "Reviews scheduled for the selected date"
-                  : "Select questions from the schedule below to review them in spaced intervals."
+                  : "Select problems to remove them from your spaced repetition dashboard."
                 }
               </CardDescription>
             </div>
@@ -671,7 +642,7 @@ export function SpacedRepetitionPanel() {
                           {selectedProblems.size > 0 ? selectedProblems.size : ''}
                         </Button>
                       </TooltipTrigger>
-                      <TooltipContent side="bottom" className="px-3 py-1.5 text-sm bg-white text-slate-800 font-medium border border-slate-200">
+                      <TooltipContent side="bottom">
                         <p>Remove selected problems</p>
                       </TooltipContent>
                     </Tooltip>
@@ -688,7 +659,7 @@ export function SpacedRepetitionPanel() {
                           <X className="h-4 w-4" />
                         </Button>
                       </TooltipTrigger>
-                      <TooltipContent side="bottom" className="px-3 py-1.5 text-sm bg-white text-slate-800 font-medium border border-slate-200">
+                      <TooltipContent side="bottom">
                         <p>Cancel edit mode</p>
                       </TooltipContent>
                     </Tooltip>
@@ -707,7 +678,7 @@ export function SpacedRepetitionPanel() {
                           <Plus className="h-4 w-4" />
                         </Button>
                       </TooltipTrigger>
-                      <TooltipContent side="bottom" className="px-3 py-1.5 text-sm bg-white text-slate-800 font-medium border border-slate-200">
+                      <TooltipContent side="bottom">
                         <p>Add problems to spaced repetition</p>
                       </TooltipContent>
                     </Tooltip>
@@ -724,7 +695,7 @@ export function SpacedRepetitionPanel() {
                           <Edit2 className="h-4 w-4" />
                         </Button>
                       </TooltipTrigger>
-                      <TooltipContent side="bottom" className="px-3 py-1.5 text-sm bg-white text-slate-800 font-medium border border-slate-200">
+                      <TooltipContent side="bottom">
                         <p>Edit dashboard</p>
                       </TooltipContent>
                     </Tooltip>
@@ -742,7 +713,7 @@ export function SpacedRepetitionPanel() {
                           <RefreshCw className={`h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`} />
                         </Button>
                       </TooltipTrigger>
-                      <TooltipContent side="bottom" className="px-3 py-1.5 text-sm bg-white text-slate-800 font-medium border border-slate-200">
+                      <TooltipContent side="bottom">
                         <p>Refresh data</p>
                       </TooltipContent>
                     </Tooltip>
@@ -769,7 +740,7 @@ export function SpacedRepetitionPanel() {
             <CardHeader>
               <div className="flex justify-between items-center">
                 <div className="flex items-center gap-2">
-                  <Brain className="h-5 w-5 text-blue-500" />
+                  <Brain className="h-5 w-5 text-indigo-700" />
                   <CardTitle>About Your Memory</CardTitle>
                 </div>
                 <Button variant="ghost" size="sm" onClick={() => setShowMemoryInfo(false)}>
@@ -854,77 +825,77 @@ export function SpacedRepetitionPanel() {
                     </div>
                   </div>
                 </div>
-                
-                <h3 className="text-lg font-medium mt-8">Our Spaced Repetition System</h3>
-                <p>
-                  We use a Fibonacci-based spacing system optimized for efficient learning:
-                </p>
-                
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-4">
-                  {[1, 2, 3, 4].map(level => (
-                    <div key={level} className="border rounded-md p-3 text-center">
-                      <div className={`text-xl font-bold ${level <= 1 ? 'text-blue-500' : level <= 3 ? 'text-indigo-500' : 'text-violet-500'}`}>
-                        Level {level}
-                      </div>
-                      <div className="text-sm mt-1">
-                        {level === 1 && 'Review tomorrow'}
-                        {level === 2 && 'Review in 2 days'}
-                        {level === 3 && 'Review in 3 days'}
-                        {level === 4 && 'Review in 5 days'}
-                      </div>
-                      <div className="mt-2 text-xs text-muted-foreground">
-                        {level === 1 && '~40% retention'}
-                        {level === 2 && '~60% retention'}
-                        {level === 3 && '~70% retention'}
-                        {level === 4 && '~80% retention'}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-                <div className="grid grid-cols-2 md:grid-cols-3 gap-3 mt-3">
-                  {[5, 6, 7].map(level => (
-                    <div key={level} className="border rounded-md p-3 text-center">
-                      <div className={`text-xl font-bold ${level <= 5 ? 'text-violet-500' : 'text-purple-500'}`}>
-                        Level {level}
-                      </div>
-                      <div className="text-sm mt-1">
-                        {level === 5 && 'Review in 8 days'}
-                        {level === 6 && 'Review in 13 days'}
-                        {level === 7 && 'Review in 21 days'}
-                      </div>
-                      <div className="mt-2 text-xs text-muted-foreground">
-                        {level === 5 && '~85% retention'}
-                        {level === 6 && '~90% retention'}
-                        {level === 7 && '~95% retention'}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-                
-                <div className="bg-blue-50 dark:bg-blue-950 border border-blue-100 dark:border-blue-900 rounded-lg p-4 mt-6">
-                  <h4 className="font-medium mb-2">Tips for Effective Learning</h4>
-                  <ul className="space-y-2 text-sm">
-                    <li className="flex items-start gap-2">
-                      <Check className="h-4 w-4 text-green-500 mt-0.5" />
-                      <span>Stay consistent with your reviews - do them when they're due.</span>
-                    </li>
-                    <li className="flex items-start gap-2">
-                      <Check className="h-4 w-4 text-green-500 mt-0.5" />
-                      <span>Be honest about how well you remember - this optimizes your learning schedule.</span>
-                    </li>
-                    <li className="flex items-start gap-2">
-                      <Check className="h-4 w-4 text-green-500 mt-0.5" />
-                      <span>Explain concepts in your own words as you review them to strengthen recall.</span>
-                    </li>
-                    <li className="flex items-start gap-2">
-                      <Check className="h-4 w-4 text-green-500 mt-0.5" />
-                      <span>Connect new information to things you already know to build stronger neural pathways.</span>
-                    </li>
-                  </ul>
-                </div>
               </div>
             </CardContent>
           </Card>
+          
+          <h3 className="text-lg font-medium mt-8">Our Spaced Repetition System</h3>
+          <p>
+            We use a Fibonacci-based spacing system optimized for efficient learning:
+          </p>
+          
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-4">
+            {[1, 2, 3, 4].map(level => (
+              <div key={level} className="border rounded-md p-3 text-center">
+                <div className={`text-xl font-bold ${level <= 1 ? 'text-blue-500' : level <= 3 ? 'text-indigo-500' : 'text-violet-500'}`}>
+                  Level {level}
+                </div>
+                <div className="text-sm mt-1">
+                  {level === 1 && 'Review tomorrow'}
+                  {level === 2 && 'Review in 2 days'}
+                  {level === 3 && 'Review in 3 days'}
+                  {level === 4 && 'Review in 5 days'}
+                </div>
+                <div className="mt-2 text-xs text-muted-foreground">
+                  {level === 1 && '~40% retention'}
+                  {level === 2 && '~60% retention'}
+                  {level === 3 && '~70% retention'}
+                  {level === 4 && '~80% retention'}
+                </div>
+              </div>
+            ))}
+          </div>
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-3 mt-3">
+            {[5, 6, 7].map(level => (
+              <div key={level} className="border rounded-md p-3 text-center">
+                <div className={`text-xl font-bold ${level <= 5 ? 'text-violet-500' : 'text-purple-500'}`}>
+                  Level {level}
+                </div>
+                <div className="text-sm mt-1">
+                  {level === 5 && 'Review in 8 days'}
+                  {level === 6 && 'Review in 13 days'}
+                  {level === 7 && 'Review in 21 days'}
+                </div>
+                <div className="mt-2 text-xs text-muted-foreground">
+                  {level === 5 && '~85% retention'}
+                  {level === 6 && '~90% retention'}
+                  {level === 7 && '~95% retention'}
+                </div>
+              </div>
+            ))}
+          </div>
+          
+          <div className="bg-blue-50 dark:bg-blue-950 border border-blue-100 dark:border-blue-900 rounded-lg p-4 mt-6">
+            <h4 className="font-medium mb-2">Tips for Effective Learning</h4>
+            <ul className="space-y-2 text-sm">
+              <li className="flex items-start gap-2">
+                <Check className="h-4 w-4 text-green-500 mt-0.5" />
+                <span>Stay consistent with your reviews - do them when they're due.</span>
+              </li>
+              <li className="flex items-start gap-2">
+                <Check className="h-4 w-4 text-green-500 mt-0.5" />
+                <span>Be honest about how well you remember - this optimizes your learning schedule.</span>
+              </li>
+              <li className="flex items-start gap-2">
+                <Check className="h-4 w-4 text-green-500 mt-0.5" />
+                <span>Explain concepts in your own words as you review them to strengthen recall.</span>
+              </li>
+              <li className="flex items-start gap-2">
+                <Check className="h-4 w-4 text-green-500 mt-0.5" />
+                <span>Connect new information to things you already know to build stronger neural pathways.</span>
+              </li>
+            </ul>
+          </div>
         </div>
       )}
       

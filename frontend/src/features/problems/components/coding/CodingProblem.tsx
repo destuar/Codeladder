@@ -6,7 +6,7 @@ import { isMarkdown } from "@/lib/markdown-to-html";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from '@/lib/utils';
 import { Badge } from "@/components/ui/badge";
-import { Timer } from "lucide-react";
+import { Timer, RepeatIcon } from "lucide-react";
 import { CodingProblemProps } from '../../types';
 import { ResizablePanel } from './ResizablePanel';
 import { ProblemTimer } from './timer/ProblemTimer';
@@ -15,6 +15,17 @@ import { TestRunner } from './test-runner/TestRunner';
 import { ProblemHeader } from '@/features/problems/components/coding/ProblemHeader';
 import { useProblemCompletion } from '@/features/problems/hooks/useProblemCompletion';
 import { formatEstimatedTime } from '../../utils/time';
+import { 
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle
+} from "@/components/ui/alert-dialog";
+import { Button } from "@/components/ui/button";
 import { SupportedLanguage } from '../../types/coding';
 import { Resizable } from "re-resizable";
 
@@ -52,8 +63,12 @@ export default function CodingProblem({
 
   const {
     isProblemCompleted,
-    handleMarkAsComplete
-  } = useProblemCompletion(problemId, isCompleted, onCompleted, isReviewMode);
+    handleMarkAsComplete,
+    showCompletionDialog,
+    setShowCompletionDialog,
+    isAddingToSpacedRepetition,
+    handleConfirmCompletion,
+  } = useProblemCompletion(problemId, isCompleted, onCompleted, isReviewMode, 'CODING');
 
   // Parse test cases
   const testCases = (() => {
@@ -101,6 +116,44 @@ export default function CodingProblem({
         prevProblemId={prevProblemId}
         onNavigate={onNavigate}
       />
+
+      {/* Spaced Repetition Dialog */}
+      <AlertDialog open={showCompletionDialog} onOpenChange={setShowCompletionDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Mark Problem as Completed</AlertDialogTitle>
+            <AlertDialogDescription>
+              Would you like to add this problem to your spaced repetition dashboard for future practice?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction 
+              onClick={() => handleConfirmCompletion(false)}
+              className="bg-primary"
+            >
+              Just Complete
+            </AlertDialogAction>
+            <Button 
+              onClick={() => handleConfirmCompletion(true)}
+              disabled={isAddingToSpacedRepetition}
+              className="bg-indigo-600 hover:bg-indigo-700 text-white"
+            >
+              {isAddingToSpacedRepetition ? (
+                <>
+                  <div className="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
+                  Adding...
+                </>
+              ) : (
+                <>
+                  <RepeatIcon className="mr-2 h-4 w-4" />
+                  Add to Spaced Repetition
+                </>
+              )}
+            </Button>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <div className="flex flex-1 min-h-0">
         {/* Left panel - Problem description */}

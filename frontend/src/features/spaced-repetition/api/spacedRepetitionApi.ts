@@ -1,4 +1,5 @@
 import { api } from '@/lib/api';
+import axios from 'axios';
 
 /**
  * Interfaces for spaced repetition API
@@ -140,4 +141,57 @@ export async function getReviewStats(token: string): Promise<ReviewStats> {
       completedThisMonth: 0
     };
   }
-} 
+}
+
+/**
+ * Remove a problem from the spaced repetition system
+ */
+export const removeProblemFromSpacedRepetition = async (
+  problemId: string,
+  token: string
+): Promise<void> => {
+  try {
+    await api.delete(`/spaced-repetition/remove-problem/${problemId}`, token);
+  } catch (error) {
+    console.error('Error removing problem from spaced repetition:', error);
+    throw error;
+  }
+};
+
+/**
+ * Add a completed problem to the spaced repetition system
+ */
+export const addCompletedProblemToSpacedRepetition = async (
+  problemId: string,
+  token: string
+): Promise<void> => {
+  try {
+    await api.post(`/spaced-repetition/add-to-repetition/${problemId}`, {}, token);
+  } catch (error) {
+    console.error('Error adding problem to spaced repetition:', error);
+    throw error;
+  }
+};
+
+/**
+ * Get all completed coding problems that are available to add to spaced repetition
+ */
+export const getAvailableProblemsForSpacedRepetition = async (
+  token: string
+): Promise<Array<{
+  id: string;
+  name: string;
+  difficulty: string;
+  topic?: {
+    id: string;
+    name: string;
+  };
+}>> => {
+  try {
+    const problems = await api.get('/spaced-repetition/available-problems', token);
+    return Array.isArray(problems) ? problems : [];
+  } catch (error) {
+    console.error('Error fetching available problems for spaced repetition:', error);
+    return [];
+  }
+}; 

@@ -595,4 +595,279 @@ router.get('/stats', authenticateToken, (async (req, res) => {
   }
 }) as RequestHandler);
 
+/**
+ * Remove a problem from the spaced repetition system
+ * DELETE /api/spaced-repetition/remove-problem/:problemId
+ */
+router.delete('/remove-problem/:problemId', authenticateToken, (async (req, res) => {
+  try {
+    const { problemId } = req.params;
+    const userId = req.user?.id;
+    
+    if (!userId) {
+      return res.status(401).json({ error: 'User not authenticated' });
+    }
+    
+    if (!problemId) {
+      return res.status(400).json({ error: 'Problem ID is required' });
+    }
+    
+    console.log('[SpacedRepetition:RemoveProblem] Removing problem from spaced repetition:', { userId, problemId });
+    
+    // Find the progress record for this problem and user
+    const progress = await prisma.progress.findFirst({
+      where: {
+        userId,
+        problemId
+      },
+      orderBy: {
+        updatedAt: 'desc'
+      }
+    });
+    
+    if (!progress) {
+      console.log('[SpacedRepetition:RemoveProblem] No progress record found for problem:', problemId);
+      return res.status(404).json({ error: 'Progress record not found' });
+    }
+    
+    // Update the progress record to remove it from spaced repetition
+    // We keep the progress record but set reviewLevel to null and clear reviewScheduledAt
+    // This keeps the problem in the user's completed list but removes it from spaced repetition
+    const updatedProgress = await prisma.progress.update({
+      where: {
+        id: progress.id
+      },
+      data: {
+        reviewLevel: null,
+        reviewScheduledAt: null,
+        // Keep other fields like status and lastReviewedAt
+      }
+    });
+    
+    console.log('[SpacedRepetition:RemoveProblem] Successfully removed problem from spaced repetition:', { 
+      id: updatedProgress.id, 
+      problemId,
+      userId
+    });
+    
+    res.json({ 
+      message: 'Problem removed from spaced repetition system',
+      progress: updatedProgress
+    });
+  } catch (error) {
+    console.error('[SpacedRepetition:RemoveProblem] Error removing problem:', error);
+    res.status(500).json({ error: 'Failed to remove problem from spaced repetition' });
+  }
+}) as RequestHandler);
+
+/**
+ * Add a completed problem to the spaced repetition system
+ * POST /api/spaced-repetition/add-to-repetition/:problemId
+ */
+router.post('/add-to-repetition/:problemId', authenticateToken, (async (req, res) => {
+  try {
+    const { problemId } = req.params;
+    const userId = req.user?.id;
+    
+    if (!userId) {
+      return res.status(401).json({ error: 'User not authenticated' });
+    }
+    
+    if (!problemId) {
+      return res.status(400).json({ error: 'Problem ID is required' });
+    }
+    
+    console.log('[SpacedRepetition:AddToRepetition] Adding problem to spaced repetition:', { userId, problemId });
+    
+    // First check if the problem exists and if it's completed by the user
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      include: {
+        completedProblems: {
+          where: { id: problemId },
+          select: { id: true, topicId: true, problemType: true }
+        }
+      }
+    });
+    
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    
+    if (user.completedProblems.length === 0) {
+      return res.status(400).json({ 
+        error: 'Problem has not been completed yet', 
+        message: 'You need to complete this problem before adding it to spaced repetition'
+      });
+    }
+    
+    // Check if the problem is already in spaced repetition
+    const existingProgress = await prisma.progress.findFirst({
+      where: {
+        userId,
+        problemId,
+        reviewLevel: { not: null }
+      }
+    });
+    
+    if (existingProgress) {
+      return res.status(400).json({ 
+        error: 'Problem already in spaced repetition', 
+        message: 'This problem is already in your spaced repetition dashboard'
+      });
+    }
+    
+    const problem = user.completedProblems[0];
+    
+    // Only allow coding problems to be added to spaced repetition
+    if (problem.problemType !== 'CODING') {
+      return res.status(400).json({ 
+        error: 'Only coding problems can be added to spaced repetition', 
+        message: 'Only coding problems can be added to spaced repetition'
+      });
+    }
+    
+    // If there's no topicId, we can't create a progress record
+    if (!problem.topicId) {
+      return res.status(400).json({ 
+        error: 'Problem is missing a topic', 
+        message: 'Cannot add problem to spaced repetition: missing topic'
+      });
+    }
+    
+    // Get or create a progress record for this problem
+    const existingProgressRecord = await prisma.progress.findFirst({
+      where: {
+        userId,
+        problemId
+      }
+    });
+    
+    let newProgress;
+    
+    if (existingProgressRecord) {
+      // Update the existing progress record
+      newProgress = await prisma.progress.update({
+        where: { id: existingProgressRecord.id },
+        data: {
+          status: 'COMPLETED',
+          reviewLevel: 0, // Start at level 0
+          lastReviewedAt: new Date(),
+          reviewScheduledAt: calculateNextReviewDate(0), // Schedule for tomorrow
+          reviewHistory: [{
+            date: new Date(),
+            wasSuccessful: true,
+            reviewOption: 'added-to-repetition'
+          }]
+        }
+      });
+    } else {
+      // Create a new progress record
+      newProgress = await prisma.progress.create({
+        data: {
+          userId,
+          problemId,
+          topicId: problem.topicId, // Now we're sure this is not null
+          status: 'COMPLETED',
+          reviewLevel: 0, // Start at level 0
+          lastReviewedAt: new Date(),
+          reviewScheduledAt: calculateNextReviewDate(0), // Schedule for tomorrow
+          reviewHistory: [{
+            date: new Date(),
+            wasSuccessful: true,
+            reviewOption: 'added-to-repetition'
+          }]
+        }
+      });
+    }
+    
+    console.log('[SpacedRepetition:AddToRepetition] Successfully added problem to spaced repetition:', { 
+      id: newProgress.id, 
+      problemId,
+      userId
+    });
+    
+    res.json({ 
+      message: 'Problem added to spaced repetition system',
+      progress: newProgress,
+      dueDate: newProgress.reviewScheduledAt
+    });
+  } catch (error) {
+    console.error('[SpacedRepetition:AddToRepetition] Error adding problem:', error);
+    res.status(500).json({ error: 'Failed to add problem to spaced repetition' });
+  }
+}) as RequestHandler);
+
+/**
+ * Get completed coding problems not already in spaced repetition
+ * GET /api/spaced-repetition/available-problems
+ */
+router.get('/available-problems', authenticateToken, (async (req, res) => {
+  try {
+    const userId = req.user?.id;
+    
+    if (!userId) {
+      return res.status(401).json({ error: 'User not authenticated' });
+    }
+    
+    console.log('[SpacedRepetition:AvailableProblems] Fetching available problems for user:', userId);
+    
+    // Find the user with their completed coding problems
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      include: {
+        completedProblems: {
+          where: { problemType: 'CODING' },
+          select: { 
+            id: true, 
+            name: true, 
+            difficulty: true,
+            topicId: true,
+            topic: {
+              select: {
+                id: true,
+                name: true
+              }
+            }
+          }
+        }
+      }
+    });
+    
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    
+    // Get all problems already in spaced repetition
+    const inSpacedRepetition = await prisma.progress.findMany({
+      where: {
+        userId,
+        reviewLevel: { not: null }
+      },
+      select: {
+        problemId: true
+      }
+    });
+    
+    // Create a set of problem IDs already in spaced repetition for faster lookup
+    const spacedRepetitionProblemIds = new Set(inSpacedRepetition.map(p => p.problemId));
+    
+    // Filter completed problems to only include those not already in spaced repetition
+    const availableProblems = user.completedProblems.filter(
+      problem => !spacedRepetitionProblemIds.has(problem.id)
+    );
+    
+    console.log('[SpacedRepetition:AvailableProblems] Found problems:', {
+      totalCompleted: user.completedProblems.length,
+      inSpacedRepetition: spacedRepetitionProblemIds.size,
+      available: availableProblems.length
+    });
+    
+    res.json(availableProblems);
+  } catch (error) {
+    console.error('[SpacedRepetition:AvailableProblems] Error:', error);
+    res.status(500).json({ error: 'Failed to fetch available problems' });
+  }
+}) as RequestHandler);
+
 export default router; 
