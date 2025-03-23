@@ -15,6 +15,10 @@ const envSchema = z.object({
   AWS_SECRET_ACCESS_KEY: z.string().optional(),
   AWS_REGION: z.string().optional(),
   S3_BUCKET: z.string().optional(),
+  // Judge0 configuration
+  JUDGE0_API_URL: z.string().default('http://localhost:2358'),
+  JUDGE0_AUTH_TOKEN: z.string().optional(),
+  JUDGE0_TIMEOUT: z.string().default('10000'),
 });
 
 const env = envSchema.parse(process.env);

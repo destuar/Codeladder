@@ -1,9 +1,8 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { Card } from "@/components/ui/card";
 import { Markdown } from "@/components/ui/markdown";
 import { HtmlContent } from "@/components/ui/html-content";
 import { isMarkdown } from "@/lib/markdown-to-html";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from '@/lib/utils';
 import { Badge } from "@/components/ui/badge";
@@ -11,15 +10,18 @@ import { Timer } from "lucide-react";
 import { CodingProblemProps } from '../../types';
 import { ResizablePanel } from './ResizablePanel';
 import { ProblemTimer } from './timer/ProblemTimer';
-import { CodeEditor } from './editor/CodeEditor';
+import { CodeEditor, CodeEditorRef } from './editor/CodeEditor';
 import { TestRunner } from './test-runner/TestRunner';
 import { ProblemHeader } from '@/features/problems/components/coding/ProblemHeader';
 import { useProblemCompletion } from '@/features/problems/hooks/useProblemCompletion';
-import { Console } from "@/components/ui/console";
 import { formatEstimatedTime } from '../../utils/time';
+import { SupportedLanguage } from '../../types/coding';
+import { Resizable } from "re-resizable";
 
 const MIN_PANEL_WIDTH = 300;
 const MAX_PANEL_WIDTH = 800;
+const DEFAULT_EDITOR_HEIGHT = 500; // px
+const MIN_EDITOR_HEIGHT = 200; // px
 
 /**
  * Main component for the coding problem interface
@@ -39,12 +41,14 @@ export default function CodingProblem({
   isReviewMode = false,
   onCompleted,
 }: CodingProblemProps) {
-  const [activeTab, setActiveTab] = useState("code");
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [leftPanelWidth, setLeftPanelWidth] = useState(window.innerWidth * 0.4);
-  const [consoleResults, setConsoleResults] = useState([]);
-  const [isConsoleOpen, setIsConsoleOpen] = useState(true);
-  const [isRunning, setIsRunning] = useState(false);
+  const [editorHeight, setEditorHeight] = useState(DEFAULT_EDITOR_HEIGHT);
+  const [code, setCode] = useState(codeTemplate || "");
+  const [selectedLanguage, setSelectedLanguage] = useState<SupportedLanguage>('javascript');
+  
+  // Add ref for the code editor component
+  const editorRef = useRef<CodeEditorRef>(null);
 
   const {
     isProblemCompleted,
@@ -73,6 +77,16 @@ export default function CodingProblem({
 
   const formattedTime = formatEstimatedTime(estimatedTime);
 
+  // Modified handler for code editor
+  const handleCodeChange = (newCode: string) => {
+    setCode(newCode);
+  };
+
+  // Handle language changes
+  const handleLanguageChange = (language: string) => {
+    setSelectedLanguage(language as SupportedLanguage);
+  };
+
   return (
     <div className={cn(
       "flex flex-col bg-background",
@@ -89,6 +103,7 @@ export default function CodingProblem({
       />
 
       <div className="flex flex-1 min-h-0">
+        {/* Left panel - Problem description */}
         <ResizablePanel
           defaultWidth={leftPanelWidth}
           minWidth={MIN_PANEL_WIDTH}
@@ -133,38 +148,54 @@ export default function CodingProblem({
           </ScrollArea>
         </ResizablePanel>
 
-        <div className="flex-1 flex flex-col">
-          <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col">
-            <div className="border-b px-6">
-              <TabsList className="bg-muted">
-                <TabsTrigger value="code">Code</TabsTrigger>
-                <TabsTrigger value="testcases">Test Cases</TabsTrigger>
-              </TabsList>
+        {/* Right panel - Vertically arranged Code Editor and Test Runner */}
+        <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
+          {/* Code Editor */}
+          <Resizable
+            defaultSize={{ width: '100%', height: editorHeight }}
+            minHeight={MIN_EDITOR_HEIGHT}
+            maxHeight="70%"
+            enable={{ bottom: true }}
+            onResize={(e, direction, ref, d) => {
+              // Update the editor layout whenever size changes
+              requestAnimationFrame(() => {
+                if (editorRef.current) {
+                  editorRef.current.updateLayout();
+                }
+              });
+            }}
+            onResizeStop={(e, direction, ref, d) => {
+              // Save the new height when resize is complete
+              setEditorHeight(editorHeight + d.height);
+            }}
+            className="relative"
+            handleComponent={{
+              bottom: <div className="h-2 w-full bg-border hover:bg-primary/50 transition-colors cursor-ns-resize"></div>
+            }}
+          >
+            <div className="absolute inset-0 overflow-hidden">
+              <CodeEditor
+                initialCode={code}
+                onChange={handleCodeChange}
+                className="h-full"
+                language={selectedLanguage}
+                onLanguageChange={handleLanguageChange}
+                ref={editorRef}
+              />
             </div>
+          </Resizable>
 
-            <div className="flex-1 overflow-hidden">
-              <TabsContent value="code" className="h-full data-[state=active]:flex flex-col">
-                <CodeEditor
-                  initialCode={codeTemplate}
-                  className="flex-1 relative"
-                />
-                <Console
-                  results={consoleResults}
-                  isOpen={isConsoleOpen}
-                  onToggle={() => setIsConsoleOpen(!isConsoleOpen)}
-                  onClear={() => setConsoleResults([])}
-                  isRunning={isRunning}
-                />
-              </TabsContent>
-
-              <TabsContent value="testcases" className="h-full data-[state=active]:flex flex-col">
-                <TestRunner
-                  code={codeTemplate || ""}
-                  testCases={testCases}
-                />
-              </TabsContent>
-            </div>
-          </Tabs>
+          {/* Test Runner */}
+          <div className="flex-1 min-h-0 overflow-hidden border-t">
+            <TestRunner
+              code={code}
+              testCases={testCases}
+              problemId={problemId}
+              onRunComplete={() => {}}
+              language={selectedLanguage}
+              onLanguageChange={handleLanguageChange}
+            />
+          </div>
         </div>
       </div>
     </div>

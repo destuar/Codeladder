@@ -1,52 +1,140 @@
-import { Badge } from "@/components/ui/badge";
+import { CheckCircle, XCircle, ChevronDown, ChevronRight } from 'lucide-react';
+import { formatValue } from '../../../utils/formatters';
 import { TestResult } from '../../../types/coding';
 
 interface TestCaseProps {
   result: TestResult;
   index: number;
+  onSelect?: () => void;
+  isSelected?: boolean;
 }
 
 /**
  * Component for displaying a single test case result
  */
-export function TestCase({ result, index }: TestCaseProps) {
+export function TestCase({ result, index, onSelect, isSelected = false }: TestCaseProps) {
+  const { passed, input, expected, output, runtime, memory, error } = result;
+
+  // Helper function to format input values for display
+  const formatInputs = (inputs: any[]): string => {
+    if (!inputs || inputs.length === 0) return '()';
+    return `(${inputs.map((item) => formatValue(item)).join(', ')})`;
+  };
+
+  // Helper function to format runtime in ms
+  const formatRuntime = (ms: number): string => {
+    if (ms < 1) return '<1 ms';
+    if (ms < 1000) return `${Math.round(ms)} ms`;
+    return `${(ms / 1000).toFixed(2)} s`;
+  };
+
+  // Helper function to format memory usage
+  const formatMemory = (kb: number): string => {
+    if (kb < 1000) return `${Math.round(kb)} KB`;
+    return `${(kb / 1024).toFixed(2)} MB`;
+  };
+
   return (
-    <div className="space-y-2">
-      <div className="flex items-center gap-2">
-        <Badge variant={result.passed ? "outline" : "destructive"}>
-          {result.passed ? "Passed" : "Failed"}
-        </Badge>
-        <span className="text-sm font-medium">Test Case {index + 1}</span>
-        {(result.runtime !== undefined || result.memory !== undefined) && (
-          <span className="text-sm text-muted-foreground ml-auto">
-            {result.runtime !== undefined && `${result.runtime}ms`}
-            {result.runtime !== undefined && result.memory !== undefined && ' • '}
-            {result.memory !== undefined && `${result.memory}MB`}
-          </span>
-        )}
-      </div>
-      <div className="space-y-1.5 overflow-x-auto">
-        <div className="text-sm whitespace-nowrap">
-          <span className="font-medium">Input:</span>{" "}
-          <code className="text-sm bg-muted px-1.5 py-0.5 rounded">
-            {JSON.stringify(result.input)}
-          </code>
+    <div
+      className={`border rounded-lg overflow-hidden transition-colors ${
+        passed ? 'border-green-500/50' : 'border-red-500/50'
+      } ${isSelected ? 'bg-muted/50' : 'bg-background'} cursor-pointer`}
+      onClick={onSelect}
+    >
+      {/* Header section - always visible */}
+      <div className="flex items-center p-3 gap-3">
+        <div>
+          {passed ? (
+            <CheckCircle className="text-green-500 h-5 w-5" />
+          ) : (
+            <XCircle className="text-red-500 h-5 w-5" />
+          )}
         </div>
-        <div className="text-sm whitespace-nowrap">
-          <span className="font-medium">Expected:</span>{" "}
-          <code className="text-sm bg-muted px-1.5 py-0.5 rounded">
-            {JSON.stringify(result.expected)}
-          </code>
-        </div>
-        {!result.passed && result.output !== undefined && (
-          <div className="text-sm whitespace-nowrap">
-            <span className="font-medium">Output:</span>{" "}
-            <code className="text-sm bg-muted px-1.5 py-0.5 rounded">
-              {JSON.stringify(result.output)}
-            </code>
+        
+        <div className="flex-1">
+          <div className="font-medium text-sm">
+            Test Case {index + 1}
           </div>
-        )}
+          <div className="text-xs text-muted-foreground truncate max-w-md">
+            {formatInputs(input)}
+          </div>
+        </div>
+        
+        <div className="flex gap-2 text-xs">
+          {runtime !== undefined && (
+            <div className="text-muted-foreground">
+              {formatRuntime(runtime)}
+            </div>
+          )}
+          {memory !== undefined && (
+            <div className="text-muted-foreground">
+              {formatMemory(memory)}
+            </div>
+          )}
+        </div>
+        
+        <div>
+          {isSelected ? (
+            <ChevronDown className="h-4 w-4 text-muted-foreground" />
+          ) : (
+            <ChevronRight className="h-4 w-4 text-muted-foreground" />
+          )}
+        </div>
       </div>
+      
+      {/* Details section - only visible when selected */}
+      {isSelected && (
+        <div className="p-3 pt-0 border-t bg-muted/30">
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <h4 className="text-xs font-medium">Input</h4>
+              <div className="bg-muted p-2 rounded text-xs font-mono whitespace-pre-wrap break-all max-h-40 overflow-auto">
+                {input.map((item: any, i: number) => (
+                  <div key={i} className="mb-1">
+                    {formatValue(item)}
+                  </div>
+                ))}
+              </div>
+            </div>
+            
+            <div className="space-y-2">
+              <h4 className="text-xs font-medium">Expected Output</h4>
+              <div className="bg-muted p-2 rounded text-xs font-mono whitespace-pre-wrap break-all max-h-40 overflow-auto">
+                {formatValue(expected)}
+              </div>
+              
+              <h4 className="text-xs font-medium">Your Output</h4>
+              <div 
+                className={`p-2 rounded text-xs font-mono whitespace-pre-wrap break-all max-h-40 overflow-auto ${
+                  passed ? 'bg-green-500/10' : 'bg-red-500/10'
+                }`}
+              >
+                {formatValue(output)}
+              </div>
+            </div>
+          </div>
+          
+          {error && (
+            <div className="mt-4">
+              <h4 className="text-xs font-medium text-red-500">Error</h4>
+              <div className="bg-red-500/10 p-2 rounded text-xs font-mono whitespace-pre-wrap break-all mt-1 max-h-40 overflow-auto">
+                {error}
+              </div>
+            </div>
+          )}
+          
+          {(runtime !== undefined || memory !== undefined) && (
+            <div className="mt-4 text-xs text-muted-foreground flex gap-4">
+              {runtime !== undefined && (
+                <div>Runtime: {formatRuntime(runtime)}</div>
+              )}
+              {memory !== undefined && (
+                <div>Memory: {formatMemory(memory)}</div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 } 
