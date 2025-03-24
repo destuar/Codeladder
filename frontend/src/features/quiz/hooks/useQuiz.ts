@@ -113,6 +113,7 @@ export function useQuiz(quizId?: string) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [elapsedTime, setElapsedTime] = useState(0);
   const [timerInterval, setTimerInterval] = useState<NodeJS.Timeout | null>(null);
+  const hasInitialized = useRef<boolean>(false);
 
   // Get quiz data
   const { data: quiz, isLoading: isQuizLoading, error: quizError } = useQuery({
@@ -144,10 +145,21 @@ export function useQuiz(quizId?: string) {
   const startAttemptMutation = useMutation({
     mutationFn: async (quizToStart: string) => {
       if (!token) throw new Error('No token available');
+      console.log(`Making API call to start quiz attempt for: ${quizToStart}`);
       return api.startQuizAttempt(quizToStart, token);
     },
     onSuccess: (data) => {
+      console.log(`Quiz attempt created successfully with ID: ${data.id}`);
+      
+      // Save the attempt ID to state
       setAttemptId(data.id);
+      
+      // Also save it to localStorage for persistence
+      if (quizId && data.id) {
+        localStorage.setItem(`quiz_attempt_${quizId}`, data.id);
+        console.log(`Saved attempt ID ${data.id} to localStorage for quiz ${quizId}`);
+      }
+      
       // Start timer when attempt is created
       startTimer();
     },
@@ -192,6 +204,12 @@ export function useQuiz(quizId?: string) {
       try {
         const result = await api.completeQuizAttempt(attemptId, token);
         console.log('Complete quiz attempt response:', result);
+        
+        // If the API didn't return an attemptId, add it
+        if (result && !result.attemptId) {
+          result.attemptId = attemptId;
+        }
+        
         return result;
       } catch (error) {
         console.error('Error in completeQuizAttempt API call:', error);
@@ -213,9 +231,38 @@ export function useQuiz(quizId?: string) {
   });
 
   // Start the quiz attempt
-  const startQuizAttempt = useCallback((id: string) => {
-    if (id && !attemptId && !isQuizLoading) {
+  const startQuizAttempt = useCallback((id: string, forceNew = false) => {
+    // If forceNew is true, clear any existing attempt
+    if (forceNew) {
+      console.log(`Force creating new attempt for quiz: ${id}`);
+      localStorage.removeItem(`quiz_attempt_${id}`);
+      setAttemptId(null);
+      setAnswers({});
       startAttemptMutation.mutate(id);
+      return;
+    }
+    
+    // First check if we have a stored attempt ID in localStorage
+    const storedAttemptId = localStorage.getItem(`quiz_attempt_${id}`);
+    
+    if (storedAttemptId) {
+      console.log(`Found stored quiz attempt ID: ${storedAttemptId}`);
+      // Set the attempt ID from storage
+      setAttemptId(storedAttemptId);
+      // Start the timer for the existing attempt
+      startTimer();
+      return;
+    }
+    
+    if (id && !attemptId && !isQuizLoading) {
+      console.log(`Starting new quiz attempt for quiz: ${id}`);
+      startAttemptMutation.mutate(id);
+    } else {
+      console.log('Not starting quiz attempt because:', {
+        quizId: id,
+        currentAttemptId: attemptId,
+        isQuizLoading
+      });
     }
   }, [attemptId, isQuizLoading, startAttemptMutation]);
 
@@ -279,13 +326,8 @@ export function useQuiz(quizId?: string) {
     console.log(`Answer selected for question ${questionId}:`, answer);
   }, []);
 
-  // Submit the entire quiz
-  const submitQuiz = useCallback(async () => {
-    if (!attemptId) {
-      toast.error('No active quiz attempt');
-      return null;
-    }
-
+  // Helper function to handle the actual submission with a valid attempt ID
+  const submitWithAttemptId = useCallback(async (attemptId: string) => {
     // Prevent multiple submissions
     if (isSubmitting) {
       console.log('Quiz submission already in progress');
@@ -294,25 +336,45 @@ export function useQuiz(quizId?: string) {
 
     setIsSubmitting(true);
     
-    // Check for unanswered questions
-    const unansweredCount = quiz ? 
-      quiz.questions.filter((q: QuizQuestion) => !answers[q.id]).length : 0;
-    
-    if (unansweredCount > 0) {
-      const confirmed = window.confirm(
-        `You have ${unansweredCount} unanswered question${unansweredCount > 1 ? 's' : ''}. Are you sure you want to submit?`
-      );
-      
-      if (!confirmed) {
-        setIsSubmitting(false);
-        return { attemptId };
-      }
-    }
-    
     try {
+      // First check if the attempt is already completed
+      if (attempt?.completedAt) {
+        console.log(`Attempt ${attemptId} has already been completed at ${attempt.completedAt}`);
+        
+        // Return success with the existing attempt
+        return {
+          attemptId,
+          result: {
+            success: true,
+            message: "Quiz was already completed",
+            alreadyCompleted: true
+          }
+        };
+      }
+      
+      // Check for unanswered questions
+      const unansweredCount = quiz ? 
+        quiz.questions.filter((q: QuizQuestion) => !answers[q.id]).length : 0;
+      
+      if (unansweredCount > 0) {
+        // Check if the quiz is completely empty (no answers at all)
+        const isCompletelyEmpty = Object.keys(answers).length === 0;
+        
+        const message = isCompletelyEmpty
+          ? `You haven't answered any questions. Are you sure you want to submit an empty quiz?`
+          : `You have ${unansweredCount} unanswered question${unansweredCount > 1 ? 's' : ''}. Are you sure you want to submit?`;
+        
+        const confirmed = window.confirm(message);
+        
+        if (!confirmed) {
+          setIsSubmitting(false);
+          return { attemptId };
+        }
+      }
+      
       // First, submit all answers that have been saved locally
-      if (quiz && quiz.questions && token && attemptId) {
-        console.log("Submitting all answers before completing quiz");
+      if (quiz && quiz.questions && token) {
+        console.log(`Submitting all answers before completing quiz attempt ${attemptId}`);
         
         // Create an array of promises for all answer submissions
         const submissionPromises = Object.entries(answers).map(async ([questionId, answer]) => {
@@ -327,33 +389,106 @@ export function useQuiz(quizId?: string) {
             
           // Submit the response
           try {
-            return await api.submitQuizResponse(attemptId, questionId, responseData, token);
+            const response = await api.submitQuizResponse(attemptId, questionId, responseData, token);
+            console.log(`Answer for question ${questionId} saved:`, response);
+            return response;
           } catch (error) {
-            // Check if it's a 404 error (endpoint might not exist in some implementations)
-            if (error instanceof Error && error.message.includes('404')) {
-              console.warn(`Response submission endpoint not found (404). Continuing with quiz completion.`);
-              // Return a mock success response to allow the process to continue
-              return { success: true, submitted: false };
+            // Handle different types of errors
+            if (error instanceof Error) {
+              // If attempt is already completed, we can ignore these errors
+              if (error.message.includes('already been completed')) {
+                console.warn(`Attempt ${attemptId} has already been completed. Skipping answer submission.`);
+                return { 
+                  questionId, 
+                  attemptId,
+                  submitted: false, 
+                  alreadyCompleted: true
+                };
+              } else if (error.message.includes('404')) {
+                console.warn(`Response submission endpoint returned 404 for question ${questionId}. Continuing with quiz completion.`);
+              } else {
+                console.error(`Error submitting answer for question ${questionId}:`, error);
+              }
+            } else {
+              console.error(`Unknown error submitting answer for question ${questionId}:`, error);
             }
-            console.error(`Error submitting answer for question ${questionId}:`, error);
-            return null;
+            
+            // Return a basic object with the essential data so the submission can continue
+            return { 
+              questionId, 
+              attemptId,
+              submitted: false, 
+              error: error instanceof Error ? error.message : String(error)
+            };
           }
         });
         
-        // Wait for all submissions to complete
-        await Promise.all(submissionPromises);
+        try {
+          // Wait for all submissions to complete, but don't let any failures stop the process
+          const results = await Promise.allSettled(submissionPromises);
+          console.log("All answer submissions complete:", results);
+          
+          // Check if all responses failed because the attempt is already completed
+          const allCompletedErrors = results.every(r => 
+            r.status === 'fulfilled' && 
+            r.value && 
+            (r.value.alreadyCompleted === true || 
+             (r.value.error && r.value.error.includes('already been completed')))
+          );
+          
+          if (allCompletedErrors) {
+            console.log('All responses failed because the attempt is already completed');
+            // Return the existing attempt ID so the user can navigate to results
+            return {
+              attemptId,
+              result: {
+                success: true,
+                message: "Quiz was already completed",
+                alreadyCompleted: true
+              }
+            };
+          }
+          
+          // Log any errors
+          results.forEach((result, index) => {
+            if (result.status === 'rejected') {
+              console.warn(`Answer submission ${index} failed:`, result.reason);
+            }
+          });
+        } catch (error) {
+          // This catch block will only trigger if Promise.allSettled itself fails
+          console.error("Fatal error in answer submissions:", error);
+        }
       }
       
       // Then complete the quiz attempt
       console.log('About to complete quiz attempt, attemptId:', attemptId);
       try {
+        // Always update attemptId in state to ensure consistency
+        setAttemptId(attemptId);
+        
         const result = await completeAttemptMutation.mutateAsync();
         console.log('Quiz completion successful, result:', result);
         
-        // Always return the attemptId, even if result is null or undefined
-        return { attemptId, result: result || { success: true } };
+        // Always return the attemptId at the root level
+        return { 
+          attemptId, 
+          result 
+        };
       } catch (error) {
         console.error("Error completing quiz attempt:", error);
+        
+        // If the attempt is already completed, treat it as success
+        if (error instanceof Error && error.message.includes('already been completed')) {
+          console.log('Attempt was already completed. Returning success response.');
+          return {
+            attemptId,
+            result: {
+              success: true,
+              alreadyCompleted: true
+            }
+          };
+        }
         
         // If the API isn't fully implemented, it might throw a 404 error
         // In that case, still treat it as a successful submission
@@ -361,20 +496,73 @@ export function useQuiz(quizId?: string) {
             (error.message.includes('404') || error.message.includes('not found'))) {
           console.warn('Quiz completion endpoint returned error, using fallback.');
           // Return a valid result with the attemptId so the frontend can navigate to results
-          return { attemptId, result: { success: true, fallback: true } };
+          return { 
+            attemptId,
+            result: { success: true, fallback: true } 
+          };
         }
         
         // Even for other errors, include the attemptId so navigation can continue
-        return { attemptId, error: error instanceof Error ? error.message : String(error) };
+        return { 
+          attemptId,
+          error: error instanceof Error ? error.message : String(error),
+          result: null 
+        };
       }
     } catch (error) {
       console.error("Error submitting quiz:", error);
       setIsSubmitting(false);
       toast.error("Failed to submit quiz");
       // Still return the attemptId even in case of error
-      return { attemptId, error: error instanceof Error ? error.message : String(error) };
+      return { 
+        attemptId,
+        error: error instanceof Error ? error.message : String(error),
+        result: null 
+      };
     }
-  }, [attemptId, isSubmitting, quiz, answers, token, completeAttemptMutation]);
+  }, [isSubmitting, quiz, answers, token, api, setIsSubmitting, setAttemptId, completeAttemptMutation, attempt]);
+
+  // Submit the entire quiz
+  const submitQuiz = useCallback(async () => {
+    // If attemptId is not in state, try to recover it from localStorage
+    const currentAttemptId = attemptId || (quizId ? localStorage.getItem(`quiz_attempt_${quizId}`) : null);
+    
+    if (!currentAttemptId) {
+      console.error('No active quiz attempt ID found in state or localStorage');
+      
+      // If we don't have an attempt ID, but we have a quiz ID, try to create a new attempt as a fallback
+      if (quizId && token) {
+        try {
+          console.log('Attempting to create a new quiz attempt as fallback');
+          const newAttempt = await api.startQuizAttempt(quizId, token);
+          console.log('Created emergency quiz attempt:', newAttempt);
+          
+          // Save the new attempt ID
+          setAttemptId(newAttempt.id);
+          localStorage.setItem(`quiz_attempt_${quizId}`, newAttempt.id);
+          
+          // Continue with submission using the new attempt
+          return await submitWithAttemptId(newAttempt.id);
+        } catch (err) {
+          console.error('Failed to create emergency attempt:', err);
+          toast.error('Could not create a quiz attempt');
+          return null;
+        }
+      }
+      
+      toast.error('No active quiz attempt');
+      return null;
+    }
+
+    // Save the recovered attempt ID to state if needed
+    if (!attemptId && currentAttemptId) {
+      console.log(`Recovered attempt ID from localStorage: ${currentAttemptId}`);
+      setAttemptId(currentAttemptId);
+    }
+    
+    // Continue with the submission using the found attempt ID
+    return await submitWithAttemptId(currentAttemptId);
+  }, [attemptId, quizId, token, api, setAttemptId, submitWithAttemptId]);
 
   // Format time for display
   const formatTime = (seconds: number) => {
@@ -382,6 +570,52 @@ export function useQuiz(quizId?: string) {
     const secs = seconds % 60;
     return `${mins}:${secs < 10 ? '0' : ''}${secs}`;
   };
+
+  // Check localStorage for existing attempt on mount and start a new one if needed
+  useEffect(() => {
+    if (quizId && !hasInitialized.current) {
+      const storedAttemptId = localStorage.getItem(`quiz_attempt_${quizId}`);
+      
+      if (storedAttemptId) {
+        console.log(`Found stored quiz attempt ID on initialization: ${storedAttemptId}`);
+        
+        // Set the attempt ID from storage so we can load it
+        setAttemptId(storedAttemptId);
+        
+        // Don't start timer here - we'll wait until we verify the attempt is still valid
+      } else if (!attemptId) {
+        // No stored attempt and no current attempt, create a new one
+        console.log(`No stored attempt found for quiz ${quizId}, creating a new one`);
+        startAttemptMutation.mutate(quizId);
+      }
+      
+      hasInitialized.current = true;
+    }
+  }, [quizId, attemptId, startAttemptMutation]);
+  
+  // Check if loaded attempt is valid (not completed) and create a new one if needed
+  useEffect(() => {
+    if (attempt && attempt.completedAt) {
+      console.log(`Attempt ${attempt.id} is already completed at ${attempt.completedAt}. Creating a new attempt.`);
+      
+      // Clear the stored attempt
+      if (quizId) {
+        localStorage.removeItem(`quiz_attempt_${quizId}`);
+      }
+      
+      // Reset state
+      setAttemptId(null);
+      setAnswers({});
+      
+      // Create a new attempt if we have a quiz ID
+      if (quizId && token) {
+        startAttemptMutation.mutate(quizId);
+      }
+    } else if (attempt && !attempt.completedAt) {
+      // Start timer for valid attempts
+      startTimer();
+    }
+  }, [attempt, quizId, token, startAttemptMutation]);
 
   return {
     quiz,

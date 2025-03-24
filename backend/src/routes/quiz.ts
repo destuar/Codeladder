@@ -61,22 +61,20 @@ router.get('/attempts/:id', authenticateToken, (async (req, res) => {
 }) as RequestHandler);
 
 /**
- * @route POST /api/quizzes/attempts/:id/responses
- * @desc Submit a response for a quiz question
+ * @route POST /api/quizzes/attempts/:attemptId/responses/:questionId
+ * @desc Submit a response for a specific question in a quiz
  * @access Private
  */
-router.post('/attempts/:id/responses', authenticateToken, (async (req, res) => {
+router.post('/attempts/:attemptId/responses/:questionId', authenticateToken, (async (req, res) => {
   try {
-    const { id: attemptId } = req.params;
-    const { questionId, type, selectedOptionId, codeSubmission } = req.body;
+    const { attemptId, questionId } = req.params;
+    const { type, selectedOptionId, codeSubmission } = req.body;
     const userId = req.user?.id;
+    
+    console.log(`Submitting ${type} response for question ${questionId} in attempt ${attemptId}`);
     
     if (!userId) {
       return res.status(401).json({ error: 'User not authenticated' });
-    }
-    
-    if (!questionId) {
-      return res.status(400).json({ error: 'Question ID is required' });
     }
     
     // Verify the attempt exists and belongs to the user
@@ -147,8 +145,20 @@ router.post('/attempts/:id/responses', authenticateToken, (async (req, res) => {
     } else if (type === 'CODE') {
       // For code questions, we'll assume they're correct for now (just store the submission)
       // In a real implementation, you'd run tests against the code to determine correctness
-      isCorrect = true; // Simplification
-      points = 1; // Simplification
+      isCorrect = false; // Default to false until evaluated
+      points = 0; // Default to 0 until evaluated
+      
+      // Get the question to validate
+      const question = await prisma.quizQuestion.findUnique({
+        where: { id: questionId },
+        include: {
+          codeProblem: true
+        }
+      });
+      
+      if (!question || !question.codeProblem) {
+        return res.status(404).json({ error: 'Question not found or not a code question' });
+      }
     } else {
       return res.status(400).json({ error: 'Invalid response type' });
     }
@@ -261,6 +271,8 @@ router.post('/attempts/:id/complete', authenticateToken, (async (req, res) => {
     const { id: attemptId } = req.params;
     const userId = req.user?.id;
     
+    console.log(`Attempting to complete quiz attempt ${attemptId} for user ${userId}`);
+    
     if (!userId) {
       return res.status(401).json({ error: 'User not authenticated' });
     }
@@ -275,35 +287,52 @@ router.post('/attempts/:id/complete', authenticateToken, (async (req, res) => {
     });
 
     if (!attempt) {
+      console.log(`Attempt ${attemptId} not found`);
       return res.status(404).json({ error: 'Attempt not found' });
     }
     
     if (attempt.userId !== userId) {
+      console.log(`User ${userId} not authorized to complete attempt ${attemptId}`);
       return res.status(403).json({ error: 'Not authorized to complete this attempt' });
     }
     
     if (attempt.completedAt) {
-      return res.status(400).json({ error: 'This attempt has already been completed' });
+      console.log(`Attempt ${attemptId} already completed at ${attempt.completedAt}`);
+      // If it's already completed, just return the existing data
+      return res.json({
+        ...attempt,
+        attemptId: attempt.id // Ensure attemptId is included for frontend
+      });
     }
     
-    // Get all questions for this quiz
-    const quizQuestions = await prisma.quizQuestion.findMany({
-      where: { quizId: attempt.quizId }
-    });
+    let score = 0;
+    let passed = false;
     
-    // Calculate total possible points
-    const totalPossiblePoints = quizQuestions.reduce((sum, q) => sum + q.points, 0);
-    
-    // Calculate points earned
-    const pointsEarned = attempt.responses.reduce((sum, r) => sum + (r.points || 0), 0);
-    
-    // Calculate score as a percentage
-    const score = totalPossiblePoints > 0 
-      ? Math.round((pointsEarned / totalPossiblePoints) * 100) 
-      : 0;
-    
-    // Determine if passed based on quiz passing score
-    const passed = score >= attempt.quiz.passingScore;
+    try {
+      // Get all questions for this quiz
+      const quizQuestions = await prisma.quizQuestion.findMany({
+        where: { quizId: attempt.quizId }
+      });
+      
+      // Calculate total possible points
+      const totalPossiblePoints = quizQuestions.reduce((sum, q) => sum + q.points, 0);
+      
+      // Calculate points earned
+      const pointsEarned = attempt.responses.reduce((sum, r) => sum + (r.points || 0), 0);
+      
+      // Calculate score as a percentage
+      score = totalPossiblePoints > 0 
+        ? Math.round((pointsEarned / totalPossiblePoints) * 100) 
+        : 0;
+      
+      // Determine if passed based on quiz passing score
+      passed = score >= attempt.quiz.passingScore;
+    } catch (error) {
+      // If score calculation fails, log error but still complete the attempt
+      console.error('Error calculating quiz score:', error);
+      score = 0;
+      passed = false;
+    }
     
     // Complete the attempt
     const completedAttempt = await prisma.quizAttempt.update({
@@ -315,12 +344,46 @@ router.post('/attempts/:id/complete', authenticateToken, (async (req, res) => {
       }
     });
     
-    res.json(completedAttempt);
+    console.log(`Successfully completed attempt ${attemptId} with score ${score}`);
+    
+    // Always include the attemptId in the response for the frontend
+    res.json({
+      ...completedAttempt,
+      attemptId: completedAttempt.id
+    });
   } catch (error) {
     console.error('Error completing quiz attempt:', error);
+    
+    const attemptIdFromParams = req.params.id;
+    
+    // Try to save the attempt as completed even if there's an error
+    try {
+      if (attemptIdFromParams) {
+        const failedCompletion = await prisma.quizAttempt.update({
+          where: { id: attemptIdFromParams },
+          data: {
+            completedAt: new Date(),
+            score: 0
+          }
+        });
+        
+        console.log(`Emergency completion of attempt ${attemptIdFromParams} due to error`);
+        
+        // Return something usable to the frontend
+        return res.status(200).json({
+          ...failedCompletion,
+          attemptId: failedCompletion.id,
+          error: 'Quiz completed with errors'
+        });
+      }
+    } catch (fallbackError) {
+      console.error('Failed emergency completion:', fallbackError);
+    }
+    
     res.status(500).json({ 
       error: 'Failed to complete quiz attempt',
-      details: error instanceof Error ? error.message : 'Unknown error'
+      details: error instanceof Error ? error.message : 'Unknown error',
+      attemptId: attemptIdFromParams // Still include the attemptId even on error
     });
   }
 }) as RequestHandler);
@@ -402,58 +465,64 @@ router.get('/attempts/:id/results', authenticateToken, (async (req, res) => {
       timeSpent: attempt.completedAt && attempt.startedAt 
         ? Math.round((new Date(attempt.completedAt).getTime() - new Date(attempt.startedAt).getTime()) / 1000)
         : null,
-      questions: attempt.responses.map(response => {
-        const question = response.question;
-        
-        // Define question data with proper type that includes optional mcProblem and codeProblem
-        const questionData: {
-          id: string;
-          questionText: string;
-          questionType: string;
-          type: string;
-          points: number;
-          correct: boolean;
-          userAnswer: any;
-          correctAnswer: any;
-          explanation: string;
-          mcProblem?: any;
-          codeProblem?: any;
-        } = {
-          id: question.id,
-          questionText: question.questionText,
-          questionType: question.questionType,
-          type: question.questionType, // Alias for compatibility
-          points: question.points,
-          correct: response.isCorrect || false,
-          userAnswer: null,
-          correctAnswer: null,
-          explanation: ''
-        };
-        
-        // Add type-specific data
-        if (question.questionType === 'MULTIPLE_CHOICE' && question.mcProblem && response.mcResponse) {
-          questionData.userAnswer = response.mcResponse.selectedOptionId;
+      questions: attempt.responses
+        .map(response => ({
+          response,
+          orderNum: response.question.orderNum ?? 9999 // Use a high default for questions with no orderNum
+        }))
+        .sort((a, b) => a.orderNum - b.orderNum)
+        .map(({ response }) => {
+          const question = response.question;
           
-          // Find the correct option
-          const correctOption = question.mcProblem.options.find(opt => opt.isCorrect);
-          if (correctOption) {
-            questionData.correctAnswer = correctOption.id;
+          // Define question data with proper type that includes optional mcProblem and codeProblem
+          const questionData: {
+            id: string;
+            questionText: string;
+            questionType: string;
+            type: string;
+            points: number;
+            correct: boolean;
+            userAnswer: any;
+            correctAnswer: any;
+            explanation: string;
+            mcProblem?: any;
+            codeProblem?: any;
+          } = {
+            id: question.id,
+            questionText: question.questionText,
+            questionType: question.questionType,
+            type: question.questionType, // Alias for compatibility
+            points: question.points,
+            correct: response.isCorrect || false,
+            userAnswer: null,
+            correctAnswer: null,
+            explanation: ''
+          };
+          
+          // Add type-specific data
+          if (question.questionType === 'MULTIPLE_CHOICE' && question.mcProblem && response.mcResponse) {
+            questionData.userAnswer = response.mcResponse.selectedOptionId;
+            
+            // Find the correct option
+            const correctOption = question.mcProblem.options.find(opt => opt.isCorrect);
+            if (correctOption) {
+              questionData.correctAnswer = correctOption.id;
+            }
+            
+            questionData.explanation = question.mcProblem.explanation || '';
+            
+            // Add the problem data to make it compatible with the quiz question interface
+            questionData.mcProblem = {
+              ...question.mcProblem,
+              options: question.mcProblem.options
+            };
+          } else if (question.questionType === 'CODE' && question.codeProblem && response.codeResponse) {
+            questionData.userAnswer = response.codeResponse.codeSubmission;
+            questionData.codeProblem = question.codeProblem;
           }
           
-          questionData.explanation = question.mcProblem.explanation || '';
-          
-          // Add the problem data to make it compatible with the quiz question interface
-          questionData.mcProblem = {
-            ...question.mcProblem,
-            options: question.mcProblem.options
-          };
-        } else if (question.questionType === 'CODE' && question.codeProblem && response.codeResponse) {
-          questionData.userAnswer = response.codeResponse.codeSubmission;
-          questionData.codeProblem = question.codeProblem;
-        }
-        
-        return questionData;
-      })
+          return questionData;
+        })
     };
     
     res.json(results);

@@ -122,55 +122,49 @@ export function QuizResultsPage() {
           throw new Error('Failed to fetch quiz results after multiple attempts');
         }
         
-        // Make a copy of the response to modify
-        const processedResponse = { ...response };
-        
-        // Log all properties on the response to help debug
-        console.log('Response properties:', Object.keys(processedResponse));
-        
         // Ensure quiz object exists
-        if (!processedResponse.quiz && processedResponse.quizId) {
-          console.log(`No quiz object found in response, using quizTitle: ${processedResponse.quizTitle}`);
+        if (!response.quiz && response.quizId) {
+          console.log(`No quiz object found in response, using quizTitle: ${response.quizTitle}`);
           
           // First check if we have a quizTitle property and use that
-          if (processedResponse.quizTitle) {
-            processedResponse.quiz = {
-              id: processedResponse.quizId,
-              title: processedResponse.quizTitle,
-              description: processedResponse.quizDescription || ''
+          if (response.quizTitle) {
+            response.quiz = {
+              id: response.quizId,
+              title: response.quizTitle,
+              description: response.quizDescription || ''
             };
-            console.log('Created quiz object from response properties:', processedResponse.quiz);
+            console.log('Created quiz object from response properties:', response.quiz);
           }
           // If no quizTitle, try to fetch quiz details
           else {
-            console.log(`Fetching quiz details for ID: ${processedResponse.quizId}`);
+            console.log(`Fetching quiz details for ID: ${response.quizId}`);
             try {
               // Try to fetch the quiz details separately
-              const quizDetails = await api.getQuizForAttempt(processedResponse.quizId, token);
+              const quizDetails = await api.getQuizForAttempt(response.quizId, token);
               if (quizDetails) {
-                processedResponse.quiz = {
+                response.quiz = {
                   id: quizDetails.id,
                   title: quizDetails.title || 'Quiz Results',
                   description: quizDetails.description || ''
                 };
-                console.log('Successfully fetched quiz details:', processedResponse.quiz);
+                console.log('Successfully fetched quiz details:', response.quiz);
               } else {
                 throw new Error('Could not fetch quiz details');
               }
             } catch (detailsError) {
               console.error('Error fetching quiz details:', detailsError);
               // Create default quiz object as fallback
-              processedResponse.quiz = {
-                id: processedResponse.quizId || 'unknown',
-                title: processedResponse.title || 'Quiz Results',
-                description: processedResponse.description || ''
+              response.quiz = {
+                id: response.quizId || 'unknown',
+                title: response.title || 'Quiz Results',
+                description: response.description || ''
               };
-              console.log('Created default quiz object:', processedResponse.quiz);
+              console.log('Created default quiz object:', response.quiz);
             }
           }
-        } else if (!processedResponse.quiz) {
+        } else if (!response.quiz) {
           console.log('No quiz ID found in response, creating default quiz object');
-          processedResponse.quiz = {
+          response.quiz = {
             id: 'unknown',
             title: 'Quiz Results',
             description: ''
@@ -178,21 +172,22 @@ export function QuizResultsPage() {
         }
         
         // Check for questions in various possible properties
-        let questionsArray = processedResponse.questions;
+        let questionsArray = response.questions;
         
-        if (!questionsArray && processedResponse.responses) {
-          console.log('Using responses array instead of questions:', processedResponse.responses);
-          questionsArray = processedResponse.responses;
+        if (!questionsArray && response.responses) {
+          console.log('Using responses array instead of questions:', response.responses);
+          questionsArray = response.responses;
         }
         
-        if (!questionsArray && processedResponse.questionResponses) {
-          console.log('Using questionResponses array instead of questions:', processedResponse.questionResponses);
-          questionsArray = processedResponse.questionResponses;
+        if (!questionsArray && response.questionResponses) {
+          console.log('Using questionResponses array instead of questions:', response.questionResponses);
+          questionsArray = response.questionResponses;
         }
         
         // Transform the response to match our component interfaces
         if (questionsArray && Array.isArray(questionsArray)) {
-          processedResponse.questions = questionsArray.map((q: any) => {
+          // First ensure we preserve any orderNum values
+          const processedQuestions = questionsArray.map((q: any) => {
             console.log('Processing question:', q);
             return {
               ...q,
@@ -204,6 +199,8 @@ export function QuizResultsPage() {
               points: q.points || 0,
               correct: q.correct || q.isCorrect || false,
               userAnswer: q.userAnswer || q.response || '',
+              // Preserve the orderNum value
+              orderNum: q.orderNum !== undefined ? q.orderNum : null,
               mcProblem: q.mcProblem ? {
                 ...q.mcProblem,
                 questionId: q.id || q.questionId,
@@ -225,35 +222,52 @@ export function QuizResultsPage() {
               } : undefined
             };
           });
-        } else if (!processedResponse.questions) {
+          
+          // Sort questions by orderNum if available, falling back to the original order
+          response.questions = processedQuestions
+            .map((q, index) => ({ 
+              ...q, 
+              originalIndex: index, // Preserve original order as fallback
+              orderNum: q.orderNum !== undefined && q.orderNum !== null ? q.orderNum : index
+            }))
+            .sort((a, b) => {
+              // First try to sort by orderNum
+              if (a.orderNum !== b.orderNum) {
+                return a.orderNum - b.orderNum;
+              }
+              // Fall back to original order if orderNum is the same
+              return a.originalIndex - b.originalIndex;
+            })
+            .map(({ originalIndex, ...q }) => q); // Remove the temporary property
+        } else if (!response.questions) {
           // If there are no questions, set a default empty array
           console.warn('No questions found in the quiz results');
-          processedResponse.questions = [];
+          response.questions = [];
         }
         
         // Ensure all required properties exist
         const defaultQuizResult: QuizResult = {
-          id: processedResponse.id || attemptId || 'unknown',
-          quizId: processedResponse.quizId || 'unknown',
-          quiz: processedResponse.quiz || {
+          id: response.id || attemptId || 'unknown',
+          quizId: response.quizId || 'unknown',
+          quiz: response.quiz || {
             id: 'unknown',
             title: 'Quiz Results',
             description: ''
           },
-          score: processedResponse.score || 0,
-          totalQuestions: processedResponse.totalQuestions || 
-                          (processedResponse.questions ? processedResponse.questions.length : 0),
-          percentageScore: processedResponse.percentageScore || 
-                           processedResponse.percentage || 
-                           (processedResponse.score && processedResponse.totalQuestions ? 
-                             (processedResponse.score / processedResponse.totalQuestions) * 100 : 0),
-          timeSpentInSeconds: processedResponse.timeSpentInSeconds || 
-                              processedResponse.timeTaken || 
+          score: response.score || 0,
+          totalQuestions: response.totalQuestions || 
+                          (response.questions ? response.questions.length : 0),
+          percentageScore: response.percentageScore || 
+                           response.percentage || 
+                           (response.score && response.totalQuestions ? 
+                             (response.score / response.totalQuestions) * 100 : 0),
+          timeSpentInSeconds: response.timeSpentInSeconds || 
+                              response.timeTaken || 
                               0,
-          createdAt: processedResponse.createdAt || 
-                     processedResponse.completedAt || 
+          createdAt: response.createdAt || 
+                     response.completedAt || 
                      new Date().toISOString(),
-          questions: processedResponse.questions || []
+          questions: response.questions || []
         };
         
         // Use the processed response with defaults applied

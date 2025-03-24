@@ -34,16 +34,29 @@ export function QuizPage() {
     saveAnswer,
     submitQuiz,
     startQuizAttempt,
+    attempt,
   } = useQuiz(quizId);
   
   useEffect(() => {
-    // Only start a quiz attempt if we have a quizId, and only once
-    if (quizId && !isLoading) {
+    // Only start a quiz attempt if we have a quizId
+    if (quizId) {
       console.log('Starting quiz attempt for:', quizId);
       startQuizAttempt(quizId);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [quizId]); // Intentionally omit startQuizAttempt to prevent re-runs
+  
+  // If the attempt is loaded and we don't have an attemptId, try to extract it
+  useEffect(() => {
+    if (attempt && !isLoading) {
+      console.log('Attempt loaded:', attempt);
+      // Store the attempt ID in localStorage for persistence
+      if (attempt.id && quizId) {
+        localStorage.setItem(`quiz_attempt_${quizId}`, attempt.id);
+        console.log(`Stored attempt ID ${attempt.id} in localStorage from loaded attempt`);
+      }
+    }
+  }, [attempt, isLoading, quizId]);
   
   // Get current question
   const currentQuestion = quiz?.questions?.[currentQuestionIndex];
@@ -135,27 +148,54 @@ export function QuizPage() {
         description: "Please wait while your quiz is being submitted...",
       });
       
-      const result = await submitQuiz();
-      console.log('Quiz submission result:', result);
+      // Get the current attemptId from the hook before submitting
+      // This will be our fallback in case the submission result is null
+      const currentAttemptId = attempt?.id;
+      console.log('Current attempt ID before submission:', currentAttemptId);
       
-      // Handle different result formats - extract attemptId from where it's available
-      const attemptId = result?.attemptId || (result?.result?.attemptId);
+      const result = await submitQuiz();
+      console.log('Quiz submission result:', JSON.stringify(result));
+      
+      // Add detailed logging for debugging
+      if (!result) {
+        console.error('Result is null or undefined, will try to use current attemptId');
+      } else {
+        console.log('Result structure:', Object.keys(result));
+      }
+      
+      // Get attemptId from result, or fall back to the current attempt ID
+      let attemptId = result?.attemptId || currentAttemptId;
+      
+      // Check if the result indicates the attempt was already completed
+      const wasAlreadyCompleted = result?.result?.alreadyCompleted === true;
+      
+      // If we still don't have an attemptId, try localStorage as a last resort
+      if (!attemptId && quizId) {
+        const storedAttemptId = localStorage.getItem(`quiz_attempt_${quizId}`);
+        if (storedAttemptId) {
+          console.log(`Recovered attempt ID from localStorage: ${storedAttemptId}`);
+          attemptId = storedAttemptId;
+        }
+      }
       
       if (attemptId) {
         console.log(`Redirecting to results page for attempt: ${attemptId}`);
         
         // Short delay to allow the backend to process the quiz completion
-        await new Promise(resolve => setTimeout(resolve, 500));
+        await new Promise(resolve => setTimeout(resolve, 1000));
         
         // Navigate to the results page
         navigate(`/quizzes/attempts/${attemptId}/results`);
         
         toast({
-          title: "Quiz Submitted",
-          description: "Your quiz has been submitted successfully!",
+          title: wasAlreadyCompleted ? "Quiz Already Submitted" : "Quiz Submitted",
+          description: wasAlreadyCompleted 
+            ? "This quiz was already submitted. Viewing results."
+            : "Your quiz has been submitted successfully!",
+          variant: "default",
         });
       } else {
-        console.error('Missing attempt ID in result:', result);
+        console.error('Missing attempt ID in result and no current attempt ID available:', result);
         toast({
           title: "Error",
           description: "Failed to submit quiz. Please try again.",
@@ -255,6 +295,26 @@ export function QuizPage() {
                   Previous
                 </Button>
               )}
+              
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  if (window.confirm('Are you sure you want to reset this quiz? This will clear all your answers and start a new attempt.')) {
+                    // Force create a new attempt
+                    startQuizAttempt(quizId!, true);
+                    // Reset the UI state
+                    goToQuestion(0);
+                    toast({
+                      title: "Quiz Reset",
+                      description: "Started a new quiz attempt",
+                    });
+                  }
+                }}
+                className="text-muted-foreground hover:text-foreground mr-2"
+              >
+                Reset Quiz
+              </Button>
               
               {currentQuestionIndex < (quiz?.questions?.length || 0) - 1 ? (
                 <Button
