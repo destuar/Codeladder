@@ -1,6 +1,6 @@
 import { cn } from '@/lib/utils';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
-import { Brain } from 'lucide-react';
+import { Brain, Lightbulb } from 'lucide-react';
 
 interface MemoryStrengthIndicatorProps {
   level: number;
@@ -77,15 +77,18 @@ export function MemoryStrengthIndicator({
     <div className={cn("relative flex items-center justify-center", className)}>
       <div 
         className={cn(
-          "w-8 h-8 rounded-full flex items-center justify-center", 
-          getStrengthBgColor(),
+          "w-6 h-6 rounded-full flex items-center justify-center border transition-colors hover:shadow-sm", 
+          level <= 1 
+            ? 'bg-blue-50 border-blue-200 dark:bg-blue-900/20 dark:border-blue-800'
+            : level <= 3
+              ? 'bg-indigo-50 border-indigo-200 dark:bg-indigo-900/20 dark:border-indigo-800'
+              : level <= 5
+                ? 'bg-violet-50 border-violet-200 dark:bg-violet-900/20 dark:border-violet-800'
+                : 'bg-purple-50 border-purple-200 dark:bg-purple-900/20 dark:border-purple-800',
           getAnimationClass()
         )}
       >
-        <span className="text-white font-bold text-xs">{level}</span>
-      </div>
-      <div className="absolute -top-1 -right-1">
-        <Brain className={cn("h-4 w-4", getStrengthColor())} />
+        <Lightbulb className={cn("h-3 w-3", getStrengthColor())} />
       </div>
     </div>
   );
@@ -100,7 +103,7 @@ export function MemoryStrengthIndicator({
         </TooltipTrigger>
         <TooltipContent side="top" className="px-4 py-3 text-sm space-y-2">
           <div className="font-medium flex items-center gap-1.5">
-            <Brain className={cn("h-4 w-4", getStrengthColor())} />
+            <Lightbulb className={cn("h-3 w-3", getStrengthColor())} />
             <span>Memory Level {level}</span>
           </div>
           <p className="text-muted-foreground text-xs">{getStrengthDescription()}</p>

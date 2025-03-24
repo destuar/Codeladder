@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Dumbbell, Check, X, ArrowRight, Info } from 'lucide-react';
+import { Dumbbell, Check, X, ArrowRight, Info, Lightbulb } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { 
   Tooltip, 
@@ -123,7 +123,7 @@ export function MemoryProgressionJourney({
         <CardHeader>
           <div className="flex justify-between items-center">
             <div className="flex items-center gap-2">
-              <Dumbbell className={cn("h-5 w-5", getStrengthColor(currentLevel))} />
+              <Lightbulb className={cn("h-4 w-4", getStrengthColor(currentLevel))} />
               <CardTitle>Memory Strengthening Journey</CardTitle>
             </div>
             <Button variant="ghost" size="sm" onClick={handleClose}>
@@ -141,12 +141,13 @@ export function MemoryProgressionJourney({
             <div className="flex justify-between items-center mb-3">
               <h3 className="font-medium">Current Memory Strength</h3>
               <div className={cn(
-                "px-2 py-1 rounded text-xs font-medium",
+                "px-2 py-1 rounded text-xs font-medium flex items-center gap-1.5",
                 getStrengthColor(currentLevel),
                 "bg-opacity-20",
                 getStrengthBgColor(currentLevel).replace('bg-', 'bg-opacity-10')
               )}>
-                Level {currentLevel}/7
+                <Lightbulb className="h-2.5 w-2.5" />
+                <span>Level {currentLevel}/7</span>
               </div>
             </div>
             

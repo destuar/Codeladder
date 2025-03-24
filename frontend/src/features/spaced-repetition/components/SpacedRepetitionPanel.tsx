@@ -7,7 +7,7 @@ import { format, formatDistanceToNow, isSameDay, isToday, addDays, isWithinInter
 import { MemoryStrengthIndicator } from './MemoryStrengthIndicator';
 import { ReviewCalendar } from './ReviewCalendar';
 import { ReviewProblem } from '../api/spacedRepetitionApi';
-import { CalendarIcon, Clock, Calendar, ClockIcon, RefreshCw, ChevronDown, ChevronUp, ArrowLeft, Dumbbell, Check, Brain, Shuffle, Trash2, Edit2, Save, X, Plus, CalendarDays, HelpCircle } from 'lucide-react';
+import { CalendarIcon, Clock, Calendar, ClockIcon, RefreshCw, ChevronDown, ChevronUp, ArrowLeft, Dumbbell, Check, Brain, Shuffle, Trash2, Edit2, Save, X, Plus, CalendarDays, HelpCircle, Lightbulb } from 'lucide-react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { MemoryProgressionJourney } from './MemoryProgressionJourney';
@@ -60,6 +60,22 @@ function MemoryJourneyButton({ problem }: { problem: ReviewProblem }) {
     console.error('Error accessing localStorage:', e);
   }
   
+  // Get color based on strength level
+  const getStrengthColor = () => {
+    if (problem.reviewLevel <= 1) return 'text-blue-500 dark:text-blue-400';
+    if (problem.reviewLevel <= 3) return 'text-indigo-500 dark:text-indigo-400';
+    if (problem.reviewLevel <= 5) return 'text-violet-500 dark:text-violet-400';
+    return 'text-purple-500 dark:text-purple-400';
+  };
+  
+  // Get background color based on strength
+  const getStrengthBgColor = () => {
+    if (problem.reviewLevel <= 1) return 'bg-blue-50 border-blue-200 hover:bg-blue-100 dark:bg-blue-900/20 dark:border-blue-800 dark:hover:bg-blue-900/30';
+    if (problem.reviewLevel <= 3) return 'bg-indigo-50 border-indigo-200 hover:bg-indigo-100 dark:bg-indigo-900/20 dark:border-indigo-800 dark:hover:bg-indigo-900/30';
+    if (problem.reviewLevel <= 5) return 'bg-violet-50 border-violet-200 hover:bg-violet-100 dark:bg-violet-900/20 dark:border-violet-800 dark:hover:bg-violet-900/30';
+    return 'bg-purple-50 border-purple-200 hover:bg-purple-100 dark:bg-purple-900/20 dark:border-purple-800 dark:hover:bg-purple-900/30';
+  };
+  
   return (
     <>
       <div 
@@ -67,16 +83,8 @@ function MemoryJourneyButton({ problem }: { problem: ReviewProblem }) {
         onClick={() => setShowMemoryJourney(true)}
         title="View memory progression"
       >
-        <div className={`flex items-center justify-center w-8 h-8 rounded-full border transition-colors hover:shadow-sm ${
-          problem.reviewLevel <= 1 
-            ? 'bg-blue-50 border-blue-200 text-blue-500 dark:bg-blue-900/20 dark:border-blue-800 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900/30'
-            : problem.reviewLevel <= 3
-              ? 'bg-indigo-50 border-indigo-200 text-indigo-500 dark:bg-indigo-900/20 dark:border-indigo-800 dark:text-indigo-400 hover:bg-indigo-100 dark:hover:bg-indigo-900/30'
-              : problem.reviewLevel <= 5
-                ? 'bg-violet-50 border-violet-200 text-violet-500 dark:bg-violet-900/20 dark:border-violet-800 dark:text-violet-400 hover:bg-violet-100 dark:hover:bg-violet-900/30'
-                : 'bg-purple-50 border-purple-200 text-purple-500 dark:bg-purple-900/20 dark:border-purple-800 dark:text-purple-400 hover:bg-purple-100 dark:hover:bg-purple-900/30'
-        }`}>
-          <span className="text-xs font-semibold">L{problem.reviewLevel}</span>
+        <div className={`flex items-center justify-center w-6 h-6 rounded-full border transition-colors hover:shadow-sm ${getStrengthBgColor()}`}>
+          <Lightbulb className={`h-3 w-3 ${getStrengthColor()}`} />
         </div>
       </div>
       
