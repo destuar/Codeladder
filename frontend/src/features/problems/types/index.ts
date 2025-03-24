@@ -58,6 +58,7 @@ export interface ProblemListProps {
   collections?: { id: string; name: string }[];
   selectedCollection?: string;
   onCollectionChange?: (collectionId: string) => void;
+  enableSpacedRepetition?: boolean;
 }
 
 /**
@@ -103,13 +104,15 @@ export interface CodingProblemProps {
   difficulty: string;
   nextProblemId?: string;
   prevProblemId?: string;
-  onNavigate: (id: string) => void;
+  onNavigate?: (id: string) => void;
   estimatedTime?: number;
   isCompleted?: boolean;
   problemId: string;
   isReviewMode?: boolean;
   onCompleted?: () => void;
   problemType?: string;
+  onCodeChange?: (code: string) => void;
+  isQuizMode?: boolean;
 }
 
 /**

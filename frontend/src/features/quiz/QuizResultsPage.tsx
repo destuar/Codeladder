@@ -1,0 +1,511 @@
+import React, { useEffect, useState } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
+import { QuizLayout } from '@/components/layouts/QuizLayout';
+import { api } from '@/lib/api';
+import { useToast } from '@/components/ui/use-toast';
+import { useAuth } from '@/features/auth/AuthContext';
+import { Card, CardContent, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Skeleton } from '@/components/ui/skeleton';
+import { 
+  CheckCircle, 
+  XCircle, 
+  Trophy, 
+  Clock, 
+  Award, 
+  AlertCircle, 
+  Bookmark,
+  ArrowLeft,
+  RefreshCw
+} from 'lucide-react';
+import { MultipleChoiceQuestion } from './components/MultipleChoiceQuestion';
+import { CodeQuestion } from './components/CodeQuestion';
+import { QuizQuestion } from './hooks/useQuiz';
+
+type ResultQuestion = {
+  id: string;
+  type: 'MULTIPLE_CHOICE' | 'CODE';
+  text: string;
+  correct: boolean;
+  userAnswer: any;
+  correctAnswer?: any;
+  explanation?: string;
+  // These are needed to make it compatible with QuizQuestion
+  questionText: string;
+  questionType: 'MULTIPLE_CHOICE' | 'CODE';
+  points: number;
+  mcProblem?: {
+    id: string;
+    questionId: string;
+    explanation?: string;
+    shuffleOptions: boolean;
+    options: {
+      id: string;
+      questionId: string;
+      optionText: string;
+      isCorrect: boolean;
+      explanation?: string;
+      orderNum?: number;
+    }[];
+  };
+  codeProblem?: {
+    id: string;
+    questionId: string;
+    initialCode: string;
+    codeTemplate?: string;
+    language: string;
+    timeLimit: number;
+    testCases: {
+      id: string;
+      input: string;
+      expectedOutput: string;
+      isHidden: boolean;
+      passed: boolean;
+      error?: string;
+    }[];
+  };
+};
+
+type QuizResult = {
+  id: string;
+  quizId: string;
+  quiz: {
+    id: string;
+    title: string;
+    description: string;
+  };
+  score: number;
+  totalQuestions: number;
+  percentageScore: number;
+  timeSpentInSeconds: number;
+  createdAt: string;
+  questions: ResultQuestion[];
+};
+
+export function QuizResultsPage() {
+  const { attemptId } = useParams<{ attemptId: string }>();
+  const navigate = useNavigate();
+  const { toast } = useToast();
+  const { token } = useAuth();
+  const [result, setResult] = useState<QuizResult | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [expandedQuestions, setExpandedQuestions] = useState<Record<string, boolean>>({});
+  
+  useEffect(() => {
+    async function fetchResults() {
+      if (!attemptId || !token) return;
+      
+      try {
+        setLoading(true);
+        
+        // Add retry logic with delay to handle throttling
+        let response = null;
+        let retries = 3;
+        
+        while (retries > 0 && response === null) {
+          console.log(`Attempting to fetch quiz results, attempt ${4-retries}/3`);
+          response = await api.getQuizResults(attemptId, token);
+          
+          if (response === null) {
+            console.log(`Response was null, retrying in 1 second...`);
+            retries--;
+            // Wait for a second before retrying
+            await new Promise(resolve => setTimeout(resolve, 1000));
+          }
+        }
+        
+        console.log('Quiz results response:', response);
+        
+        // If response is still null after retries, throw a meaningful error
+        if (response === null || response === undefined) {
+          throw new Error('Failed to fetch quiz results after multiple attempts');
+        }
+        
+        // Make a copy of the response to modify
+        const processedResponse = { ...response };
+        
+        // Log all properties on the response to help debug
+        console.log('Response properties:', Object.keys(processedResponse));
+        
+        // Ensure quiz object exists
+        if (!processedResponse.quiz && processedResponse.quizId) {
+          console.log(`No quiz object found in response, using quizTitle: ${processedResponse.quizTitle}`);
+          
+          // First check if we have a quizTitle property and use that
+          if (processedResponse.quizTitle) {
+            processedResponse.quiz = {
+              id: processedResponse.quizId,
+              title: processedResponse.quizTitle,
+              description: processedResponse.quizDescription || ''
+            };
+            console.log('Created quiz object from response properties:', processedResponse.quiz);
+          }
+          // If no quizTitle, try to fetch quiz details
+          else {
+            console.log(`Fetching quiz details for ID: ${processedResponse.quizId}`);
+            try {
+              // Try to fetch the quiz details separately
+              const quizDetails = await api.getQuizForAttempt(processedResponse.quizId, token);
+              if (quizDetails) {
+                processedResponse.quiz = {
+                  id: quizDetails.id,
+                  title: quizDetails.title || 'Quiz Results',
+                  description: quizDetails.description || ''
+                };
+                console.log('Successfully fetched quiz details:', processedResponse.quiz);
+              } else {
+                throw new Error('Could not fetch quiz details');
+              }
+            } catch (detailsError) {
+              console.error('Error fetching quiz details:', detailsError);
+              // Create default quiz object as fallback
+              processedResponse.quiz = {
+                id: processedResponse.quizId || 'unknown',
+                title: processedResponse.title || 'Quiz Results',
+                description: processedResponse.description || ''
+              };
+              console.log('Created default quiz object:', processedResponse.quiz);
+            }
+          }
+        } else if (!processedResponse.quiz) {
+          console.log('No quiz ID found in response, creating default quiz object');
+          processedResponse.quiz = {
+            id: 'unknown',
+            title: 'Quiz Results',
+            description: ''
+          };
+        }
+        
+        // Check for questions in various possible properties
+        let questionsArray = processedResponse.questions;
+        
+        if (!questionsArray && processedResponse.responses) {
+          console.log('Using responses array instead of questions:', processedResponse.responses);
+          questionsArray = processedResponse.responses;
+        }
+        
+        if (!questionsArray && processedResponse.questionResponses) {
+          console.log('Using questionResponses array instead of questions:', processedResponse.questionResponses);
+          questionsArray = processedResponse.questionResponses;
+        }
+        
+        // Transform the response to match our component interfaces
+        if (questionsArray && Array.isArray(questionsArray)) {
+          processedResponse.questions = questionsArray.map((q: any) => {
+            console.log('Processing question:', q);
+            return {
+              ...q,
+              id: q.id || q.questionId || `question-${Math.random().toString(36).substring(2, 15)}`,
+              text: q.text || q.questionText || 'No question text',
+              type: q.type || q.questionType || 'MULTIPLE_CHOICE',
+              questionText: q.text || q.questionText || 'No question text',
+              questionType: q.type || q.questionType || 'MULTIPLE_CHOICE',
+              points: q.points || 0,
+              correct: q.correct || q.isCorrect || false,
+              userAnswer: q.userAnswer || q.response || '',
+              mcProblem: q.mcProblem ? {
+                ...q.mcProblem,
+                questionId: q.id || q.questionId,
+                shuffleOptions: false,
+                options: (q.mcProblem.options || []).map((o: any) => ({
+                  ...o,
+                  questionId: q.id || q.questionId,
+                  optionText: o.text || o.optionText || 'No option text'
+                }))
+              } : undefined,
+              codeProblem: q.codeProblem ? {
+                ...q.codeProblem,
+                questionId: q.id || q.questionId,
+                initialCode: q.codeProblem.initialCode || q.userAnswer || q.response || '',
+                codeTemplate: q.codeProblem.initialCode || '',
+                language: q.codeProblem.language || 'javascript',
+                timeLimit: 0,
+                testCases: q.codeProblem.testCases || []
+              } : undefined
+            };
+          });
+        } else if (!processedResponse.questions) {
+          // If there are no questions, set a default empty array
+          console.warn('No questions found in the quiz results');
+          processedResponse.questions = [];
+        }
+        
+        // Ensure all required properties exist
+        const defaultQuizResult: QuizResult = {
+          id: processedResponse.id || attemptId || 'unknown',
+          quizId: processedResponse.quizId || 'unknown',
+          quiz: processedResponse.quiz || {
+            id: 'unknown',
+            title: 'Quiz Results',
+            description: ''
+          },
+          score: processedResponse.score || 0,
+          totalQuestions: processedResponse.totalQuestions || 
+                          (processedResponse.questions ? processedResponse.questions.length : 0),
+          percentageScore: processedResponse.percentageScore || 
+                           processedResponse.percentage || 
+                           (processedResponse.score && processedResponse.totalQuestions ? 
+                             (processedResponse.score / processedResponse.totalQuestions) * 100 : 0),
+          timeSpentInSeconds: processedResponse.timeSpentInSeconds || 
+                              processedResponse.timeTaken || 
+                              0,
+          createdAt: processedResponse.createdAt || 
+                     processedResponse.completedAt || 
+                     new Date().toISOString(),
+          questions: processedResponse.questions || []
+        };
+        
+        // Use the processed response with defaults applied
+        setResult(defaultQuizResult);
+      } catch (err) {
+        console.error('Failed to fetch quiz results:', err);
+        setError('Failed to load quiz results. Please try again later.');
+        toast({
+          title: 'Error',
+          description: 'Failed to load quiz results',
+          variant: 'destructive',
+        });
+      } finally {
+        setLoading(false);
+      }
+    }
+    
+    fetchResults();
+  }, [attemptId, toast, token]);
+  
+  const toggleQuestion = (questionId: string) => {
+    setExpandedQuestions(prev => ({
+      ...prev,
+      [questionId]: !prev[questionId]
+    }));
+  };
+  
+  // Format time
+  const formatTime = (seconds: number) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins}m ${secs}s`;
+  };
+  
+  // Get score grade
+  const getScoreGrade = (score: number) => {
+    if (score >= 90) return 'Excellent';
+    if (score >= 75) return 'Good';
+    if (score >= 60) return 'Satisfactory';
+    return 'Needs Improvement';
+  };
+  
+  // Get score color
+  const getScoreColor = (score: number) => {
+    if (score >= 90) return 'text-green-500';
+    if (score >= 75) return 'text-emerald-500';
+    if (score >= 60) return 'text-amber-500';
+    return 'text-red-500';
+  };
+  
+  // Handle errors
+  if (error) {
+    return (
+      <QuizLayout>
+        <div className="flex flex-col items-center justify-center min-h-[calc(100vh-200px)]">
+          <Card className="w-full max-w-md shadow-lg">
+            <CardHeader>
+              <CardTitle className="flex items-center text-destructive">
+                <AlertCircle className="h-5 w-5 mr-2" />
+                Error Loading Results
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-muted-foreground mb-4">
+                {error}
+              </p>
+              <Button
+                onClick={() => navigate('/dashboard')}
+              >
+                Return to Dashboard
+              </Button>
+            </CardContent>
+          </Card>
+        </div>
+      </QuizLayout>
+    );
+  }
+  
+  // Loading state
+  if (loading || !result) {
+    return (
+      <QuizLayout>
+        <div className="py-6">
+          <Skeleton className="h-12 w-[50%] mb-6" />
+          <Skeleton className="h-[400px] w-full mb-6" />
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <Skeleton className="h-32 w-full" />
+            <Skeleton className="h-32 w-full" />
+            <Skeleton className="h-32 w-full" />
+          </div>
+        </div>
+      </QuizLayout>
+    );
+  }
+  
+  return (
+    <QuizLayout>
+      <div className="py-6 container max-w-6xl">
+        <div className="flex items-center justify-between mb-6">
+          <h1 className="text-2xl font-bold">Quiz Results</h1>
+          <Button variant="outline" onClick={() => navigate('/dashboard')}>
+            <ArrowLeft className="h-4 w-4 mr-2" />
+            Back to Dashboard
+          </Button>
+        </div>
+        
+        {/* Quiz Summary */}
+        <Card className="mb-8 shadow-md bg-primary/5">
+          <CardHeader>
+            <CardTitle>{result.quiz?.title || 'Quiz Results'}</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              {/* Score */}
+              <Card className="shadow-sm">
+                <CardContent className="pt-6">
+                  <div className="flex flex-col items-center justify-center">
+                    <Trophy className="h-10 w-10 text-primary mb-2" />
+                    <div className={`text-4xl font-bold ${getScoreColor(result.percentageScore || 0)}`}>
+                      {result.percentageScore || 0}%
+                    </div>
+                    <div className="text-muted-foreground">
+                      {getScoreGrade(result.percentageScore || 0)}
+                    </div>
+                    <div className="text-sm mt-2">
+                      {result.score || 0} out of {result.totalQuestions || 0} correct
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+              
+              {/* Time */}
+              <Card className="shadow-sm">
+                <CardContent className="pt-6">
+                  <div className="flex flex-col items-center justify-center">
+                    <Clock className="h-10 w-10 text-primary mb-2" />
+                    <div className="text-2xl font-bold">
+                      {formatTime(result.timeSpentInSeconds || 0)}
+                    </div>
+                    <div className="text-muted-foreground">
+                      Time Spent
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+              
+              {/* Date */}
+              <Card className="shadow-sm">
+                <CardContent className="pt-6">
+                  <div className="flex flex-col items-center justify-center">
+                    <Award className="h-10 w-10 text-primary mb-2" />
+                    <div className="text-lg font-medium text-center">
+                      {new Date(result.createdAt || new Date()).toLocaleDateString()}
+                    </div>
+                    <div className="text-muted-foreground">
+                      Completed
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+          </CardContent>
+        </Card>
+        
+        {/* Quiz Questions */}
+        <div className="space-y-8">
+          {(result.questions || []).map((question, index) => (
+            <Card key={question.id} className="shadow-md">
+              <CardHeader className="pb-2 border-b">
+                <div className="flex justify-between items-center">
+                  <CardTitle className="flex items-center gap-2">
+                    <span>Question {index + 1}</span>
+                    {question.correct ? (
+                      <CheckCircle className="h-5 w-5 text-green-500" />
+                    ) : (
+                      <XCircle className="h-5 w-5 text-red-500" />
+                    )}
+                  </CardTitle>
+                </div>
+              </CardHeader>
+              
+              <CardContent className="pt-6">
+                {/* Multiple Choice Questions */}
+                {question.type === 'MULTIPLE_CHOICE' && question.mcProblem && (
+                  <MultipleChoiceQuestion 
+                    question={question as QuizQuestion}
+                    selectedOption={question.userAnswer}
+                    onSelectOption={() => {}}
+                    isReview={true}
+                  />
+                )}
+                
+                {/* Fallback for multiple choice without mcProblem */}
+                {question.type === 'MULTIPLE_CHOICE' && !question.mcProblem && (
+                  <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-md">
+                    <p className="text-yellow-700">
+                      This multiple choice question could not be displayed properly. 
+                      {question.userAnswer ? `Your answer was recorded.` : `No answer was recorded.`}
+                    </p>
+                  </div>
+                )}
+                
+                {/* Code Questions */}
+                {question.type === 'CODE' && question.codeProblem && (
+                  <CodeQuestion
+                    question={question as QuizQuestion}
+                    code={question.userAnswer || ''}
+                    onCodeChange={() => {}}
+                    isReview={true}
+                    testResults={question.codeProblem?.testCases?.map(tc => ({
+                      passed: tc.passed,
+                      input: tc.input,
+                      expectedOutput: tc.expectedOutput,
+                      error: tc.error
+                    }))}
+                  />
+                )}
+                
+                {/* Fallback for code questions without codeProblem */}
+                {question.type === 'CODE' && !question.codeProblem && (
+                  <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-md">
+                    <p className="text-yellow-700">
+                      This code question could not be displayed properly.
+                      {question.userAnswer ? 
+                        <div className="mt-2 bg-gray-900 text-gray-100 p-4 rounded-md font-mono text-sm overflow-auto">
+                          <pre>{question.userAnswer}</pre>
+                        </div> 
+                        : 
+                        `No answer was recorded.`
+                      }
+                    </p>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+        
+        <div className="mt-8 flex justify-between">
+          <Button variant="outline" onClick={() => navigate('/dashboard')}>
+            <ArrowLeft className="h-4 w-4 mr-2" />
+            Back to Dashboard
+          </Button>
+          
+          {result && (
+            <Button variant="default" onClick={() => navigate(`/quizzes/${result.quizId || ''}`)}>
+              <RefreshCw className="h-4 w-4 mr-2" />
+              Retake Quiz
+            </Button>
+          )}
+        </div>
+      </div>
+    </QuizLayout>
+  );
+}

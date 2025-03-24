@@ -1,0 +1,111 @@
+import React, { memo } from 'react';
+import { cn } from '@/lib/utils';
+import { QuizQuestion } from '../hooks/useQuiz';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+import { Label } from '@/components/ui/label';
+import { Card } from '@/components/ui/card';
+
+interface MultipleChoiceQuestionProps {
+  question: QuizQuestion;
+  selectedOption?: string;
+  onSelectOption: (optionId: string) => void;
+  isReview?: boolean;
+}
+
+function MultipleChoiceQuestionComponent({
+  question,
+  selectedOption,
+  onSelectOption,
+  isReview = false
+}: MultipleChoiceQuestionProps) {
+  if (!question.mcProblem) {
+    return <div className="text-destructive">Error: Not a multiple choice question</div>;
+  }
+
+  const { options, shuffleOptions, explanation } = question.mcProblem;
+  
+  // If shuffleOptions is true and we're not in review mode, shuffle the options
+  const displayOptions = React.useMemo(() => {
+    if (!isReview && shuffleOptions) {
+      return [...options].sort(() => Math.random() - 0.5);
+    }
+    return options;
+  }, [options, shuffleOptions, isReview]);
+
+  // Use callback to prevent re-renders
+  const handleOptionSelect = React.useCallback((optionId: string) => {
+    if (!isReview) {
+      onSelectOption(optionId);
+    }
+  }, [isReview, onSelectOption]);
+
+  return (
+    <div className="flex items-start justify-center min-h-full w-full pt-8">
+      <div className="max-w-3xl w-full px-6">
+        <div className="text-2xl font-medium mb-8">{question.questionText}</div>
+        
+        <div className="space-y-3">
+          {displayOptions.map((option, index) => {
+            const isSelected = selectedOption === option.id;
+            const isCorrect = isReview && option.isCorrect;
+            const isIncorrect = isReview && isSelected && !option.isCorrect;
+            
+            return (
+              <div
+                key={option.id}
+                className={cn(
+                  "flex items-center gap-4 p-4 rounded-md border cursor-pointer transition-all",
+                  isSelected && !isReview ? "border-primary bg-primary/5" : "border-muted hover:border-muted-foreground",
+                  isCorrect ? "border-green-500 bg-green-50" : "",
+                  isIncorrect ? "border-red-500 bg-red-50" : ""
+                )}
+                onClick={() => handleOptionSelect(option.id)}
+              >
+                <div className={cn(
+                  "flex-shrink-0 w-5 h-5 rounded-full border-2 flex items-center justify-center",
+                  isSelected ? "border-primary" : "border-muted-foreground/40",
+                  isCorrect ? "border-green-500" : "",
+                  isIncorrect ? "border-red-500" : ""
+                )}>
+                  {isSelected && (
+                    <div className={cn(
+                      "w-2.5 h-2.5 rounded-full",
+                      isCorrect ? "bg-green-500" : (isIncorrect ? "bg-red-500" : "bg-primary")
+                    )} />
+                  )}
+                </div>
+                
+                <span className={cn(
+                  "flex-1 text-base",
+                  isSelected && !isReview ? "font-medium" : "",
+                  isCorrect ? "text-green-700" : "",
+                  isIncorrect ? "text-red-700" : ""
+                )}>
+                  {option.optionText}
+                </span>
+                
+                {/* Number indicator for keyboard shortcut */}
+                {!isReview && index < 9 && (
+                  <div className="text-xs text-muted-foreground px-1.5 py-0.5 bg-muted/50 rounded">
+                    {index + 1}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+        
+        {/* General question explanation shown in review mode */}
+        {isReview && explanation && (
+          <div className="mt-6 p-4 bg-blue-50 text-blue-800 rounded-md border border-blue-200">
+            <div className="font-medium mb-1">Explanation:</div>
+            <div>{explanation}</div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// Export a memoized version of the component
+export const MultipleChoiceQuestion = memo(MultipleChoiceQuestionComponent);

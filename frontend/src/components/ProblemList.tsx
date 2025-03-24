@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   Table,
   TableBody,
@@ -9,13 +9,41 @@ import {
 } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { ArrowUpDown, ChevronDown, ChevronUp, CheckCircle2, Circle, Book, Code2, Timer, Lock, PlayCircle, RepeatIcon } from "lucide-react";
+import { ArrowUpDown, ChevronDown, ChevronUp, CheckCircle2, Circle, Book, Code2, Timer, Lock, PlayCircle, RepeatIcon, Award, Calendar } from "lucide-react";
 import { cn } from '@/lib/utils';
 import { Problem, Topic } from '@/hooks/useLearningPath';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useSpacedRepetition } from '@/features/spaced-repetition/hooks/useSpacedRepetition';
 import { SpacedRepetitionPanel } from '@/features/spaced-repetition/components/SpacedRepetitionPanel';
 import { Difficulty, SortField, SortDirection, ProblemListProps, DIFFICULTY_ORDER } from '@/features/problems/types';
+import { api } from '@/lib/api';
+import { useAuth } from '@/features/auth/AuthContext';
+import { useNavigate, useLocation } from 'react-router-dom';
+import { toast } from 'sonner';
+import { 
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+
+// Create a custom hook that conditionally uses spaced repetition
+function useConditionalSpacedRepetition(enabled: boolean) {
+  // If not enabled, return a placeholder object
+  if (!enabled) {
+    return {
+      toggleReviewPanel: () => {},
+      isReviewPanelOpen: false,
+      stats: null
+    };
+  }
+  
+  // Only call the hook if enabled
+  return useSpacedRepetition();
+}
 
 const formatEstimatedTime = (time?: number) => {
   if (!time) return null;
@@ -67,20 +95,101 @@ export function ProblemList({
   collections = [],
   selectedCollection = 'all',
   onCollectionChange,
+  enableSpacedRepetition = false,
 }: ProblemListProps) {
   const [sortField, setSortField] = useState<SortField>('order');
   const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
   const [currentPage, setCurrentPage] = useState(1);
+  const { token } = useAuth();
+  const navigate = useNavigate();
+  const location = useLocation();
   
-  const { 
-    toggleReviewPanel, 
-    isReviewPanelOpen,
-    stats
-  } = useSpacedRepetition();
+  // Quiz state
+  const [isLoadingQuizzes, setIsLoadingQuizzes] = useState(false);
+  const [quizMessage, setQuizMessage] = useState<string | null>(null);
+  const [showQuizSelectDialog, setShowQuizSelectDialog] = useState(false);
+  const [availableQuizzes, setAvailableQuizzes] = useState<any[]>([]);
+  
+  // Only use spaced repetition if enabled
+  const spacedRepetition = useConditionalSpacedRepetition(enableSpacedRepetition);
 
   const nextProblem = problems
     .filter(p => !p.completed && p.required)
     .sort((a, b) => (a.reqOrder || Infinity) - (b.reqOrder || Infinity))[0];
+
+  // Get topic ID from the first problem's topic (assuming all problems in the list belong to the same topic)
+  let topicId = problems.length > 0 && problems[0].topic ? problems[0].topic.id : null;
+
+  // Attempt to extract topic ID from URL as a fallback
+  if (!topicId) {
+    // URL pattern: /topics/:topicId
+    const urlParts = location.pathname.split('/');
+    if (urlParts[1] === 'topics' && urlParts[2]) {
+      topicId = urlParts[2];
+      console.log("Extracted topicId from URL:", topicId);
+    }
+  }
+  
+  // Add debugging for problems data structure
+  useEffect(() => {
+    if (problems.length > 0) {
+      console.log("Problems data structure:", {
+        firstProblem: problems[0],
+        hasTopic: !!problems[0]?.topic,
+        topicDetails: problems[0]?.topic,
+        extractedTopicId: topicId
+      });
+    }
+  }, [problems, topicId]);
+  
+  // Handle quiz button click - we'll get the next available quiz when the user clicks
+  const handleStartQuiz = async () => {
+    if (!topicId || !token || isLoadingQuizzes) return;
+    
+    setIsLoadingQuizzes(true);
+    setQuizMessage(null);
+    
+    try {
+      // Get the next available quiz for this topic and user
+      const nextQuiz = await api.getNextAvailableQuiz(topicId, token);
+      
+      if (nextQuiz && nextQuiz.id) {
+        // Navigate to the quiz
+        navigate(`/quizzes/${nextQuiz.id}`);
+      } else {
+        // No more quizzes available - fetch all quizzes and show the dialog
+        const allQuizzes = await api.getAllQuizzesForTopic(topicId, token);
+        setAvailableQuizzes(allQuizzes || []);
+        setShowQuizSelectDialog(true);
+        
+        // Set a message
+        setQuizMessage("You've completed all available quizzes for this topic!");
+        toast.info("You've completed all available quizzes for this topic!");
+      }
+    } catch (error) {
+      console.error('Error starting quiz:', error);
+      setQuizMessage("Quizzes for this topic are coming soon!");
+      toast.info("Quizzes for this topic are coming soon!");
+      
+      // Hide the message after a few seconds
+      setTimeout(() => setQuizMessage(null), 5000);
+    } finally {
+      setIsLoadingQuizzes(false);
+    }
+  };
+
+  // Format date for display
+  const formatDate = (dateString: string) => {
+    if (!dateString) return 'Not completed';
+    const date = new Date(dateString);
+    return date.toLocaleDateString();
+  };
+
+  // Handle retaking a quiz
+  const handleRetakeQuiz = (quizId: string) => {
+    setShowQuizSelectDialog(false);
+    navigate(`/quizzes/${quizId}`);
+  };
 
   const handleSort = (field: SortField) => {
     if (sortField === field) {
@@ -171,21 +280,26 @@ export function ProblemList({
           variant="outline"
           size="lg"
           className="h-32 flex flex-col items-center justify-center gap-2 border-2 hover:border-primary"
-          onClick={toggleReviewPanel}
+          onClick={handleStartQuiz}
+          disabled={isLoadingQuizzes || isLocked}
         >
           <RepeatIcon className="h-8 w-8" />
           <div className="text-center">
-            <div className="font-semibold">Spaced Repetition</div>
+            <div className="font-semibold">Start Quiz</div>
             <div className="text-sm text-muted-foreground mt-1">
-              {stats?.dueNow 
-                ? `${stats.dueNow} problem${stats.dueNow !== 1 ? 's' : ''} due for review` 
-                : 'Review completed problems'}
+              {isLoadingQuizzes ? (
+                "Loading quiz..."
+              ) : quizMessage ? (
+                quizMessage
+              ) : (
+                "Test your knowledge on this topic"
+              )}
             </div>
           </div>
         </Button>
       </div>
       
-      {isReviewPanelOpen && <SpacedRepetitionPanel />}
+      {spacedRepetition.isReviewPanelOpen && <SpacedRepetitionPanel />}
       
       <Table>
         <TableHeader>
@@ -360,6 +474,96 @@ export function ProblemList({
           </Button>
         </div>
       )}
+
+      {/* Quiz Selection Dialog */}
+      <Dialog open={showQuizSelectDialog} onOpenChange={setShowQuizSelectDialog}>
+        <DialogContent className="max-w-3xl">
+          <DialogHeader>
+            <DialogTitle className="text-xl flex items-center">
+              <RepeatIcon className="h-5 w-5 mr-2" />
+              Available Quizzes
+            </DialogTitle>
+            <DialogDescription>
+              You've completed all quizzes for this topic. Select one to retake:
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="overflow-auto max-h-[60vh]">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Quiz Name</TableHead>
+                  <TableHead>Questions</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Best Score</TableHead>
+                  <TableHead>Last Completed</TableHead>
+                  <TableHead></TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {availableQuizzes.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
+                      No quizzes available for this topic
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  availableQuizzes.map((quiz) => (
+                    <TableRow key={quiz.id}>
+                      <TableCell className="font-medium">{quiz.name}</TableCell>
+                      <TableCell>{quiz._count?.questions || 0}</TableCell>
+                      <TableCell>
+                        {quiz.completed ? (
+                          <Badge className="bg-green-500">
+                            <CheckCircle2 className="h-3 w-3 mr-1" />
+                            Completed ({quiz.attemptsCount}x)
+                          </Badge>
+                        ) : (
+                          <Badge variant="outline">Not Started</Badge>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        {quiz.bestScore !== null ? (
+                          <span className="flex items-center">
+                            <Award className="h-4 w-4 mr-1 text-amber-500" />
+                            {quiz.bestScore}%
+                          </span>
+                        ) : (
+                          '-'
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        {quiz.lastCompletedAt ? (
+                          <span className="flex items-center text-sm text-muted-foreground">
+                            <Calendar className="h-3.5 w-3.5 mr-1" />
+                            {formatDate(quiz.lastCompletedAt)}
+                          </span>
+                        ) : (
+                          '-'
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        <Button 
+                          size="sm" 
+                          onClick={() => handleRetakeQuiz(quiz.id)}
+                        >
+                          {quiz.completed ? 'Retake' : 'Start'}
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))
+                )}
+              </TableBody>
+            </Table>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowQuizSelectDialog(false)}>
+              Cancel
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 } 

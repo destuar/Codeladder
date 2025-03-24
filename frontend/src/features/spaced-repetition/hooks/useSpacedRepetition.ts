@@ -46,6 +46,7 @@ export interface UseSpacedRepetitionResult {
  * Custom hook for managing spaced repetition functionality
  */
 export function useSpacedRepetition(): UseSpacedRepetitionResult {
+  console.log('[DEBUG] useSpacedRepetition hook initialized');
   const { token } = useAuth();
   const queryClient = useQueryClient();
   const navigate = useNavigate();

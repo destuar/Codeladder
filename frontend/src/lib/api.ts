@@ -85,6 +85,10 @@ const getBaseUrl = () => {
   return '/api';
 };
 
+// Simple request throttling system to prevent excessive API calls
+const throttleMap = new Map<string, number>();
+const THROTTLE_PERIOD = 500; // ms between identical requests
+
 async function request(endpoint: string, options: RequestOptions = {}) {
   const { token, ...customOptions } = options;
   const authToken = token || localStorage.getItem('token');
@@ -107,7 +111,45 @@ async function request(endpoint: string, options: RequestOptions = {}) {
   const baseUrl = getBaseUrl();
   const url = `${baseUrl}/${cleanEndpoint}`.replace(/\/+/g, '/');
 
-  debug.log(`Making ${options.method || 'GET'} request to:`, url);
+  // Enhanced logging for quiz-related endpoints
+  const isQuizRelated = endpoint.includes('quiz') || endpoint.includes('quizzes');
+  
+  // For quiz-related requests, implement throttling to prevent excessive calls
+  if (isQuizRelated) {
+    const method = options.method || 'GET';
+    // Create a key based on the URL and method to identify duplicate requests
+    const requestKey = `${method}:${url}`;
+    
+    // Special handling for results endpoint - never throttle results requests
+    if (url.includes('results')) {
+      console.log(`%c Making ${method} request to quiz results endpoint: ${url}`, 'background: #f0f0f0; color: #0000ff; font-weight: bold;');
+    } 
+    // Check if this exact request was recently made
+    else {
+      const lastCall = throttleMap.get(requestKey);
+      const now = Date.now();
+      
+      if (lastCall && (now - lastCall < THROTTLE_PERIOD)) {
+        // If the request was made very recently, throttle it
+        console.log(`%c Throttling request to: ${url}`, 'background: #fff3cd; color: #856404; font-weight: bold;');
+        
+        // For non-mutating requests, we can just return null to avoid the API call
+        if (method === 'GET') {
+          return null;
+        }
+        
+        // For mutating requests, wait until the throttle period has passed
+        await new Promise(resolve => setTimeout(resolve, THROTTLE_PERIOD - (now - lastCall)));
+      }
+      
+      // Update the last call time for this endpoint
+      throttleMap.set(requestKey, now);
+    }
+    
+    console.log(`%c Making ${method} request to quiz endpoint: ${url}`, 'background: #f0f0f0; color: #0000ff; font-weight: bold;');
+  } else {
+    debug.log(`Making ${options.method || 'GET'} request to:`, url);
+  }
 
   // Log the complete request
   debug.request(options.method || 'GET', url, {
@@ -127,6 +169,14 @@ async function request(endpoint: string, options: RequestOptions = {}) {
       debug.log('No JSON response body');
       return null;
     });
+
+    // Enhanced logging for quiz-related responses
+    if (isQuizRelated) {
+      console.log(`%c Response from quiz endpoint ${url}:`, 'background: #f0f0f0; color: #008800; font-weight: bold;', {
+        status: response.status,
+        data
+      });
+    }
 
     // Add response debugging
     debug.log('Response headers:', {
@@ -229,6 +279,14 @@ export const api = {
     return this.get(`/quizzes/topic/${topicId}`, token);
   },
 
+  async getAllQuizzesForTopic(topicId: string, token: string) {
+    return this.get(`/quizzes/topic/${topicId}/all`, token);
+  },
+
+  async getNextAvailableQuiz(topicId: string, token: string) {
+    return this.get(`/quizzes/topic/${topicId}/next`, token);
+  },
+
   async getQuiz(id: string, token: string) {
     return this.get(`/quizzes/${id}`, token);
   },
@@ -296,7 +354,45 @@ export const api = {
 
   async getQuizForAttempt(quizId: string, token: string) {
     return this.get(`/quizzes/${quizId}/attempt`, token);
-  }
+  },
+
+  // Quiz attempt and response management
+  async startQuizAttempt(quizId: string, token: string) {
+    return this.post(`/quizzes/${quizId}/attempts`, {}, token);
+  },
+
+  async getQuizAttempt(attemptId: string, token: string) {
+    return this.get(`/quizzes/attempts/${attemptId}`, token);
+  },
+
+  async submitQuizResponse(
+    attemptId: string, 
+    questionId: string, 
+    responseData: any, 
+    token: string
+  ) {
+    return this.post(
+      `/quizzes/attempts/${attemptId}/responses/${questionId}`, 
+      responseData, 
+      token
+    );
+  },
+
+  async completeQuizAttempt(attemptId: string, token: string) {
+    return this.post(`/quizzes/attempts/${attemptId}/complete`, {}, token);
+  },
+
+  async getQuizResults(attemptId: string, token: string) {
+    console.log(`Fetching quiz results for attempt: ${attemptId}`);
+    try {
+      const results = await this.get(`/quizzes/attempts/${attemptId}/results`, token);
+      console.log('Quiz results API response:', results);
+      return results;
+    } catch (error) {
+      console.error('Error fetching quiz results:', error);
+      throw error;
+    }
+  },
 };
 
 export const getProblem = async (problemId: string) => {

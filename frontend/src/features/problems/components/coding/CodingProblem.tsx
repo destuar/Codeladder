@@ -51,6 +51,8 @@ export default function CodingProblem({
   problemId,
   isReviewMode = false,
   onCompleted,
+  onCodeChange,
+  isQuizMode = false,
 }: CodingProblemProps) {
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [leftPanelWidth, setLeftPanelWidth] = useState(window.innerWidth * 0.4);
@@ -69,6 +71,13 @@ export default function CodingProblem({
     isAddingToSpacedRepetition,
     handleConfirmCompletion,
   } = useProblemCompletion(problemId, isCompleted, onCompleted, isReviewMode, 'CODING');
+
+  // Safe navigation handler to avoid undefined errors
+  const handleNavigate = (id: string) => {
+    if (onNavigate) {
+      onNavigate(id);
+    }
+  };
 
   // Parse test cases
   const testCases = (() => {
@@ -95,6 +104,11 @@ export default function CodingProblem({
   // Modified handler for code editor
   const handleCodeChange = (newCode: string) => {
     setCode(newCode);
+    
+    // If in quiz mode, call the onCodeChange prop
+    if (onCodeChange) {
+      onCodeChange(newCode);
+    }
   };
 
   // Handle language changes
@@ -105,7 +119,8 @@ export default function CodingProblem({
   return (
     <div className={cn(
       "flex flex-col bg-background",
-      isFullscreen ? "fixed inset-0 z-50" : "h-[calc(100vh-3.5rem)]"
+      isFullscreen ? "fixed inset-0 z-50" : "h-[calc(100vh-3.5rem)]",
+      isQuizMode && "h-full"
     )}>
       <ProblemHeader
         isCompleted={isProblemCompleted}
@@ -114,7 +129,8 @@ export default function CodingProblem({
         onMarkComplete={handleMarkAsComplete}
         nextProblemId={nextProblemId}
         prevProblemId={prevProblemId}
-        onNavigate={onNavigate}
+        onNavigate={handleNavigate}
+        isQuizMode={isQuizMode}
       />
 
       {/* Spaced Repetition Dialog */}

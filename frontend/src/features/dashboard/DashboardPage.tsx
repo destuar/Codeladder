@@ -10,7 +10,7 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* Simplified layout - full width for level system */}
+      {/* Level system */}
       <div className="w-full">
         <LevelSystem />
       </div>

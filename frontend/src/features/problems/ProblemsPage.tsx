@@ -23,6 +23,32 @@ interface Collection {
 // Type for difficulty filter - adds 'all' to the available difficulties
 type DifficultyFilter = ProblemDifficulty | 'all';
 
+// Custom hook to only use spaced repetition when needed
+function useConditionalSpacedRepetition(enabled: boolean) {
+  // Only call useSpacedRepetition when enabled
+  if (enabled) {
+    return useSpacedRepetition();
+  }
+  
+  // Return a placeholder object when disabled
+  return {
+    dueReviews: [],
+    allScheduledReviews: undefined,
+    stats: undefined,
+    isLoading: false,
+    isReviewPanelOpen: false,
+    toggleReviewPanel: () => {},
+    submitReview: async () => null,
+    startReview: () => {},
+    refreshReviews: async () => {},
+    removeProblem: async () => {},
+    addCompletedProblem: async () => {},
+    isAddingProblem: false,
+    getAvailableProblems: async () => [],
+    isLoadingAvailableProblems: false
+  };
+}
+
 export default function ProblemsPage() {
   const navigate = useNavigate();
   const { token } = useAuth();
@@ -30,7 +56,7 @@ export default function ProblemsPage() {
   const [selectedDifficulty, setSelectedDifficulty] = useState<DifficultyFilter>("all");
   
   // Add spaced repetition hook
-  const { toggleReviewPanel, isReviewPanelOpen, stats } = useSpacedRepetition();
+  const { toggleReviewPanel, isReviewPanelOpen, stats } = useConditionalSpacedRepetition(!!token);
 
   // Add CSS to hide the buttons in ProblemList
   useEffect(() => {
@@ -332,6 +358,7 @@ export default function ProblemsPage() {
                   itemsPerPage={50}
                   showTopicName={false}
                   showOrder={false}
+                  enableSpacedRepetition={true}
                 />
               </div>
             ) : (

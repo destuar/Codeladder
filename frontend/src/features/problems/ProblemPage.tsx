@@ -13,6 +13,32 @@ import { Problem, ProblemType } from './types';
 import { isToday } from 'date-fns';
 import { logProblemReviewState, logWorkflowStep } from './utils/debug';
 
+// Custom hook to only use spaced repetition when needed
+function useConditionalSpacedRepetition(enabled: boolean) {
+  // Only call useSpacedRepetition when enabled
+  if (enabled) {
+    return useSpacedRepetition();
+  }
+  
+  // Return a placeholder object when disabled
+  return {
+    dueReviews: [],
+    allScheduledReviews: undefined,
+    stats: undefined,
+    isLoading: false,
+    isReviewPanelOpen: false,
+    toggleReviewPanel: () => {},
+    submitReview: async () => null,
+    startReview: () => {},
+    refreshReviews: async () => {},
+    removeProblem: async () => {},
+    addCompletedProblem: async () => {},
+    isAddingProblem: false,
+    getAvailableProblems: async () => [],
+    isLoadingAvailableProblems: false
+  };
+}
+
 const ProblemPage: React.FC = () => {
   const { problemId } = useParams<{ problemId: string }>();
   const { token } = useAuth();
@@ -32,8 +58,11 @@ const ProblemPage: React.FC = () => {
   const isEarlyReview = searchParams.get('early') === 'true';
   const scheduledDate = searchParams.get('dueDate') || undefined;
   
+  // Determine if we should use spaced repetition
+  const shouldUseSpacedRepetition = isReviewMode || isEarlyReview || hasJustCompleted;
+  
   // Get the spaced repetition hook for review functionality
-  const { submitReview } = useSpacedRepetition();
+  const { submitReview } = useConditionalSpacedRepetition(shouldUseSpacedRepetition);
   
   // Track if review was submitted
   const [reviewSubmitted, setReviewSubmitted] = useState(false);

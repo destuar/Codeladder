@@ -832,7 +832,7 @@ export function QuizAdmin() {
 
       {/* Quiz Creation/Edit Dialog */}
       <Dialog open={showQuizDialog} onOpenChange={setShowQuizDialog}>
-        <DialogContent className="sm:max-w-[650px]">
+        <DialogContent className="sm:max-w-[650px] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{isEditMode ? 'Edit Quiz' : 'Create New Quiz'}</DialogTitle>
             <DialogDescription>
@@ -1063,7 +1063,7 @@ export function QuizAdmin() {
 
       {/* Problem Creation/Edit Dialog */}
       <Dialog open={showProblemDialog} onOpenChange={setShowProblemDialog}>
-        <DialogContent className="sm:max-w-[700px]">
+        <DialogContent className="sm:max-w-[700px] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>
               {isProblemEditMode ? 'Edit Problem' : 'Add New Problem'}
