@@ -26,7 +26,7 @@ import {
   AlertDialogTitle
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
-import { SupportedLanguage } from '../../types/coding';
+import { SupportedLanguage, LANGUAGE_CONFIGS } from "../../types/coding";
 import { Resizable } from "re-resizable";
 
 const MIN_PANEL_WIDTH = 300;
@@ -44,7 +44,9 @@ export default function CodingProblem({
   testCases: testCasesString,
   difficulty,
   nextProblemId,
+  nextProblemSlug,
   prevProblemId,
+  prevProblemSlug,
   onNavigate,
   estimatedTime,
   isCompleted = false,
@@ -53,12 +55,26 @@ export default function CodingProblem({
   onCompleted,
   onCodeChange,
   isQuizMode = false,
+  sourceContext,
 }: CodingProblemProps) {
-  const [isFullscreen, setIsFullscreen] = useState(false);
   const [leftPanelWidth, setLeftPanelWidth] = useState(window.innerWidth * 0.4);
   const [editorHeight, setEditorHeight] = useState(DEFAULT_EDITOR_HEIGHT);
   const [code, setCode] = useState(codeTemplate || "");
-  const [selectedLanguage, setSelectedLanguage] = useState<SupportedLanguage>('javascript');
+  const [isRunning, setIsRunning] = useState(false);
+  const [selectedLanguage, setSelectedLanguage] = useState<SupportedLanguage>(() => {
+    // Try to get the saved language preference from localStorage
+    try {
+      const savedLanguage = localStorage.getItem('preferredLanguage');
+      // If a valid language is saved, use it; otherwise default to Python
+      if (savedLanguage && Object.keys(LANGUAGE_CONFIGS).includes(savedLanguage)) {
+        return savedLanguage as SupportedLanguage;
+      }
+    } catch (e) {
+      console.error('Error accessing localStorage:', e);
+    }
+    // Default to Python if no valid saved preference is found
+    return 'python';
+  });
   
   // Add ref for the code editor component
   const editorRef = useRef<CodeEditorRef>(null);
@@ -73,9 +89,9 @@ export default function CodingProblem({
   } = useProblemCompletion(problemId, isCompleted, onCompleted, isReviewMode, 'CODING');
 
   // Safe navigation handler to avoid undefined errors
-  const handleNavigate = (id: string) => {
+  const handleNavigate = (id: string, slug?: string) => {
     if (onNavigate) {
-      onNavigate(id);
+      onNavigate(id, slug);
     }
   };
 
@@ -114,23 +130,39 @@ export default function CodingProblem({
   // Handle language changes
   const handleLanguageChange = (language: string) => {
     setSelectedLanguage(language as SupportedLanguage);
+    // Save the selected language to localStorage
+    try {
+      localStorage.setItem('preferredLanguage', language);
+    } catch (e) {
+      console.error('Error saving language preference to localStorage:', e);
+    }
+  };
+
+  // Create handlers for running tests and submitting solutions
+  const handleRunTests = async () => {
+    // We'll pass this to the TestRunner
+  };
+
+  const handleSubmitSolution = async () => {
+    // We'll pass this to the TestRunner
   };
 
   return (
     <div className={cn(
       "flex flex-col bg-background",
-      isFullscreen ? "fixed inset-0 z-50" : "h-[calc(100vh-3.5rem)]",
-      isQuizMode && "h-full"
+      isQuizMode ? "h-full" : "h-screen"
     )}>
       <ProblemHeader
         isCompleted={isProblemCompleted}
-        isFullscreen={isFullscreen}
-        onToggleFullscreen={() => setIsFullscreen(!isFullscreen)}
         onMarkComplete={handleMarkAsComplete}
         nextProblemId={nextProblemId}
+        nextProblemSlug={nextProblemSlug}
         prevProblemId={prevProblemId}
-        onNavigate={handleNavigate}
+        prevProblemSlug={prevProblemSlug}
+        onNavigate={onNavigate}
+        title={title}
         isQuizMode={isQuizMode}
+        sourceContext={sourceContext}
       />
 
       {/* Spaced Repetition Dialog */}
@@ -250,6 +282,21 @@ export default function CodingProblem({
                 language={selectedLanguage}
                 onLanguageChange={handleLanguageChange}
                 ref={editorRef}
+                onRunTests={() => {
+                  // Use the data attribute to click the hidden button
+                  const testRunnerElement = document.querySelector('[data-testrunner-run-button]');
+                  if (testRunnerElement) {
+                    (testRunnerElement as HTMLButtonElement).click();
+                  }
+                }}
+                onSubmitSolution={() => {
+                  // Use the data attribute to click the hidden button
+                  const testRunnerElement = document.querySelector('[data-testrunner-submit-button]');
+                  if (testRunnerElement) {
+                    (testRunnerElement as HTMLButtonElement).click();
+                  }
+                }}
+                isRunning={isRunning}
               />
             </div>
           </Resizable>
@@ -263,6 +310,8 @@ export default function CodingProblem({
               onRunComplete={() => {}}
               language={selectedLanguage}
               onLanguageChange={handleLanguageChange}
+              isRunning={isRunning}
+              setIsRunning={setIsRunning}
             />
           </div>
         </div>

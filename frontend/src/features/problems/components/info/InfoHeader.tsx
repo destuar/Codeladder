@@ -2,7 +2,7 @@ import { Button } from "@/components/ui/button";
 import { CheckCircle2, ChevronRight, ChevronLeft, Settings } from "lucide-react";
 import { cn } from '@/lib/utils';
 import { Link } from 'react-router-dom';
-import { ProblemTimer } from './timer/ProblemTimer';
+import { ProblemTimer } from '../coding/timer/ProblemTimer';
 import { useProfile } from '@/features/profile/ProfileContext';
 import { useAuth } from '@/features/auth/AuthContext';
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
@@ -10,7 +10,7 @@ import codeladderSvgLogo from '@/features/landingpage/images/CodeLadder.svg';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { BorderlessThemeToggle } from "../shared/BorderlessThemeToggle";
 
-interface ProblemHeaderProps {
+interface InfoHeaderProps {
   isCompleted: boolean;
   onMarkComplete: () => void;
   nextProblemId?: string;
@@ -19,7 +19,6 @@ interface ProblemHeaderProps {
   prevProblemSlug?: string;
   onNavigate: (id: string, slug?: string) => void;
   title?: string;
-  isQuizMode?: boolean;
   sourceContext?: {
     from: string;
     name: string;
@@ -28,9 +27,9 @@ interface ProblemHeaderProps {
 }
 
 /**
- * Header component for the coding problem interface
+ * Header component for the info problem interface
  */
-export function ProblemHeader({
+export function InfoHeader({
   isCompleted,
   onMarkComplete,
   nextProblemId,
@@ -39,9 +38,8 @@ export function ProblemHeader({
   prevProblemSlug,
   onNavigate,
   title = "Problem",
-  isQuizMode = false,
   sourceContext,
-}: ProblemHeaderProps) {
+}: InfoHeaderProps) {
   const { profile } = useProfile();
   const { user } = useAuth();
 
@@ -151,28 +149,26 @@ export function ProblemHeader({
 
       {/* Right section - Actions */}
       <div className="flex items-center gap-2">
-        {!isQuizMode && (
-          <Button 
-            variant={isCompleted ? "outline" : "default"}
-            size="sm"
-            className={cn(
-              "shadow-sm transition-all duration-200",
-              isCompleted && "border-green-500 text-green-500 hover:bg-green-500/10"
+        <Button 
+          variant={isCompleted ? "outline" : "default"}
+          size="sm"
+          className={cn(
+            "shadow-sm transition-all duration-200",
+            isCompleted && "border-green-500 text-green-500 hover:bg-green-500/10"
+          )}
+          onClick={onMarkComplete}
+        >
+          <div className="flex items-center">
+            {isCompleted ? (
+              <>
+                <CheckCircle2 className="w-4 h-4 mr-1" />
+                <span>Completed</span>
+              </>
+            ) : (
+              <span>Mark Complete</span>
             )}
-            onClick={onMarkComplete}
-          >
-            <div className="flex items-center">
-              {isCompleted ? (
-                <>
-                  <CheckCircle2 className="w-4 h-4 mr-1" />
-                  <span>Completed</span>
-                </>
-              ) : (
-                <span>Mark Complete</span>
-              )}
-            </div>
-          </Button>
-        )}
+          </div>
+        </Button>
         
         <BorderlessThemeToggle />
         

@@ -1,5 +1,7 @@
 import { useState, useEffect } from "react";
 import { useAuth } from "@/features/auth/AuthContext";
+import { useAdmin } from "@/features/admin/AdminContext";
+import { useNavigate } from "react-router-dom";
 import { api } from "@/lib/api";
 import { toast } from "sonner";
 
@@ -33,6 +35,7 @@ import { PlusCircle, Pencil, Trash2, Search, RefreshCw } from "lucide-react";
 interface Collection {
   id: string;
   name: string;
+  slug?: string;
   description: string | null;
   createdAt: string;
   updatedAt: string;
@@ -49,6 +52,7 @@ interface Problem {
 
 interface NewCollection {
   name: string;
+  slug?: string;
   description: string;
 }
 
@@ -57,6 +61,8 @@ interface NewCollection {
  */
 export function ProblemListAdmin() {
   const { token } = useAuth();
+  const { setIsAdminView } = useAdmin();
+  const navigate = useNavigate();
   
   // Collections state
   const [collections, setCollections] = useState<Collection[]>([]);
@@ -74,11 +80,20 @@ export function ProblemListAdmin() {
   // Form state
   const [newCollection, setNewCollection] = useState<NewCollection>({
     name: "",
-    description: ""
+    description: "",
+    slug: ""
   });
   
   // Search state
   const [searchQuery, setSearchQuery] = useState("");
+  
+  // Edit collection state
+  const [editCollection, setEditCollection] = useState<{
+    id: string;
+    name: string;
+    slug?: string; 
+    description: string;
+  }>({ id: '', name: '', description: '', slug: '' });
   
   // Fetch collections on component mount
   useEffect(() => {
@@ -145,12 +160,13 @@ export function ProblemListAdmin() {
     try {
       const created = await api.post("/admin/collections", {
         name: newCollection.name.trim(),
-        description: newCollection.description.trim()
+        description: newCollection.description.trim(),
+        slug: newCollection.slug?.trim()
       }, token);
       
       setCollections(prev => [...prev, created]);
       setIsAddDialogOpen(false);
-      setNewCollection({ name: "", description: "" });
+      setNewCollection({ name: "", description: "", slug: "" });
       toast.success("Collection created successfully");
       
       // Select the new collection
@@ -166,15 +182,16 @@ export function ProblemListAdmin() {
     if (!token || !selectedCollection) return;
     
     // Validate input
-    if (!newCollection.name.trim()) {
+    if (!editCollection.name.trim()) {
       toast.error("Collection name is required");
       return;
     }
     
     try {
       const updated = await api.put(`/admin/collections/${selectedCollection.id}`, {
-        name: newCollection.name.trim(),
-        description: newCollection.description.trim()
+        name: editCollection.name.trim(),
+        description: editCollection.description.trim(),
+        slug: editCollection.slug?.trim()
       }, token);
       
       setCollections(prev => 
@@ -216,12 +233,14 @@ export function ProblemListAdmin() {
     }
   };
   
-  // Open edit dialog with current collection data
+  // Open the edit dialog
   const openEditDialog = () => {
     if (selectedCollection) {
-      setNewCollection({
+      setEditCollection({
+        id: selectedCollection.id,
         name: selectedCollection.name,
-        description: selectedCollection.description || ""
+        description: selectedCollection.description || "",
+        slug: selectedCollection.slug || ""
       });
       setIsEditDialogOpen(true);
     }
@@ -230,13 +249,97 @@ export function ProblemListAdmin() {
   // Handle input changes for forms
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
-    setNewCollection(prev => ({ ...prev, [name]: value }));
+    setEditCollection(prev => ({ ...prev, [name]: value }));
   };
   
   // Filter collections based on search query
   const filteredCollections = collections.filter(collection => 
     collection.name.toLowerCase().includes(searchQuery.toLowerCase())
   );
+  
+  // Dialog content for adding a new collection
+  const addDialogContent = (
+    <div className="grid gap-4 py-4">
+      <div className="grid gap-2">
+        <Label htmlFor="name">Collection Name</Label>
+        <Input
+          id="name"
+          name="name"
+          value={newCollection.name}
+          onChange={(e) => setNewCollection(prev => ({ ...prev, name: e.target.value }))}
+          placeholder="Enter collection name"
+        />
+      </div>
+      <div className="grid gap-2">
+        <Label htmlFor="slug">URL Slug (Optional)</Label>
+        <Input
+          id="slug"
+          name="slug"
+          value={newCollection.slug || ""}
+          onChange={(e) => setNewCollection(prev => ({ ...prev, slug: e.target.value }))}
+          placeholder="url-friendly-name"
+        />
+        <p className="text-xs text-muted-foreground">Leave empty to generate automatically from the name</p>
+      </div>
+      <div className="grid gap-2">
+        <Label htmlFor="description">Description</Label>
+        <Textarea
+          id="description"
+          name="description"
+          value={newCollection.description}
+          onChange={(e) => setNewCollection(prev => ({ ...prev, description: e.target.value }))}
+          placeholder="Enter collection description"
+          rows={3}
+        />
+      </div>
+    </div>
+  );
+  
+  // Dialog content for editing a collection
+  const editDialogContent = (
+    <div className="grid gap-4 py-4">
+      <div className="grid gap-2">
+        <Label htmlFor="edit-name">Collection Name</Label>
+        <Input
+          id="edit-name"
+          name="name"
+          value={editCollection.name}
+          onChange={handleInputChange}
+          placeholder="Enter collection name"
+        />
+      </div>
+      <div className="grid gap-2">
+        <Label htmlFor="edit-slug">URL Slug</Label>
+        <Input
+          id="edit-slug"
+          name="slug"
+          value={editCollection.slug || ""}
+          onChange={handleInputChange}
+          placeholder="url-friendly-name"
+        />
+        <p className="text-xs text-muted-foreground">URL-friendly identifier for this collection</p>
+      </div>
+      <div className="grid gap-2">
+        <Label htmlFor="edit-description">Description</Label>
+        <Textarea
+          id="edit-description"
+          name="description"
+          value={editCollection.description}
+          onChange={handleInputChange}
+          placeholder="Enter collection description"
+          rows={3}
+        />
+      </div>
+    </div>
+  );
+  
+  // Function to handle viewing a problem
+  const handleViewProblem = (problemId: string) => {
+    // Exit admin view
+    setIsAdminView(false);
+    // Navigate to the problem
+    navigate(`/problems/${problemId}`);
+  };
   
   return (
     <div className="space-y-6">
@@ -283,29 +386,7 @@ export function ProblemListAdmin() {
                             Add a new collection for organizing problems.
                           </DialogDescription>
                         </DialogHeader>
-                        <div className="space-y-4">
-                          <div>
-                            <Label htmlFor="name">Name *</Label>
-                            <Input
-                              id="name"
-                              name="name"
-                              value={newCollection.name}
-                              onChange={handleInputChange}
-                              placeholder="Enter collection name"
-                            />
-                          </div>
-                          <div>
-                            <Label htmlFor="description">Description</Label>
-                            <Textarea
-                              id="description"
-                              name="description"
-                              value={newCollection.description}
-                              onChange={handleInputChange}
-                              placeholder="Enter collection description"
-                              rows={3}
-                            />
-                          </div>
-                        </div>
+                        {addDialogContent}
                         <DialogFooter>
                           <Button variant="outline" onClick={() => setIsAddDialogOpen(false)}>
                             Cancel
@@ -450,7 +531,11 @@ export function ProblemListAdmin() {
                         </TableHeader>
                         <TableBody>
                           {problems.map((problem) => (
-                            <TableRow key={problem.id}>
+                            <TableRow 
+                              key={problem.id}
+                              className="cursor-pointer hover:bg-muted/50"
+                              onClick={() => handleViewProblem(problem.id)}
+                            >
                               <TableCell className="font-medium">{problem.name}</TableCell>
                               <TableCell>{problem.problemType}</TableCell>
                               <TableCell>{problem.difficulty}</TableCell>
@@ -479,29 +564,7 @@ export function ProblemListAdmin() {
               Update the details of this collection.
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-4">
-            <div>
-              <Label htmlFor="edit-name">Name *</Label>
-              <Input
-                id="edit-name"
-                name="name"
-                value={newCollection.name}
-                onChange={handleInputChange}
-                placeholder="Enter collection name"
-              />
-            </div>
-            <div>
-              <Label htmlFor="edit-description">Description</Label>
-              <Textarea
-                id="edit-description"
-                name="description"
-                value={newCollection.description}
-                onChange={handleInputChange}
-                placeholder="Enter collection description"
-                rows={3}
-              />
-            </div>
-          </div>
+          {editDialogContent}
           <DialogFooter>
             <Button variant="outline" onClick={() => setIsEditDialogOpen(false)}>
               Cancel

@@ -137,6 +137,60 @@ router.get('/topics/:id', (async (req, res) => {
   }
 }) as RequestHandler);
 
+// Get a single topic by slug
+router.get('/topics/slug/:slug', (async (req, res) => {
+  try {
+    const { slug } = req.params;
+    const userId = req.user?.id;
+
+    if (!userId) {
+      return res.status(401).json({ error: 'User not authenticated' });
+    }
+
+    const topic = await prisma.topic.findUnique({
+      where: { slug },
+      include: {
+        problems: {
+          orderBy: {
+            reqOrder: 'asc',
+          },
+          include: {
+            completedBy: {
+              where: { id: userId },
+              select: { id: true }
+            },
+            progress: {
+              where: { userId },
+              select: { status: true }
+            }
+          }
+        },
+        level: true,
+      },
+    });
+
+    if (!topic) {
+      return res.status(404).json({ error: 'Topic not found' });
+    }
+
+    // Transform the response to include completion status
+    const transformedTopic = {
+      ...topic,
+      problems: topic.problems.map(problem => ({
+        ...problem,
+        completed: problem.completedBy.length > 0 || problem.progress.some(p => p.status === 'COMPLETED'),
+        completedBy: undefined,
+        progress: undefined
+      }))
+    };
+
+    res.json(transformedTopic);
+  } catch (error) {
+    console.error('Error fetching topic by slug:', error);
+    res.status(500).json({ error: 'Failed to fetch topic data' });
+  }
+}) as RequestHandler);
+
 // Admin-only routes below this line
 router.use(authorizeRoles([Role.ADMIN, Role.DEVELOPER]));
 
@@ -166,7 +220,7 @@ router.post('/levels', async (req, res) => {
 router.post('/levels/:levelId/topics', async (req, res) => {
   try {
     const { levelId } = req.params;
-    const { name, description, content, order } = req.body;
+    const { name, description, content, order, slug } = req.body;
 
     const topic = await prisma.topic.create({
       data: {
@@ -174,6 +228,7 @@ router.post('/levels/:levelId/topics', async (req, res) => {
         description,
         content,
         order,
+        slug,
         level: {
           connect: { id: levelId },
         },
@@ -191,7 +246,7 @@ router.post('/levels/:levelId/topics', async (req, res) => {
 router.put('/topics/:id', async (req, res) => {
   try {
     const { id } = req.params;
-    const { name, description, content, order } = req.body;
+    const { name, description, content, order, slug } = req.body;
     
     const topic = await prisma.topic.update({
       where: { id },
@@ -200,6 +255,7 @@ router.put('/topics/:id', async (req, res) => {
         description,
         content,
         order,
+        slug,
       },
     });
 

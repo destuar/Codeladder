@@ -16,7 +16,8 @@ router.get('/public', authenticateToken, (async (req, res) => {
     const collections = await prismaAny.collection.findMany({
       select: {
         id: true,
-        name: true
+        name: true,
+        slug: true
       },
       orderBy: { name: 'asc' }
     });
@@ -25,6 +26,60 @@ router.get('/public', authenticateToken, (async (req, res) => {
   } catch (error) {
     console.error('Error fetching public collections:', error);
     res.status(500).json({ error: 'Failed to fetch collections' });
+  }
+}) as RequestHandler);
+
+// Public endpoint to get a collection by slug (no admin rights required)
+router.get('/public/slug/:slug', authenticateToken, (async (req, res) => {
+  const { slug } = req.params;
+  const userId = req.user?.id;
+  
+  try {
+    const prismaAny = prisma as any;
+    const collection = await prismaAny.collection.findUnique({
+      where: { slug },
+      include: {
+        problems: {
+          include: {
+            problem: {
+              include: {
+                completedBy: {
+                  where: { id: userId },
+                  select: { id: true }
+                },
+                progress: {
+                  where: { userId },
+                  select: { status: true }
+                }
+              }
+            }
+          }
+        }
+      }
+    });
+    
+    if (!collection) {
+      return res.status(404).json({ error: 'Collection not found' });
+    }
+    
+    // Transform the response to include problem details and completion status
+    const problems = collection.problems.map((pc: any) => {
+      const problem = pc.problem;
+      return {
+        ...problem,
+        completed: problem.completedBy.length > 0 || problem.progress.some((p: any) => p.status === 'COMPLETED'),
+        completedBy: undefined,
+        progress: undefined
+      };
+    });
+    
+    res.json({
+      ...collection,
+      problems
+    });
+  } catch (error) {
+    console.error('Error fetching collection by slug:', error);
+    res.status(500).json({ error: 'Failed to fetch collection' });
   }
 }) as RequestHandler);
 
@@ -79,9 +134,43 @@ router.get('/:id', authenticateToken, authorizeRoles([Role.ADMIN, Role.DEVELOPER
   }
 }) as RequestHandler);
 
+// Get a single collection by slug
+router.get('/slug/:slug', authenticateToken, authorizeRoles([Role.ADMIN, Role.DEVELOPER]), (async (req, res) => {
+  const { slug } = req.params;
+  
+  try {
+    const prismaAny = prisma as any;
+    const collection = await prismaAny.collection.findUnique({
+      where: { slug },
+      include: {
+        problems: {
+          include: {
+            problem: true
+          }
+        }
+      }
+    });
+    
+    if (!collection) {
+      return res.status(404).json({ error: 'Collection not found' });
+    }
+    
+    // Transform the response to include problem details
+    const problems = collection.problems.map((pc: any) => pc.problem);
+    
+    res.json({
+      ...collection,
+      problems
+    });
+  } catch (error) {
+    console.error('Error fetching collection by slug:', error);
+    res.status(500).json({ error: 'Failed to fetch collection' });
+  }
+}) as RequestHandler);
+
 // Create a new collection
 router.post('/', authenticateToken, authorizeRoles([Role.ADMIN, Role.DEVELOPER]), (async (req, res) => {
-  const { name, description } = req.body;
+  const { name, description, slug } = req.body;
   
   if (!name) {
     return res.status(400).json({ error: 'Collection name is required' });
@@ -98,10 +187,22 @@ router.post('/', authenticateToken, authorizeRoles([Role.ADMIN, Role.DEVELOPER])
       return res.status(400).json({ error: 'A collection with this name already exists' });
     }
     
+    // If a slug is provided, check if it's unique
+    if (slug) {
+      const slugExists = await prismaAny.collection.findFirst({
+        where: { slug }
+      });
+      
+      if (slugExists) {
+        return res.status(400).json({ error: 'A collection with this slug already exists' });
+      }
+    }
+    
     const collection = await prismaAny.collection.create({
       data: {
         name,
-        description
+        description,
+        ...(slug && { slug })
       }
     });
     
@@ -115,7 +216,7 @@ router.post('/', authenticateToken, authorizeRoles([Role.ADMIN, Role.DEVELOPER])
 // Update a collection
 router.put('/:id', authenticateToken, authorizeRoles([Role.ADMIN, Role.DEVELOPER]), (async (req, res) => {
   const { id } = req.params;
-  const { name, description } = req.body;
+  const { name, description, slug } = req.body;
   
   if (!name) {
     return res.status(400).json({ error: 'Collection name is required' });
@@ -135,11 +236,26 @@ router.put('/:id', authenticateToken, authorizeRoles([Role.ADMIN, Role.DEVELOPER
       return res.status(400).json({ error: 'Another collection with this name already exists' });
     }
     
+    // If a slug is provided, check if it's unique
+    if (slug) {
+      const slugExists = await prismaAny.collection.findFirst({
+        where: {
+          slug,
+          id: { not: id }
+        }
+      });
+      
+      if (slugExists) {
+        return res.status(400).json({ error: 'Another collection with this slug already exists' });
+      }
+    }
+    
     const collection = await prismaAny.collection.update({
       where: { id },
       data: {
         name,
-        description
+        description,
+        ...(slug && { slug })
       }
     });
     

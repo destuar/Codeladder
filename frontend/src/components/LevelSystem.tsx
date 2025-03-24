@@ -82,8 +82,12 @@ export function LevelSystem() {
     return false;
   };
 
-  const handleTopicClick = (topicId: string) => {
-    navigate(`/topics/${topicId}`);
+  const handleTopicClick = (topic: Topic) => {
+    if (topic.slug) {
+      navigate(`/topic/${topic.slug}`);
+    } else {
+      navigate(`/topics/${topic.id}`);
+    }
   };
 
   if (loading) {
@@ -189,7 +193,7 @@ export function LevelSystem() {
                               "hover:border-primary/50"
                             )
                           )}
-                          onClick={() => handleTopicClick(topic.id)}
+                          onClick={() => handleTopicClick(topic)}
                         >
                           <h3 
                             className={cn(

@@ -1,4 +1,4 @@
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { AuthProvider } from './features/auth/AuthContext';
 import { AdminProvider } from './features/admin/AdminContext';
 import { ProfileProvider } from './features/profile/ProfileContext';
@@ -23,6 +23,7 @@ import { LandingPage } from './features/landingpage';
 // Import quiz feature components
 import { QuizPage } from './features/quiz/QuizPage';
 import { QuizResultsPage } from './features/quiz/QuizResultsPage';
+import CollectionPage from './features/collections/CollectionPage';
 
 // Regular components
 const UnauthorizedPage = () => (
@@ -44,6 +45,155 @@ function AdminViewWrapper({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
+// Main layout component with conditional navigation
+function MainLayout() {
+  const location = useLocation();
+  const isProblemPage = location.pathname.match(/^\/problems\/[^/]+$/) || location.pathname.match(/^\/problem\/[^/]+$/);
+  const isTopicPage = location.pathname.match(/^\/topics\/[^/]+$/) || location.pathname.match(/^\/topic\/[^/]+$/);
+  const isInfoPage = location.pathname.match(/^\/info\/[^/]+$/);
+  const isCollectionPage = location.pathname.match(/^\/collection\/[^/]+$/);
+  const shouldHideNavigation = isProblemPage || isInfoPage || isCollectionPage;
+  
+  return (
+    <div className="min-h-screen bg-background text-foreground">
+      {!shouldHideNavigation && <Navigation />}
+      <main>
+        <Routes>
+          {/* Public routes */}
+          <Route path="/landing" element={<AdminViewWrapper><LandingPage /></AdminViewWrapper>} />
+          <Route path="/login" element={<LoginPage />} />
+          <Route path="/register" element={<RegisterPage />} />
+          <Route path="/unauthorized" element={<UnauthorizedPage />} />
+          <Route path="/auth/callback/:provider" element={<OAuthCallback />} />
+
+          {/* Protected routes */}
+          <Route
+            path="/dashboard"
+            element={
+              <ProtectedRoute>
+                <AdminViewWrapper>
+                  <DashboardPage />
+                </AdminViewWrapper>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/profile"
+            element={
+              <ProtectedRoute>
+                <AdminViewWrapper>
+                  <ProfilePage />
+                </AdminViewWrapper>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/problems"
+            element={
+              <ProtectedRoute>
+                <AdminViewWrapper>
+                  <ProblemsPage />
+                </AdminViewWrapper>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/problems/:problemId"
+            element={
+              <ProtectedRoute>
+                <AdminViewWrapper>
+                  <ProblemPage />
+                </AdminViewWrapper>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/problem/:slug"
+            element={
+              <ProtectedRoute>
+                <AdminViewWrapper>
+                  <ProblemPage />
+                </AdminViewWrapper>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/topics/:topicId"
+            element={
+              <ProtectedRoute>
+                <AdminViewWrapper>
+                  <TopicPage />
+                </AdminViewWrapper>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/topic/:slug"
+            element={
+              <ProtectedRoute>
+                <AdminViewWrapper>
+                  <TopicPage />
+                </AdminViewWrapper>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/info/:page"
+            element={
+              <ProtectedRoute>
+                <AdminViewWrapper>
+                  <InfoPage />
+                </AdminViewWrapper>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/levels"
+            element={
+              <ProtectedRoute>
+                <AdminViewWrapper>
+                  <LevelSystem />
+                </AdminViewWrapper>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/spaced-repetition"
+            element={
+              <ProtectedRoute>
+                <AdminViewWrapper>
+                  <div className="container py-8">
+                    <h1 className="text-3xl font-bold mb-8">Spaced Repetition</h1>
+                    <div className="prose dark:prose-invert max-w-full">
+                      <p>Implementation coming soon...</p>
+                    </div>
+                  </div>
+                </AdminViewWrapper>
+              </ProtectedRoute>
+            }
+          />
+
+          {/* Collection routes */}
+          <Route
+            path="/collection/:slug"
+            element={
+              <ProtectedRoute>
+                <AdminViewWrapper>
+                  <CollectionPage />
+                </AdminViewWrapper>
+              </ProtectedRoute>
+            }
+          />
+
+          {/* Default redirect */}
+          <Route path="/" element={<Navigate to="/landing" replace />} />
+          <Route path="*" element={<Navigate to="/landing" replace />} />
+        </Routes>
+      </main>
+    </div>
+  );
+}
+
 export default function App() {
   return (
     <QueryClientProvider client={queryClient}>
@@ -51,121 +201,7 @@ export default function App() {
         <AuthProvider>
           <AdminProvider>
             <ProfileProvider>
-              <div className="min-h-screen bg-background text-foreground">
-                <Navigation />
-                <main>
-                  <Routes>
-                    {/* Public routes */}
-                    <Route path="/landing" element={<AdminViewWrapper><LandingPage /></AdminViewWrapper>} />
-                    <Route path="/login" element={<LoginPage />} />
-                    <Route path="/register" element={<RegisterPage />} />
-                    <Route path="/unauthorized" element={<UnauthorizedPage />} />
-                    <Route path="/auth/callback/:provider" element={<OAuthCallback />} />
-
-                    {/* Protected routes */}
-                    <Route
-                      path="/dashboard"
-                      element={
-                        <ProtectedRoute>
-                          <AdminViewWrapper>
-                            <DashboardPage />
-                          </AdminViewWrapper>
-                        </ProtectedRoute>
-                      }
-                    />
-
-                    <Route
-                      path="/profile"
-                      element={
-                        <ProtectedRoute>
-                          <AdminViewWrapper>
-                            <ProfilePage />
-                          </AdminViewWrapper>
-                        </ProtectedRoute>
-                      }
-                    />
-
-                    <Route
-                      path="/topics/:topicId"
-                      element={
-                        <ProtectedRoute>
-                          <AdminViewWrapper>
-                            <TopicPage />
-                          </AdminViewWrapper>
-                        </ProtectedRoute>
-                      }
-                    />
-
-                    <Route
-                      path="/problems"
-                      element={
-                        <ProtectedRoute>
-                          <AdminViewWrapper>
-                            <ProblemsPage />
-                          </AdminViewWrapper>
-                        </ProtectedRoute>
-                      }
-                    />
-
-                    <Route
-                      path="/problems/:problemId"
-                      element={
-                        <ProtectedRoute>
-                          <AdminViewWrapper>
-                            <ProblemPage />
-                          </AdminViewWrapper>
-                        </ProtectedRoute>
-                      }
-                    />
-
-                    <Route
-                      path="/info/:id"
-                      element={
-                        <ProtectedRoute>
-                          <AdminViewWrapper>
-                            <InfoPage />
-                          </AdminViewWrapper>
-                        </ProtectedRoute>
-                      }
-                    />
-
-                    {/* Quiz routes */}
-                    <Route
-                      path="/quizzes/:quizId"
-                      element={
-                        <ProtectedRoute>
-                          <AdminViewWrapper>
-                            <QuizPage />
-                          </AdminViewWrapper>
-                        </ProtectedRoute>
-                      }
-                    />
-
-                    <Route
-                      path="/quizzes/attempts/:attemptId/results"
-                      element={
-                        <ProtectedRoute>
-                          <AdminViewWrapper>
-                            <QuizResultsPage />
-                          </AdminViewWrapper>
-                        </ProtectedRoute>
-                      }
-                    />
-
-                    {/* Redirect root to landing page */}
-                    <Route
-                      path="/"
-                      element={<Navigate to="/landing" replace />}
-                    />
-
-                    {/* Catch all other routes */}
-                    <Route
-                      path="*"
-                      element={<Navigate to="/landing" replace />}
-                    />
-                  </Routes>
-                </main>
-              </div>
+              <MainLayout />
             </ProfileProvider>
           </AdminProvider>
         </AuthProvider>

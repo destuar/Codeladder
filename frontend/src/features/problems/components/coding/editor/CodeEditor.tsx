@@ -9,6 +9,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Button } from "@/components/ui/button";
+import { Play, Send } from "lucide-react";
 
 interface CodeEditorProps {
   initialCode?: string;
@@ -16,6 +18,9 @@ interface CodeEditorProps {
   className?: string;
   language?: SupportedLanguage;
   onLanguageChange?: (language: string) => void;
+  onRunTests?: () => void;
+  onSubmitSolution?: () => void;
+  isRunning?: boolean;
 }
 
 export interface CodeEditorRef {
@@ -56,7 +61,10 @@ export const CodeEditor = forwardRef<CodeEditorRef, CodeEditorProps>(({
   onChange,
   className,
   language = 'javascript',
-  onLanguageChange
+  onLanguageChange,
+  onRunTests,
+  onSubmitSolution,
+  isRunning = false
 }, ref) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const {
@@ -126,6 +134,50 @@ export const CodeEditor = forwardRef<CodeEditorRef, CodeEditorProps>(({
           className="absolute inset-0"
           key={language}
         />
+        
+        {/* Run and Submit buttons */}
+        {onRunTests && onSubmitSolution && (
+          <div className="absolute bottom-4 right-4 flex gap-2 z-10">
+            <Button 
+              onClick={onRunTests} 
+              disabled={isRunning}
+              className="gap-2 w-24"
+              size="sm"
+              variant="outline"
+            >
+              {isRunning ? (
+                <>
+                  <div className="h-4 w-4 animate-spin rounded-full border-2 border-background border-t-foreground" />
+                  Running...
+                </>
+              ) : (
+                <>
+                  <Play className="h-4 w-4" />
+                  Run
+                </>
+              )}
+            </Button>
+
+            <Button 
+              onClick={onSubmitSolution} 
+              disabled={isRunning}
+              className="gap-2 w-24"
+              size="sm"
+            >
+              {isRunning ? (
+                <>
+                  <div className="h-4 w-4 animate-spin rounded-full border-2 border-background border-t-foreground" />
+                  Submitting...
+                </>
+              ) : (
+                <>
+                  <Send className="h-4 w-4" />
+                  Submit
+                </>
+              )}
+            </Button>
+          </div>
+        )}
       </div>
     </div>
   );
