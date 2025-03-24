@@ -75,6 +75,8 @@ interface RequestOptions extends RequestInit {
 
 interface ApiError extends Error {
   status?: number;
+  details?: string;
+  url?: string;
 }
 
 const getBaseUrl = () => {
@@ -147,10 +149,13 @@ async function request(endpoint: string, options: RequestOptions = {}) {
         debug.error('API Error:', {
           url,
           status: response.status,
-          message: errorMessage
+          message: errorMessage,
+          details: data.details || null,
         });
         const error = new Error(errorMessage) as ApiError;
         error.status = response.status;
+        error.details = data.details;
+        error.url = url;
         throw error;
       }
       debug.error('HTTP Error:', {
@@ -158,7 +163,10 @@ async function request(endpoint: string, options: RequestOptions = {}) {
         status: response.status,
         statusText: response.statusText
       });
-      throw new Error(`HTTP error! status: ${response.status}`);
+      const error = new Error(`HTTP error! status: ${response.status}`) as ApiError;
+      error.status = response.status;
+      error.url = url;
+      throw error;
     }
 
     return data;
@@ -205,6 +213,89 @@ export const api = {
     const url = `${baseUrl}/${endpoint}`.replace(/\/+/g, '/');
     
     // ... rest of request implementation ...
+  },
+
+  // Learning path management
+  async createLevel(data: any, token: string) {
+    return this.post('/learning/levels', data, token);
+  },
+
+  async deleteProblem(id: string, token: string) {
+    return this.delete(`/learning/problems/${id}`, token);
+  },
+
+  // Quiz management
+  async getQuizzesByTopic(topicId: string, token: string) {
+    return this.get(`/quizzes/topic/${topicId}`, token);
+  },
+
+  async getQuiz(id: string, token: string) {
+    return this.get(`/quizzes/${id}`, token);
+  },
+
+  async createQuiz(data: {
+    name: string;
+    description?: string;
+    topicId: string;
+    passingScore?: number;
+    estimatedTime?: number | undefined;
+    orderNum?: number | undefined;
+    problems?: any[];
+  }, token: string) {
+    return this.post('/quizzes', data, token);
+  },
+
+  async validateQuiz(data: {
+    name: string;
+    description?: string;
+    topicId: string;
+    passingScore?: number;
+    estimatedTime?: number | undefined;
+    orderNum?: number | undefined;
+    problems?: any[];
+  }, token: string) {
+    return this.post('/quizzes/validate', data, token);
+  },
+
+  async updateQuiz(id: string, data: {
+    name: string;
+    description?: string;
+    topicId: string;
+    passingScore?: number;
+    estimatedTime?: number | undefined;
+    orderNum?: number | undefined;
+    problems?: any[];
+  }, token: string) {
+    return this.put(`/quizzes/${id}`, data, token);
+  },
+
+  async deleteQuiz(id: string, token: string) {
+    return this.delete(`/quizzes/${id}`, token);
+  },
+
+  // Quiz Question Management
+  async getQuizQuestions(quizId: string, token: string) {
+    return this.get(`/quizzes/${quizId}/questions`, token);
+  },
+
+  async getQuizQuestion(questionId: string, token: string) {
+    return this.get(`/quizzes/questions/${questionId}`, token);
+  },
+
+  async createQuizQuestion(quizId: string, data: any, token: string) {
+    return this.post(`/quizzes/${quizId}/questions`, data, token);
+  },
+
+  async updateQuizQuestion(questionId: string, data: any, token: string) {
+    return this.put(`/quizzes/questions/${questionId}`, data, token);
+  },
+
+  async deleteQuizQuestion(questionId: string, token: string) {
+    return this.delete(`/quizzes/questions/${questionId}`, token);
+  },
+
+  async getQuizForAttempt(quizId: string, token: string) {
+    return this.get(`/quizzes/${quizId}/attempt`, token);
   }
 };
 
