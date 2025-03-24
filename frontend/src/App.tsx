@@ -52,7 +52,10 @@ function MainLayout() {
   const isTopicPage = location.pathname.match(/^\/topics\/[^/]+$/) || location.pathname.match(/^\/topic\/[^/]+$/);
   const isInfoPage = location.pathname.match(/^\/info\/[^/]+$/);
   const isCollectionPage = location.pathname.match(/^\/collection\/[^/]+$/);
-  const shouldHideNavigation = isProblemPage || isInfoPage || isCollectionPage;
+  const isQuizPage = location.pathname.match(/^\/quizzes\/[^/]+$/);
+  const isQuizResultsPage = location.pathname.match(/^\/quizzes\/attempts\/[^/]+\/results$/);
+  
+  const shouldHideNavigation = isProblemPage || isInfoPage || isCollectionPage || isQuizPage || isQuizResultsPage;
   
   return (
     <div className="min-h-screen bg-background text-foreground">
@@ -168,6 +171,28 @@ function MainLayout() {
                       <p>Implementation coming soon...</p>
                     </div>
                   </div>
+                </AdminViewWrapper>
+              </ProtectedRoute>
+            }
+          />
+
+          {/* Quiz routes */}
+          <Route
+            path="/quizzes/:quizId"
+            element={
+              <ProtectedRoute>
+                <AdminViewWrapper>
+                  <QuizPage />
+                </AdminViewWrapper>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/quizzes/attempts/:attemptId/results"
+            element={
+              <ProtectedRoute>
+                <AdminViewWrapper>
+                  <QuizResultsPage />
                 </AdminViewWrapper>
               </ProtectedRoute>
             }
