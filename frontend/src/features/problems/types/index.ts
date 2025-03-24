@@ -58,7 +58,7 @@ export interface ProblemListProps {
   itemsPerPage?: number;
   showTopicName?: boolean;
   showOrder?: boolean;
-  collections?: { id: string; name: string }[];
+  collections?: { id: string; name: string; slug?: string }[];
   selectedCollection?: string;
   onCollectionChange?: (collectionId: string) => void;
   enableSpacedRepetition?: boolean;

@@ -130,11 +130,30 @@ export function ProblemList({
 
   // Attempt to extract topic ID from URL as a fallback
   if (!topicId) {
-    // URL pattern: /topics/:topicId
+    // URL pattern: /topics/:topicId or /topic/:slug
     const urlParts = location.pathname.split('/');
     if (urlParts[1] === 'topics' && urlParts[2]) {
       topicId = urlParts[2];
-      console.log("Extracted topicId from URL:", topicId);
+      console.log("Extracted topicId from URL path:", topicId);
+    } else if (urlParts[1] === 'topic' && urlParts[2]) {
+      // For slug-based URLs, we need to find the topic ID from the problems
+      // As a fallback, we'll use the slug as the ID for the API call
+      const slugFromUrl = urlParts[2];
+      console.log("Extracted slug from URL path:", slugFromUrl);
+      
+      // Try to find a problem with a matching topic slug
+      const problemWithMatchingTopic = problems.find(p => 
+        p.topic && 'slug' in p.topic && p.topic.slug === slugFromUrl
+      );
+      
+      if (problemWithMatchingTopic && problemWithMatchingTopic.topic) {
+        topicId = problemWithMatchingTopic.topic.id;
+        console.log("Found topicId from problem with matching topic slug:", topicId);
+      } else {
+        // Use the slug as a fallback, the API should handle this correctly
+        topicId = slugFromUrl;
+        console.log("Using slug as topicId fallback:", topicId);
+      }
     }
   }
   
@@ -152,21 +171,58 @@ export function ProblemList({
   
   // Handle quiz button click - we'll get the next available quiz when the user clicks
   const handleStartQuiz = async () => {
-    if (!topicId || !token || isLoadingQuizzes) return;
+    if (!topicId || !token) return;
     
+    console.log('%c Quiz Button Clicked', 'background: #4caf50; color: white; padding: 3px; font-weight: bold;', {
+      topicId, 
+      hasToken: !!token,
+      isLoadingQuizzes,
+      location: location.pathname
+    });
+    
+    if (isLoadingQuizzes) return;
     setIsLoadingQuizzes(true);
     setQuizMessage(null);
     
+    // Check if topicId is possibly a slug (not a CUID format)
+    const isTopicIdPossiblySlug = topicId && (!topicId.startsWith('c') || topicId.length !== 25);
+    let actualTopicId = topicId;
+    
     try {
+      // If topicId might be a slug, try to get the actual ID first
+      if (isTopicIdPossiblySlug) {
+        console.log('%c Topic ID looks like a slug, fetching actual ID', 'background: #9c27b0; color: white; padding: 3px;', { topicId });
+        try {
+          const topicData = await api.get(`/learning/topics/slug/${topicId}`, token);
+          if (topicData && topicData.id) {
+            actualTopicId = topicData.id;
+            console.log('%c Resolved topic slug to ID', 'background: #9c27b0; color: white; padding: 3px;', { 
+              slug: topicId, 
+              actualId: actualTopicId 
+            });
+          }
+        } catch (error) {
+          console.error('Failed to resolve topic slug to ID:', error);
+          // Continue with the original topicId as fallback
+        }
+      }
+      
+      console.log('%c Requesting next available quiz', 'background: #2196f3; color: white; padding: 3px;', { 
+        originalTopicId: topicId,
+        resolvedTopicId: actualTopicId
+      });
+      
       // Get the next available quiz for this topic and user
-      const nextQuiz = await api.getNextAvailableQuiz(topicId, token);
+      const nextQuiz = await api.getNextAvailableQuiz(actualTopicId, token);
+      console.log('%c Next quiz response:', 'background: #2196f3; color: white; padding: 3px;', nextQuiz);
       
       if (nextQuiz && nextQuiz.id) {
         // Navigate to the quiz
+        console.log('%c Navigating to quiz', 'background: #ff9800; color: white; padding: 3px;', { quizId: nextQuiz.id });
         navigate(`/quizzes/${nextQuiz.id}`);
       } else {
         // No more quizzes available - fetch all quizzes and show the dialog
-        const allQuizzes = await api.getAllQuizzesForTopic(topicId, token);
+        const allQuizzes = await api.getAllQuizzesForTopic(actualTopicId, token);
         setAvailableQuizzes(allQuizzes || []);
         setShowQuizSelectDialog(true);
         
@@ -261,7 +317,7 @@ export function ProblemList({
           {/* Button to view collection page if available */}
           {selectedCollection !== 'all' && selectedCollection && (
             <Link 
-              to={`/collection/${collections.find(c => c.id === selectedCollection)?.slug || ''}`}
+              to={`/collection/${collections.find(c => c.id === selectedCollection)?.slug || selectedCollection}`}
               className={cn(
                 "inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors",
                 "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
