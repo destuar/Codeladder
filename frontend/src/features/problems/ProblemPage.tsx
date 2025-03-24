@@ -14,7 +14,7 @@ import { isToday } from 'date-fns';
 import { logProblemReviewState, logWorkflowStep } from './utils/debug';
 
 const ProblemPage: React.FC = () => {
-  const { problemId } = useParams<{ problemId: string }>();
+  const { problemId, slug } = useParams<{ problemId?: string, slug?: string }>();
   const { token } = useAuth();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -32,11 +32,38 @@ const ProblemPage: React.FC = () => {
   const isEarlyReview = searchParams.get('early') === 'true';
   const scheduledDate = searchParams.get('dueDate') || undefined;
   
+  // Extract source context from query parameters
+  const sourceContext = (() => {
+    const from = searchParams.get('from');
+    const name = searchParams.get('name');
+    const id = searchParams.get('id');
+    
+    if (from && name && id) {
+      return { from, name, id };
+    }
+    return undefined;
+  })();
+  
   // Get the spaced repetition hook for review functionality
   const { submitReview } = useSpacedRepetition();
   
   // Track if review was submitted
   const [reviewSubmitted, setReviewSubmitted] = useState(false);
+  
+  // Fetch problem either by ID or by slug
+  const { data: problem, isLoading, error } = useQuery({
+    queryKey: ['problem', problemId, slug],
+    queryFn: async () => {
+      if (problemId) {
+        return await api.get(`problems/${problemId}`, token);
+      } else if (slug) {
+        return await api.get(`problems/slug/${slug}`, token);
+      }
+      throw new Error('No problem ID or slug provided');
+    },
+    enabled: !!token && (!!problemId || !!slug),
+    staleTime: 5 * 60 * 1000 // 5 minutes
+  });
   
   // Wrapper for submitReview that also sets local tracking state
   const handleSubmitReview = async (result: any) => {
@@ -105,12 +132,6 @@ const ProblemPage: React.FC = () => {
     });
   }, [location, isReviewMode, searchParams, problemId]);
   
-  const { data: problem, isLoading, error } = useQuery<Problem>({
-    queryKey: ['problem', problemId],
-    queryFn: () => api.get(`/problems/${problemId}`, token),
-    enabled: !!problemId && !!token,
-  });
-
   // Log the problem data whenever it changes
   useEffect(() => {
     if (problem) {
@@ -163,53 +184,35 @@ const ProblemPage: React.FC = () => {
     );
   }
 
-  return (
-    <div className="min-h-[calc(100vh-4rem)] flex flex-col">
-      {(problem.problemType === 'INFO' || problem.problemType === 'STANDALONE_INFO') ? (
-        <>
-          <div className="flex-1">
-            <InfoProblem 
-              content={problem.content || ''}
-              isCompleted={effectiveIsCompleted}
-              nextProblemId={problem.nextProblemId}
-              prevProblemId={problem.prevProblemId}
-              estimatedTime={estimatedTimeNum}
-              isStandalone={problem.problemType === 'STANDALONE_INFO'}
-              problemId={problem.id}
-              isReviewMode={isReviewMode}
-              onCompleted={handleProblemCompleted}
-              title={problem.name}
-            />
-          </div>
-          {shouldShowReviewControls && (
-            <ReviewControls
-              problemId={problem.id}
-              onSubmitReview={handleSubmitReview}
-              isEarlyReview={isEarlyReview}
-              scheduledDate={scheduledDate}
-              referrer={referrer}
-              currentLevel={problem.reviewLevel || 0}
-            />
-          )}
-        </>
-      ) : (
+  // Render the appropriate problem component based on the type
+  switch (problem?.problemType) {
+    case 'INFO':
+    case 'STANDALONE_INFO':
+      return (
         <ErrorBoundary>
           <>
             <div className="flex-1">
-              <CodingProblem 
+              <InfoProblem 
                 title={problem.name}
                 content={problem.content || ''}
-                codeTemplate={problem.codeTemplate}
-                testCases={problem.testCases}
-                difficulty={problem.difficulty}
                 nextProblemId={problem.nextProblemId}
+                nextProblemSlug={problem.nextProblemSlug}
                 prevProblemId={problem.prevProblemId}
-                onNavigate={(id: string) => navigate(`/problems/${id}`)}
+                prevProblemSlug={problem.prevProblemSlug}
+                onNavigate={(id: string, slug?: string) => {
+                  if (slug) {
+                    navigate(`/problem/${slug}${sourceContext ? `?${new URLSearchParams(sourceContext as any).toString()}` : ''}`);
+                  } else {
+                    navigate(`/problems/${id}${sourceContext ? `?${new URLSearchParams(sourceContext as any).toString()}` : ''}`);
+                  }
+                }}
                 estimatedTime={estimatedTimeNum}
                 isCompleted={effectiveIsCompleted}
                 problemId={problem.id}
+                isStandalone={problem.problemType === 'STANDALONE_INFO'}
                 isReviewMode={isReviewMode}
                 onCompleted={handleProblemCompleted}
+                sourceContext={sourceContext}
               />
             </div>
             {shouldShowReviewControls && (
@@ -224,9 +227,59 @@ const ProblemPage: React.FC = () => {
             )}
           </>
         </ErrorBoundary>
-      )}
-    </div>
-  );
+      );
+
+    case 'CODING':
+      return (
+        <ErrorBoundary>
+          <>
+            <div className="flex-1">
+              <CodingProblem 
+                title={problem.name}
+                content={problem.content || ''}
+                codeTemplate={problem.codeTemplate}
+                testCases={problem.testCases}
+                difficulty={problem.difficulty}
+                nextProblemId={problem.nextProblemId}
+                nextProblemSlug={problem.nextProblemSlug}
+                prevProblemId={problem.prevProblemId}
+                prevProblemSlug={problem.prevProblemSlug}
+                onNavigate={(id: string, slug?: string) => {
+                  if (slug) {
+                    navigate(`/problem/${slug}${sourceContext ? `?${new URLSearchParams(sourceContext as any).toString()}` : ''}`);
+                  } else {
+                    navigate(`/problems/${id}${sourceContext ? `?${new URLSearchParams(sourceContext as any).toString()}` : ''}`);
+                  }
+                }}
+                estimatedTime={estimatedTimeNum}
+                isCompleted={effectiveIsCompleted}
+                problemId={problem.id}
+                isReviewMode={isReviewMode}
+                onCompleted={handleProblemCompleted}
+                sourceContext={sourceContext}
+              />
+            </div>
+            {shouldShowReviewControls && (
+              <ReviewControls
+                problemId={problem.id}
+                onSubmitReview={handleSubmitReview}
+                isEarlyReview={isEarlyReview}
+                scheduledDate={scheduledDate}
+                referrer={referrer}
+                currentLevel={problem.reviewLevel || 0}
+              />
+            )}
+          </>
+        </ErrorBoundary>
+      );
+
+    default:
+      return (
+        <div className="p-8 text-center text-destructive">
+          Unknown problem type
+        </div>
+      );
+  }
 };
 
 export default ProblemPage; 

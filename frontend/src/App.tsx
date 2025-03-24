@@ -20,6 +20,7 @@ import { InfoPage } from '@/features/info/InfoPage';
 import { QueryClientProvider } from '@tanstack/react-query';
 import queryClient from '@/lib/queryClient';
 import { LandingPage } from './features/landingpage';
+import CollectionPage from './features/collections/CollectionPage';
 
 // Regular components
 const UnauthorizedPage = () => (
@@ -44,9 +45,11 @@ function AdminViewWrapper({ children }: { children: React.ReactNode }) {
 // Main layout component with conditional navigation
 function MainLayout() {
   const location = useLocation();
-  const isProblemPage = location.pathname.match(/^\/problems\/[^/]+$/);
+  const isProblemPage = location.pathname.match(/^\/problems\/[^/]+$/) || location.pathname.match(/^\/problem\/[^/]+$/);
+  const isTopicPage = location.pathname.match(/^\/topics\/[^/]+$/) || location.pathname.match(/^\/topic\/[^/]+$/);
   const isInfoPage = location.pathname.match(/^\/info\/[^/]+$/);
-  const shouldHideNavigation = isProblemPage || isInfoPage;
+  const isCollectionPage = location.pathname.match(/^\/collection\/[^/]+$/);
+  const shouldHideNavigation = isProblemPage || isInfoPage || isCollectionPage;
   
   return (
     <div className="min-h-screen bg-background text-foreground">
@@ -102,7 +105,27 @@ function MainLayout() {
             }
           />
           <Route
+            path="/problem/:slug"
+            element={
+              <ProtectedRoute>
+                <AdminViewWrapper>
+                  <ProblemPage />
+                </AdminViewWrapper>
+              </ProtectedRoute>
+            }
+          />
+          <Route
             path="/topics/:topicId"
+            element={
+              <ProtectedRoute>
+                <AdminViewWrapper>
+                  <TopicPage />
+                </AdminViewWrapper>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/topic/:slug"
             element={
               <ProtectedRoute>
                 <AdminViewWrapper>
@@ -142,6 +165,18 @@ function MainLayout() {
                       <p>Implementation coming soon...</p>
                     </div>
                   </div>
+                </AdminViewWrapper>
+              </ProtectedRoute>
+            }
+          />
+
+          {/* Collection routes */}
+          <Route
+            path="/collection/:slug"
+            element={
+              <ProtectedRoute>
+                <AdminViewWrapper>
+                  <CollectionPage />
                 </AdminViewWrapper>
               </ProtectedRoute>
             }

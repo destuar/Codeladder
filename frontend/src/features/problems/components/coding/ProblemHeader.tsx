@@ -13,9 +13,16 @@ interface ProblemHeaderProps {
   isCompleted: boolean;
   onMarkComplete: () => void;
   nextProblemId?: string;
+  nextProblemSlug?: string;
   prevProblemId?: string;
-  onNavigate: (id: string) => void;
+  prevProblemSlug?: string;
+  onNavigate: (id: string, slug?: string) => void;
   title?: string;
+  sourceContext?: {
+    from: string;
+    name: string;
+    id: string;
+  };
 }
 
 /**
@@ -25,12 +32,18 @@ export function ProblemHeader({
   isCompleted,
   onMarkComplete,
   nextProblemId,
+  nextProblemSlug,
   prevProblemId,
+  prevProblemSlug,
   onNavigate,
   title = "Problem",
+  sourceContext,
 }: ProblemHeaderProps) {
   const { profile } = useProfile();
   const { user } = useAuth();
+
+  // Display the source context name with the problem title
+  const displayTitle = sourceContext ? sourceContext.name : title;
 
   return (
     <div className="flex justify-between items-center px-4 py-2 border-b h-16 bg-background">
@@ -50,7 +63,7 @@ export function ProblemHeader({
               <Button
                 variant="ghost"
                 size="icon"
-                onClick={() => prevProblemId && onNavigate(prevProblemId)}
+                onClick={() => prevProblemId && onNavigate(prevProblemId, prevProblemSlug)}
                 disabled={!prevProblemId}
                 className="h-8 w-8"
               >
@@ -64,7 +77,19 @@ export function ProblemHeader({
         </TooltipProvider>
 
         <div className="mx-2 max-w-[300px] truncate text-center font-medium">
-          {title}
+          {sourceContext ? (
+            <div className="flex flex-col items-center">
+              <span>{displayTitle}</span>
+              {sourceContext.from === 'topic' && (
+                <span className="text-xs text-muted-foreground">Topic</span>
+              )}
+              {sourceContext.from === 'collection' && (
+                <span className="text-xs text-muted-foreground">Collection</span>
+              )}
+            </div>
+          ) : (
+            title
+          )}
         </div>
 
         <TooltipProvider>
@@ -73,7 +98,7 @@ export function ProblemHeader({
               <Button
                 variant="ghost"
                 size="icon"
-                onClick={() => nextProblemId && onNavigate(nextProblemId)}
+                onClick={() => nextProblemId && onNavigate(nextProblemId, nextProblemSlug)}
                 disabled={!nextProblemId}
                 className="h-8 w-8"
               >

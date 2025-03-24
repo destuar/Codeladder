@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Link } from 'react-router-dom';
 import {
   Table,
   TableBody,
@@ -15,7 +16,7 @@ import { Problem, Topic } from '@/hooks/useLearningPath';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useSpacedRepetition } from '@/features/spaced-repetition/hooks/useSpacedRepetition';
 import { SpacedRepetitionPanel } from '@/features/spaced-repetition/components/SpacedRepetitionPanel';
-import { Difficulty, SortField, SortDirection, ProblemListProps, DIFFICULTY_ORDER } from '@/features/problems/types';
+import { Difficulty, SortField, SortDirection, DIFFICULTY_ORDER } from '@/features/problems/types';
 
 const formatEstimatedTime = (time?: number) => {
   if (!time) return null;
@@ -55,6 +56,26 @@ const parseEstimatedTime = (time?: string | number): number | undefined => {
   if (typeof time === 'number') return time;
   return parseInt(time, 10);
 };
+
+// Update the Collection interface to include slug
+interface Collection {
+  id: string;
+  name: string;
+  slug?: string;
+}
+
+export interface ProblemListProps {
+  problems: Problem[];
+  isLocked?: boolean;
+  canAccessAdmin?: boolean;
+  onProblemStart?: (id: string, slug?: string) => void;
+  itemsPerPage?: number;
+  showTopicName?: boolean;
+  showOrder?: boolean;
+  collections?: Collection[];
+  selectedCollection?: string;
+  onCollectionChange?: (value: string) => void;
+}
 
 export function ProblemList({
   problems,
@@ -121,7 +142,7 @@ export function ProblemList({
 
   return (
     <div className="space-y-8">
-      {collections.length > 0 && onCollectionChange && (
+      {collections?.length > 0 && onCollectionChange && (
         <div className="flex items-center gap-2 mb-4">
           <span className="text-sm font-medium">Filter by collection:</span>
           <Select 
@@ -140,6 +161,21 @@ export function ProblemList({
               ))}
             </SelectContent>
           </Select>
+          
+          {/* Button to view collection page if available */}
+          {selectedCollection !== 'all' && selectedCollection && (
+            <Link 
+              to={`/collection/${collections.find(c => c.id === selectedCollection)?.slug || ''}`}
+              className={cn(
+                "inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors",
+                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
+                "border border-input bg-background hover:bg-accent hover:text-accent-foreground",
+                "h-9 px-4 py-2"
+              )}
+            >
+              View Collection
+            </Link>
+          )}
         </div>
       )}
 
@@ -152,7 +188,7 @@ export function ProblemList({
             nextProblem ? "hover:border-primary" : "opacity-50 cursor-not-allowed"
           )}
           disabled={!nextProblem || isLocked}
-          onClick={() => nextProblem && onProblemStart(nextProblem.id)}
+          onClick={() => nextProblem && onProblemStart(nextProblem.id, nextProblem.slug)}
         >
           <PlayCircle className="h-8 w-8" />
           <div className="text-center">
@@ -309,7 +345,7 @@ export function ProblemList({
                       isLocked && !canAccessAdmin && "border-muted-foreground text-muted-foreground",
                       isLocked && canAccessAdmin && "border-yellow-500 text-yellow-500 hover:bg-yellow-500/10"
                     )}
-                    onClick={() => onProblemStart(problem.id)}
+                    onClick={() => onProblemStart(problem.id, problem.slug)}
                   >
                     {isLocked && canAccessAdmin ? "Start (Admin)" : "Start"}
                   </Button>

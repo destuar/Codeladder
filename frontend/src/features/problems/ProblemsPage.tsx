@@ -18,6 +18,7 @@ import { SpacedRepetitionPanel } from '@/features/spaced-repetition/components/S
 interface Collection {
   id: string;
   name: string;
+  slug?: string;
 }
 
 // Type for difficulty filter - adds 'all' to the available difficulties
@@ -88,8 +89,21 @@ export default function ProblemsPage() {
     return difficultyOrder.filter(d => difficultySet.has(d));
   }, [problems]);
 
-  const handleProblemStart = (problemId: string) => {
-    navigate(`/problems/${problemId}`);
+  const handleProblemStart = (problemId: string, slug?: string) => {
+    // Add query parameters for collection context if a collection is selected
+    const params = selectedCollection !== 'all' ? new URLSearchParams({
+      from: 'collection',
+      name: collections.find(c => c.id === selectedCollection)?.name || 'Collection',
+      id: selectedCollection,
+      // Include the collection slug if available
+      collectionSlug: collections.find(c => c.id === selectedCollection)?.slug || ''
+    }).toString() : '';
+
+    if (slug) {
+      navigate(`/problem/${slug}${params ? `?${params}` : ''}`);
+    } else {
+      navigate(`/problems/${problemId}${params ? `?${params}` : ''}`);
+    }
   };
 
   // Handle filter changes
@@ -157,191 +171,139 @@ export default function ProblemsPage() {
       </div>
 
       <Card>
-        <CardHeader>
-          <CardTitle>Problem List</CardTitle>
-          <CardDescription>
-            Browse and practice all available problems across topics
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="problem-list-wrapper">
-            {/* Custom rendering of ProblemList to control positioning */}
-            <div className="grid grid-cols-2 gap-4 mb-8">
-              {/* Find and render the next problem to continue with (first incomplete required problem) */}
-              <Button
-                variant="outline"
-                size="lg"
-                className={cn(
-                  "h-32 flex flex-col items-center justify-center gap-2 border-2",
-                  filteredProblems.find(p => !p.completed && p.required) ? 
-                    "hover:border-primary" : "opacity-50 cursor-not-allowed"
-                )}
-                disabled={!filteredProblems.find(p => !p.completed && p.required)}
-                onClick={() => {
-                  const nextProblem = filteredProblems
-                    .filter(p => !p.completed && p.required)
-                    .sort((a, b) => (a.reqOrder || Infinity) - (b.reqOrder || Infinity))[0];
-                  if (nextProblem) {
-                    handleProblemStart(nextProblem.id);
-                  }
-                }}
-              >
-                <div className="flex flex-col items-center gap-2">
-                  <PlayCircle className="h-8 w-8" />
-                  <div className="text-center">
-                    <div className="font-semibold">Continue</div>
-                    {filteredProblems.find(p => !p.completed && p.required) ? (
-                      <div className="text-sm text-muted-foreground mt-1">
-                        {(() => {
-                          const nextProblem = filteredProblems
-                            .filter(p => !p.completed && p.required)
-                            .sort((a, b) => (a.reqOrder || Infinity) - (b.reqOrder || Infinity))[0];
-                          return nextProblem ? 
-                            `${nextProblem.name}${nextProblem.reqOrder ? ` (#${nextProblem.reqOrder})` : ''}` : 
-                            '';
-                        })()}
-                      </div>
-                    ) : (
-                      <div className="text-sm text-muted-foreground mt-1">All problems completed!</div>
+        <CardContent className="p-6">
+          {isLoadingProblems ? (
+            <div className="flex justify-center py-8">
+              <div className="animate-spin rounded-full h-8 w-8 border-2 border-primary"></div>
+            </div>
+          ) : problems?.length === 0 ? (
+            <div className="py-8 text-center text-muted-foreground">
+              No problems found
+            </div>
+          ) : (
+            <>
+              <div className="space-y-4 pt-4 border-t mb-8">
+                <div className="flex flex-wrap gap-4">
+                  {/* Collection filter dropdown */}
+                  {collections.length > 0 && (
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-medium">Collection:</span>
+                      <Select 
+                        value={selectedCollection} 
+                        onValueChange={handleCollectionChange}
+                      >
+                        <SelectTrigger className="w-[200px]">
+                          <SelectValue placeholder="Select collection" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">All Collections</SelectItem>
+                          {collections.map(collection => (
+                            <SelectItem key={collection.id} value={collection.id}>
+                              {collection.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      
+                      {/* Button to view the collection page */}
+                      {selectedCollection !== 'all' && (
+                        <Button 
+                          variant="outline" 
+                          size="sm"
+                          onClick={() => {
+                            const collection = collections.find(c => c.id === selectedCollection);
+                            if (collection?.slug) {
+                              navigate(`/collection/${collection.slug}`);
+                            }
+                          }}
+                        >
+                          View Collection Page
+                        </Button>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Difficulty filter dropdown */}
+                  {difficulties.length > 0 && (
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-medium">Difficulty:</span>
+                      <Select 
+                        value={selectedDifficulty} 
+                        onValueChange={handleDifficultyChange}
+                      >
+                        <SelectTrigger className="w-[200px]">
+                          <SelectValue placeholder="Select difficulty" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">All Difficulties</SelectItem>
+                          {difficulties.map(difficulty => (
+                            <SelectItem key={difficulty} value={difficulty}>
+                              {formatDifficultyLabel(difficulty)}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
+
+                  {/* Reset filters button - only show if any filters are active */}
+                  {hasActiveFilters && (
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      onClick={resetFilters}
+                      className="h-10"
+                    >
+                      <X className="h-4 w-4 mr-1" />
+                      Clear Filters
+                    </Button>
+                  )}
+                </div>
+
+                {/* Active filter badges */}
+                {hasActiveFilters && (
+                  <div className="flex flex-wrap gap-2">
+                    {selectedCollection !== 'all' && (
+                      <Badge variant="secondary" className="flex items-center gap-1">
+                        Collection: {collections.find(c => c.id === selectedCollection)?.name}
+                        <X 
+                          className="h-3 w-3 cursor-pointer ml-1" 
+                          onClick={() => setSelectedCollection('all')}
+                        />
+                      </Badge>
+                    )}
+                    {selectedDifficulty !== 'all' && (
+                      <Badge variant="secondary" className="flex items-center gap-1">
+                        Difficulty: {formatDifficultyLabel(selectedDifficulty)}
+                        <X 
+                          className="h-3 w-3 cursor-pointer ml-1" 
+                          onClick={() => setSelectedDifficulty('all')}
+                        />
+                      </Badge>
                     )}
                   </div>
-                </div>
-              </Button>
-              
-              {/* Update Spaced Repetition button */}
-              <Button
-                variant="outline"
-                size="lg"
-                className="h-32 flex flex-col items-center justify-center gap-2 border-2 hover:border-primary"
-                onClick={toggleReviewPanel}
-              >
-                <div className="flex flex-col items-center gap-2">
-                  <RepeatIcon className="h-8 w-8" />
-                  <div className="text-center">
-                    <div className="font-semibold">Spaced Repetition</div>
-                    <div className="text-sm text-muted-foreground mt-1">
-                      {stats?.dueNow 
-                        ? `${stats.dueNow} problem${stats.dueNow !== 1 ? 's' : ''} due for review` 
-                        : 'Review completed problems'}
-                    </div>
-                  </div>
-                </div>
-              </Button>
-            </div>
-
-            {/* Add spaced repetition panel */}
-            {isReviewPanelOpen && (
-              <div className="mb-8 mt-4">
-                <SpacedRepetitionPanel />
-              </div>
-            )}
-
-            {/* Filters Section - positioned below the buttons */}
-            <div className="space-y-4 pt-4 border-t mb-8">
-              <div className="flex flex-wrap gap-4">
-                {/* Collection filter dropdown */}
-                {collections.length > 0 && (
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm font-medium">Collection:</span>
-                    <Select 
-                      value={selectedCollection} 
-                      onValueChange={handleCollectionChange}
-                    >
-                      <SelectTrigger className="w-[200px]">
-                        <SelectValue placeholder="Select collection" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="all">All Collections</SelectItem>
-                        {collections.map(collection => (
-                          <SelectItem key={collection.id} value={collection.id}>
-                            {collection.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                )}
-
-                {/* Difficulty filter dropdown */}
-                {difficulties.length > 0 && (
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm font-medium">Difficulty:</span>
-                    <Select 
-                      value={selectedDifficulty} 
-                      onValueChange={handleDifficultyChange}
-                    >
-                      <SelectTrigger className="w-[200px]">
-                        <SelectValue placeholder="Select difficulty" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="all">All Difficulties</SelectItem>
-                        {difficulties.map(difficulty => (
-                          <SelectItem key={difficulty} value={difficulty}>
-                            {formatDifficultyLabel(difficulty)}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                )}
-
-                {/* Reset filters button - only show if any filters are active */}
-                {hasActiveFilters && (
-                  <Button 
-                    variant="outline" 
-                    size="sm" 
-                    onClick={resetFilters}
-                    className="h-10"
-                  >
-                    <X className="h-4 w-4 mr-1" />
-                    Clear Filters
-                  </Button>
                 )}
               </div>
 
-              {/* Active filter badges */}
-              {hasActiveFilters && (
-                <div className="flex flex-wrap gap-2">
-                  {selectedCollection !== 'all' && (
-                    <Badge variant="secondary" className="flex items-center gap-1">
-                      Collection: {collections.find(c => c.id === selectedCollection)?.name}
-                      <X 
-                        className="h-3 w-3 cursor-pointer ml-1" 
-                        onClick={() => setSelectedCollection('all')}
-                      />
-                    </Badge>
-                  )}
-                  {selectedDifficulty !== 'all' && (
-                    <Badge variant="secondary" className="flex items-center gap-1">
-                      Difficulty: {formatDifficultyLabel(selectedDifficulty)}
-                      <X 
-                        className="h-3 w-3 cursor-pointer ml-1" 
-                        onClick={() => setSelectedDifficulty('all')}
-                      />
-                    </Badge>
-                  )}
+              {filteredProblems.length > 0 ? (
+                <div className="custom-problem-list">
+                  <ProblemList
+                    problems={filteredProblems}
+                    onProblemStart={handleProblemStart}
+                    itemsPerPage={50}
+                    showTopicName={false}
+                    showOrder={false}
+                  />
+                </div>
+              ) : (
+                <div className="text-center py-8 text-muted-foreground">
+                  {problems && problems.length > 0 ? 
+                    'No problems match the current filters. Try adjusting your filter criteria.' : 
+                    'No problems available'}
                 </div>
               )}
-            </div>
-
-            {filteredProblems.length > 0 ? (
-              <div className="custom-problem-list">
-                <ProblemList
-                  problems={filteredProblems}
-                  onProblemStart={handleProblemStart}
-                  itemsPerPage={50}
-                  showTopicName={false}
-                  showOrder={false}
-                />
-              </div>
-            ) : (
-              <div className="text-center py-8 text-muted-foreground">
-                {problems && problems.length > 0 ? 
-                  'No problems match the current filters. Try adjusting your filter criteria.' : 
-                  'No problems available'}
-              </div>
-            )}
-          </div>
+            </>
+          )}
         </CardContent>
       </Card>
     </div>

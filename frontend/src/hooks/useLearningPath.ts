@@ -5,6 +5,7 @@ import { useAuth } from '@/features/auth/AuthContext';
 export interface Problem {
   id: string;
   name: string;
+  slug?: string;
   difficulty: 'EASY_IIII' | 'EASY_III' | 'EASY_II' | 'EASY_I' | 'MEDIUM' | 'HARD';
   required: boolean;
   reqOrder?: number;
@@ -21,6 +22,7 @@ export interface Problem {
 export interface Topic {
   id: string;
   name: string;
+  slug?: string;
   description?: string;
   content?: string;
   order: number;

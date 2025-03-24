@@ -81,6 +81,8 @@ router.get('/:problemId', authenticateToken, (async (req, res) => {
     // Find next and previous problems if this problem belongs to a topic
     let nextProblemId = null;
     let prevProblemId = null;
+    let nextProblemSlug = null;
+    let prevProblemSlug = null;
 
     if (problem.topicId) {
       // Get all problems in the same topic, ordered by reqOrder
@@ -93,7 +95,8 @@ router.get('/:problemId', authenticateToken, (async (req, res) => {
         },
         select: { 
           id: true, 
-          reqOrder: true 
+          reqOrder: true,
+          slug: true
         }
       });
 
@@ -104,11 +107,13 @@ router.get('/:problemId', authenticateToken, (async (req, res) => {
         // Get previous problem if not the first
         if (currentIndex > 0) {
           prevProblemId = topicProblems[currentIndex - 1].id;
+          prevProblemSlug = topicProblems[currentIndex - 1].slug;
         }
         
         // Get next problem if not the last
         if (currentIndex < topicProblems.length - 1) {
           nextProblemId = topicProblems[currentIndex + 1].id;
+          nextProblemSlug = topicProblems[currentIndex + 1].slug;
         }
       }
     }
@@ -119,6 +124,8 @@ router.get('/:problemId', authenticateToken, (async (req, res) => {
       isCompleted: problem.completedBy.length > 0 || problem.progress.some(p => p.status === 'COMPLETED'),
       nextProblemId,
       prevProblemId,
+      nextProblemSlug,
+      prevProblemSlug,
       collectionIds,
       completedBy: undefined, // Remove these from the response
       progress: undefined,
@@ -940,6 +947,102 @@ router.get('/admin/dashboard', authenticateToken, authorizeRoles([Role.ADMIN, Ro
     res.json(transformedProblems);
   } catch (error) {
     console.error('Error fetching admin dashboard problems:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+}) as RequestHandler);
+
+// Get a specific problem by slug
+router.get('/slug/:slug', authenticateToken, (async (req, res) => {
+  try {
+    const { slug } = req.params;
+    const userId = req.user?.id;
+
+    if (!userId) {
+      return res.status(401).json({ error: 'User not authenticated' });
+    }
+
+    const problem = await prisma.problem.findUnique({
+      where: { slug },
+      include: {
+        completedBy: {
+          where: { id: userId },
+          select: { id: true }
+        },
+        progress: {
+          where: { userId },
+          select: { status: true }
+        },
+        topic: true,
+        collections: {
+          select: {
+            collection: {
+              select: {
+                id: true,
+                name: true
+              }
+            }
+          }
+        }
+      }
+    });
+
+    if (!problem) {
+      return res.status(404).json({ error: 'Problem not found' });
+    }
+
+    // Extract collection IDs for the frontend
+    const collectionIds = problem.collections.map(pc => pc.collection.id);
+
+    // Find next and previous problems if this problem belongs to a topic
+    let nextProblemId = null;
+    let prevProblemId = null;
+
+    if (problem.topicId) {
+      // Get all problems in the same topic, ordered by reqOrder
+      const topicProblems = await prisma.problem.findMany({
+        where: { 
+          topicId: problem.topicId 
+        },
+        orderBy: { 
+          reqOrder: 'asc' 
+        },
+        select: { 
+          id: true, 
+          reqOrder: true 
+        }
+      });
+
+      // Find the current problem's index in the ordered list
+      const currentIndex = topicProblems.findIndex(p => p.id === problem.id);
+      
+      if (currentIndex !== -1) {
+        // Get previous problem if not the first
+        if (currentIndex > 0) {
+          prevProblemId = topicProblems[currentIndex - 1].id;
+        }
+        
+        // Get next problem if not the last
+        if (currentIndex < topicProblems.length - 1) {
+          nextProblemId = topicProblems[currentIndex + 1].id;
+        }
+      }
+    }
+
+    // Transform the response to include isCompleted, navigation IDs, and collections
+    const response = {
+      ...problem,
+      isCompleted: problem.completedBy.length > 0 || problem.progress.some(p => p.status === 'COMPLETED'),
+      nextProblemId,
+      prevProblemId,
+      collectionIds,
+      completedBy: undefined, // Remove these from the response
+      progress: undefined,
+      collections: undefined // Remove raw collections data
+    };
+
+    res.json(response);
+  } catch (error) {
+    console.error('Error fetching problem by slug:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 }) as RequestHandler);

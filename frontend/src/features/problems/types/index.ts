@@ -26,6 +26,7 @@ export type SortDirection = 'asc' | 'desc';
 export interface Problem {
   id: string;
   name: string;
+  slug?: string;
   difficulty: Difficulty;
   problemType?: ProblemType;
   completed?: boolean;
@@ -38,7 +39,9 @@ export interface Problem {
   codeTemplate?: string;
   testCases?: string;
   nextProblemId?: string;
+  nextProblemSlug?: string;
   prevProblemId?: string;
+  prevProblemSlug?: string;
   isCompleted?: boolean;
   estimatedTime?: string | number;
   reviewLevel?: number;
@@ -51,7 +54,7 @@ export interface ProblemListProps {
   problems: Problem[];
   isLocked?: boolean;
   canAccessAdmin?: boolean;
-  onProblemStart: (problemId: string) => void;
+  onProblemStart: (problemId: string, slug?: string) => void;
   itemsPerPage?: number;
   showTopicName?: boolean;
   showOrder?: boolean;
@@ -102,13 +105,20 @@ export interface CodingProblemProps {
   testCases?: string;
   difficulty: string;
   nextProblemId?: string;
+  nextProblemSlug?: string;
   prevProblemId?: string;
-  onNavigate: (id: string) => void;
+  prevProblemSlug?: string;
+  onNavigate: (id: string, slug?: string) => void;
   estimatedTime?: number;
   isCompleted?: boolean;
   problemId: string;
   isReviewMode?: boolean;
   onCompleted?: () => void;
+  sourceContext?: {
+    from: string;
+    name: string;
+    id: string;
+  };
 }
 
 /**

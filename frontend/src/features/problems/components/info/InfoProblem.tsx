@@ -9,31 +9,47 @@ import { isMarkdown } from '@/lib/markdown-to-html';
 import { useProblemCompletion } from '@/features/problems/hooks/useProblemCompletion';
 import { InfoHeader } from './InfoHeader';
 import { formatEstimatedTime } from '../../utils/time';
+import ReactMarkdown from 'react-markdown';
+import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
+import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
+import { Badge } from '@/components/ui/badge';
 
 export interface InfoProblemProps {
   content: string;
   isCompleted?: boolean;
   nextProblemId?: string;
+  nextProblemSlug?: string;
   prevProblemId?: string;
+  prevProblemSlug?: string;
   problemId: string;
   estimatedTime?: number;
   isStandalone?: boolean;
   isReviewMode?: boolean;
   onCompleted?: () => void;
   title?: string;
+  onNavigate: (id: string, slug?: string) => void;
+  sourceContext?: {
+    from: string;
+    name: string;
+    id: string;
+  };
 }
 
 const InfoProblem: React.FC<InfoProblemProps> = ({ 
   content, 
   isCompleted = false,
   nextProblemId,
+  nextProblemSlug,
   prevProblemId,
+  prevProblemSlug,
   problemId,
   estimatedTime,
   isStandalone = false,
   isReviewMode = false,
   onCompleted,
-  title = "Problem"
+  title = "Problem",
+  onNavigate,
+  sourceContext
 }) => {
   const navigate = useNavigate();
   const { canAccessAdmin } = useAdmin();
@@ -47,8 +63,8 @@ const InfoProblem: React.FC<InfoProblemProps> = ({
 
   const formattedTime = formatEstimatedTime(estimatedTime);
 
-  const handleNavigate = (id: string) => {
-    navigate(`/problems/${id}`);
+  const handleNavigate = (id: string, slug?: string) => {
+    onNavigate(id, slug);
   };
 
   return (
@@ -57,9 +73,12 @@ const InfoProblem: React.FC<InfoProblemProps> = ({
         isCompleted={isProblemCompleted}
         onMarkComplete={handleMarkAsComplete}
         nextProblemId={nextProblemId}
+        nextProblemSlug={nextProblemSlug}
         prevProblemId={prevProblemId}
+        prevProblemSlug={prevProblemSlug}
         onNavigate={handleNavigate}
         title={title}
+        sourceContext={sourceContext}
       />
 
       <div className="flex-1 overflow-auto px-4 md:px-8">

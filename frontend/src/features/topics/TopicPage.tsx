@@ -78,7 +78,7 @@ function DifficultyBadge({ difficulty }: { difficulty: Difficulty }) {
 }
 
 export default function TopicPage() {
-  const { topicId } = useParams<{ topicId: string }>();
+  const { topicId, slug } = useParams<{ topicId?: string; slug?: string }>();
   const { isAdminView, canAccessAdmin } = useAdmin();
   const { token } = useAuth();
   const navigate = useNavigate();
@@ -86,12 +86,17 @@ export default function TopicPage() {
   const [warningMessage, setWarningMessage] = useState('');
 
   const { data: topic, isLoading: loading, error } = useQuery<Topic>({
-    queryKey: ['topic', topicId],
+    queryKey: ['topic', topicId, slug],
     queryFn: async () => {
       if (!token) throw new Error('No token available');
-      return api.get(`/learning/topics/${topicId}`, token);
+      if (topicId) {
+        return api.get(`/learning/topics/${topicId}`, token);
+      } else if (slug) {
+        return api.get(`/learning/topics/slug/${slug}`, token);
+      }
+      throw new Error('No topic ID or slug provided');
     },
-    enabled: !!token && !!topicId,
+    enabled: !!token && (!!topicId || !!slug),
   });
 
   // Get learning path data to check if level is locked
@@ -131,7 +136,7 @@ export default function TopicPage() {
     return false;
   })();
 
-  const handleProblemStart = (problemId: string) => {
+  const handleProblemStart = (problemId: string, slug?: string) => {
     if (isLocked && !canAccessAdmin) {
       const uncompletedLevel = learningPath?.find((level: Level, index: number) => {
         if (index === 0) return false;
@@ -151,7 +156,18 @@ export default function TopicPage() {
       }
     }
 
-    navigate(`/problems/${problemId}`);
+    // Add query parameters for context
+    const params = topic ? new URLSearchParams({
+      from: 'topic',
+      name: topic.name,
+      id: topic.id
+    }).toString() : '';
+
+    if (slug) {
+      navigate(`/problem/${slug}${params ? `?${params}` : ''}`);
+    } else {
+      navigate(`/problems/${problemId}${params ? `?${params}` : ''}`);
+    }
   };
 
   if (loading) {

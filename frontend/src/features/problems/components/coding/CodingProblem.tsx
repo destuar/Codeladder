@@ -33,13 +33,16 @@ export default function CodingProblem({
   testCases: testCasesString,
   difficulty,
   nextProblemId,
+  nextProblemSlug,
   prevProblemId,
+  prevProblemSlug,
   onNavigate,
   estimatedTime,
   isCompleted = false,
   problemId,
   isReviewMode = false,
   onCompleted,
+  sourceContext,
 }: CodingProblemProps) {
   const [leftPanelWidth, setLeftPanelWidth] = useState(window.innerWidth * 0.4);
   const [editorHeight, setEditorHeight] = useState(DEFAULT_EDITOR_HEIGHT);
@@ -92,9 +95,12 @@ export default function CodingProblem({
         isCompleted={isProblemCompleted}
         onMarkComplete={handleMarkAsComplete}
         nextProblemId={nextProblemId}
+        nextProblemSlug={nextProblemSlug}
         prevProblemId={prevProblemId}
+        prevProblemSlug={prevProblemSlug}
         onNavigate={onNavigate}
         title={title}
+        sourceContext={sourceContext}
       />
 
       <div className="flex flex-1 min-h-0">

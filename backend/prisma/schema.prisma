@@ -54,6 +54,7 @@ model Level {
 model Topic {
   id          String    @id @default(cuid())
   name        String
+  slug        String?   @unique  // URL-friendly unique identifier
   description String?   @db.Text
   content     String?   @db.Text
   order       Int       // For sorting topics within a level
@@ -76,6 +77,7 @@ enum ProblemType {
 model Collection {
   id          String    @id @default(cuid())
   name        String
+  slug        String?   @unique  // URL-friendly unique identifier
   description String?   @db.Text
   problems    ProblemToCollection[]
   createdAt   DateTime  @default(now())
@@ -87,6 +89,7 @@ model Collection {
 model Problem {
   id          String    @id @default(cuid())
   name        String
+  slug        String?   @unique  // URL-friendly unique identifier
   description String?   @db.Text
   difficulty  Difficulty
   required    Boolean   @default(false)
