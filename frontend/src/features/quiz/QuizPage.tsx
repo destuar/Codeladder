@@ -138,14 +138,17 @@ export function QuizPage() {
       const result = await submitQuiz();
       console.log('Quiz submission result:', result);
       
-      if (result && result.attemptId) {
-        console.log(`Redirecting to results page for attempt: ${result.attemptId}`);
+      // Handle different result formats - extract attemptId from where it's available
+      const attemptId = result?.attemptId || (result?.result?.attemptId);
+      
+      if (attemptId) {
+        console.log(`Redirecting to results page for attempt: ${attemptId}`);
         
         // Short delay to allow the backend to process the quiz completion
         await new Promise(resolve => setTimeout(resolve, 500));
         
         // Navigate to the results page
-        navigate(`/quizzes/attempts/${result.attemptId}/results`);
+        navigate(`/quizzes/attempts/${attemptId}/results`);
         
         toast({
           title: "Quiz Submitted",

@@ -40,11 +40,15 @@ function useConditionalSpacedRepetition(enabled: boolean) {
 }
 
 const ProblemPage: React.FC = () => {
-  const { problemId } = useParams<{ problemId: string }>();
+  // Get both the problemId and slug from the URL parameters
+  const { problemId, slug } = useParams<{ problemId?: string; slug?: string }>();
   const { token } = useAuth();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const location = useLocation();
+  
+  // Store the effective ID we're using (either problemId or slug)
+  const [effectiveId, setEffectiveId] = useState<string | undefined>(problemId || slug);
   
   // Store the referrer URL to navigate back after review
   const [referrer, setReferrer] = useState<string | null>(null);
@@ -66,13 +70,26 @@ const ProblemPage: React.FC = () => {
   
   // Track if review was submitted
   const [reviewSubmitted, setReviewSubmitted] = useState(false);
+
+  // Extract source context from query parameters
+  const sourceContext = (() => {
+    const from = searchParams.get('from');
+    const name = searchParams.get('name');
+    const id = searchParams.get('id');
+    
+    if (from && name && id) {
+      return { from, name, id };
+    }
+    
+    return undefined;
+  })();
   
   // Wrapper for submitReview that also sets local tracking state
   const handleSubmitReview = async (result: any) => {
     logWorkflowStep('SubmittingReview', { 
       ...result, 
       reviewSubmitted,
-      problemId 
+      problemId: effectiveId
     });
     
     try {
@@ -82,7 +99,9 @@ const ProblemPage: React.FC = () => {
       setReviewSubmitted(true);
       
       // Force refresh problem data
-      queryClient.invalidateQueries({ queryKey: ['problem', problemId] });
+      if (effectiveId) {
+        queryClient.invalidateQueries({ queryKey: ['problem', effectiveId] });
+      }
       
       return response;
     } catch (error) {
@@ -93,10 +112,10 @@ const ProblemPage: React.FC = () => {
   
   // Ensure problem data is refetched after review completion
   useEffect(() => {
-    if (reviewSubmitted) {
+    if (reviewSubmitted && effectiveId) {
       // Refetch problem data to get latest state
-      logWorkflowStep('RefetchingAfterReview', { problemId });
-      queryClient.invalidateQueries({ queryKey: ['problem', problemId] });
+      logWorkflowStep('RefetchingAfterReview', { problemId: effectiveId });
+      queryClient.invalidateQueries({ queryKey: ['problem', effectiveId] });
       
       // Reset review submitted flag after a delay
       const timer = setTimeout(() => {
@@ -105,7 +124,7 @@ const ProblemPage: React.FC = () => {
       
       return () => clearTimeout(timer);
     }
-  }, [reviewSubmitted, problemId, queryClient]);
+  }, [reviewSubmitted, effectiveId, queryClient]);
   
   // Store the referrer when the component mounts
   useEffect(() => {
@@ -130,16 +149,41 @@ const ProblemPage: React.FC = () => {
       documentReferrer, 
       actualReferrer, 
       isReviewMode,
-      problemId
+      problemId: effectiveId
     });
-  }, [location, isReviewMode, searchParams, problemId]);
-  
-  const { data: problem, isLoading, error } = useQuery<Problem>({
-    queryKey: ['problem', problemId],
-    queryFn: () => api.get(`/problems/${problemId}`, token),
-    enabled: !!problemId && !!token,
-  });
+  }, [location, isReviewMode, searchParams, effectiveId]);
 
+  // Determine if we're using problemId or slug
+  useEffect(() => {
+    // Update the effective ID when either problemId or slug changes
+    setEffectiveId(problemId || slug);
+  }, [problemId, slug]);
+  
+  // Fetch problem data using the appropriate endpoint based on whether we have an ID or slug
+  const { data: problem, isLoading, error } = useQuery<Problem>({
+    queryKey: ['problem', effectiveId],
+    queryFn: () => {
+      if (!effectiveId) return Promise.reject(new Error('No problem ID or slug provided'));
+      
+      // Use the slug API endpoint if we have a slug, otherwise use the ID endpoint
+      const endpoint = slug 
+        ? `/problems/slug/${slug}`  // This endpoint needs to exist on your backend
+        : `/problems/${problemId}`;
+      
+      return api.get(endpoint, token);
+    },
+    enabled: !!effectiveId && !!token,
+  });
+  
+  // Log errors if any
+  useEffect(() => {
+    if (!effectiveId) {
+      logWorkflowStep('ProblemLoadError', { error: null, problemId: effectiveId });
+    } else if (error) {
+      logWorkflowStep('ProblemLoadError', { error, problemId: effectiveId });
+    }
+  }, [error, effectiveId]);
+  
   // Log the problem data whenever it changes
   useEffect(() => {
     if (problem) {
@@ -154,27 +198,38 @@ const ProblemPage: React.FC = () => {
   // regardless of its actual completion status
   const effectiveIsCompleted = isReviewMode ? false : problem?.isCompleted;
 
-  // Handler for when a problem is completed
-  const handleProblemCompleted = () => {
-    logWorkflowStep('ProblemCompleted', { problemId, isReviewMode });
-    // Immediately set this flag to show review controls faster
-    setHasJustCompleted(true);
+  // Handler for navigation to other problems
+  const navigateToOtherProblem = (id: string, slug?: string) => {
+    // Preserve the source context in the URL
+    const sourceParams = sourceContext 
+      ? `?${new URLSearchParams(sourceContext as any).toString()}` 
+      : '';
+    
+    // Use slug-based navigation if a slug is provided
+    if (slug) {
+      navigate(`/problem/${slug}${sourceParams}`);
+    } else {
+      navigate(`/problems/${id}${sourceParams}`);
+    }
   };
 
-  // Should show review controls if in review mode AND the problem was just completed (not based on problem.isCompleted)
-  const shouldShowReviewControls = isReviewMode && hasJustCompleted;
-  
-  // Debug log to verify the review controls state
-  useEffect(() => {
-    logWorkflowStep('ReviewControlsState', { 
-      isReviewMode,
-      hasJustCompleted,
-      shouldShowReviewControls,
-      originalIsCompleted: problem?.isCompleted,
-      effectiveIsCompleted,
-      problemId
-    });
-  }, [isReviewMode, hasJustCompleted, shouldShowReviewControls, problem?.isCompleted, effectiveIsCompleted, problemId]);
+  // Handler for when a problem is completed
+  const handleProblemCompleted = () => {
+    logWorkflowStep('ProblemCompleted', { problemId: effectiveId, isReviewMode });
+    // Immediately set this flag to show review controls faster
+    setHasJustCompleted(true);
+    
+    // For now, we won't automatically navigate after completion in review mode
+    if (!isReviewMode && problem?.nextProblemId) {
+      const shouldNavigate = window.confirm('Congratulations! Would you like to move to the next problem?');
+      if (shouldNavigate) {
+        navigateToOtherProblem(problem.nextProblemId, problem.nextProblemSlug);
+      }
+    }
+  };
+
+  // Check if we should show review controls
+  const shouldShowReviewControls = isReviewMode || hasJustCompleted;
 
   if (isLoading) {
     return (
@@ -185,7 +240,7 @@ const ProblemPage: React.FC = () => {
   }
 
   if (error || !problem) {
-    logWorkflowStep('ProblemLoadError', { error, problemId });
+    logWorkflowStep('ProblemLoadError', { error, problemId: effectiveId });
     return (
       <div className="p-8 text-center text-destructive">
         Error loading problem
@@ -193,69 +248,85 @@ const ProblemPage: React.FC = () => {
     );
   }
 
+  if (problem.problemType === 'INFO' || problem.problemType === 'STANDALONE_INFO') {
+    return (
+      <div className="min-h-[calc(100vh-4rem)] flex flex-col">
+        <div className="flex-1">
+          <InfoProblem 
+            content={problem.content || ''}
+            isCompleted={effectiveIsCompleted}
+            nextProblemId={problem.nextProblemId}
+            nextProblemSlug={problem.nextProblemSlug}
+            prevProblemId={problem.prevProblemId}
+            prevProblemSlug={problem.prevProblemSlug}
+            estimatedTime={estimatedTimeNum}
+            isStandalone={problem.problemType === 'STANDALONE_INFO'}
+            problemId={problem.id}
+            isReviewMode={isReviewMode}
+            onCompleted={handleProblemCompleted}
+            problemType={problem.problemType}
+            onNavigate={navigateToOtherProblem}
+            sourceContext={sourceContext}
+          />
+        </div>
+
+        {/* Show review controls when appropriate */}
+        {shouldShowReviewControls && (
+          <div className="mt-auto">
+            <ReviewControls 
+              problem={problem}
+              hasJustCompleted={hasJustCompleted}
+              referrer={referrer}
+              onReviewSubmit={handleSubmitReview}
+              scheduledDate={scheduledDate}
+              isEarlyReview={isEarlyReview}
+            />
+          </div>
+        )}
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-[calc(100vh-4rem)] flex flex-col">
-      {(problem.problemType === 'INFO' || problem.problemType === 'STANDALONE_INFO') ? (
+      <ErrorBoundary>
         <>
           <div className="flex-1">
-            <InfoProblem 
+            <CodingProblem 
+              title={problem.name}
               content={problem.content || ''}
-              isCompleted={effectiveIsCompleted}
+              codeTemplate={problem.codeTemplate}
+              testCases={problem.testCases}
+              difficulty={problem.difficulty}
               nextProblemId={problem.nextProblemId}
+              nextProblemSlug={problem.nextProblemSlug}
               prevProblemId={problem.prevProblemId}
-              estimatedTime={estimatedTimeNum}
-              isStandalone={problem.problemType === 'STANDALONE_INFO'}
+              prevProblemSlug={problem.prevProblemSlug}
+              onNavigate={navigateToOtherProblem}
+              estimatedTime={problem.estimatedTime ? Number(problem.estimatedTime) : undefined}
+              isCompleted={effectiveIsCompleted}
               problemId={problem.id}
               isReviewMode={isReviewMode}
               onCompleted={handleProblemCompleted}
-              problemType={problem.problemType}
+              sourceContext={sourceContext}
             />
           </div>
+          
+          {/* Show review controls when appropriate */}
           {shouldShowReviewControls && (
-            <ReviewControls
-              problemId={problem.id}
-              onSubmitReview={handleSubmitReview}
-              isEarlyReview={isEarlyReview}
-              scheduledDate={scheduledDate}
-              referrer={referrer}
-              currentLevel={problem.reviewLevel || 0}
-            />
-          )}
-        </>
-      ) : (
-        <ErrorBoundary>
-          <>
-            <div className="flex-1">
-              <CodingProblem 
-                title={problem.name}
-                content={problem.content || ''}
-                codeTemplate={problem.codeTemplate}
-                testCases={problem.testCases}
-                difficulty={problem.difficulty}
-                nextProblemId={problem.nextProblemId}
-                prevProblemId={problem.prevProblemId}
-                onNavigate={(id: string) => navigate(`/problems/${id}`)}
-                estimatedTime={estimatedTimeNum}
-                isCompleted={effectiveIsCompleted}
-                problemId={problem.id}
-                isReviewMode={isReviewMode}
-                onCompleted={handleProblemCompleted}
-                problemType={problem.problemType}
+            <div className="mt-auto">
+              <ReviewControls 
+                problem={problem}
+                hasJustCompleted={hasJustCompleted}
+                referrer={referrer}
+                onReviewSubmit={handleSubmitReview}
+                scheduledDate={scheduledDate}
+                isEarlyReview={isEarlyReview}
               />
             </div>
-            {shouldShowReviewControls && (
-              <ReviewControls
-                problemId={problem.id}
-                onSubmitReview={handleSubmitReview}
-                isEarlyReview={isEarlyReview}
-                scheduledDate={scheduledDate}
-                referrer={referrer}
-                currentLevel={problem.reviewLevel || 0}
-              />
-            )}
-          </>
-        </ErrorBoundary>
-      )}
+          )}
+        </>
+      </ErrorBoundary>
     </div>
   );
 };

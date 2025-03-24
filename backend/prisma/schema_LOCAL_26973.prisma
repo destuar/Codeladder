@@ -1,0 +1,417 @@
+generator client {
+  provider      = "prisma-client-js"
+  output        = "../node_modules/.prisma/client"
+  binaryTargets = ["native", "linux-musl-openssl-3.0.x"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String  @id @default(cuid())
+  email        String  @unique
+  password     String
+  name         String?
+  role         Role    @default(USER)
+  tokenVersion Int     @default(0)
+
+  // Profile fields
+  avatar      String?
+  bio         String?   @db.Text
+  location    String?
+  website     String?
+  phoneNumber String?
+  dateOfBirth DateTime?
+
+  // Learning progress
+  completedProblems Problem[]  @relation("UserCompletedProblems")
+  progress          Progress[]
+
+  // Code submissions
+  submissions Submission[]
+
+  // Quiz attempts
+  quizAttempts QuizAttempt[]
+
+  // Timestamps
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("users")
+}
+
+model Level {
+  id          String   @id @default(cuid())
+  name        String // e.g., "I", "L3", "L4"
+  order       Int // For sorting levels
+  description String?  @db.Text
+  topics      Topic[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("levels")
+}
+
+model Topic {
+  id          String     @id @default(cuid())
+  name        String
+  description String?    @db.Text
+  content     String?    @db.Text
+  order       Int // For sorting topics within a level
+  level       Level      @relation(fields: [levelId], references: [id])
+  levelId     String
+  problems    Problem[]
+  progress    Progress[]
+
+  // Quiz relationship
+  quizzes Quiz[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("topics")
+}
+
+enum ProblemType {
+  INFO
+  CODING
+  STANDALONE_INFO
+}
+
+model Collection {
+  id          String                @id @default(cuid())
+  name        String
+  description String?               @db.Text
+  problems    ProblemToCollection[]
+  createdAt   DateTime              @default(now())
+  updatedAt   DateTime              @updatedAt
+
+  @@map("collections")
+}
+
+model Problem {
+  id            String                @id @default(cuid())
+  name          String
+  description   String?               @db.Text
+  difficulty    Difficulty
+  required      Boolean               @default(false)
+  reqOrder      Int? // Order number for required problems
+  content       String?               @db.Text // Problem content/description
+  solution      String?               @db.Text // Solution or hints
+  problemType   ProblemType           @default(INFO) // Type of problem (Info, Coding, or Standalone Info)
+  codeTemplate  String?               @db.Text // Starting code template for coding problems
+  testCases     Json? // Test cases for coding problems
+  estimatedTime Int? // Estimated time to complete the problem (in minutes)
+  topic         Topic?                @relation(fields: [topicId], references: [id]) // Make topic optional for standalone info
+  topicId       String? // Make topicId optional for standalone info
+  completedBy   User[]                @relation("UserCompletedProblems")
+  progress      Progress[]
+  collections   ProblemToCollection[] // Relation to collections
+
+  // Code submissions for this problem
+  submissions Submission[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("problems")
+}
+
+model ProblemToCollection {
+  problem      Problem    @relation(fields: [problemId], references: [id])
+  problemId    String
+  collection   Collection @relation(fields: [collectionId], references: [id])
+  collectionId String
+
+  @@id([problemId, collectionId])
+  @@map("problem_collections")
+}
+
+model Progress {
+  id        String         @id @default(cuid())
+  user      User           @relation(fields: [userId], references: [id])
+  userId    String
+  topic     Topic          @relation(fields: [topicId], references: [id])
+  topicId   String
+  problem   Problem?       @relation(fields: [problemId], references: [id])
+  problemId String?
+  status    ProgressStatus @default(NOT_STARTED)
+
+  // New fields for spaced repetition
+  reviewScheduledAt DateTime? // When this problem is scheduled to be reviewed next
+  reviewLevel       Int? // Current review level (determines intervals)
+  lastReviewedAt    DateTime? // When the problem was last reviewed
+  reviewHistory     Json? // JSON array of past review sessions with dates and success
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, topicId, problemId])
+  @@map("progress")
+}
+
+model StandaloneInfoPage {
+  id            String   @id @default(cuid())
+  name          String
+  content       String   @db.Text
+  description   String?  @db.Text
+  estimatedTime Int? // Estimated time to complete (in minutes)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@map("standalone_info_pages")
+}
+
+// New model for code submissions
+model Submission {
+  id            String           @id @default(cuid())
+  code          String           @db.Text
+  language      String
+  status        SubmissionStatus @default(PENDING)
+  results       Json? // JSON array of test results with inputs, expected outputs, actual outputs
+  executionTime Int? // Milliseconds
+  memory        Int? // Kilobytes
+
+  // Error information
+  error         String? @db.Text
+  compileOutput String? @db.Text
+
+  // Metadata
+  passed      Boolean  @default(false)
+  submittedAt DateTime @default(now())
+
+  // Relations
+  user      User    @relation(fields: [userId], references: [id])
+  userId    String
+  problem   Problem @relation(fields: [problemId], references: [id])
+  problemId String
+
+  @@index([userId])
+  @@index([problemId])
+  @@map("submissions")
+}
+
+// New Quiz-related models
+model Quiz {
+  id            String  @id @default(cuid())
+  name          String
+  description   String? @db.Text
+  topic         Topic   @relation(fields: [topicId], references: [id], onDelete: Cascade)
+  topicId       String  @map("topic_id")
+  orderNum      Int?    @map("order_num") // For sorting quizzes within a topic
+  estimatedTime Int?    @map("estimated_time") // Estimated time in minutes
+  passingScore  Int     @default(70) @map("passing_score") // Percentage required to pass
+
+  // Relationships
+  questions QuizQuestion[]
+  attempts  QuizAttempt[]
+
+  // Timestamps
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@index([topicId])
+  @@map("quizzes")
+}
+
+model QuizQuestion {
+  id           String  @id @default(cuid())
+  quiz         Quiz    @relation(fields: [quizId], references: [id], onDelete: Cascade)
+  quizId       String  @map("quiz_id")
+  questionText String  @map("question_text") @db.Text
+  questionType String  @map("question_type") // 'MC' or 'CODE'
+  points       Int     @default(1)
+  orderNum     Int?    @map("order_num") // For sorting questions within a quiz
+  difficulty   String?
+
+  // Type-specific question details
+  mcProblem   McProblem?
+  codeProblem CodeProblem?
+
+  // Responses to this question
+  responses QuizResponse[]
+
+  // Timestamps
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@index([quizId])
+  @@map("quiz_questions")
+}
+
+model McProblem {
+  questionId     String       @id @map("question_id")
+  question       QuizQuestion @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  explanation    String?      @db.Text
+  shuffleOptions Boolean      @default(true) @map("shuffle_options")
+
+  // Options for this question
+  options McOption[]
+
+  @@map("mc_problems")
+}
+
+model McOption {
+  id          String    @id @default(cuid())
+  mcProblem   McProblem @relation(fields: [questionId], references: [questionId], onDelete: Cascade)
+  questionId  String    @map("question_id")
+  optionText  String    @map("option_text") @db.Text
+  isCorrect   Boolean   @default(false) @map("is_correct")
+  explanation String?   @db.Text
+  orderNum    Int?      @map("order_num")
+
+  // Track which responses selected this option
+  selectedIn McResponse[]
+
+  @@index([questionId])
+  @@map("mc_options")
+}
+
+model CodeProblem {
+  questionId   String       @id @map("question_id")
+  question     QuizQuestion @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  codeTemplate String?      @map("code_template") @db.Text
+  functionName String?      @map("function_name")
+  language     String       @default("javascript")
+  timeLimit    Int          @default(5000) @map("time_limit") // Execution time limit in ms
+  memoryLimit  Int?         @map("memory_limit") // Memory limit in MB if applicable
+
+  // Test cases for this problem
+  testCases TestCase[]
+
+  @@map("code_problems")
+}
+
+model TestCase {
+  id             String      @id @default(cuid())
+  codeProblem    CodeProblem @relation(fields: [codeProblemId], references: [questionId], onDelete: Cascade)
+  codeProblemId  String      @map("code_problem_id")
+  input          String      @db.Text
+  expectedOutput String      @map("expected_output") @db.Text
+  isHidden       Boolean     @default(false) @map("is_hidden")
+  orderNum       Int?        @map("order_num")
+
+  // Results for this test case
+  results TestCaseResult[]
+
+  @@index([codeProblemId])
+  @@map("test_cases")
+}
+
+model QuizAttempt {
+  id          String    @id @default(cuid())
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId      String    @map("user_id")
+  quiz        Quiz      @relation(fields: [quizId], references: [id], onDelete: Cascade)
+  quizId      String    @map("quiz_id")
+  score       Int?
+  passed      Boolean?
+  startedAt   DateTime  @default(now()) @map("started_at")
+  completedAt DateTime? @map("completed_at")
+
+  // Responses in this attempt
+  responses QuizResponse[]
+
+  // Timestamps
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@index([userId])
+  @@index([quizId])
+  @@map("quiz_attempts")
+}
+
+model QuizResponse {
+  id         String       @id @default(cuid())
+  attempt    QuizAttempt  @relation(fields: [attemptId], references: [id], onDelete: Cascade)
+  attemptId  String       @map("attempt_id")
+  question   QuizQuestion @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  questionId String       @map("question_id")
+  isCorrect  Boolean?     @map("is_correct")
+  points     Int?
+
+  // Type-specific responses
+  mcResponse   McResponse?
+  codeResponse CodeResponse?
+
+  // Timestamps
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@index([attemptId])
+  @@index([questionId])
+  @@map("quiz_responses")
+}
+
+model McResponse {
+  responseId       String       @id @map("response_id")
+  response         QuizResponse @relation(fields: [responseId], references: [id], onDelete: Cascade)
+  selectedOption   McOption?    @relation(fields: [selectedOptionId], references: [id], onDelete: SetNull)
+  selectedOptionId String?      @map("selected_option_id")
+
+  @@map("mc_responses")
+}
+
+model CodeResponse {
+  responseId       String       @id @map("response_id")
+  response         QuizResponse @relation(fields: [responseId], references: [id], onDelete: Cascade)
+  codeSubmission   String?      @map("code_submission") @db.Text
+  compilationError String?      @map("compilation_error") @db.Text
+  runtimeError     String?      @map("runtime_error") @db.Text
+  testCasesPassed  Int?         @map("test_cases_passed")
+  totalTestCases   Int?         @map("total_test_cases")
+  executionTime    Int?         @map("execution_time") // in milliseconds
+
+  // Individual test case results
+  testResults TestCaseResult[]
+
+  @@map("code_responses")
+}
+
+model TestCaseResult {
+  id             String       @id @default(cuid())
+  codeResponse   CodeResponse @relation(fields: [codeResponseId], references: [responseId], onDelete: Cascade)
+  codeResponseId String       @map("code_response_id")
+  testCase       TestCase     @relation(fields: [testCaseId], references: [id], onDelete: Cascade)
+  testCaseId     String       @map("test_case_id")
+  passed         Boolean
+  actualOutput   String?      @map("actual_output") @db.Text
+  errorMessage   String?      @map("error_message") @db.Text
+  executionTime  Int?         @map("execution_time") // in milliseconds
+
+  @@index([codeResponseId])
+  @@index([testCaseId])
+  @@map("test_case_results")
+}
+
+enum Role {
+  USER
+  ADMIN
+  DEVELOPER
+}
+
+enum Difficulty {
+  EASY_IIII
+  EASY_III
+  EASY_II
+  EASY_I
+  MEDIUM
+  HARD
+}
+
+enum ProgressStatus {
+  NOT_STARTED
+  IN_PROGRESS
+  COMPLETED
+}
+
+// New enum for submission statuses
+enum SubmissionStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  ERROR
+  TIMEOUT
+}

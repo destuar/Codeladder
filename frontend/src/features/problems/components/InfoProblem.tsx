@@ -42,26 +42,38 @@ export interface InfoProblemProps {
   content: string;
   isCompleted?: boolean;
   nextProblemId?: string;
+  nextProblemSlug?: string;
   prevProblemId?: string;
+  prevProblemSlug?: string;
   problemId: string;
   estimatedTime?: number;
   isStandalone?: boolean;
   isReviewMode?: boolean;
   onCompleted?: () => void;
   problemType?: string;
+  onNavigate?: (id: string, slug?: string) => void;
+  sourceContext?: {
+    from: string;
+    name: string;
+    id: string;
+  };
 }
 
 const InfoProblem: React.FC<InfoProblemProps> = ({ 
   content, 
   isCompleted = false,
   nextProblemId,
+  nextProblemSlug,
   prevProblemId,
+  prevProblemSlug,
   problemId,
   estimatedTime,
   isStandalone = false,
   isReviewMode = false,
   onCompleted,
-  problemType = 'INFO'
+  problemType = 'INFO',
+  onNavigate,
+  sourceContext
 }) => {
   const navigate = useNavigate();
   const { token } = useAuth();
@@ -83,6 +95,20 @@ const InfoProblem: React.FC<InfoProblemProps> = ({
   );
 
   const formattedTime = formatEstimatedTime(estimatedTime);
+
+  // Handle navigation to next or previous problem
+  const handleNavigate = (id: string, slug?: string) => {
+    if (onNavigate) {
+      onNavigate(id, slug);
+    } else {
+      // Fallback to direct navigation if no navigation handler is provided
+      if (slug) {
+        navigate(`/problem/${slug}`);
+      } else {
+        navigate(`/problems/${id}`);
+      }
+    }
+  };
 
   return (
     <div className={`${isReviewMode ? 'h-auto' : 'h-[calc(100vh-4rem)]'} flex flex-col relative`}>
@@ -183,14 +209,14 @@ const InfoProblem: React.FC<InfoProblemProps> = ({
         <div className="flex gap-2">
           <Button
             variant="outline"
-            onClick={() => prevProblemId && navigate(`/problems/${prevProblemId}`)}
+            onClick={() => prevProblemId && handleNavigate(prevProblemId, prevProblemSlug)}
             disabled={!prevProblemId}
             className="shadow-sm"
           >
             Previous
           </Button>
           <Button
-            onClick={() => nextProblemId && navigate(`/problems/${nextProblemId}`)}
+            onClick={() => nextProblemId && handleNavigate(nextProblemId, nextProblemSlug)}
             disabled={!nextProblemId}
             className="shadow-sm"
           >

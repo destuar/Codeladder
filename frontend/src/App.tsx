@@ -178,21 +178,21 @@ function MainLayout() {
 
           {/* Quiz routes */}
           <Route
-            path="/quizzes/:quizId"
-            element={
-              <ProtectedRoute>
-                <AdminViewWrapper>
-                  <QuizPage />
-                </AdminViewWrapper>
-              </ProtectedRoute>
-            }
-          />
-          <Route
             path="/quizzes/attempts/:attemptId/results"
             element={
               <ProtectedRoute>
                 <AdminViewWrapper>
                   <QuizResultsPage />
+                </AdminViewWrapper>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/quizzes/:quizId"
+            element={
+              <ProtectedRoute>
+                <AdminViewWrapper>
+                  <QuizPage />
                 </AdminViewWrapper>
               </ProtectedRoute>
             }
