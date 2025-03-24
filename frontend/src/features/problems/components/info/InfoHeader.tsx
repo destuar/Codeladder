@@ -8,6 +8,7 @@ import { useAuth } from '@/features/auth/AuthContext';
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import codeladderSvgLogo from '@/features/landingpage/images/CodeLadder.svg';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { BorderlessThemeToggle } from "../shared/BorderlessThemeToggle";
 
 interface InfoHeaderProps {
   isCompleted: boolean;
@@ -76,19 +77,53 @@ export function InfoHeader({
           </Tooltip>
         </TooltipProvider>
 
-        <div className="mx-2 max-w-[300px] truncate text-center font-medium">
+        <div className="mx-2 max-w-[300px] truncate text-center">
           {sourceContext ? (
             <div className="flex flex-col items-center">
-              <span>{displayTitle}</span>
-              {sourceContext.from === 'topic' && (
-                <span className="text-xs text-muted-foreground">Topic</span>
-              )}
-              {sourceContext.from === 'collection' && (
-                <span className="text-xs text-muted-foreground">Collection</span>
+              {sourceContext.from === 'topic' ? (
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        asChild
+                        className="font-medium rounded-md h-8 transition-colors"
+                      >
+                        <Link to={`/topics/${sourceContext.id}`}>
+                          {displayTitle}
+                        </Link>
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent className="bg-popover text-popover-foreground border shadow-md">
+                      <p>View Topic</p>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              ) : sourceContext.from === 'collection' ? (
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        asChild
+                        className="font-medium rounded-md h-8 transition-colors"
+                      >
+                        <Link to={`/collections/${sourceContext.id}`}>
+                          {displayTitle}
+                        </Link>
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent className="bg-popover text-popover-foreground border shadow-md">
+                      <p>View Collection</p>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              ) : (
+                <span className="font-medium">{displayTitle}</span>
               )}
             </div>
           ) : (
-            title
+            <span className="font-medium">{title}</span>
           )}
         </div>
 
@@ -134,6 +169,8 @@ export function InfoHeader({
             )}
           </div>
         </Button>
+        
+        <BorderlessThemeToggle />
         
         <TooltipProvider>
           <Tooltip>

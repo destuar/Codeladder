@@ -15,7 +15,7 @@ import { TestRunner } from './test-runner/TestRunner';
 import { ProblemHeader } from '@/features/problems/components/coding/ProblemHeader';
 import { useProblemCompletion } from '@/features/problems/hooks/useProblemCompletion';
 import { formatEstimatedTime } from '../../utils/time';
-import { SupportedLanguage } from '../../types/coding';
+import { SupportedLanguage, LANGUAGE_CONFIGS } from "../../types/coding";
 import { Resizable } from "re-resizable";
 
 const MIN_PANEL_WIDTH = 300;
@@ -47,7 +47,20 @@ export default function CodingProblem({
   const [leftPanelWidth, setLeftPanelWidth] = useState(window.innerWidth * 0.4);
   const [editorHeight, setEditorHeight] = useState(DEFAULT_EDITOR_HEIGHT);
   const [code, setCode] = useState(codeTemplate || "");
-  const [selectedLanguage, setSelectedLanguage] = useState<SupportedLanguage>('javascript');
+  const [selectedLanguage, setSelectedLanguage] = useState<SupportedLanguage>(() => {
+    // Try to get the saved language preference from localStorage
+    try {
+      const savedLanguage = localStorage.getItem('preferredLanguage');
+      // If a valid language is saved, use it; otherwise default to Python
+      if (savedLanguage && Object.keys(LANGUAGE_CONFIGS).includes(savedLanguage)) {
+        return savedLanguage as SupportedLanguage;
+      }
+    } catch (e) {
+      console.error('Error accessing localStorage:', e);
+    }
+    // Default to Python if no valid saved preference is found
+    return 'python';
+  });
   
   // Add ref for the code editor component
   const editorRef = useRef<CodeEditorRef>(null);
@@ -87,6 +100,12 @@ export default function CodingProblem({
   // Handle language changes
   const handleLanguageChange = (language: string) => {
     setSelectedLanguage(language as SupportedLanguage);
+    // Save the selected language to localStorage
+    try {
+      localStorage.setItem('preferredLanguage', language);
+    } catch (e) {
+      console.error('Error saving language preference to localStorage:', e);
+    }
   };
 
   return (
