@@ -7,8 +7,9 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "@/features/auth/AuthContext";
+import { useAdmin } from "@/features/admin/AdminContext";
 import { api } from "@/lib/api";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -128,6 +129,8 @@ function CollectionBadge({
 
 export function ProblemCollectionAdmin() {
   const { token } = useAuth();
+  const { setIsAdminView } = useAdmin();
+  const navigate = useNavigate();
   const [collections, setCollections] = useState<DynamicCollection[]>([]);
   const [loadingCollections, setLoadingCollections] = useState(false);
   const [selectedCollection, setSelectedCollection] = useState<string | null>(null);
@@ -1037,6 +1040,14 @@ export function ProblemCollectionAdmin() {
     }
   };
 
+  // Function to handle View button click - exit admin view and navigate to problem
+  const handleViewProblem = (problemId: string) => {
+    // Exit admin view
+    setIsAdminView(false);
+    // Navigate to the problem
+    navigate(`/problems/${problemId}`);
+  };
+
   if (loadingCollections) {
     return (
       <div className="flex items-center justify-center p-8">
@@ -1165,9 +1176,9 @@ export function ProblemCollectionAdmin() {
                   <Button 
                     variant="ghost" 
                     size="sm"
-                    asChild
+                    onClick={() => handleViewProblem(problem.id)}
                   >
-                    <Link to={`/problems/${problem.id}`}>View</Link>
+                    View
                   </Button>
                   <Button 
                     variant="ghost" 

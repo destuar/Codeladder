@@ -19,6 +19,7 @@ interface CreateProblemBody {
   testCases?: string;
   topicId?: string;
   estimatedTime?: string | number;
+  slug?: string;
 }
 
 interface UpdateProblemBody {
@@ -32,6 +33,7 @@ interface UpdateProblemBody {
   codeTemplate?: string;
   testCases?: string;
   estimatedTime?: string | number;
+  slug?: string;
 }
 
 const router = express.Router();
@@ -240,7 +242,8 @@ router.post('/', authenticateToken, authorizeRoles([Role.ADMIN, Role.DEVELOPER])
       codeTemplate,
       testCases,
       topicId,
-      estimatedTime 
+      estimatedTime,
+      slug
     } = req.body as CreateProblemBody;
 
     console.log('Creating problem with data:', {
@@ -254,7 +257,8 @@ router.post('/', authenticateToken, authorizeRoles([Role.ADMIN, Role.DEVELOPER])
       codeTemplate: codeTemplate ? 'Provided' : undefined,
       testCases: testCases ? 'Provided' : undefined,
       topicId,
-      estimatedTime
+      estimatedTime,
+      slug: slug ? 'Provided' : undefined
     });
 
     // Only validate topic if topicId is provided
@@ -312,7 +316,8 @@ router.post('/', authenticateToken, authorizeRoles([Role.ADMIN, Role.DEVELOPER])
             topic: {
               connect: { id: topicId }
             }
-          })
+          }),
+          ...(slug && { slug })
         }
       });
 
@@ -478,7 +483,8 @@ router.put('/:problemId', authenticateToken, authorizeRoles([Role.ADMIN, Role.DE
           ...(problemType && { problemType: problemType }),
           ...(codeTemplate !== undefined && { codeTemplate }),
           ...(testCases !== undefined && { testCases: parsedTestCases }),
-          ...(estimatedTime !== undefined && { estimatedTime: parsedEstimatedTime })
+          ...(estimatedTime !== undefined && { estimatedTime: parsedEstimatedTime }),
+          ...(req.body.slug !== undefined && { slug: req.body.slug })
         },
         include: {
           collections: {

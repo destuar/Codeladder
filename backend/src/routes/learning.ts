@@ -220,7 +220,7 @@ router.post('/levels', async (req, res) => {
 router.post('/levels/:levelId/topics', async (req, res) => {
   try {
     const { levelId } = req.params;
-    const { name, description, content, order } = req.body;
+    const { name, description, content, order, slug } = req.body;
 
     const topic = await prisma.topic.create({
       data: {
@@ -228,6 +228,7 @@ router.post('/levels/:levelId/topics', async (req, res) => {
         description,
         content,
         order,
+        slug,
         level: {
           connect: { id: levelId },
         },
@@ -245,7 +246,7 @@ router.post('/levels/:levelId/topics', async (req, res) => {
 router.put('/topics/:id', async (req, res) => {
   try {
     const { id } = req.params;
-    const { name, description, content, order } = req.body;
+    const { name, description, content, order, slug } = req.body;
     
     const topic = await prisma.topic.update({
       where: { id },
@@ -254,6 +255,7 @@ router.put('/topics/:id', async (req, res) => {
         description,
         content,
         order,
+        slug,
       },
     });
 

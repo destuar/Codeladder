@@ -1,5 +1,7 @@
 import { useState, useEffect } from "react";
 import { useAuth } from "@/features/auth/AuthContext";
+import { useAdmin } from "@/features/admin/AdminContext";
+import { useNavigate } from "react-router-dom";
 import { api } from "@/lib/api";
 import { toast } from "sonner";
 
@@ -59,6 +61,8 @@ interface NewCollection {
  */
 export function ProblemListAdmin() {
   const { token } = useAuth();
+  const { setIsAdminView } = useAdmin();
+  const navigate = useNavigate();
   
   // Collections state
   const [collections, setCollections] = useState<Collection[]>([]);
@@ -329,6 +333,14 @@ export function ProblemListAdmin() {
     </div>
   );
   
+  // Function to handle viewing a problem
+  const handleViewProblem = (problemId: string) => {
+    // Exit admin view
+    setIsAdminView(false);
+    // Navigate to the problem
+    navigate(`/problems/${problemId}`);
+  };
+  
   return (
     <div className="space-y-6">
       <Card>
@@ -519,7 +531,11 @@ export function ProblemListAdmin() {
                         </TableHeader>
                         <TableBody>
                           {problems.map((problem) => (
-                            <TableRow key={problem.id}>
+                            <TableRow 
+                              key={problem.id}
+                              className="cursor-pointer hover:bg-muted/50"
+                              onClick={() => handleViewProblem(problem.id)}
+                            >
                               <TableCell className="font-medium">{problem.name}</TableCell>
                               <TableCell>{problem.problemType}</TableCell>
                               <TableCell>{problem.difficulty}</TableCell>
