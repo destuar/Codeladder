@@ -41,7 +41,6 @@ export default function CodingProblem({
   isReviewMode = false,
   onCompleted,
 }: CodingProblemProps) {
-  const [isFullscreen, setIsFullscreen] = useState(false);
   const [leftPanelWidth, setLeftPanelWidth] = useState(window.innerWidth * 0.4);
   const [editorHeight, setEditorHeight] = useState(DEFAULT_EDITOR_HEIGHT);
   const [code, setCode] = useState(codeTemplate || "");
@@ -88,18 +87,14 @@ export default function CodingProblem({
   };
 
   return (
-    <div className={cn(
-      "flex flex-col bg-background",
-      isFullscreen ? "fixed inset-0 z-50" : "h-[calc(100vh-3.5rem)]"
-    )}>
+    <div className="flex flex-col bg-background h-screen">
       <ProblemHeader
         isCompleted={isProblemCompleted}
-        isFullscreen={isFullscreen}
-        onToggleFullscreen={() => setIsFullscreen(!isFullscreen)}
         onMarkComplete={handleMarkAsComplete}
         nextProblemId={nextProblemId}
         prevProblemId={prevProblemId}
         onNavigate={onNavigate}
+        title={title}
       />
 
       <div className="flex flex-1 min-h-0">

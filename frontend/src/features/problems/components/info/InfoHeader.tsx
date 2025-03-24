@@ -2,14 +2,14 @@ import { Button } from "@/components/ui/button";
 import { CheckCircle2, ChevronRight, ChevronLeft, Settings } from "lucide-react";
 import { cn } from '@/lib/utils';
 import { Link } from 'react-router-dom';
-import { ProblemTimer } from './timer/ProblemTimer';
+import { ProblemTimer } from '../coding/timer/ProblemTimer';
 import { useProfile } from '@/features/profile/ProfileContext';
 import { useAuth } from '@/features/auth/AuthContext';
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import codeladderSvgLogo from '@/features/landingpage/images/CodeLadder.svg';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
-interface ProblemHeaderProps {
+interface InfoHeaderProps {
   isCompleted: boolean;
   onMarkComplete: () => void;
   nextProblemId?: string;
@@ -19,16 +19,16 @@ interface ProblemHeaderProps {
 }
 
 /**
- * Header component for the coding problem interface
+ * Header component for the info problem interface
  */
-export function ProblemHeader({
+export function InfoHeader({
   isCompleted,
   onMarkComplete,
   nextProblemId,
   prevProblemId,
   onNavigate,
   title = "Problem",
-}: ProblemHeaderProps) {
+}: InfoHeaderProps) {
   const { profile } = useProfile();
   const { user } = useAuth();
 

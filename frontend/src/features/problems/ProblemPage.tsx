@@ -3,7 +3,7 @@ import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 import { useAuth } from '@/features/auth/AuthContext';
-import InfoProblem from './components/InfoProblem';
+import InfoProblem from './components/info/InfoProblem';
 import CodingProblem from './components/coding/CodingProblem';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ErrorBoundary } from '@/components/ErrorBoundary';
@@ -178,6 +178,7 @@ const ProblemPage: React.FC = () => {
               problemId={problem.id}
               isReviewMode={isReviewMode}
               onCompleted={handleProblemCompleted}
+              title={problem.name}
             />
           </div>
           {shouldShowReviewControls && (
