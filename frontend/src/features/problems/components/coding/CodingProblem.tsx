@@ -153,16 +153,19 @@ export default function CodingProblem({
       isQuizMode ? "h-full" : "h-screen"
     )}>
       <ProblemHeader
-        isCompleted={isProblemCompleted}
-        onMarkComplete={handleMarkAsComplete}
+        title={title || 'Problem'}
+        difficulty={difficulty}
         nextProblemId={nextProblemId}
         nextProblemSlug={nextProblemSlug}
         prevProblemId={prevProblemId}
         prevProblemSlug={prevProblemSlug}
-        onNavigate={onNavigate}
-        title={title}
+        onNavigate={handleNavigate}
+        isCompleted={isProblemCompleted}
+        onMarkComplete={handleMarkAsComplete}
         isQuizMode={isQuizMode}
+        isReviewMode={isReviewMode}
         sourceContext={sourceContext}
+        problemType="CODING"
       />
 
       {/* Spaced Repetition Dialog */}

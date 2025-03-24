@@ -1,10 +1,10 @@
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useAdmin } from '../admin/AdminContext';
-import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
+import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { api } from '@/lib/api';
 import type { Topic, Problem, Level } from '@/hooks/useLearningPath';
 import { useAuth } from '@/features/auth/AuthContext';
@@ -170,6 +170,21 @@ export default function TopicPage() {
     }
   };
 
+  // Process content to remove duplicate title and description if present
+  const processedContent = useMemo(() => {
+    if (!topic?.content) return '';
+    
+    // Remove title and description patterns from the content
+    const content = topic.content;
+    const titlePattern = new RegExp(`^# ?${topic.name}\\s*\n`, 'i');
+    const descPattern = /^In this topic,.*?problems\.\s*\n/i;
+    
+    return content
+      .replace(titlePattern, '')
+      .replace(descPattern, '')
+      .trim();
+  }, [topic]);
+
   if (loading) {
     return (
       <div className="container py-8">
@@ -203,53 +218,53 @@ export default function TopicPage() {
   }
 
   return (
-    <div className="container py-8 space-y-6 relative">
-      <div className="flex justify-between items-center">
-        <div>
-          <h1 className="text-3xl font-bold">{topic.name}</h1>
-          <p className="text-muted-foreground">Level {topic.level.order}</p>
+    <div className="container pt-10 pb-8 space-y-2 relative">
+      <div className="mb-0">
+        <div className="flex items-center gap-3 mb-1">
+          <h1 className="text-2xl font-semibold flex items-center gap-2">
+            <div className="h-6 w-1.5 rounded-full bg-blue-500 dark:bg-blue-400"></div>
+            {topic.name}
+          </h1>
+          <Badge variant="outline" className="bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400">
+            {topic.level.name}
+          </Badge>
+          {isAdminView && (
+            <Button variant="outline" size="sm" className="ml-auto">Edit Topic</Button>
+          )}
         </div>
-        {isAdminView && (
-          <Button variant="outline">Edit Topic</Button>
-        )}
+        <p className="text-sm text-muted-foreground ml-3 mb-0">
+          {topic.description || 'In this topic, you will learn fundamental approaches to solving programming problems.'}
+        </p>
       </div>
 
-      <Card>
-        {/* <CardHeader>
-          <CardTitle>Overview</CardTitle>
-          <CardDescription>{topic.description}</CardDescription>
-        </CardHeader> */}
-        <CardContent>
-          <Markdown content={topic.content || ''} />
-        </CardContent>
-      </Card>
-
+      {/* Problems Section */}
       {topic.problems && topic.problems.length > 0 && (
-        <Card className={cn(isLocked && "bg-muted/50")}>
-          <CardHeader className="relative">
-            <CardTitle className={cn(isLocked && "text-muted-foreground")}>Problems</CardTitle>
-            <CardDescription className={cn(isLocked && "text-muted-foreground/50")}>
-              Practice problems for this topic
-            </CardDescription>
-            {isLocked && (
-              <div className="absolute right-6 top-6">
-                <div className="bg-background rounded-full p-2 shadow-sm border">
-                  <Lock className="w-5 h-5 text-muted-foreground" />
-                </div>
+        <div className={cn("mt-0", isLocked && "opacity-90")}>
+          {isLocked && (
+            <div className="flex justify-end mb-4">
+              <div className="bg-background rounded-full p-2 shadow-sm border">
+                <Lock className="w-5 h-5 text-muted-foreground" />
               </div>
-            )}
-          </CardHeader>
-          <CardContent>
-            <ProblemList
-              problems={topic.problems}
-              isLocked={isLocked}
-              canAccessAdmin={canAccessAdmin}
-              onProblemStart={handleProblemStart}
-              itemsPerPage={50}
-              showOrder={true}
-            />
-          </CardContent>
-        </Card>
+            </div>
+          )}
+          
+          <Card className={cn(
+            "border-0 shadow-sm overflow-hidden",
+            isLocked && "bg-muted/30 dark:bg-muted/10"
+          )}>
+            <CardContent className="p-0">
+              <ProblemList
+                problems={topic.problems}
+                isLocked={isLocked}
+                canAccessAdmin={canAccessAdmin}
+                onProblemStart={handleProblemStart}
+                itemsPerPage={50}
+                showOrder={true}
+                hideHeader={true}
+              />
+            </CardContent>
+          </Card>
+        </div>
       )}
 
       {/* Warning Card */}

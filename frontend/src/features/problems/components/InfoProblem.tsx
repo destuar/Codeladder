@@ -11,6 +11,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useAdmin } from '@/features/admin/AdminContext';
 import { ensureHtml, isMarkdown } from '@/lib/markdown-to-html';
 import { useProblemCompletion } from '@/features/problems/hooks/useProblemCompletion';
+import { ProblemHeader } from '@/features/problems/components/coding/ProblemHeader';
 import { 
   AlertDialog,
   AlertDialogAction,
@@ -57,6 +58,7 @@ export interface InfoProblemProps {
     name: string;
     id: string;
   };
+  title?: string;
 }
 
 const InfoProblem: React.FC<InfoProblemProps> = ({ 
@@ -73,7 +75,8 @@ const InfoProblem: React.FC<InfoProblemProps> = ({
   onCompleted,
   problemType = 'INFO',
   onNavigate,
-  sourceContext
+  sourceContext,
+  title = "Information"
 }) => {
   const navigate = useNavigate();
   const { token } = useAuth();
@@ -111,7 +114,22 @@ const InfoProblem: React.FC<InfoProblemProps> = ({
   };
 
   return (
-    <div className={`${isReviewMode ? 'h-auto' : 'h-[calc(100vh-4rem)]'} flex flex-col relative`}>
+    <div className={`${isReviewMode ? 'h-auto' : 'h-screen'} flex flex-col relative`}>
+      {/* Problem Header - Same as in CodingProblem */}
+      <ProblemHeader
+        isCompleted={isProblemCompleted}
+        onMarkComplete={handleMarkAsComplete}
+        nextProblemId={nextProblemId}
+        nextProblemSlug={nextProblemSlug}
+        prevProblemId={prevProblemId}
+        prevProblemSlug={prevProblemSlug}
+        onNavigate={handleNavigate}
+        title={title}
+        isReviewMode={isReviewMode}
+        sourceContext={sourceContext}
+        problemType={problemType}
+      />
+
       {/* Spaced Repetition Dialog */}
       <AlertDialog open={showCompletionDialog} onOpenChange={setShowCompletionDialog}>
         <AlertDialogContent>
@@ -178,51 +196,6 @@ const InfoProblem: React.FC<InfoProblemProps> = ({
               />
             )}
           </div>
-        </div>
-      </div>
-
-      {/* Floating buttons */}
-      <div className={`${isReviewMode ? 'static bottom-auto right-auto mt-4 mr-4 self-end' : 'fixed bottom-6 right-6'} flex flex-col gap-2`}>
-        {/* Complete button */}
-        <Button 
-          variant={isProblemCompleted ? "outline" : "default"}
-          className={cn(
-            "shadow-sm transition-all duration-200",
-            isProblemCompleted && "border-green-500 text-green-500 hover:bg-green-500/10"
-          )}
-          onClick={handleMarkAsComplete}
-          disabled={isProblemCompleted && !canAccessAdmin}
-        >
-          <div className="flex items-center">
-            {isProblemCompleted ? (
-              <>
-                <CheckCircle2 className="w-5 h-5" />
-                <span className="ml-2">{canAccessAdmin ? "Toggle Complete" : "Completed"}</span>
-              </>
-            ) : (
-              <span>Mark as Complete</span>
-            )}
-          </div>
-        </Button>
-
-        {/* Navigation buttons */}
-        <div className="flex gap-2">
-          <Button
-            variant="outline"
-            onClick={() => prevProblemId && handleNavigate(prevProblemId, prevProblemSlug)}
-            disabled={!prevProblemId}
-            className="shadow-sm"
-          >
-            Previous
-          </Button>
-          <Button
-            onClick={() => nextProblemId && handleNavigate(nextProblemId, nextProblemSlug)}
-            disabled={!nextProblemId}
-            className="shadow-sm"
-          >
-            <span>Next</span>
-            <ChevronRight className="w-4 h-4 ml-2" />
-          </Button>
         </div>
       </div>
     </div>

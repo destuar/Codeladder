@@ -9,6 +9,7 @@
 export { SpacedRepetitionPanel } from './components/SpacedRepetitionPanel';
 export { ReviewControls } from './components/ReviewControls';
 export { MemoryStrengthIndicator } from './components/MemoryStrengthIndicator';
+export { ReviewPage } from './components/ReviewPage';
 
 // Hooks
 export { useSpacedRepetition } from './hooks/useSpacedRepetition';

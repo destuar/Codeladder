@@ -78,6 +78,7 @@ const InfoProblem: React.FC<InfoProblemProps> = ({
         prevProblemSlug={prevProblemSlug}
         onNavigate={handleNavigate}
         title={title}
+        isReviewMode={isReviewMode}
         sourceContext={sourceContext}
       />
 

@@ -229,7 +229,7 @@ const ProblemPage: React.FC = () => {
   };
 
   // Check if we should show review controls
-  const shouldShowReviewControls = isReviewMode || hasJustCompleted;
+  const shouldShowReviewControls = (isReviewMode && (effectiveIsCompleted || hasJustCompleted)) || hasJustCompleted;
 
   if (isLoading) {
     return (

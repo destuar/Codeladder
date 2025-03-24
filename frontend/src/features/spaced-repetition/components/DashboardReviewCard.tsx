@@ -13,7 +13,7 @@ export function DashboardReviewCard() {
   const navigate = useNavigate();
   
   const handleStartReviews = () => {
-    navigate('/problems');
+    navigate('/review');
   };
   
   if (isLoading) {

@@ -19,7 +19,10 @@ interface ProblemHeaderProps {
   prevProblemSlug?: string;
   onNavigate: (id: string, slug?: string) => void;
   title?: string;
+  difficulty?: string;
   isQuizMode?: boolean;
+  isReviewMode?: boolean;
+  problemType?: string;
   sourceContext?: {
     from: string;
     name: string;
@@ -39,11 +42,17 @@ export function ProblemHeader({
   prevProblemSlug,
   onNavigate,
   title = "Problem",
+  difficulty,
   isQuizMode = false,
+  isReviewMode = false,
+  problemType = 'CODING',
   sourceContext,
 }: ProblemHeaderProps) {
   const { profile } = useProfile();
   const { user } = useAuth();
+
+  // Check if it's a coding problem to show the timer
+  const isCodingProblem = problemType === 'CODING';
 
   // Display the source context name with the problem title
   const displayTitle = sourceContext ? sourceContext.name : title;
@@ -51,15 +60,15 @@ export function ProblemHeader({
   return (
     <div className="flex justify-between items-center px-4 py-2 border-b h-16 bg-background">
       {/* Left section - Logo and Timer */}
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-3 w-1/4">
         <Link to="/dashboard" className="flex items-center">
           <img src={codeladderSvgLogo} alt="CodeLadder Logo" className="h-8 w-auto" />
         </Link>
-        <ProblemTimer className="ml-3" />
+        {isCodingProblem && <ProblemTimer className="ml-3" />}
       </div>
 
-      {/* Middle section - Problem navigation */}
-      <div className="flex items-center">
+      {/* Middle section - Problem navigation - always centered */}
+      <div className="flex items-center justify-center flex-1">
         <TooltipProvider>
           <Tooltip>
             <TooltipTrigger asChild>
@@ -67,7 +76,7 @@ export function ProblemHeader({
                 variant="ghost"
                 size="icon"
                 onClick={() => prevProblemId && onNavigate(prevProblemId, prevProblemSlug)}
-                disabled={!prevProblemId}
+                disabled={!prevProblemId || isReviewMode}
                 className="h-8 w-8"
               >
                 <ChevronLeft className="h-4 w-4" />
@@ -136,7 +145,7 @@ export function ProblemHeader({
                 variant="ghost"
                 size="icon"
                 onClick={() => nextProblemId && onNavigate(nextProblemId, nextProblemSlug)}
-                disabled={!nextProblemId}
+                disabled={!nextProblemId || isReviewMode}
                 className="h-8 w-8"
               >
                 <ChevronRight className="h-4 w-4" />
@@ -150,7 +159,7 @@ export function ProblemHeader({
       </div>
 
       {/* Right section - Actions */}
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-2 w-1/4 justify-end">
         {!isQuizMode && (
           <Button 
             variant={isCompleted ? "outline" : "default"}

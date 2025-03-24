@@ -43,16 +43,17 @@ export function useProblemCompletion(
       return;
     }
     
-    // If in review mode, we always complete without confirmation
+    // In review mode, directly complete without showing the dialog
+    // since the problem is already in spaced repetition
     if (isReviewMode) {
-      // Set state immediately for faster UI feedback before API call
-      setIsProblemCompleted(true);
+      // Set state immediately for faster UI feedback
+      setIsProblemCompleted(true); 
       // Run API call non-blocking for better perceived performance
       completeToggleProblem(false);
       return;
     }
     
-    // Only show dialog for CODING problems that aren't completed
+    // Only show dialog for CODING problems that aren't completed and not in review mode
     if (!isProblemCompleted && problemType === 'CODING') {
       setShowCompletionDialog(true);
     } else {
@@ -100,29 +101,23 @@ export function useProblemCompletion(
 
   // This function performs the actual API call to complete/uncomplete a problem
   const completeToggleProblem = async (addToSpacedRepetition: boolean) => {
-    // When in review mode, we should ALWAYS mark the problem as complete, regardless of current state
-    // This prevents the toggle behavior which causes issues with the review data
-    const isBeingMarkedComplete = isReviewMode ? true : !isProblemCompleted;
+    // When not in review mode, follow normal toggle behavior
+    const isBeingMarkedComplete = !isProblemCompleted;
     
     console.log('[ProblemCompletion] Marking problem as complete:', {
       problemId,
       currentState: isProblemCompleted,
       isReviewMode,
-      forcingComplete: isReviewMode,
       preserveReviewData: isReviewMode
     });
     
-    // In review mode, always set to completed (already handled in handleMarkAsComplete for faster UI response)
-    if (!isReviewMode) {
-      // Normal toggle behavior for non-review mode
-      setIsProblemCompleted(!isProblemCompleted);
-    }
+    // Update local state (toggle behavior)
+    setIsProblemCompleted(!isProblemCompleted);
 
     try {
-      // In review mode, we pass a special parameter to force completion
+      // In review mode, we pass a parameter to preserve review data
       const response = await api.post(`/problems/${problemId}/complete`, { 
-        preserveReviewData: isReviewMode,
-        forceComplete: isReviewMode
+        preserveReviewData: isReviewMode
       }, token);
       
       console.log('[ProblemCompletion] Server response:', response);
@@ -143,29 +138,14 @@ export function useProblemCompletion(
         console.log('[ProblemCompletion] All queries invalidated');
       }, 0);
       
-      // Add a short delay before calling onCompleted in review mode
-      // to ensure the server has updated the progress record
+      // Call onCompleted callback when marking as complete
       if (onCompleted && isBeingMarkedComplete) {
-        if (isReviewMode) {
-          console.log('[ProblemCompletion] In review mode, adding minimal delay before callback');
-          setTimeout(() => {
-            console.log('[ProblemCompletion] Calling onCompleted callback after delay');
-            onCompleted();
-          }, 50); // Reduced from 300ms to 50ms for much faster appearance
-        } else {
-          console.log('[ProblemCompletion] Calling onCompleted callback immediately');
-          onCompleted();
-        }
+        console.log('[ProblemCompletion] Calling onCompleted callback');
+        onCompleted();
       }
     } catch (error) {
       // Revert the optimistic update on error
-      if (isReviewMode) {
-        // In review mode, keep as completed on error
-        setIsProblemCompleted(true);
-      } else {
-        // Normal toggle reversion
-        setIsProblemCompleted(!isProblemCompleted);
-      }
+      setIsProblemCompleted(!isProblemCompleted);
       console.error('[ProblemCompletion] Error toggling problem completion:', error);
     }
   };

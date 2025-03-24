@@ -24,6 +24,7 @@ import { LandingPage } from './features/landingpage';
 import { QuizPage } from './features/quiz/QuizPage';
 import { QuizResultsPage } from './features/quiz/QuizResultsPage';
 import CollectionPage from './features/collections/CollectionPage';
+import { ReviewPage } from './features/spaced-repetition';
 
 // Regular components
 const UnauthorizedPage = () => (
@@ -86,6 +87,16 @@ function MainLayout() {
               <ProtectedRoute>
                 <AdminViewWrapper>
                   <ProfilePage />
+                </AdminViewWrapper>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/review"
+            element={
+              <ProtectedRoute>
+                <AdminViewWrapper>
+                  <ReviewPage />
                 </AdminViewWrapper>
               </ProtectedRoute>
             }

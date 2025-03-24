@@ -10,15 +10,17 @@ import codeladderSvgLogo from '@/features/landingpage/images/CodeLadder.svg';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { BorderlessThemeToggle } from "../shared/BorderlessThemeToggle";
 
-interface InfoHeaderProps {
-  isCompleted: boolean;
-  onMarkComplete: () => void;
-  nextProblemId?: string;
-  nextProblemSlug?: string;
+export interface InfoHeaderProps {
+  title?: string;
+  subtitle?: string;
   prevProblemId?: string;
   prevProblemSlug?: string;
+  nextProblemId?: string;
+  nextProblemSlug?: string;
   onNavigate: (id: string, slug?: string) => void;
-  title?: string;
+  isCompleted?: boolean;
+  onMarkComplete: () => void;
+  isReviewMode?: boolean;
   sourceContext?: {
     from: string;
     name: string;
@@ -30,14 +32,16 @@ interface InfoHeaderProps {
  * Header component for the info problem interface
  */
 export function InfoHeader({
-  isCompleted,
-  onMarkComplete,
-  nextProblemId,
-  nextProblemSlug,
+  title = "Info",
+  subtitle,
   prevProblemId,
   prevProblemSlug,
+  nextProblemId,
+  nextProblemSlug,
   onNavigate,
-  title = "Problem",
+  isCompleted = false,
+  onMarkComplete,
+  isReviewMode = false,
   sourceContext,
 }: InfoHeaderProps) {
   const { profile } = useProfile();
@@ -65,14 +69,14 @@ export function InfoHeader({
                 variant="ghost"
                 size="icon"
                 onClick={() => prevProblemId && onNavigate(prevProblemId, prevProblemSlug)}
-                disabled={!prevProblemId}
+                disabled={!prevProblemId || isReviewMode}
                 className="h-8 w-8"
               >
                 <ChevronLeft className="h-4 w-4" />
               </Button>
             </TooltipTrigger>
             <TooltipContent className="bg-popover text-popover-foreground border shadow-md">
-              <p>Previous Problem</p>
+              <p>Previous Info</p>
             </TooltipContent>
           </Tooltip>
         </TooltipProvider>
@@ -134,14 +138,14 @@ export function InfoHeader({
                 variant="ghost"
                 size="icon"
                 onClick={() => nextProblemId && onNavigate(nextProblemId, nextProblemSlug)}
-                disabled={!nextProblemId}
+                disabled={!nextProblemId || isReviewMode}
                 className="h-8 w-8"
               >
                 <ChevronRight className="h-4 w-4" />
               </Button>
             </TooltipTrigger>
             <TooltipContent className="bg-popover text-popover-foreground border shadow-md">
-              <p>Next Problem</p>
+              <p>Next Info</p>
             </TooltipContent>
           </Tooltip>
         </TooltipProvider>

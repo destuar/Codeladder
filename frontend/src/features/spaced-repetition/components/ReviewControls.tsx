@@ -137,15 +137,15 @@ export function ReviewControls({
   
   return (
     <div className="fixed inset-0 flex items-center justify-center z-50 bg-black/50 backdrop-blur-sm">
-      <Card className="w-full max-w-md shadow-lg border-2 animate-in fade-in zoom-in-95 duration-100">
+      <Card className="w-full max-w-md shadow-lg border-2 border-blue-200 dark:border-blue-800 animate-in fade-in zoom-in-95 duration-100">
         <CardHeader className="pb-2">
           <div className="flex items-center gap-2">
-            <Dumbbell className="h-5 w-5 text-black" />
+            <Dumbbell className="h-5 w-5 text-blue-500 dark:text-blue-400" />
             <CardTitle className="text-xl">How well did you remember?</CardTitle>
           </div>
           <CardDescription>
             {isEarlyReview && scheduledDate ? (
-              <div className="flex items-center gap-1 text-gray-700">
+              <div className="flex items-center gap-1 text-gray-700 dark:text-gray-300">
                 <AlertCircle className="h-4 w-4 flex-shrink-0" />
                 <span>Originally suggested for {formattedDate}</span>
               </div>
