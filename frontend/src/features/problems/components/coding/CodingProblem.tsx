@@ -47,6 +47,7 @@ export default function CodingProblem({
   const [leftPanelWidth, setLeftPanelWidth] = useState(window.innerWidth * 0.4);
   const [editorHeight, setEditorHeight] = useState(DEFAULT_EDITOR_HEIGHT);
   const [code, setCode] = useState(codeTemplate || "");
+  const [isRunning, setIsRunning] = useState(false);
   const [selectedLanguage, setSelectedLanguage] = useState<SupportedLanguage>(() => {
     // Try to get the saved language preference from localStorage
     try {
@@ -106,6 +107,15 @@ export default function CodingProblem({
     } catch (e) {
       console.error('Error saving language preference to localStorage:', e);
     }
+  };
+
+  // Create handlers for running tests and submitting solutions
+  const handleRunTests = async () => {
+    // We'll pass this to the TestRunner
+  };
+
+  const handleSubmitSolution = async () => {
+    // We'll pass this to the TestRunner
   };
 
   return (
@@ -201,6 +211,21 @@ export default function CodingProblem({
                 language={selectedLanguage}
                 onLanguageChange={handleLanguageChange}
                 ref={editorRef}
+                onRunTests={() => {
+                  // Use the data attribute to click the hidden button
+                  const testRunnerElement = document.querySelector('[data-testrunner-run-button]');
+                  if (testRunnerElement) {
+                    (testRunnerElement as HTMLButtonElement).click();
+                  }
+                }}
+                onSubmitSolution={() => {
+                  // Use the data attribute to click the hidden button
+                  const testRunnerElement = document.querySelector('[data-testrunner-submit-button]');
+                  if (testRunnerElement) {
+                    (testRunnerElement as HTMLButtonElement).click();
+                  }
+                }}
+                isRunning={isRunning}
               />
             </div>
           </Resizable>
@@ -214,6 +239,8 @@ export default function CodingProblem({
               onRunComplete={() => {}}
               language={selectedLanguage}
               onLanguageChange={handleLanguageChange}
+              isRunning={isRunning}
+              setIsRunning={setIsRunning}
             />
           </div>
         </div>

@@ -30,7 +30,6 @@ interface RunTestsResponse {
 }
 
 interface UseTestRunnerResult {
-  isRunning: boolean;
   testResults: TestResult[];
   runTests: (code: string, testCases: TestCase[], problemId: string, language: string) => Promise<void>;
   runQuickTests: (code: string, problemId: string, language: string) => Promise<void>;
@@ -39,14 +38,13 @@ interface UseTestRunnerResult {
 
 /**
  * Custom hook for managing test execution and results
+ * isRunning state is managed by the parent component
  */
 export function useTestRunner(): UseTestRunnerResult {
-  const [isRunning, setIsRunning] = useState(false);
   const [testResults, setTestResults] = useState<TestResult[]>([]);
 
   // This calls the execute endpoint which creates a submission
   const runTests = useCallback(async (code: string, testCases: TestCase[], problemId: string, language: string) => {
-    setIsRunning(true);
     setTestResults([]);
 
     try {
@@ -89,14 +87,11 @@ export function useTestRunner(): UseTestRunnerResult {
         memory: 0,
         error: error instanceof Error ? error.message : 'Unknown error'
       }]);
-    } finally {
-      setIsRunning(false);
     }
   }, []);
 
   // This calls the new run-tests endpoint which doesn't create a submission
   const runQuickTests = useCallback(async (code: string, problemId: string, language: string) => {
-    setIsRunning(true);
     setTestResults([]);
 
     try {
@@ -139,8 +134,6 @@ export function useTestRunner(): UseTestRunnerResult {
         memory: 0,
         error: error instanceof Error ? error.message : 'Unknown error'
       }]);
-    } finally {
-      setIsRunning(false);
     }
   }, []);
 
@@ -150,8 +143,6 @@ export function useTestRunner(): UseTestRunnerResult {
     functionName: string, 
     language: string
   ): Promise<TestResult> => {
-    setIsRunning(true);
-    
     try {
       // Get the auth token from localStorage
       const token = localStorage.getItem('token');
@@ -204,13 +195,10 @@ export function useTestRunner(): UseTestRunnerResult {
         memory: 0,
         error: error instanceof Error ? error.message : 'Unknown error'
       };
-    } finally {
-      setIsRunning(false);
     }
   }, []);
 
   return {
-    isRunning,
     testResults,
     runTests,
     runQuickTests,
