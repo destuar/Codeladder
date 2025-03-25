@@ -2,6 +2,8 @@ import { Router } from 'express';
 import type { RequestHandler } from 'express-serve-static-core';
 import { prisma } from '../lib/prisma';
 import { authenticateToken } from '../middleware/auth';
+import { authorizeRoles } from '../middleware/authorize';
+import { Role } from '@prisma/client';
 import { calculateNextReviewDate, calculateNewReviewLevel, createReviewHistoryEntry } from '../lib/spacedRepetition';
 import { resolveProblem, getProblemId, getProblemSlug, getProgressForProblem } from '../lib/problemResolver';
 
@@ -32,7 +34,7 @@ router.get('/due', authenticateToken, (async (req, res) => {
           lte: nextWeek // Include all problems due in the next 7 days
         },
         reviewLevel: {
-          not: null
+          gt: -1 // Use greater than -1 instead of not: null
         }
       },
       include: {
@@ -104,7 +106,7 @@ router.get('/all-scheduled', authenticateToken, (async (req, res) => {
         userId,
         status: 'COMPLETED',
         reviewLevel: {
-          not: null
+          gt: -1 // Use greater than -1 instead of not: null
         },
         reviewScheduledAt: {
           not: null
@@ -269,56 +271,70 @@ router.post('/review', authenticateToken, (async (req, res) => {
       if (!progress) {
         try {
           // Create a new progress record with initial level 0
-          const newProgress = await prisma.progress.create({
-            data: {
-              userId,
-              problemId: problem.id,
-              topicId: problem.topicId,
-              status: 'COMPLETED',
-              reviewLevel: 0, // Always start at level 0
-              lastReviewedAt: new Date(),
-              reviewScheduledAt: calculateNextReviewDate(0),
+          const result = await prisma.$transaction(async (tx) => {
+            // Ensure topic ID exists
+            if (!problem.topicId) {
+              throw new Error('Cannot create progress record: Problem is missing a topic ID');
             }
-          });
-          
-          // Calculate new level using the same function as for subsequent reviews
-          const newLevel = calculateNewReviewLevel(0, wasSuccessful);
-          
-          // Update the progress with the calculated level
-          await prisma.progress.update({
-            where: { id: newProgress.id },
-            data: {
-              reviewLevel: newLevel,
-              reviewScheduledAt: calculateNextReviewDate(newLevel)
-            }
-          });
-          
-          // Create review history entry separately
-          await prisma.reviewHistory.create({
-            data: {
-              progressId: newProgress.id,
-              date: new Date(),
-              wasSuccessful,
-              reviewOption: reviewOption || 'added-to-repetition',
-              levelBefore: 0,
-              levelAfter: newLevel
-            }
-          });
-          
-          // Connect the problem to the user's completed problems
-          await prisma.user.update({
-            where: { id: userId },
-            data: {
-              completedProblems: {
-                connect: { id: problem.id }
+            
+            // Create a new progress record with initial level 0
+            const newProgress = await tx.progress.create({
+              data: {
+                userId,
+                problemId: problem.id,
+                topicId: problem.topicId,
+                status: 'COMPLETED',
+                reviewLevel: 0, // Always start at level 0
+                lastReviewedAt: new Date(),
+                reviewScheduledAt: calculateNextReviewDate(0),
               }
-            }
+            });
+            
+            // Calculate new level using the same function as for subsequent reviews
+            const newLevel = calculateNewReviewLevel(0, wasSuccessful);
+            
+            // Update the progress with the calculated level
+            const updatedProgress = await tx.progress.update({
+              where: { id: newProgress.id },
+              data: {
+                reviewLevel: newLevel,
+                reviewScheduledAt: calculateNextReviewDate(newLevel)
+              }
+            });
+            
+            // Create review history entry within the same transaction
+            const reviewHistory = await tx.reviewHistory.create({
+              data: {
+                progressId: newProgress.id,
+                date: new Date(),
+                wasSuccessful,
+                reviewOption: reviewOption || 'standard-review',
+                levelBefore: 0,
+                levelAfter: newLevel
+              }
+            });
+            
+            // Connect the problem to the user's completed problems
+            await tx.user.update({
+              where: { id: userId },
+              data: {
+                completedProblems: {
+                  connect: { id: problem.id }
+                }
+              }
+            });
+            
+            return { 
+              updatedProgress,
+              reviewHistory,
+              newLevel 
+            };
           });
           
           return res.json({ 
             message: 'Review recorded with new progress record',
-            nextReviewDate: calculateNextReviewDate(newLevel),
-            newLevel,
+            nextReviewDate: calculateNextReviewDate(result.newLevel),
+            newLevel: result.newLevel,
             status: 'COMPLETED',
             reviewOption,
             problemSlug: problem.slug
@@ -367,50 +383,56 @@ router.post('/review', authenticateToken, (async (req, res) => {
       });
       
       try {
-        // Update progress record with the new review data
-        const updatedProgress = await prisma.progress.update({
-          where: {
-            id: progress.id,
-          },
-          data: {
-            reviewLevel: newLevel,
-            reviewScheduledAt: nextReviewDate,
-            lastReviewedAt: new Date(),
-            status: 'COMPLETED',
-          },
-        });
+        // CHANGED: Update progress and create review history in a transaction for atomicity
+        const result = await prisma.$transaction(async (tx) => {
+          // Update progress record with the new review data
+          const updatedProgress = await tx.progress.update({
+            where: {
+              id: progress.id,
+            },
+            data: {
+              reviewLevel: newLevel,
+              reviewScheduledAt: nextReviewDate,
+              lastReviewedAt: new Date(),
+              status: 'COMPLETED',
+            },
+          });
 
-        console.log('[SpacedRepetition:Review] Progress updated successfully:', { 
-          progressId: updatedProgress.id, 
-          oldLevel: currentLevel, 
-          newLevel: updatedProgress.reviewLevel,
-          nextReviewDate: updatedProgress.reviewScheduledAt 
-        });
+          console.log('[SpacedRepetition:Review] Progress updated successfully:', { 
+            progressId: updatedProgress.id, 
+            oldLevel: currentLevel, 
+            newLevel: updatedProgress.reviewLevel,
+            nextReviewDate: updatedProgress.reviewScheduledAt 
+          });
 
-        // Create review history entry separately
-        await prisma.reviewHistory.create({
-          data: {
+          // Create review history entry in the same transaction
+          const reviewHistory = await tx.reviewHistory.create({
+            data: {
+              progressId: progress.id,
+              date: new Date(),
+              wasSuccessful,
+              reviewOption: reviewOption || 'standard-review',
+              levelBefore: currentLevel,
+              levelAfter: newLevel
+            }
+          });
+          
+          console.log('[SpacedRepetition:Review] Review history created:', {
             progressId: progress.id,
-            date: new Date(),
-            wasSuccessful,
-            reviewOption,
+            reviewHistoryId: reviewHistory.id,
             levelBefore: currentLevel,
-            levelAfter: newLevel
-          }
-        });
-        
-        console.log('[SpacedRepetition:Review] Review history created:', {
-          progressId: progress.id,
-          levelBefore: currentLevel,
-          levelAfter: newLevel,
-          wasSuccessful
+            levelAfter: newLevel,
+            wasSuccessful
+          });
+          
+          return { updatedProgress, reviewHistory };
         });
         
         res.json({ 
           message: 'Review recorded',
           nextReviewDate,
           newLevel,
-          status: updatedProgress.status,
+          status: result.updatedProgress.status,
           reviewOption,
           problemSlug: problem.slug
         });
@@ -479,7 +501,7 @@ router.get('/stats', authenticateToken, (async (req, res) => {
           userId,
           status: 'COMPLETED',
           reviewLevel: {
-            not: null
+            gt: -1
           }
         },
         _count: {
@@ -496,7 +518,7 @@ router.get('/stats', authenticateToken, (async (req, res) => {
             lte: now
           },
           reviewLevel: {
-            not: null
+            gt: -1
           }
         }
       });
@@ -511,7 +533,7 @@ router.get('/stats', authenticateToken, (async (req, res) => {
             lte: nextWeek
           },
           reviewLevel: {
-            not: null
+            gt: -1
           }
         }
       });
@@ -558,7 +580,7 @@ router.get('/stats', authenticateToken, (async (req, res) => {
       // Process level counts
       const formattedLevelCounts = levelCounts.reduce((acc, item) => {
         const level = item.reviewLevel === null ? 0 : item.reviewLevel;
-        acc[level] = item._count.id;
+        acc[level] = item._count?.id || 0;
         return acc;
       }, {} as Record<number, number>);
       
@@ -758,55 +780,74 @@ router.post('/add-to-repetition', authenticateToken, (async (req, res) => {
     let newProgress;
     
     if (existingProgressRecord) {
-      // Update existing progress record
-      newProgress = await prisma.progress.update({
-        where: {
-          id: existingProgressRecord.id,
-        },
-        data: {
-          reviewLevel: 0,
-          reviewScheduledAt: calculateNextReviewDate(0),
-          lastReviewedAt: new Date(),
-          status: 'COMPLETED',
-        },
+      // Update existing progress record using a transaction
+      const result = await prisma.$transaction(async (tx) => {
+        // Update existing progress record
+        const updatedProgress = await tx.progress.update({
+          where: {
+            id: existingProgressRecord.id,
+          },
+          data: {
+            reviewLevel: 0,
+            reviewScheduledAt: calculateNextReviewDate(0),
+            lastReviewedAt: new Date(),
+            status: 'COMPLETED',
+          },
+        });
+  
+        // Create review history entry in the same transaction
+        const reviewHistory = await tx.reviewHistory.create({
+          data: {
+            progressId: existingProgressRecord.id,
+            date: new Date(),
+            wasSuccessful: true,
+            reviewOption: 'added-to-repetition',
+            levelBefore: 0,
+            levelAfter: 0
+          }
+        });
+        
+        return { updatedProgress, reviewHistory };
       });
-
-      // Create review history entry separately
-      await prisma.reviewHistory.create({
-        data: {
-          progressId: existingProgressRecord.id,
-          date: new Date(),
-          wasSuccessful: true,
-          reviewOption: 'added-to-repetition',
-          levelBefore: 0,
-          levelAfter: 0
-        }
-      });
+      
+      newProgress = result.updatedProgress;
     } else {
-      // Create new progress record
-      newProgress = await prisma.progress.create({
-        data: {
-          userId,
-          problemId: resolvedProblemId,
-          topicId: problem.topicId,
-          reviewLevel: 0,
-          reviewScheduledAt: calculateNextReviewDate(0),
-          lastReviewedAt: new Date(),
-          status: 'COMPLETED',
-        },
-      });
-
-      // Create review history entry separately
-      await prisma.reviewHistory.create({
-        data: {
-          progressId: newProgress.id,
-          date: new Date(),
-          wasSuccessful: true,
-          reviewOption: 'added-to-repetition',
-          levelBefore: 0,
-          levelAfter: 0
+      // Create new progress record using a transaction
+      const result = await prisma.$transaction(async (tx) => {
+        // Ensure topic ID exists
+        if (!problem.topicId) {
+          throw new Error('Cannot create progress record: Problem is missing a topic ID');
         }
+        
+        // Create new progress record
+        const newProgress = await tx.progress.create({
+          data: {
+            userId,
+            problemId: resolvedProblemId,
+            topicId: problem.topicId,
+            reviewLevel: 0,
+            reviewScheduledAt: calculateNextReviewDate(0),
+            lastReviewedAt: new Date(),
+            status: 'COMPLETED',
+          },
+        });
+  
+        // Create review history entry in the same transaction
+        const reviewHistory = await tx.reviewHistory.create({
+          data: {
+            progressId: newProgress.id,
+            date: new Date(),
+            wasSuccessful: true,
+            reviewOption: 'added-to-repetition',
+            levelBefore: 0,
+            levelAfter: 0
+          }
+        });
+        
+        return { newProgress, reviewHistory };
       });
+      
+      newProgress = result.newProgress;
     }
     
     res.json({ 

@@ -2,7 +2,7 @@ import express from 'express';
 import { prisma } from '../lib/prisma';
 import { authenticateToken } from '../middleware/auth';
 import { authorizeRoles } from '../middleware/authorize';
-import { Prisma, Role, ProblemType } from '@prisma/client';
+import { Prisma, Role, ProblemType, ProgressStatus } from '@prisma/client';
 import type { RequestHandler } from 'express-serve-static-core';
 import { calculateNextReviewDate } from '../lib/spacedRepetition';
 
@@ -651,21 +651,20 @@ router.post('/:problemId/complete', authenticateToken, (async (req, res) => {
     // Check if problem is already completed
     const isCompleted = problem.completedBy.length > 0 || problem.progress.some(p => p.status === 'COMPLETED');
     
-    // Get existing review data if present
+    // Get existing progress with reviews
     const existingProgress = await prisma.progress.findUnique({
       where: {
-        userId_topicId_problemId: {
+        userId_topicId_problemId: problem.topicId ? {
           userId,
-          topicId: problem.topicId!,
+          topicId: problem.topicId,
           problemId: problemId
-        }
+        } : undefined
       }, 
       include: {
         reviews: true // Include the reviews relation
       }
     });
 
-    // Then change the hasReviewHistory check to:
     const hasReviewHistory = (existingProgress?.reviews?.length || 0) > 0;
 
     console.log('Problem state before update:', {
@@ -676,7 +675,8 @@ router.post('/:problemId/complete', authenticateToken, (async (req, res) => {
       existingProgressId: existingProgress?.id,
       progressStatus: existingProgress?.status,
       reviewLevel: existingProgress?.reviewLevel,
-      hasReviewHistory
+      hasReviewHistory,
+      problemHasTopicId: !!problem.topicId
     });
 
     // If problem is completed and we're not forcing completion, and not admin, return error
@@ -685,21 +685,68 @@ router.post('/:problemId/complete', authenticateToken, (async (req, res) => {
       return res.status(400).json({ error: 'Problem is already completed' });
     }
 
-    let result;
+    // If the problem doesn't have a topic, we can't track progress properly
+    if (!problem.topicId) {
+      console.warn('Attempting to complete a problem without a topic ID:', problemId);
+      // Just connect the problem to user's completed list without progress tracking
+      await prisma.user.update({
+        where: { id: userId },
+        data: {
+          completedProblems: isCompleted && !forceComplete 
+            ? { disconnect: { id: problemId } } 
+            : { connect: { id: problemId } }
+        }
+      });
+
+      return res.json({
+        message: isCompleted && !forceComplete ? 'Problem marked as uncompleted' : 'Problem marked as completed',
+        preservedReviewData: false,
+        wasForced: forceComplete || false,
+        noTopicId: true
+      });
+    }
+
+    let result: any; // Use any type for result to avoid TypeScript errors with fallback
     
     // Only uncomplete if explicitly toggling (not in force complete mode) and already completed
     if (isCompleted && !forceComplete) {
-      // Remove completion status
-      result = await prisma.$transaction(async (tx) => {
-        await tx.progress.deleteMany({
-          where: {
-            userId,
-            problemId,
-            status: 'COMPLETED'
+      // CHANGED: Update progress record instead of deleting it to preserve ReviewHistory
+      try {
+        result = await prisma.$transaction(async (tx) => {
+          let progressToUpdate = existingProgress;
+          
+          // If we don't have existing progress but have progress records (from old schema)
+          if (!progressToUpdate && problem.progress.length > 0) {
+            progressToUpdate = await tx.progress.findUnique({
+              where: { id: problem.progress[0].id },
+              include: { reviews: true }
+            });
           }
+          
+          // If we have progress, update it instead of deleting it
+          if (progressToUpdate) {
+            await tx.progress.update({
+              where: { id: progressToUpdate.id },
+              data: {
+                status: 'NOT_STARTED' as ProgressStatus,
+                // Keep reviewLevel and other review data intact
+              }
+            });
+          }
+          
+          return await tx.user.update({
+            where: { id: userId },
+            data: {
+              completedProblems: {
+                disconnect: { id: problemId }
+              }
+            }
+          });
         });
-        
-        return await tx.user.update({
+      } catch (txError: any) {
+        console.error('Transaction error when uncompleting problem:', txError);
+        // Fall back to a simpler approach if transaction fails
+        result = await prisma.user.update({
           where: { id: userId },
           data: {
             completedProblems: {
@@ -707,69 +754,109 @@ router.post('/:problemId/complete', authenticateToken, (async (req, res) => {
             }
           }
         });
-      });
+      }
       
       console.log('Problem marked as uncompleted:', {
         problemId,
-        userId
+        userId,
+        preservedProgress: true
       });
     } else {
       // Mark as completed (either newly or forced)
-      result = await prisma.$transaction(async (tx) => {
-        // First, get any existing progress to preserve review data if needed
-        const currentProgress = preserveReviewData ? await tx.progress.findFirst({
-          where: {
-            userId,
-            problemId
-          },
-          include: {
-            reviews: true
-          }
-        }) : null;
-        
-        console.log('Existing progress in transaction:', currentProgress ? {
-          id: currentProgress.id,
-          status: currentProgress.status,
-          reviewLevel: currentProgress.reviewLevel,
-          reviewScheduledAt: currentProgress.reviewScheduledAt
-        } : 'No existing progress');
-        
-        // Determine what review data to use - ONLY if preserveReviewData is true
-        // otherwise, don't set any review data to avoid automatically adding to spaced repetition
-        const reviewData = preserveReviewData && currentProgress && currentProgress.reviewLevel !== null ? {
-          // Copy existing review data for preservation
-          reviewLevel: currentProgress.reviewLevel,
-          reviewScheduledAt: currentProgress.reviewScheduledAt,
-          lastReviewedAt: currentProgress.lastReviewedAt,
-        } : {};  // Empty object - don't set any review data
-        
-        console.log('Review data to be used:', reviewData);
-        
-        // Update or create progress
-        const progressResult = await tx.progress.upsert({
-          where: {
-            userId_topicId_problemId: {
+      try {
+        result = await prisma.$transaction(async (tx) => {
+          // First, get any existing progress to preserve review data if needed
+          const currentProgress = preserveReviewData ? await tx.progress.findFirst({
+            where: {
+              userId,
+              problemId
+            },
+            include: {
+              reviews: true
+            }
+          }) : null;
+          
+          console.log('Existing progress in transaction:', currentProgress ? {
+            id: currentProgress.id,
+            status: currentProgress.status,
+            reviewLevel: currentProgress.reviewLevel,
+            reviewScheduledAt: currentProgress.reviewScheduledAt
+          } : 'No existing progress');
+          
+          // Determine what review data to use - ONLY if preserveReviewData is true
+          // otherwise, don't set any review data to avoid automatically adding to spaced repetition
+          const reviewData = preserveReviewData && currentProgress && currentProgress.reviewLevel !== null ? {
+            // Copy existing review data for preservation
+            reviewLevel: currentProgress.reviewLevel,
+            reviewScheduledAt: currentProgress.reviewScheduledAt,
+            lastReviewedAt: currentProgress.lastReviewedAt,
+          } : {};  // Empty object - don't set any review data
+          
+          console.log('Review data to be used:', reviewData);
+          
+          // Update or create progress
+          const progressResult = await tx.progress.upsert({
+            where: {
+              userId_topicId_problemId: {
+                userId,
+                topicId: problem.topicId!,
+                problemId
+              }
+            },
+            create: {
               userId,
               topicId: problem.topicId!,
-              problemId
+              problemId,
+              status: 'COMPLETED',
+              ...reviewData,
+              reviewLevel: reviewData.reviewLevel ?? 0 // Ensure reviewLevel has a default value
+            },
+            update: {
+              status: 'COMPLETED',
+              // Only update review data if explicitly preserving it
+              ...(preserveReviewData && currentProgress && currentProgress.reviewLevel !== null ? reviewData : {})
             }
-          },
-          create: {
-            userId,
-            topicId: problem.topicId!,
-            problemId,
-            status: 'COMPLETED',
-            ...reviewData
-          },
-          update: {
-            status: 'COMPLETED',
-            // Only update review data if explicitly preserving it
-            ...(preserveReviewData && currentProgress && currentProgress.reviewLevel !== null ? reviewData : {})
+          });
+          
+          // Update user's completed problems
+          const userResult = await tx.user.update({
+            where: { id: userId },
+            data: {
+              completedProblems: {
+                connect: { id: problemId }
+              }
+            }
+          });
+          
+          // Only add ReviewHistory entry if preserveReviewData is true and we have review data
+          if (preserveReviewData && currentProgress && currentProgress.reviewLevel !== null) {
+            await tx.reviewHistory.create({
+              data: {
+                progressId: progressResult.id,
+                date: new Date(),
+                wasSuccessful: true,
+                reviewOption: 'continued-review',  // Use a standard value
+                levelBefore: currentProgress.reviewLevel,
+                levelAfter: currentProgress.reviewLevel
+              }
+            });
           }
+          
+          return { progressResult, userResult };
+        });
+      } catch (txError: any) {
+        // Log detailed error information
+        console.error('Transaction error when completing problem:', txError);
+        console.error('Error details:', {
+          name: txError.name,
+          code: txError.code,
+          meta: txError.meta,
+          stack: txError.stack
         });
         
-        // Update user's completed problems
-        const userResult = await tx.user.update({
+        // Fall back to a simpler approach if transaction fails
+        // Just connect the problem to the user's completed problems
+        result = await prisma.user.update({
           where: { id: userId },
           data: {
             completedProblems: {
@@ -777,30 +864,15 @@ router.post('/:problemId/complete', authenticateToken, (async (req, res) => {
             }
           }
         });
-        
-        // Only add ReviewHistory entry if preserveReviewData is true and we have review data
-        if (preserveReviewData && currentProgress && currentProgress.reviewLevel !== null) {
-          await tx.reviewHistory.create({
-            data: {
-              progressId: progressResult.id,
-              date: new Date(),
-              wasSuccessful: true,
-              reviewOption: 'continued-review',  // Changed from 'added-to-repetition'
-              levelBefore: currentProgress.reviewLevel,
-              levelAfter: currentProgress.reviewLevel
-            }
-          });
-        }
-        
-        return { progressResult, userResult };
-      });
+      }
       
+      // Log information about completion status, with optional chaining for safety
       console.log('Problem marked as completed:', {
         problemId,
         userId,
-        progressId: result.progressResult.id,
-        reviewLevel: result.progressResult.reviewLevel,
-        reviewScheduledAt: result.progressResult.reviewScheduledAt
+        progressId: result?.progressResult?.id,
+        reviewLevel: result?.progressResult?.reviewLevel,
+        reviewScheduledAt: result?.progressResult?.reviewScheduledAt
       });
     }
 
@@ -811,7 +883,12 @@ router.post('/:problemId/complete', authenticateToken, (async (req, res) => {
     });
   } catch (error) {
     console.error('Error toggling problem completion:', error);
-    res.status(500).json({ error: 'Failed to toggle problem completion' });
+    // Add more detailed error information
+    res.status(500).json({ 
+      error: 'Failed to toggle problem completion',
+      details: error instanceof Error ? error.message : 'Unknown error',
+      stack: process.env.NODE_ENV !== 'production' ? (error as Error).stack : undefined
+    });
   }
 }) as RequestHandler);
 

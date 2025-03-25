@@ -162,7 +162,7 @@ model ReviewHistory {
   progressId    String    @map("progress_id")
   date          DateTime  @default(now())
   wasSuccessful Boolean   @map("was_successful")
-  reviewOption  String?   @map("review_option") // 'easy', 'difficult', 'forgot'
+  reviewOption  String    @default("standard-review") @map("review_option") // 'easy', 'difficult', 'forgot'
   levelBefore   Int       @default(0) @map("level_before")
   levelAfter    Int       @default(0) @map("level_after")
   

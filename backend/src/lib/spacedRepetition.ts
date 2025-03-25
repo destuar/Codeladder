@@ -3,6 +3,8 @@
  * Implements a simplified SuperMemo-2 algorithm with Fibonacci-based intervals
  */
 
+import { prisma } from './prisma';
+
 /**
  * Calculates the next review date based on the review level
  * @param reviewLevel The current review level (0-based)
@@ -33,24 +35,25 @@ export function calculateNewReviewLevel(currentLevel: number, wasSuccessful: boo
 
 /**
  * Creates a review history entry for the current review
- * @param wasSuccessful Whether the review was successful
- * @param currentLevel The current review level before the review
- * @param reviewOption Type of review (easy, difficult, forgot)
- * @returns Review history entry object
+ * This now returns a Promise that resolves to the created ReviewHistory record
  */
-export function createReviewHistoryEntry(
+export async function createReviewHistoryEntry(
+  progressId: string,
   wasSuccessful: boolean, 
-  currentLevel: number,
-  newLevel: number,
-  reviewOption?: 'easy' | 'difficult' | 'forgot' | 'added-to-repetition'
-): Record<string, any> {
-  return {
-    date: new Date(),
-    wasSuccessful,
-    levelBefore: currentLevel,
-    levelAfter: newLevel,
-    reviewOption
-  };
+  levelBefore: number,
+  levelAfter: number,
+  reviewOption: string = 'standard-review'
+) {
+  return await prisma.reviewHistory.create({
+    data: {
+      progressId,
+      date: new Date(),
+      wasSuccessful,
+      reviewOption,
+      levelBefore,
+      levelAfter
+    }
+  });
 }
 
 /**
@@ -60,7 +63,7 @@ export interface ReviewResult {
   problemId?: string;
   problemSlug?: string;
   wasSuccessful: boolean;
-  reviewOption?: 'easy' | 'difficult' | 'forgot';
+  reviewOption?: string;
 }
 
 /**
@@ -71,5 +74,5 @@ export interface ReviewHistoryEntry {
   wasSuccessful: boolean;
   levelBefore: number;
   levelAfter: number;
-  reviewOption?: 'easy' | 'difficult' | 'forgot' | 'added-to-repetition';
+  reviewOption?: string;
 } 
