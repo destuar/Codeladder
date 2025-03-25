@@ -256,10 +256,7 @@ const ProblemPage: React.FC = () => {
         setHasJustCompleted(true);
       }
 
-      // Only navigate to next problem when marking as complete (not when unmarking)
-      if (!isReviewMode && isBeingMarkedComplete && problem.nextProblemId) {
-        navigateToOtherProblem(problem.nextProblemId, problem.nextProblemSlug);
-      }
+      // Remove the automatic navigation
     } catch (error) {
       // Revert the optimistic update on error
       queryClient.setQueryData(['problem', effectiveIdentifier], problem);

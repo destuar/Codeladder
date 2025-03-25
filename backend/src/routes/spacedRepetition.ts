@@ -246,30 +246,50 @@ router.post('/review', authenticateToken, (async (req, res) => {
     }
     
     try {
-      // Find current progress record
-      const progress = await prisma.progress.findFirst({
+      // Find current progress record using the composite key
+      const progress = await prisma.progress.findUnique({
         where: {
-          userId,
-          problemId: problem.id
-        },
-        orderBy: {
-          updatedAt: 'desc'
+          userId_topicId_problemId: {
+            userId,
+            topicId: problem.topicId!,
+            problemId: problem.id
+          }
         }
       });
+      
+      console.log('[SpacedRepetition:Review] Found progress record:', progress ? {
+        progressId: progress.id,
+        userId: progress.userId,
+        problemId: progress.problemId,
+        currentLevel: progress.reviewLevel,
+        reviewScheduledAt: progress.reviewScheduledAt
+      } : 'No progress record found');
       
       // If no progress record exists, create one
       if (!progress) {
         try {
-          // Create a new progress record
+          // Create a new progress record with initial level 0
           const newProgress = await prisma.progress.create({
             data: {
               userId,
               problemId: problem.id,
               topicId: problem.topicId,
               status: 'COMPLETED',
-              reviewLevel: wasSuccessful ? 1 : 0,
+              reviewLevel: 0, // Always start at level 0
               lastReviewedAt: new Date(),
-              reviewScheduledAt: calculateNextReviewDate(wasSuccessful ? 1 : 0),
+              reviewScheduledAt: calculateNextReviewDate(0),
+            }
+          });
+          
+          // Calculate new level using the same function as for subsequent reviews
+          const newLevel = calculateNewReviewLevel(0, wasSuccessful);
+          
+          // Update the progress with the calculated level
+          await prisma.progress.update({
+            where: { id: newProgress.id },
+            data: {
+              reviewLevel: newLevel,
+              reviewScheduledAt: calculateNextReviewDate(newLevel)
             }
           });
           
@@ -279,9 +299,9 @@ router.post('/review', authenticateToken, (async (req, res) => {
               progressId: newProgress.id,
               date: new Date(),
               wasSuccessful,
-              reviewOption: 'added-to-repetition',
+              reviewOption: reviewOption || 'added-to-repetition',
               levelBefore: 0,
-              levelAfter: wasSuccessful ? 1 : 0
+              levelAfter: newLevel
             }
           });
           
@@ -297,9 +317,9 @@ router.post('/review', authenticateToken, (async (req, res) => {
           
           return res.json({ 
             message: 'Review recorded with new progress record',
-            nextReviewDate: newProgress.reviewScheduledAt,
-            newLevel: newProgress.reviewLevel,
-            status: newProgress.status,
+            nextReviewDate: calculateNextReviewDate(newLevel),
+            newLevel,
+            status: 'COMPLETED',
             reviewOption,
             problemSlug: problem.slug
           });
@@ -338,6 +358,14 @@ router.post('/review', authenticateToken, (async (req, res) => {
       const newLevel = calculateNewReviewLevel(currentLevel, wasSuccessful);
       const nextReviewDate = calculateNextReviewDate(newLevel);
       
+      console.log('[SpacedRepetition:Review] Calculating review level:', { 
+        currentLevel, 
+        newLevel, 
+        wasSuccessful,
+        progressId: progress.id,
+        userId
+      });
+      
       try {
         // Update progress record with the new review data
         const updatedProgress = await prisma.progress.update({
@@ -352,6 +380,13 @@ router.post('/review', authenticateToken, (async (req, res) => {
           },
         });
 
+        console.log('[SpacedRepetition:Review] Progress updated successfully:', { 
+          progressId: updatedProgress.id, 
+          oldLevel: currentLevel, 
+          newLevel: updatedProgress.reviewLevel,
+          nextReviewDate: updatedProgress.reviewScheduledAt 
+        });
+
         // Create review history entry separately
         await prisma.reviewHistory.create({
           data: {
@@ -362,6 +397,13 @@ router.post('/review', authenticateToken, (async (req, res) => {
             levelBefore: currentLevel,
             levelAfter: newLevel
           }
+        });
+        
+        console.log('[SpacedRepetition:Review] Review history created:', {
+          progressId: progress.id,
+          levelBefore: currentLevel,
+          levelAfter: newLevel,
+          wasSuccessful
         });
         
         res.json({ 
@@ -597,13 +639,15 @@ router.delete('/remove-problem/:identifier', authenticateToken, (async (req, res
     }
     
     // Update the progress record to remove it from spaced repetition
+    // For reviewLevel, use 0 instead of null (since it can't be null in the database)
+    // For reviewScheduledAt, we can still use null since it's optional
     const updatedProgress = await prisma.progress.update({
       where: {
         id: progress.id
       },
       data: {
-        reviewLevel: null,
-        reviewScheduledAt: null,
+        reviewLevel: 0, // Keep at 0 instead of null (can't be null in DB)
+        reviewScheduledAt: null, // This is optional, so null is fine
         // Keep other fields like status and lastReviewedAt
       }
     });
@@ -669,12 +713,12 @@ router.post('/add-to-repetition', authenticateToken, (async (req, res) => {
       });
     }
     
-    // Check if the problem is already in spaced repetition
+    // Check if the problem is already in spaced repetition by checking reviewScheduledAt
     const existingProgress = await prisma.progress.findFirst({
       where: {
         userId,
         problemId: resolvedProblemId,
-        reviewLevel: { not: null }
+        reviewScheduledAt: { not: null }
       }
     });
     
@@ -817,24 +861,41 @@ router.get('/available-problems', authenticateToken, (async (req, res) => {
       return res.status(404).json({ error: 'User not found' });
     }
     
+    console.log(`[SpacedRepetition:AvailableProblems] Found ${user.completedProblems.length} completed coding problems for user ${userId}`);
+    
     // Get all problems already in spaced repetition
+    // A problem is in spaced repetition if it has a reviewScheduledAt value
+    // AND if the reviewLevel > 0 (since 0 is the default and is used to remove problems)
     const inSpacedRepetition = await prisma.progress.findMany({
       where: {
         userId,
-        reviewLevel: { not: null }
+        AND: [
+          { reviewScheduledAt: { not: null } },
+        ]
       },
       select: {
-        problemId: true
+        problemId: true,
+        reviewScheduledAt: true,
+        reviewLevel: true
       }
     });
     
+    console.log(`[SpacedRepetition:AvailableProblems] Found ${inSpacedRepetition.length} problems with reviewScheduledAt`);
+    
     // Create a set of problem IDs already in spaced repetition for faster lookup
-    const spacedRepetitionProblemIds = new Set(inSpacedRepetition.map(p => p.problemId));
+    // Only include problems that have a scheduled review date
+    const spacedRepetitionProblemIds = new Set(
+      inSpacedRepetition.map(p => p.problemId)
+    );
+    
+    console.log(`[SpacedRepetition:AvailableProblems] ${spacedRepetitionProblemIds.size} problems are actually in spaced repetition`);
     
     // Filter completed problems to only include those not already in spaced repetition
     const availableProblems = user.completedProblems.filter(
       problem => !spacedRepetitionProblemIds.has(problem.id)
     );
+    
+    console.log(`[SpacedRepetition:AvailableProblems] Returning ${availableProblems.length} problems available to add to spaced repetition`);
     
     res.json(availableProblems);
   } catch (error) {

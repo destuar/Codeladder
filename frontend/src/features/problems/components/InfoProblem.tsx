@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Markdown } from "@/components/ui/markdown";
 import { HtmlContent } from "@/components/ui/html-content";
 import { Button } from "@/components/ui/button";
-import { ChevronRight, Timer, CheckCircle, CheckCircle2, RepeatIcon } from "lucide-react";
+import { ChevronRight, Timer, CheckCircle, CheckCircle2 } from "lucide-react";
 import { useNavigate } from 'react-router-dom';
 import { cn } from "@/lib/utils";
 import { api } from '@/lib/api';
@@ -12,16 +12,6 @@ import { useAdmin } from '@/features/admin/AdminContext';
 import { ensureHtml, isMarkdown } from '@/lib/markdown-to-html';
 import { useProblemCompletion } from '@/features/problems/hooks/useProblemCompletion';
 import { ProblemHeader } from '@/features/problems/components/coding/ProblemHeader';
-import { 
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle
-} from "@/components/ui/alert-dialog";
 
 function formatEstimatedTime(minutes: number | null | undefined): string | null {
   if (!minutes) return null;
@@ -85,10 +75,7 @@ const InfoProblem: React.FC<InfoProblemProps> = ({
   const { 
     isProblemCompleted, 
     handleMarkAsComplete,
-    showCompletionDialog,
-    setShowCompletionDialog,
-    isAddingToSpacedRepetition,
-    handleConfirmCompletion 
+    problemType: problemTypeFromHook 
   } = useProblemCompletion(
     problemId, 
     isCompleted, 
@@ -129,44 +116,6 @@ const InfoProblem: React.FC<InfoProblemProps> = ({
         sourceContext={sourceContext}
         problemType={problemType}
       />
-
-      {/* Spaced Repetition Dialog */}
-      <AlertDialog open={showCompletionDialog} onOpenChange={setShowCompletionDialog}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Mark Problem as Completed</AlertDialogTitle>
-            <AlertDialogDescription>
-              Would you like to add this problem to your spaced repetition dashboard for future practice?
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction 
-              onClick={() => handleConfirmCompletion(false)}
-              className="bg-primary"
-            >
-              Just Complete
-            </AlertDialogAction>
-            <Button 
-              onClick={() => handleConfirmCompletion(true)}
-              disabled={isAddingToSpacedRepetition}
-              className="bg-indigo-600 hover:bg-indigo-700 text-white"
-            >
-              {isAddingToSpacedRepetition ? (
-                <>
-                  <div className="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
-                  Adding...
-                </>
-              ) : (
-                <>
-                  <RepeatIcon className="mr-2 h-4 w-4" />
-                  Add to Spaced Repetition
-                </>
-              )}
-            </Button>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
 
       <div className={`${isReviewMode ? 'flex-auto' : 'flex-1'} overflow-auto px-4 md:px-8`}>
         <div className="py-4">

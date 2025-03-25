@@ -2,15 +2,10 @@ import { useState, useEffect } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 import { useAuth } from '@/features/auth/AuthContext';
-import { addCompletedProblemToSpacedRepetition } from '@/features/spaced-repetition/api/spacedRepetitionApi';
 
 interface UseProblemCompletionResult {
   isProblemCompleted: boolean;
   handleMarkAsComplete: () => Promise<void>;
-  showCompletionDialog: boolean;
-  setShowCompletionDialog: (show: boolean) => void;
-  isAddingToSpacedRepetition: boolean;
-  handleConfirmCompletion: (addToSpacedRepetition: boolean) => Promise<void>;
   problemType: string | undefined;
 }
 
@@ -25,8 +20,6 @@ export function useProblemCompletion(
   problemType?: string // Add problem type to check if it's a coding problem
 ): UseProblemCompletionResult {
   const [isProblemCompleted, setIsProblemCompleted] = useState(initialCompletionState);
-  const [showCompletionDialog, setShowCompletionDialog] = useState(false);
-  const [isAddingToSpacedRepetition, setIsAddingToSpacedRepetition] = useState(false);
   const { token } = useAuth();
   const queryClient = useQueryClient();
 
@@ -35,7 +28,7 @@ export function useProblemCompletion(
     setIsProblemCompleted(initialCompletionState);
   }, [problemId, initialCompletionState]);
 
-  // This function now handles showing the dialog instead of directly completing
+  // This function directly completes problems without showing a dialog
   const handleMarkAsComplete = async () => {
     // If already completed, we can directly toggle it off
     if (isProblemCompleted) {
@@ -43,7 +36,7 @@ export function useProblemCompletion(
       return;
     }
     
-    // In review mode, directly complete without showing the dialog
+    // In review mode, directly complete without calling completeToggleProblem
     if (isReviewMode) {
       // Set state immediately for faster UI feedback
       setIsProblemCompleted(true); 
@@ -55,50 +48,11 @@ export function useProblemCompletion(
       return;
     }
     
-    // Only show dialog for CODING problems that aren't completed and not in review mode
-    if (!isProblemCompleted && problemType === 'CODING') {
-      setShowCompletionDialog(true);
-    } else {
-      // For non-coding problems, directly complete
-      // Set state immediately for faster UI feedback
-      setIsProblemCompleted(true); 
-      // Run API call non-blocking for better perceived performance
-      completeToggleProblem(false);
-    }
-  };
-
-  // New function to handle the confirmation
-  const handleConfirmCompletion = async (addToSpacedRepetition: boolean) => {
-    setShowCompletionDialog(false);
-    
-    try {
-      // First mark the problem as completed
-      await completeToggleProblem(false);
-      
-      // Then add to spaced repetition if requested
-      if (addToSpacedRepetition) {
-        setIsAddingToSpacedRepetition(true);
-        try {
-          if (token) {
-            await addCompletedProblemToSpacedRepetition({ problemId }, token);
-            // Invalidate the queries to update the UI
-            await Promise.all([
-              queryClient.invalidateQueries({ queryKey: ['dueReviews'] }),
-              queryClient.invalidateQueries({ queryKey: ['allScheduledReviews'] }),
-              queryClient.invalidateQueries({ queryKey: ['reviewStats'] })
-            ]);
-          } else {
-            console.error('[ProblemCompletion] No token available for adding to spaced repetition');
-          }
-        } catch (error) {
-          console.error('[ProblemCompletion] Error adding problem to spaced repetition:', error);
-        } finally {
-          setIsAddingToSpacedRepetition(false);
-        }
-      }
-    } catch (error) {
-      console.error('[ProblemCompletion] Error during problem completion process:', error);
-    }
+    // For non-review mode, directly complete without showing dialog
+    // Set state immediately for faster UI feedback
+    setIsProblemCompleted(true); 
+    // Run API call non-blocking for better perceived performance
+    completeToggleProblem(false);
   };
 
   // This function performs the actual API call to complete/uncomplete a problem
@@ -155,10 +109,6 @@ export function useProblemCompletion(
   return {
     isProblemCompleted,
     handleMarkAsComplete,
-    showCompletionDialog,
-    setShowCompletionDialog,
-    isAddingToSpacedRepetition,
-    handleConfirmCompletion,
     problemType
   };
 } 

@@ -734,18 +734,14 @@ router.post('/:problemId/complete', authenticateToken, (async (req, res) => {
           reviewScheduledAt: currentProgress.reviewScheduledAt
         } : 'No existing progress');
         
-        // Determine what review data to use
+        // Determine what review data to use - ONLY if preserveReviewData is true
+        // otherwise, don't set any review data to avoid automatically adding to spaced repetition
         const reviewData = preserveReviewData && currentProgress && currentProgress.reviewLevel !== null ? {
           // Copy existing review data for preservation
           reviewLevel: currentProgress.reviewLevel,
           reviewScheduledAt: currentProgress.reviewScheduledAt,
           lastReviewedAt: currentProgress.lastReviewedAt,
-        } : {
-          // Initialize new review data
-          reviewLevel: 0,
-          reviewScheduledAt: calculateNextReviewDate(0),
-          lastReviewedAt: new Date(),
-        };
+        } : {};  // Empty object - don't set any review data
         
         console.log('Review data to be used:', reviewData);
         
@@ -767,11 +763,8 @@ router.post('/:problemId/complete', authenticateToken, (async (req, res) => {
           },
           update: {
             status: 'COMPLETED',
-            ...(!preserveReviewData && {
-              reviewLevel: 0,
-              reviewScheduledAt: calculateNextReviewDate(0),
-              lastReviewedAt: new Date(),
-            })
+            // Only update review data if explicitly preserving it
+            ...(preserveReviewData && currentProgress && currentProgress.reviewLevel !== null ? reviewData : {})
           }
         });
         
@@ -785,16 +778,16 @@ router.post('/:problemId/complete', authenticateToken, (async (req, res) => {
           }
         });
         
-        // After creating/updating progress, add a new ReviewHistory entry when appropriate
-        if (!preserveReviewData) {
+        // Only add ReviewHistory entry if preserveReviewData is true and we have review data
+        if (preserveReviewData && currentProgress && currentProgress.reviewLevel !== null) {
           await tx.reviewHistory.create({
             data: {
               progressId: progressResult.id,
               date: new Date(),
               wasSuccessful: true,
-              reviewOption: 'added-to-repetition',
-              levelBefore: null,
-              levelAfter: 0
+              reviewOption: 'continued-review',  // Changed from 'added-to-repetition'
+              levelBefore: currentProgress.reviewLevel,
+              levelAfter: currentProgress.reviewLevel
             }
           });
         }
