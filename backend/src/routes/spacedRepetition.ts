@@ -2,13 +2,15 @@ import { Router } from 'express';
 import type { RequestHandler } from 'express-serve-static-core';
 import { prisma } from '../lib/prisma';
 import { authenticateToken } from '../middleware/auth';
-import { calculateNextReviewDate, calculateNewReviewLevel, createReviewHistoryEntry } from '../lib/spacedRepetition';
+import { calculateNextReviewDate, calculateNewReviewLevel } from '../lib/spacedRepetition';
+import { resolveProblem, getProblemId, getProblemSlug, getProgressForProblem } from '../lib/problemResolver';
+import type { Prisma } from '@prisma/client';
 
 const router = Router();
 
 /**
  * Get problems due for review
- * GET /api/spaced-repetition/due
+ * GET /api/v2/spaced-repetition/due
  */
 router.get('/due', authenticateToken, (async (req, res) => {
   try {
@@ -36,48 +38,50 @@ router.get('/due', authenticateToken, (async (req, res) => {
       },
       include: {
         problem: {
-          select: {
-            id: true,
-            name: true,
-            difficulty: true,
-            problemType: true,
-            topic: {
-              select: {
-                id: true,
-                name: true
-              }
-            }
+          include: {
+            topic: true
           }
         }
-      },
+      } as Prisma.ProgressInclude,
       orderBy: {
         reviewScheduledAt: 'asc'
       }
     });
     
-    const dueProblems = dueProgressRecords.map(progress => ({
-      id: progress.problem?.id,
-      name: progress.problem?.name,
-      difficulty: progress.problem?.difficulty,
-      topic: progress.problem?.topic,
-      problemType: progress.problem?.problemType,
-      reviewLevel: progress.reviewLevel,
-      lastReviewedAt: progress.lastReviewedAt,
-      dueDate: progress.reviewScheduledAt,
-      progressId: progress.id,
-      reviewHistory: progress.reviewHistory
-    }));
+    const dueProblems = dueProgressRecords
+      .filter(progress => progress.problem !== null)
+      .map(progress => {
+        const problem = progress.problem!;
+        const topicId = problem.topicId;
+        
+        // Build a simpler object
+        return {
+          id: problem.id,
+          slug: problem.slug,
+          name: problem.name,
+          difficulty: problem.difficulty,
+          topicId: topicId,
+          // Include a simple topic object with just the ID
+          topic: { id: topicId || '' },
+          problemType: problem.problemType,
+          reviewLevel: progress.reviewLevel,
+          lastReviewedAt: progress.lastReviewedAt,
+          dueDate: progress.reviewScheduledAt,
+          progressId: progress.id,
+          reviews: progress.reviews || []
+        };
+      });
     
     res.json(dueProblems);
   } catch (error) {
-    console.error('Error fetching due reviews:', error);
+    console.error('[SpacedRepetition:Due] Error fetching due reviews:', error);
     res.status(500).json({ error: 'Failed to fetch due reviews' });
   }
 }) as RequestHandler);
 
 /**
  * Get all future review problems regardless of due date
- * GET /api/spaced-repetition/all-scheduled
+ * GET /api/v2/spaced-repetition/all-scheduled
  */
 router.get('/all-scheduled', authenticateToken, (async (req, res) => {
   try {
@@ -103,37 +107,39 @@ router.get('/all-scheduled', authenticateToken, (async (req, res) => {
       },
       include: {
         problem: {
-          select: {
-            id: true,
-            name: true,
-            difficulty: true,
-            problemType: true,
-            topic: {
-              select: {
-                id: true,
-                name: true
-              }
-            }
+          include: {
+            topic: true
           }
         }
-      },
+      } as Prisma.ProgressInclude,
       orderBy: {
         reviewScheduledAt: 'asc'
       }
     });
     
-    const scheduledProblems = scheduledProgressRecords.map(progress => ({
-      id: progress.problem?.id,
-      name: progress.problem?.name,
-      difficulty: progress.problem?.difficulty,
-      topic: progress.problem?.topic,
-      problemType: progress.problem?.problemType,
-      reviewLevel: progress.reviewLevel,
-      lastReviewedAt: progress.lastReviewedAt,
-      dueDate: progress.reviewScheduledAt,
-      progressId: progress.id,
-      reviewHistory: progress.reviewHistory
-    }));
+    const scheduledProblems = scheduledProgressRecords
+      .filter(progress => progress.problem !== null)
+      .map(progress => {
+        const problem = progress.problem!;
+        const topicId = problem.topicId;
+        
+        // Build a simpler object
+        return {
+          id: problem.id,
+          slug: problem.slug,
+          name: problem.name,
+          difficulty: problem.difficulty,
+          topicId: topicId,
+          // Include a simple topic object with just the ID
+          topic: { id: topicId || '' },
+          problemType: problem.problemType,
+          reviewLevel: progress.reviewLevel,
+          lastReviewedAt: progress.lastReviewedAt,
+          dueDate: progress.reviewScheduledAt,
+          progressId: progress.id,
+          reviews: progress.reviews || []
+        };
+      });
     
     // Group problems by their due date timeframe
     const now7Days = new Date(now);
@@ -165,7 +171,7 @@ router.get('/all-scheduled', authenticateToken, (async (req, res) => {
     res.json(categorizedProblems);
   } catch (error) {
     console.error('[SpacedRepetition:AllScheduled] Error fetching scheduled reviews:', error);
-    res.json({
+    res.status(500).json({
       dueToday: [],
       dueThisWeek: [],
       dueThisMonth: [],
@@ -178,251 +184,176 @@ router.get('/all-scheduled', authenticateToken, (async (req, res) => {
 /**
  * Record a problem review result
  * POST /api/spaced-repetition/review
+ * Body: { problemSlug: string, wasSuccessful: boolean, reviewOption?: string }
  */
 router.post('/review', authenticateToken, (async (req, res) => {
   try {
-    const { problemId, wasSuccessful, reviewOption } = req.body;
+    const { problemSlug, wasSuccessful, reviewOption } = req.body;
     const userId = req.user?.id;
     
-    console.log('[SpacedRepetition:Review] Recording review:', { problemId, wasSuccessful, reviewOption, userId });
+    console.log('[SpacedRepetition:Review] Processing review for:', { 
+      userId, 
+      problemSlug, 
+      wasSuccessful, 
+      reviewOption 
+    });
     
     if (!userId) {
-      return res.status(401).json({ error: 'User not authenticated' });
+      res.status(401).json({ error: 'User not authenticated' });
+      return;
     }
     
-    if (typeof problemId !== 'string' || typeof wasSuccessful !== 'boolean') {
-      return res.status(400).json({ error: 'Invalid request parameters' });
+    if (!problemSlug) {
+      res.status(400).json({ error: 'Problem slug is required' });
+      return;
     }
     
+    if (typeof wasSuccessful !== 'boolean') {
+      res.status(400).json({ error: 'wasSuccessful must be a boolean' });
+      return;
+    }
+    
+    // First, get the problem by slug - EXACTLY like the working debug endpoint
+    const problem = await prisma.problem.findUnique({
+      where: { slug: problemSlug },
+      select: {
+        id: true,
+        name: true,
+        slug: true,
+        topicId: true
+      }
+    });
+    
+    if (!problem) {
+      res.status(404).json({ error: 'Problem not found' });
+      return;
+    }
+    
+    if (!problem.topicId) {
+      res.status(400).json({ error: 'Problem has no topic' });
+      return;
+    }
+    
+    console.log('[SpacedRepetition:Review] Found problem:', { 
+      id: problem.id, 
+      slug: problem.slug, 
+      topicId: problem.topicId 
+    });
+
+    // TRANSACTION FIX: Use a fully serializable transaction to prevent race conditions
+    // This ensures that we have the most up-to-date data and prevents concurrent operations
     try {
-      // Find current progress - make sure we're getting the latest record
-      const progress = await prisma.progress.findFirst({
-        where: {
-          userId,
-          problemId
-        },
-        orderBy: {
-          updatedAt: 'desc'
-        }
-      });
-      
-      console.log('[SpacedRepetition:Review] Found progress record:', progress ? { 
-        id: progress.id, 
-        status: progress.status,
-        reviewLevel: progress.reviewLevel,
-        lastReviewedAt: progress.lastReviewedAt,
-        reviewScheduledAt: progress.reviewScheduledAt,
-        hasHistory: Array.isArray(progress.reviewHistory) && progress.reviewHistory.length > 0
-      } : 'No progress record found');
-      
-      if (!progress) {
-        console.log('[SpacedRepetition:Review] Progress record not found - creating a new one');
-        
-        // Get the problem to find its topic
-        const problem = await prisma.problem.findUnique({
-          where: { id: problemId },
-          select: { topicId: true }
+      const result = await prisma.$transaction(async (tx) => {
+        // First check if record exists within transaction
+        const existingRecord = await tx.progress.findUnique({
+          where: {
+            userId_topicId_problemId: {
+              userId,
+              topicId: problem.topicId!,
+              problemId: problem.id
+            }
+          }
         });
         
-        if (!problem || !problem.topicId) {
-          console.error('[SpacedRepetition:Review] Problem or topic not found:', { problemId });
-          return res.status(404).json({ 
-            error: 'Problem or topic not found',
-            nextReviewDate: new Date(Date.now() + 24 * 60 * 60 * 1000), // Fallback date (tomorrow)
-            newLevel: wasSuccessful ? 1 : 0,
-            status: 'ERROR',
-            reviewOption,
-            message: 'Error creating progress record, but review considered'
-          });
+        console.log(`[SpacedRepetition:Review] TRANSACTION: ${existingRecord ? 'Found' : 'Did not find'} existing record inside transaction`);
+        
+        // Calculate new review level
+        let newReviewLevel = 1; // Default for first review
+        
+        if (existingRecord?.reviewLevel !== undefined && existingRecord.reviewLevel !== null) {
+          if (wasSuccessful) {
+            // Successful review increases the level (more with "easy")
+            newReviewLevel = existingRecord.reviewLevel + (reviewOption === 'easy' ? 2 : 1);
+          } else {
+            // Unsuccessful review resets the level or decreases it
+            newReviewLevel = reviewOption === 'forgot' ? 0 : Math.max(0, existingRecord.reviewLevel - 1);
+          }
         }
         
-        try {
-          // Create a new progress record since none exists
-          const newProgress = await prisma.progress.create({
+        const reviewDate = new Date();
+        const nextReviewDate = calculateNextReviewDate(newReviewLevel);
+
+        // Either update existing record or create new one
+        let progressRecord;
+        if (existingRecord) {
+          // Update existing
+          progressRecord = await tx.progress.update({
+            where: { id: existingRecord.id },
+            data: {
+              status: 'COMPLETED',
+              reviewLevel: newReviewLevel,
+              lastReviewedAt: reviewDate,
+              reviewScheduledAt: nextReviewDate
+            }
+          });
+        } else {
+          // Create new
+          progressRecord = await tx.progress.create({
             data: {
               userId,
-              problemId,
-              topicId: problem.topicId,
-              status: 'COMPLETED', // Always set to COMPLETED
-              reviewLevel: wasSuccessful ? 1 : 0,
-              lastReviewedAt: new Date(),
-              reviewScheduledAt: calculateNextReviewDate(wasSuccessful ? 1 : 0),
-              reviewHistory: [{
-                date: new Date(),
-                wasSuccessful,
-                reviewOption
-              }]
+              topicId: problem.topicId!,
+              problemId: problem.id,
+              status: 'COMPLETED',
+              reviewLevel: newReviewLevel,
+              lastReviewedAt: reviewDate,
+              reviewScheduledAt: nextReviewDate
             }
           });
           
-          // Connect the problem to the user's completed problems
-          await prisma.user.update({
+          // If this is a new record, connect the problem to completed problems
+          await tx.user.update({
             where: { id: userId },
             data: {
               completedProblems: {
-                connect: { id: problemId }
+                connect: { id: problem.id }
               }
             }
           });
-          
-          console.log('[SpacedRepetition:Review] Created new progress record:', { 
-            id: newProgress.id,
-            status: newProgress.status,
-            reviewLevel: newProgress.reviewLevel
-          });
-          
-          return res.json({ 
-            message: 'Review recorded with new progress record',
-            nextReviewDate: newProgress.reviewScheduledAt,
-            newLevel: newProgress.reviewLevel,
-            status: newProgress.status,
-            reviewOption
-          });
-        } catch (createError) {
-          console.error('[SpacedRepetition:Review] Error creating progress record:', createError);
-          return res.json({ 
-            error: 'Failed to create progress record',
-            nextReviewDate: new Date(Date.now() + 24 * 60 * 60 * 1000), // Fallback date (tomorrow)
-            newLevel: wasSuccessful ? 1 : 0,
-            status: 'ERROR',
+        }
+        
+        // Create review history
+        const reviewHistory = await tx.reviewHistory.create({
+          data: {
+            progressId: progressRecord.id,
+            date: reviewDate,
+            wasSuccessful,
             reviewOption,
-            message: 'Error creating progress record, but review considered'
-          });
-        }
-      }
-      
-      // If progress exists but is not completed, mark it as COMPLETED
-      const progressStatus = progress.status || 'NOT_STARTED';
-      if (progressStatus !== 'COMPLETED') {
-        console.log('[SpacedRepetition:Review] Progress record exists but not completed, marking as COMPLETED');
-        
-        try {
-          // Force connect to user's completed problems
-          await prisma.user.update({
-            where: { id: userId },
-            data: {
-              completedProblems: {
-                connect: { id: problemId }
-              }
-            }
-          });
-        } catch (connectError) {
-          console.error('[SpacedRepetition:Review] Error connecting problem to completed list:', connectError);
-          // Continue despite this error
-        }
-      }
-      
-      // Calculate new review level
-      const newLevel = calculateNewReviewLevel(progress.reviewLevel, wasSuccessful);
-      
-      // Calculate next review date
-      const nextReviewDate = calculateNextReviewDate(newLevel);
-      
-      // Create review history entry with the additional reviewOption field
-      const reviewEntry = {
-        ...createReviewHistoryEntry(wasSuccessful, progress.reviewLevel),
-        reviewOption // Add the review option to the history entry
-      };
-      
-      // Get current history or initialize empty array
-      const currentHistory = progress.reviewHistory as any[] || [];
-      
-      console.log('[SpacedRepetition:Review] Updating progress with new review data:', {
-        id: progress.id,
-        currentStatus: progress.status,
-        currentLevel: progress.reviewLevel,
-        newLevel,
-        nextReviewDate,
-        historyCount: currentHistory.length,
-        newHistoryCount: currentHistory.length + 1,
-        reviewOption
-      });
-      
-      try {
-        // Use a transaction to ensure all operations succeed or fail together
-        const updatedProgress = await prisma.$transaction(async (tx) => {
-          // First, ensure the progress record still exists
-          const currentProgress = await tx.progress.findUnique({
-            where: { id: progress.id }
-          });
-          
-          if (!currentProgress) {
-            console.error('[SpacedRepetition:Review] Progress record no longer exists');
-            throw new Error('Progress record no longer exists');
+            levelBefore: existingRecord?.reviewLevel ?? null,
+            levelAfter: newReviewLevel
           }
-          
-          // Update progress record with the new review data and ensure it stays COMPLETED
-          return await tx.progress.update({
-            where: { id: progress.id },
-            data: {
-              reviewLevel: newLevel,
-              lastReviewedAt: new Date(),
-              reviewScheduledAt: nextReviewDate,
-              reviewHistory: [...currentHistory, reviewEntry],
-              status: 'COMPLETED' // Force the status to be COMPLETED
-            }
-          });
         });
         
-        console.log('[SpacedRepetition:Review] Successfully updated progress:', { 
-          id: updatedProgress.id,
-          newStatus: updatedProgress.status,
-          newReviewLevel: updatedProgress.reviewLevel,
-          newReviewDate: updatedProgress.reviewScheduledAt,
-          reviewOption
-        });
-        
-        res.json({ 
-          message: 'Review recorded',
-          nextReviewDate,
-          newLevel,
-          status: updatedProgress.status,
-          reviewOption
-        });
-      } catch (transactionError) {
-        console.error('[SpacedRepetition:Review] Transaction error:', transactionError);
-        
-        // Still return a useful response to the client
-        res.json({ 
-          message: 'Review partially recorded (transaction error)',
-          error: 'Transaction failed',
-          nextReviewDate,
-          newLevel,
-          status: 'ERROR',
-          reviewOption
-        });
-      }
-    } catch (innerError) {
-      console.error('[SpacedRepetition:Review] Inner processing error:', innerError);
-      
-      // Return a response even in case of errors
-      res.json({ 
-        message: 'Review failed but processed',
-        error: 'Processing error',
-        nextReviewDate: new Date(Date.now() + 24 * 60 * 60 * 1000), // Fallback date (tomorrow)
-        newLevel: wasSuccessful ? 1 : 0,
-        status: 'ERROR',
-        reviewOption
+        return {
+          progressRecord,
+          reviewHistory,
+          isFirstReview: !existingRecord
+        };
+      }, {
+        isolationLevel: 'Serializable' // Use serializable isolation to prevent race conditions
       });
+      
+      return res.json({
+        message: result.isFirstReview ? 'New progress record created' : 'Progress record updated',
+        isFirstReview: result.isFirstReview,
+        progressRecord: result.progressRecord,
+        reviewHistory: result.reviewHistory
+      });
+    } catch (error) {
+      console.error('[SpacedRepetition:Review] Transaction error:', error);
+      return res.status(500).json({ error: 'Failed to process review' });
     }
   } catch (error) {
-    console.error('[SpacedRepetition:Review] Critical error recording review:', error);
-    
-    // Return a consistent response structure
-    res.json({ 
-      message: 'Review failed',
-      error: 'Server error',
-      nextReviewDate: new Date(Date.now() + 24 * 60 * 60 * 1000), // Fallback date (tomorrow)
-      newLevel: 0,
-      status: 'ERROR',
-      reviewOption: 'unknown'
+    console.error('[SpacedRepetition:Review] Error:', error);
+    res.status(500).json({ 
+      error: 'Failed to process review',
+      details: error instanceof Error ? error.message : String(error)
     });
   }
 }) as RequestHandler);
 
 /**
  * Get spaced repetition stats for a user
- * GET /api/spaced-repetition/stats
+ * GET /api/v2/spaced-repetition/stats
  */
 router.get('/stats', authenticateToken, (async (req, res) => {
   try {
@@ -445,10 +376,63 @@ router.get('/stats', authenticateToken, (async (req, res) => {
     const nextWeek = new Date(now);
     nextWeek.setDate(nextWeek.getDate() + 7);
     
-    console.log('[SpacedRepetition:Stats] Fetching stats for user:', userId);
-    
     try {
-      // Count problems at each review level
+      // Get review statistics directly from the ReviewHistory table
+      const reviewStats = await prisma.$transaction(async (tx) => {
+        // Count total reviews
+        const totalReviews = await prisma.reviewHistory.count({
+          where: {
+            progress: {
+              userId
+            }
+          }
+        });
+        
+        // Count reviews completed today
+        const todayReviews = await prisma.reviewHistory.count({
+          where: {
+            progress: {
+              userId
+            },
+            date: {
+              gte: startOfToday
+            }
+          }
+        });
+        
+        // Count reviews completed this week
+        const weekReviews = await prisma.reviewHistory.count({
+          where: {
+            progress: {
+              userId
+            },
+            date: {
+              gte: startOfWeek
+            }
+          }
+        });
+        
+        // Count reviews completed this month
+        const monthReviews = await prisma.reviewHistory.count({
+          where: {
+            progress: {
+              userId
+            },
+            date: {
+              gte: startOfMonth
+            }
+          }
+        });
+        
+        return {
+          totalReviewed: totalReviews,
+          completedToday: todayReviews,
+          completedThisWeek: weekReviews,
+          completedThisMonth: monthReviews
+        };
+      });
+      
+      // Process level counts
       const levelCounts = await prisma.progress.groupBy({
         by: ['reviewLevel'],
         where: {
@@ -492,83 +476,22 @@ router.get('/stats', authenticateToken, (async (req, res) => {
         }
       });
       
-      // Fetch all progress records 
-      const allProgress = await prisma.progress.findMany({
-        where: {
-          userId,
-          status: 'COMPLETED'
-        },
-        select: {
-          reviewHistory: true
-        }
-      });
-      
-      // Count total reviews
-      let totalReviewed = 0;
-      let completedToday = 0;
-      let completedThisWeek = 0;
-      let completedThisMonth = 0;
-      
-      // Process review history from all progress records
-      allProgress.forEach(progress => {
-        if (progress.reviewHistory && Array.isArray(progress.reviewHistory)) {
-          const history = progress.reviewHistory as Array<{date: string, wasSuccessful: boolean}>;
-          
-          history.forEach(review => {
-            const reviewDate = new Date(review.date);
-            totalReviewed++;
-            
-            if (reviewDate >= startOfToday) {
-              completedToday++;
-            }
-            
-            if (reviewDate >= startOfWeek) {
-              completedThisWeek++;
-            }
-            
-            if (reviewDate >= startOfMonth) {
-              completedThisMonth++;
-            }
-          });
-        }
-      });
-      
-      console.log('[SpacedRepetition:Stats] Retrieved counts:', {
-        levelCounts: levelCounts.length,
-        dueCount,
-        upcomingCount,
-        totalReviewed,
-        completedToday,
-        completedThisWeek,
-        completedThisMonth
-      });
-      
-      // Process level counts with error handling
-      let formattedLevelCounts = {};
-      try {
-        formattedLevelCounts = levelCounts.reduce((acc, item) => {
+      res.json({
+        byLevel: levelCounts.reduce((acc, item) => {
           const level = item.reviewLevel === null ? 0 : item.reviewLevel;
           acc[level] = item._count.id;
           return acc;
-        }, {} as Record<number, number>);
-      } catch (error) {
-        console.error('[SpacedRepetition:Stats] Error formatting level counts:', error);
-        formattedLevelCounts = {}; // Fallback to empty object
-      }
-      
-      res.json({
-        byLevel: formattedLevelCounts,
+        }, {} as Record<number, number>),
         dueNow: dueCount || 0,
         dueThisWeek: upcomingCount || 0,
-        totalReviewed: totalReviewed || 0,
-        completedToday: completedToday || 0,
-        completedThisWeek: completedThisWeek || 0,
-        completedThisMonth: completedThisMonth || 0
+        totalReviewed: reviewStats.totalReviewed,
+        completedToday: reviewStats.completedToday,
+        completedThisWeek: reviewStats.completedThisWeek,
+        completedThisMonth: reviewStats.completedThisMonth
       });
     } catch (error) {
       console.error('[SpacedRepetition:Stats] Error in database queries:', error);
-      // Send a simple response with zeros instead of throwing a 500 error
-      res.json({
+      res.status(500).json({
         byLevel: {},
         dueNow: 0,
         dueThisWeek: 0,
@@ -576,230 +499,332 @@ router.get('/stats', authenticateToken, (async (req, res) => {
         completedToday: 0,
         completedThisWeek: 0,
         completedThisMonth: 0,
-        error: 'Error fetching data, default values returned'
+        error: 'Error fetching data'
       });
     }
   } catch (error) {
-    console.error('[SpacedRepetition:Stats] Critical error in endpoint:', error);
-    // Send a simple response with zeros instead of throwing a 500 error
-    res.json({
-      byLevel: {},
-      dueNow: 0,
-      dueThisWeek: 0,
-      totalReviewed: 0,
-      completedToday: 0,
-      completedThisWeek: 0,
-      completedThisMonth: 0,
-      error: 'Critical error, default values returned'
+    console.error('[SpacedRepetition:Stats] Critical error:', error);
+    res.status(500).json({
+      error: 'Server error'
     });
   }
 }) as RequestHandler);
 
 /**
- * Remove a problem from the spaced repetition system
- * DELETE /api/spaced-repetition/remove-problem/:problemId
+ * Remove a problem from spaced repetition
+ * DELETE /api/spaced-repetition/remove-problem/:identifier
  */
-router.delete('/remove-problem/:problemId', authenticateToken, (async (req, res) => {
+router.delete('/remove-problem/:identifier', authenticateToken, (async (req, res) => {
   try {
-    const { problemId } = req.params;
     const userId = req.user?.id;
+    const { identifier } = req.params;
     
     if (!userId) {
-      return res.status(401).json({ error: 'User not authenticated' });
+      res.status(401).json({ error: 'User not authenticated' });
+      return;
     }
     
-    if (!problemId) {
-      return res.status(400).json({ error: 'Problem ID is required' });
+    if (!identifier) {
+      res.status(400).json({ error: 'Problem identifier is required' });
+      return;
     }
     
-    console.log('[SpacedRepetition:RemoveProblem] Removing problem from spaced repetition:', { userId, problemId });
+    // Resolve problem from identifier (could be ID or slug)
+    const problem = await resolveProblem({ 
+      id: identifier.includes('-') ? undefined : identifier,
+      slug: identifier.includes('-') ? identifier : undefined
+    });
     
-    // Find the progress record for this problem and user
-    const progress = await prisma.progress.findFirst({
+    if (!problem) {
+      res.status(404).json({ error: 'Problem not found' });
+      return;
+    }
+    
+    // Find progress record for this user and problem
+    const progressRecord = await prisma.progress.findUnique({
       where: {
-        userId,
-        problemId
-      },
-      orderBy: {
-        updatedAt: 'desc'
+        userId_topicId_problemId: {
+          userId,
+          topicId: problem.topicId!,
+          problemId: problem.id
+        }
       }
     });
     
-    if (!progress) {
-      console.log('[SpacedRepetition:RemoveProblem] No progress record found for problem:', problemId);
-      return res.status(404).json({ error: 'Progress record not found' });
+    if (!progressRecord) {
+      res.status(404).json({ error: 'Progress record not found' });
+      return;
     }
     
     // Update the progress record to remove it from spaced repetition
-    // We keep the progress record but set reviewLevel to null and clear reviewScheduledAt
-    // This keeps the problem in the user's completed list but removes it from spaced repetition
     const updatedProgress = await prisma.progress.update({
-      where: {
-        id: progress.id
-      },
+      where: { id: progressRecord.id },
       data: {
         reviewLevel: null,
         reviewScheduledAt: null,
-        // Keep other fields like status and lastReviewedAt
+        lastReviewedAt: null
       }
     });
     
-    console.log('[SpacedRepetition:RemoveProblem] Successfully removed problem from spaced repetition:', { 
-      id: updatedProgress.id, 
-      problemId,
-      userId
+    res.json({
+      message: 'Problem removed from spaced repetition',
+      problem: {
+        id: problem.id,
+        name: problem.name,
+        slug: problem.slug
+      },
+      progress: {
+        id: updatedProgress.id,
+        updatedAt: updatedProgress.updatedAt
+      }
     });
-    
-    res.json({ 
-      message: 'Problem removed from spaced repetition system',
-      progress: updatedProgress
-    });
+    return;
   } catch (error) {
-    console.error('[SpacedRepetition:RemoveProblem] Error removing problem:', error);
-    res.status(500).json({ error: 'Failed to remove problem from spaced repetition' });
+    console.error('[SpacedRepetition:RemoveProblem] Error:', error);
+    res.status(500).json({
+      error: 'Failed to remove problem from spaced repetition',
+      details: error instanceof Error ? error.message : String(error)
+    });
+    return;
   }
 }) as RequestHandler);
 
 /**
- * Add a completed problem to the spaced repetition system
- * POST /api/spaced-repetition/add-to-repetition/:problemId
+ * Add a problem to spaced repetition
+ * POST /api/spaced-repetition/add-to-repetition
  */
-router.post('/add-to-repetition/:problemId', authenticateToken, (async (req, res) => {
+router.post('/add-to-repetition', authenticateToken, (async (req, res) => {
   try {
-    const { problemId } = req.params;
+    const { problemId, problemSlug, initialLevel = 1 } = req.body;
     const userId = req.user?.id;
     
     if (!userId) {
-      return res.status(401).json({ error: 'User not authenticated' });
+      res.status(401).json({ error: 'User not authenticated' });
+      return;
     }
     
-    if (!problemId) {
-      return res.status(400).json({ error: 'Problem ID is required' });
+    if (!problemId && !problemSlug) {
+      res.status(400).json({ error: 'Either problemId or problemSlug is required' });
+      return;
     }
     
-    console.log('[SpacedRepetition:AddToRepetition] Adding problem to spaced repetition:', { userId, problemId });
+    // Extract the success status and review option from query parameters or use defaults
+    const wasSuccessful = true; // Initial add is always successful
+    const reviewOption = req.body.reviewOption || 'added-to-repetition'; // Use a specific option for adds to distinguish them
     
-    // First check if the problem exists and if it's completed by the user
-    const user = await prisma.user.findUnique({
-      where: { id: userId },
-      include: {
-        completedProblems: {
-          where: { id: problemId },
-          select: { id: true, topicId: true, problemType: true }
-        }
+    // Helper function to add problem to spaced repetition
+    const addProblemToSpacedRepetition = async () => {
+      // Resolve problem ID/slug to a full problem
+      const problem = await resolveProblem({ id: problemId, slug: problemSlug });
+      
+      if (!problem) {
+        res.status(404).json({
+          error: 'Problem not found',
+          message: 'The specified problem does not exist'
+        });
+        return false;
       }
-    });
-    
-    if (!user) {
-      return res.status(404).json({ error: 'User not found' });
-    }
-    
-    if (user.completedProblems.length === 0) {
-      return res.status(400).json({ 
-        error: 'Problem has not been completed yet', 
-        message: 'You need to complete this problem before adding it to spaced repetition'
-      });
-    }
-    
-    // Check if the problem is already in spaced repetition
-    const existingProgress = await prisma.progress.findFirst({
-      where: {
-        userId,
-        problemId,
-        reviewLevel: { not: null }
+      
+      if (!problem.topicId) {
+        res.status(400).json({
+          error: 'Problem has no topic',
+          message: 'Cannot create progress for a problem without a topic'
+        });
+        return false;
       }
-    });
-    
-    if (existingProgress) {
-      return res.status(400).json({ 
-        error: 'Problem already in spaced repetition', 
-        message: 'This problem is already in your spaced repetition dashboard'
-      });
-    }
-    
-    const problem = user.completedProblems[0];
-    
-    // Only allow coding problems to be added to spaced repetition
-    if (problem.problemType !== 'CODING') {
-      return res.status(400).json({ 
-        error: 'Only coding problems can be added to spaced repetition', 
-        message: 'Only coding problems can be added to spaced repetition'
-      });
-    }
-    
-    // If there's no topicId, we can't create a progress record
-    if (!problem.topicId) {
-      return res.status(400).json({ 
-        error: 'Problem is missing a topic', 
-        message: 'Cannot add problem to spaced repetition: missing topic'
-      });
-    }
-    
-    // Get or create a progress record for this problem
-    const existingProgressRecord = await prisma.progress.findFirst({
-      where: {
-        userId,
-        problemId
-      }
-    });
-    
-    let newProgress;
-    
-    if (existingProgressRecord) {
-      // Update the existing progress record
-      newProgress = await prisma.progress.update({
-        where: { id: existingProgressRecord.id },
-        data: {
-          status: 'COMPLETED',
-          reviewLevel: 0, // Start at level 0
-          lastReviewedAt: new Date(),
-          reviewScheduledAt: calculateNextReviewDate(0), // Schedule for tomorrow
-          reviewHistory: [{
-            date: new Date(),
-            wasSuccessful: true,
-            reviewOption: 'added-to-repetition'
-          }]
+      
+      // Find the user and check if they've completed this problem
+      const user = await prisma.user.findUnique({
+        where: { id: userId },
+        include: {
+          completedProblems: {
+            where: { id: problem.id },
+            select: { id: true }
+          }
         }
       });
-    } else {
-      // Create a new progress record
-      newProgress = await prisma.progress.create({
-        data: {
-          userId,
-          problemId,
-          topicId: problem.topicId, // Now we're sure this is not null
-          status: 'COMPLETED',
-          reviewLevel: 0, // Start at level 0
-          lastReviewedAt: new Date(),
-          reviewScheduledAt: calculateNextReviewDate(0), // Schedule for tomorrow
-          reviewHistory: [{
-            date: new Date(),
-            wasSuccessful: true,
-            reviewOption: 'added-to-repetition'
-          }]
+      
+      if (!user) {
+        res.status(404).json({ error: 'User not found' });
+        return false;
+      }
+      
+      // Check if the problem is already completed
+      const hasCompletedProblem = user.completedProblems.length > 0;
+      
+      // Calculate next review date based on initial level
+      const reviewLevel = Number(initialLevel);
+      if (reviewLevel < 0 || reviewLevel > 8 || isNaN(reviewLevel)) {
+        res.status(400).json({
+          error: 'Invalid initial level',
+          message: 'Initial level must be between 0 and 8'
+        });
+        return false;
+      }
+      
+      const nextReviewDate = calculateNextReviewDate(reviewLevel);
+      
+      // Find existing progress
+      const existingProgress = await getProgressForProblem(userId, { id: problem.id });
+      
+      try {
+        // If progress exists, update it
+        if (existingProgress) {
+          if (existingProgress.reviewLevel !== null) {
+            res.status(400).json({
+              error: 'Problem already in spaced repetition',
+              message: 'This problem is already in your spaced repetition queue'
+            });
+            return false;
+          }
+          
+          // Update existing progress
+          const updatedProgress = await prisma.progress.update({
+            where: { id: existingProgress.id },
+            data: {
+              reviewLevel,
+              lastReviewedAt: new Date(),
+              reviewScheduledAt: nextReviewDate,
+              status: 'COMPLETED'
+            } as Prisma.ProgressUpdateInput
+          });
+          
+          // If problem isn't marked as completed yet, add it
+          if (!hasCompletedProblem) {
+            await prisma.user.update({
+              where: { id: userId },
+              data: {
+                completedProblems: {
+                  connect: { id: problem.id }
+                }
+              }
+            });
+          }
+          
+          // For the first ReviewHistory creation in /add-to-repetition endpoint:
+          console.log('Creating ReviewHistory for existing progress:', {
+            progressId: updatedProgress.id,
+            reviewLevel,
+            wasSuccessful
+          });
+
+          try {
+            // For updating existing progress  
+            await prisma.reviewHistory.create({
+              data: {
+                progressId: updatedProgress.id,
+                date: new Date(),
+                wasSuccessful: wasSuccessful,
+                reviewOption: reviewOption,
+                levelBefore: existingProgress.reviewLevel,
+                levelAfter: reviewLevel
+              }
+            });
+            console.log('Successfully created ReviewHistory for existing progress');
+          } catch (error) {
+            console.error('Error creating ReviewHistory for existing progress:', error);
+            // Don't throw here as we want to continue with the response
+          }
+          
+          res.json({
+            message: 'Problem added to spaced repetition',
+            progress: updatedProgress,
+            problem: {
+              id: problem.id,
+              name: problem.name,
+              slug: problem.slug
+            }
+          });
+          return true;
+        } else {
+          // Create new progress
+          const newProgress = await prisma.progress.create({
+            data: {
+              user: { connect: { id: userId } },
+              problem: { connect: { id: problem.id } },
+              topic: { connect: { id: problem.topicId! } },
+              status: 'COMPLETED',
+              reviewLevel,
+              lastReviewedAt: new Date(),
+              reviewScheduledAt: nextReviewDate
+            } as Prisma.ProgressCreateInput
+          });
+          
+          // If problem isn't marked as completed yet, add it
+          if (!hasCompletedProblem) {
+            await prisma.user.update({
+              where: { id: userId },
+              data: {
+                completedProblems: {
+                  connect: { id: problem.id }
+                }
+              }
+            });
+          }
+          
+          // For the second ReviewHistory creation in /add-to-repetition endpoint:
+          console.log('Creating ReviewHistory for new progress:', {
+            progressId: newProgress.id,
+            reviewLevel,
+            wasSuccessful
+          });
+
+          try {
+            // For creating new progress
+            await prisma.reviewHistory.create({
+              data: {
+                progressId: newProgress.id,
+                date: new Date(),
+                wasSuccessful: wasSuccessful,
+                reviewOption: reviewOption,
+                levelBefore: null, // Initial add has no previous level
+                levelAfter: reviewLevel
+              }
+            });
+            console.log('Successfully created ReviewHistory for new progress');
+          } catch (error) {
+            console.error('Error creating ReviewHistory for new progress:', error);
+            // Don't throw here as we want to continue with the response
+          }
+          
+          res.json({
+            message: 'Problem added to spaced repetition',
+            progress: newProgress,
+            problem: {
+              id: problem.id,
+              name: problem.name,
+              slug: problem.slug
+            }
+          });
+          return true;
         }
-      });
+      } catch (error) {
+        console.error('[SpacedRepetition:AddToRepetition] Database error:', error);
+        res.status(500).json({
+          error: 'Failed to add problem to spaced repetition',
+          details: error instanceof Error ? error.message : String(error)
+        });
+        return false;
+      }
+    };
+    
+    // Execute the function
+    const success = await addProblemToSpacedRepetition();
+    
+    // If the function already sent a response, we're done
+    if (!success) {
+      // The function should have already set an appropriate error response
+      return;
     }
-    
-    console.log('[SpacedRepetition:AddToRepetition] Successfully added problem to spaced repetition:', { 
-      id: newProgress.id, 
-      problemId,
-      userId
-    });
-    
-    res.json({ 
-      message: 'Problem added to spaced repetition system',
-      progress: newProgress,
-      dueDate: newProgress.reviewScheduledAt
-    });
   } catch (error) {
-    console.error('[SpacedRepetition:AddToRepetition] Error adding problem:', error);
+    console.error('[SpacedRepetition:AddToRepetition] General error:', error);
     res.status(500).json({ error: 'Failed to add problem to spaced repetition' });
+    return;
   }
 }) as RequestHandler);
 
 /**
- * Get completed coding problems not already in spaced repetition
+ * Get all problems available for spaced repetition
  * GET /api/spaced-repetition/available-problems
  */
 router.get('/available-problems', authenticateToken, (async (req, res) => {
@@ -807,26 +832,27 @@ router.get('/available-problems', authenticateToken, (async (req, res) => {
     const userId = req.user?.id;
     
     if (!userId) {
-      return res.status(401).json({ error: 'User not authenticated' });
+      res.status(401).json({ error: 'User not authenticated' });
+      return;
     }
     
-    console.log('[SpacedRepetition:AvailableProblems] Fetching available problems for user:', userId);
-    
-    // Find the user with their completed coding problems
-    const user = await prisma.user.findUnique({
+    // 1. Get all completed problems from the "completedProblems" relation
+    const userWithProblems = await prisma.user.findUnique({
       where: { id: userId },
       include: {
         completedProblems: {
-          where: { problemType: 'CODING' },
-          select: { 
-            id: true, 
-            name: true, 
-            difficulty: true,
+          select: {
+            id: true,
+            name: true,
+            slug: true,
             topicId: true,
+            difficulty: true,
+            problemType: true,
             topic: {
               select: {
                 id: true,
-                name: true
+                name: true,
+                slug: true
               }
             }
           }
@@ -834,39 +860,340 @@ router.get('/available-problems', authenticateToken, (async (req, res) => {
       }
     });
     
-    if (!user) {
-      return res.status(404).json({ error: 'User not found' });
+    if (!userWithProblems) {
+      res.status(404).json({ error: 'User not found' });
+      return;
     }
     
-    // Get all problems already in spaced repetition
-    const inSpacedRepetition = await prisma.progress.findMany({
+    // 2. Get all problems that have progress records marked as COMPLETED
+    const progressWithProblems = await prisma.progress.findMany({
+      where: {
+        userId,
+        status: 'COMPLETED',
+        problem: {
+          isNot: null
+        }
+      },
+      include: {
+        problem: {
+          select: {
+            id: true,
+            name: true,
+            slug: true,
+            topicId: true, 
+            difficulty: true,
+            problemType: true,
+            topic: {
+              select: {
+                id: true,
+                name: true,
+                slug: true
+              }
+            }
+          }
+        }
+      }
+    });
+    
+    // 3. Get all problems already in spaced repetition
+    const spacedRepetitionProblems = await prisma.progress.findMany({
       where: {
         userId,
         reviewLevel: { not: null }
       },
       select: {
-        problemId: true
+        problemId: true,
+        reviewLevel: true,
+        lastReviewedAt: true,
+        reviewScheduledAt: true
       }
     });
     
-    // Create a set of problem IDs already in spaced repetition for faster lookup
-    const spacedRepetitionProblemIds = new Set(inSpacedRepetition.map(p => p.problemId));
-    
-    // Filter completed problems to only include those not already in spaced repetition
-    const availableProblems = user.completedProblems.filter(
-      problem => !spacedRepetitionProblemIds.has(problem.id)
+    const spacedRepProblemIds = new Set(
+      spacedRepetitionProblems
+        .filter(p => p.problemId !== null)
+        .map(p => p.problemId!)
     );
     
-    console.log('[SpacedRepetition:AvailableProblems] Found problems:', {
-      totalCompleted: user.completedProblems.length,
-      inSpacedRepetition: spacedRepetitionProblemIds.size,
-      available: availableProblems.length
+    console.log(`[AvailableProblems] Found ${spacedRepProblemIds.size} problems already in spaced repetition`);
+    
+    // 4. Build a map of all completed problems
+    const problemMap = new Map();
+    
+    // Add problems from completedProblems relation
+    userWithProblems.completedProblems.forEach(problem => {
+      if (problem && !problemMap.has(problem.id)) {
+        problemMap.set(problem.id, {
+          ...problem,
+          source: 'completedProblems'
+        });
+      }
     });
     
-    res.json(availableProblems);
+    // Add problems from progress records
+    progressWithProblems.forEach(record => {
+      if (record.problem && !problemMap.has(record.problem.id)) {
+        problemMap.set(record.problem.id, {
+          ...record.problem,
+          source: 'progress'
+        });
+      }
+    });
+    
+    console.log(`[AvailableProblems] Found ${problemMap.size} total completed problems`);
+    
+    // 5. Filter out problems already in spaced repetition
+    const availableProblems = Array.from(problemMap.values())
+      .filter(problem => !spacedRepProblemIds.has(problem.id));
+    
+    console.log(`[AvailableProblems] ${availableProblems.length} problems available to add`);
+    
+    // 6. Group problems by topic
+    const problemsByTopic = availableProblems.reduce((acc, problem) => {
+      const topicId = problem.topic?.id || 'unknown';
+      const topicName = problem.topic?.name || 'Unknown';
+      
+      if (!acc[topicId]) {
+        acc[topicId] = {
+          topic: {
+            id: topicId,
+            name: topicName,
+            slug: problem.topic?.slug || ''
+          },
+          problems: []
+        };
+      }
+      
+      acc[topicId].problems.push({
+        id: problem.id,
+        name: problem.name,
+        slug: problem.slug,
+        difficulty: problem.difficulty,
+        problemType: problem.problemType,
+        topic: problem.topic,
+        source: problem.source,
+        isInSpacedRepetition: false
+      });
+      
+      return acc;
+    }, {} as Record<string, { topic: any, problems: any[] }>);
+    
+    // Define a type for topic objects
+    interface TopicWithProblems {
+      topic: {
+        id: string;
+        name: string;
+        slug: string;
+      };
+      problems: Array<{
+        id: string;
+        name: string;
+        slug: string;
+        difficulty: any;
+        problemType: any;
+        topic: any;
+        source: string;
+        isInSpacedRepetition: boolean;
+      }>;
+    }
+    
+    // 7. Remove empty topics and sort problems within each topic
+    type TopicType = { topic: any; problems: Array<{ name: string }> };
+    
+    const nonEmptyTopics = Object.values(problemsByTopic)
+      // Type-cast the topic to avoid TypeScript errors
+      .filter((topic) => {
+        const t = topic as TopicType;
+        return t && t.problems && Array.isArray(t.problems) && t.problems.length > 0;
+      })
+      .map((topic) => {
+        const t = topic as TopicType;
+        return {
+          ...t,
+          problems: [...t.problems].sort((a, b) => 
+            (a.name || '').localeCompare(b.name || '')
+          )
+        };
+      });
+    
+    // 8. Return the response
+    res.json({
+      topics: nonEmptyTopics,
+      totalProblems: problemMap.size,
+      inSpacedRepetition: spacedRepProblemIds.size,
+      availableToAdd: availableProblems.length,
+      debug: {
+        completedCount: userWithProblems.completedProblems.length,
+        progressCount: progressWithProblems.length,
+        combinedCount: problemMap.size
+      }
+    });
   } catch (error) {
     console.error('[SpacedRepetition:AvailableProblems] Error:', error);
-    res.status(500).json({ error: 'Failed to fetch available problems' });
+    res.status(500).json({ 
+      error: 'Failed to fetch available problems',
+      details: error instanceof Error ? error.message : String(error)
+    });
+  }
+}) as RequestHandler);
+
+/**
+ * Admin endpoint to clean up and fix any duplicate progress records
+ * POST /api/spaced-repetition/admin/cleanup
+ */
+router.post('/admin/cleanup', authenticateToken, (async (req, res) => {
+  try {
+    const userId = req.user?.id;
+    const userRole = req.user?.role;
+    
+    // This endpoint is admin only
+    if (userRole !== 'ADMIN' && userRole !== 'DEVELOPER') {
+      res.status(403).json({ error: 'Not authorized to use admin endpoints' });
+      return;
+    }
+    
+    if (!userId) {
+      res.status(401).json({ error: 'User not authenticated' });
+      return;
+    }
+    
+    // Delete all progress records that don't have a valid problem attached
+    const deleteResult = await prisma.progress.deleteMany({
+      where: {
+        OR: [
+          { problemId: null },
+          { problem: null }
+        ]
+      }
+    });
+    
+    res.json({
+      message: 'Cleanup completed successfully',
+      deletedRecords: deleteResult.count
+    });
+    return;
+  } catch (error) {
+    console.error('[SpacedRepetition:AdminCleanup] Error:', error);
+    res.status(500).json({ error: 'Failed to clean up progress records' });
+    return;
+  }
+}) as RequestHandler);
+
+/**
+ * Admin endpoint to fix duplicate progress records
+ * POST /api/spaced-repetition/admin/fix-duplicates
+ */
+router.post('/admin/fix-duplicates', authenticateToken, (async (req, res) => {
+  try {
+    const userRole = req.user?.role;
+    
+    // This endpoint is admin only
+    if (userRole !== 'ADMIN' && userRole !== 'DEVELOPER') {
+      res.status(403).json({ error: 'Not authorized to use admin endpoints' });
+      return;
+    }
+    
+    // 1. Find all unique combinations of userId, topicId, problemId that have duplicates
+    const duplicates = await prisma.$queryRaw`
+      SELECT "userId", "topicId", "problemId", COUNT(*) as count
+      FROM progress 
+      WHERE "problemId" IS NOT NULL AND "topicId" IS NOT NULL
+      GROUP BY "userId", "topicId", "problemId"
+      HAVING COUNT(*) > 1
+    `;
+    
+    console.log(`Found ${(duplicates as any[]).length} sets of duplicate progress records`);
+    
+    // 2. Process each set of duplicates
+    let totalFixed = 0;
+    let totalReviewsMigrated = 0;
+    const errors: any[] = [];
+    
+    for (const duplicate of duplicates as any[]) {
+      try {
+        // Get all progress records for this combination
+        const records = await prisma.progress.findMany({
+          where: {
+            userId: duplicate.userId,
+            topicId: duplicate.topicId,
+            problemId: duplicate.problemId
+          },
+          include: {
+            reviews: true
+          },
+          orderBy: {
+            reviewLevel: 'desc' // Keep the highest level record
+          }
+        });
+        
+        // Keep the first record (highest level) and collect all others for deletion
+        const [keepRecord, ...duplicateRecords] = records;
+        const duplicateIds = duplicateRecords.map(record => record.id);
+        
+        // Get all review history entries from the duplicates
+        const reviewHistoryEntries = duplicateRecords.flatMap(record => record.reviews);
+        
+        // Use a transaction to consolidate
+        await prisma.$transaction(async (tx) => {
+          // For each review history entry, create a new one linked to the kept record
+          for (const entry of reviewHistoryEntries) {
+            await tx.reviewHistory.create({
+              data: {
+                progressId: keepRecord.id,
+                date: entry.date,
+                wasSuccessful: entry.wasSuccessful,
+                reviewOption: entry.reviewOption || undefined,
+                levelBefore: entry.levelBefore,
+                levelAfter: entry.levelAfter,
+                createdAt: entry.createdAt
+              }
+            });
+          }
+          
+          // Delete all review history entries from duplicates
+          await tx.reviewHistory.deleteMany({
+            where: {
+              progressId: {
+                in: duplicateIds
+              }
+            }
+          });
+          
+          // Delete duplicate progress records
+          await tx.progress.deleteMany({
+            where: {
+              id: {
+                in: duplicateIds
+              }
+            }
+          });
+        });
+        
+        totalFixed++;
+        totalReviewsMigrated += reviewHistoryEntries.length;
+      } catch (error) {
+        console.error('Error fixing duplicate:', error);
+        errors.push({
+          userId: duplicate.userId,
+          topicId: duplicate.topicId,
+          problemId: duplicate.problemId,
+          error: error instanceof Error ? error.message : String(error)
+        });
+      }
+    }
+    
+    res.json({
+      totalDuplicateSets: (duplicates as any[]).length,
+      totalFixed,
+      totalReviewsMigrated,
+      errors
+    });
+  } catch (error) {
+    console.error('Error fixing duplicates:', error);
+    res.status(500).json({
+      error: 'Failed to fix duplicate progress records',
+      details: error instanceof Error ? error.message : String(error)
+    });
   }
 }) as RequestHandler);
 

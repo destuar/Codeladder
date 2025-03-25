@@ -142,17 +142,34 @@ model Progress {
   problemId String?
   status    ProgressStatus @default(NOT_STARTED)
 
-  // New fields for spaced repetition
+  // Spaced repetition fields
   reviewScheduledAt DateTime? // When this problem is scheduled to be reviewed next
   reviewLevel       Int? // Current review level (determines intervals)
   lastReviewedAt    DateTime? // When the problem was last reviewed
-  reviewHistory     Json? // JSON array of past review sessions with dates and success
+  reviews           ReviewHistory[] // Relation to review history entries
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@unique([userId, topicId, problemId])
   @@map("progress")
+}
+
+// New model for storing review history
+model ReviewHistory {
+  id            String    @id @default(cuid())
+  progress      Progress  @relation(fields: [progressId], references: [id], onDelete: Cascade)
+  progressId    String    @map("progress_id")
+  date          DateTime  @default(now())
+  wasSuccessful Boolean   @map("was_successful")
+  reviewOption  String?   @map("review_option") // 'easy', 'difficult', 'forgot'
+  levelBefore   Int?      @map("level_before")
+  levelAfter    Int?      @map("level_after")
+  
+  createdAt     DateTime  @default(now()) @map("created_at")
+
+  @@index([progressId])
+  @@map("review_history")
 }
 
 model StandaloneInfoPage {

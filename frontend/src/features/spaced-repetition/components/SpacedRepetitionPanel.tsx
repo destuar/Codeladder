@@ -91,9 +91,9 @@ function MemoryJourneyButton({ problem }: { problem: ReviewProblem }) {
       {/* Memory progression journey modal */}
       {showMemoryJourney && (
         <MemoryProgressionJourney
-          problemId={problem.id}
-          currentLevel={problem.reviewLevel}
-          reviewHistory={problem.reviewHistory || []}
+          progressId={problem.progressId}
+          reviewLevel={problem.reviewLevel}
+          reviews={problem.reviews || []}
           onClose={() => setShowMemoryJourney(false)}
         />
       )}
@@ -166,7 +166,6 @@ export function SpacedRepetitionPanel() {
     const refreshParam = searchParams.get('refresh');
     
     if (refreshParam) {
-      console.log('Detected refresh parameter, refreshing data...');
       handleRefresh();
       
       // Remove the refresh parameter from the URL to avoid repeated refreshes
@@ -302,7 +301,10 @@ export function SpacedRepetitionPanel() {
             onClick={(e) => {
               e.stopPropagation();
               startReview(
-                problem.id, 
+                { 
+                  id: problem.id,
+                  slug: problem.slug || undefined
+                }, 
                 !isActiveDay ? { 
                   isEarly: true, 
                   dueDate: problem.dueDate || undefined 
@@ -333,7 +335,10 @@ export function SpacedRepetitionPanel() {
     
     // Start review for the randomly selected problem
     startReview(
-      randomProblem.id,
+      {
+        id: randomProblem.id,
+        slug: randomProblem.slug || undefined
+      },
       !isActiveSection ? {
         isEarly: true,
         dueDate: randomProblem.dueDate || undefined

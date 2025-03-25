@@ -15,6 +15,7 @@ import cookieParser from 'cookie-parser';
 import { errorHandler } from './middleware/errorHandler';
 import { apiLimiter, authLimiter, registerLimiter, adminApiLimiter } from './middleware/rateLimit';
 import { requestDebugger } from './middleware/debugger';
+import debugRouter from './routes/debug-db';
 
 const app = express();
 
@@ -98,6 +99,9 @@ app.use('/api/learning', adminApiLimiter);
 
 // Mount all API routes under the /api prefix
 app.use('/api', apiRouter);
+
+// Add the debug routes
+app.use('/api/debug', debugRouter);
 
 /**
  * Root Endpoint

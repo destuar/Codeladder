@@ -132,6 +132,16 @@ function MainLayout() {
             }
           />
           <Route
+            path="/problem/:slug/review"
+            element={
+              <ProtectedRoute>
+                <AdminViewWrapper>
+                  <ProblemPage />
+                </AdminViewWrapper>
+              </ProtectedRoute>
+            }
+          />
+          <Route
             path="/topics/:topicId"
             element={
               <ProtectedRoute>
@@ -176,12 +186,7 @@ function MainLayout() {
             element={
               <ProtectedRoute>
                 <AdminViewWrapper>
-                  <div className="container py-8">
-                    <h1 className="text-3xl font-bold mb-8">Spaced Repetition</h1>
-                    <div className="prose dark:prose-invert max-w-full">
-                      <p>Implementation coming soon...</p>
-                    </div>
-                  </div>
+                  <ReviewPage />
                 </AdminViewWrapper>
               </ProtectedRoute>
             }

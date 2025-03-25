@@ -15,9 +15,12 @@ import { logProblemReviewState, logWorkflowStep } from './utils/debug';
 
 // Custom hook to only use spaced repetition when needed
 function useConditionalSpacedRepetition(enabled: boolean) {
-  // Only call useSpacedRepetition when enabled
+  // Always call useSpacedRepetition to maintain consistent hook order
+  const spacedRepetition = useSpacedRepetition();
+  
+  // Return either the real implementation or a placeholder based on enabled flag
   if (enabled) {
-    return useSpacedRepetition();
+    return spacedRepetition;
   }
   
   // Return a placeholder object when disabled
@@ -40,15 +43,17 @@ function useConditionalSpacedRepetition(enabled: boolean) {
 }
 
 const ProblemPage: React.FC = () => {
-  // Get both the problemId and slug from the URL parameters
+  // Get the problemId parameter from the URL
   const { problemId, slug } = useParams<{ problemId?: string; slug?: string }>();
   const { token } = useAuth();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const location = useLocation();
   
-  // Store the effective ID we're using (either problemId or slug)
-  const [effectiveId, setEffectiveId] = useState<string | undefined>(problemId || slug);
+  // Store the identifier we're using (either problemId or slug)
+  const [effectiveIdentifier, setEffectiveIdentifier] = useState<string | undefined>(
+    slug || problemId
+  );
   
   // Store the referrer URL to navigate back after review
   const [referrer, setReferrer] = useState<string | null>(null);
@@ -58,19 +63,19 @@ const ProblemPage: React.FC = () => {
   
   // Check if we're in review mode
   const searchParams = new URLSearchParams(location.search);
-  const isReviewMode = searchParams.get('mode') === 'review';
+  const isReviewMode = searchParams.get('mode') === 'review' || location.pathname.includes('/review');
   const isEarlyReview = searchParams.get('early') === 'true';
   const scheduledDate = searchParams.get('dueDate') || undefined;
   
   // Determine if we should use spaced repetition
-  const shouldUseSpacedRepetition = isReviewMode || isEarlyReview || hasJustCompleted;
+  const shouldUseSpacedRepetition = isReviewMode || isEarlyReview;
+  
+  // Track if review was submitted
+  const [reviewSubmitted, setReviewSubmitted] = useState(false);
   
   // Get the spaced repetition hook for review functionality
   const { submitReview } = useConditionalSpacedRepetition(shouldUseSpacedRepetition);
   
-  // Track if review was submitted
-  const [reviewSubmitted, setReviewSubmitted] = useState(false);
-
   // Extract source context from query parameters
   const sourceContext = (() => {
     const from = searchParams.get('from');
@@ -89,7 +94,7 @@ const ProblemPage: React.FC = () => {
     logWorkflowStep('SubmittingReview', { 
       ...result, 
       reviewSubmitted,
-      problemId: effectiveId
+      problemIdentifier: effectiveIdentifier
     });
     
     try {
@@ -99,8 +104,8 @@ const ProblemPage: React.FC = () => {
       setReviewSubmitted(true);
       
       // Force refresh problem data
-      if (effectiveId) {
-        queryClient.invalidateQueries({ queryKey: ['problem', effectiveId] });
+      if (effectiveIdentifier) {
+        queryClient.invalidateQueries({ queryKey: ['problem', effectiveIdentifier] });
       }
       
       return response;
@@ -112,10 +117,10 @@ const ProblemPage: React.FC = () => {
   
   // Ensure problem data is refetched after review completion
   useEffect(() => {
-    if (reviewSubmitted && effectiveId) {
+    if (reviewSubmitted && effectiveIdentifier) {
       // Refetch problem data to get latest state
-      logWorkflowStep('RefetchingAfterReview', { problemId: effectiveId });
-      queryClient.invalidateQueries({ queryKey: ['problem', effectiveId] });
+      logWorkflowStep('RefetchingAfterReview', { problemIdentifier: effectiveIdentifier });
+      queryClient.invalidateQueries({ queryKey: ['problem', effectiveIdentifier] });
       
       // Reset review submitted flag after a delay
       const timer = setTimeout(() => {
@@ -124,7 +129,7 @@ const ProblemPage: React.FC = () => {
       
       return () => clearTimeout(timer);
     }
-  }, [reviewSubmitted, effectiveId, queryClient]);
+  }, [reviewSubmitted, effectiveIdentifier, queryClient]);
   
   // Store the referrer when the component mounts
   useEffect(() => {
@@ -149,40 +154,47 @@ const ProblemPage: React.FC = () => {
       documentReferrer, 
       actualReferrer, 
       isReviewMode,
-      problemId: effectiveId
+      problemIdentifier: effectiveIdentifier
     });
-  }, [location, isReviewMode, searchParams, effectiveId]);
+  }, [location, isReviewMode, searchParams, effectiveIdentifier]);
 
-  // Determine if we're using problemId or slug
+  // Update the effective identifier when parameters change
   useEffect(() => {
-    // Update the effective ID when either problemId or slug changes
-    setEffectiveId(problemId || slug);
+    setEffectiveIdentifier(slug || problemId);
   }, [problemId, slug]);
   
   // Fetch problem data using the appropriate endpoint based on whether we have an ID or slug
   const { data: problem, isLoading, error } = useQuery<Problem>({
-    queryKey: ['problem', effectiveId],
-    queryFn: () => {
-      if (!effectiveId) return Promise.reject(new Error('No problem ID or slug provided'));
+    queryKey: ['problem', effectiveIdentifier],
+    queryFn: async () => {
+      if (!effectiveIdentifier) return Promise.reject(new Error('No problem identifier provided'));
       
-      // Use the slug API endpoint if we have a slug, otherwise use the ID endpoint
-      const endpoint = slug 
-        ? `/problems/slug/${slug}`  // This endpoint needs to exist on your backend
-        : `/problems/${problemId}`;
+      // Determine the appropriate endpoint based on whether we have a slug or ID
+      let endpoint;
+      
+      if (slug) {
+        // Slug-based endpoint
+        endpoint = `/problems/slug/${slug}`;
+      } else if (problemId) {
+        // ID-based endpoint
+        endpoint = `/problems/${problemId}`;
+      } else {
+        throw new Error('No valid problem identifier provided');
+      }
       
       return api.get(endpoint, token);
     },
-    enabled: !!effectiveId && !!token,
+    enabled: !!effectiveIdentifier && !!token,
   });
   
   // Log errors if any
   useEffect(() => {
-    if (!effectiveId) {
-      logWorkflowStep('ProblemLoadError', { error: null, problemId: effectiveId });
+    if (!effectiveIdentifier) {
+      logWorkflowStep('ProblemLoadError', { error: 'No identifier provided', problemIdentifier: effectiveIdentifier });
     } else if (error) {
-      logWorkflowStep('ProblemLoadError', { error, problemId: effectiveId });
+      logWorkflowStep('ProblemLoadError', { error, problemIdentifier: effectiveIdentifier });
     }
-  }, [error, effectiveId]);
+  }, [error, effectiveIdentifier]);
   
   // Log the problem data whenever it changes
   useEffect(() => {
@@ -205,7 +217,7 @@ const ProblemPage: React.FC = () => {
       ? `?${new URLSearchParams(sourceContext as any).toString()}` 
       : '';
     
-    // Use slug-based navigation if a slug is provided
+    // Use slug-based navigation if a slug is provided, which is preferred
     if (slug) {
       navigate(`/problem/${slug}${sourceParams}`);
     } else {
@@ -215,21 +227,15 @@ const ProblemPage: React.FC = () => {
 
   // Handler for when a problem is completed
   const handleProblemCompleted = () => {
-    logWorkflowStep('ProblemCompleted', { problemId: effectiveId, isReviewMode });
+    logWorkflowStep('ProblemCompleted', { problemIdentifier: effectiveIdentifier, isReviewMode });
     // Immediately set this flag to show review controls faster
     setHasJustCompleted(true);
     
-    // For now, we won't automatically navigate after completion in review mode
-    if (!isReviewMode && problem?.nextProblemId) {
-      const shouldNavigate = window.confirm('Congratulations! Would you like to move to the next problem?');
-      if (shouldNavigate) {
-        navigateToOtherProblem(problem.nextProblemId, problem.nextProblemSlug);
-      }
-    }
+    // We won't automatically navigate in any mode
   };
 
   // Check if we should show review controls
-  const shouldShowReviewControls = (isReviewMode && (effectiveIsCompleted || hasJustCompleted)) || hasJustCompleted;
+  const shouldShowReviewControls = isReviewMode && (effectiveIsCompleted || hasJustCompleted);
 
   if (isLoading) {
     return (
@@ -240,7 +246,7 @@ const ProblemPage: React.FC = () => {
   }
 
   if (error || !problem) {
-    logWorkflowStep('ProblemLoadError', { error, problemId: effectiveId });
+    logWorkflowStep('ProblemLoadError', { error, problemIdentifier: effectiveIdentifier });
     return (
       <div className="p-8 text-center text-destructive">
         Error loading problem

@@ -638,7 +638,6 @@ router.post('/:problemId/complete', authenticateToken, (async (req, res) => {
             reviewLevel: true,
             reviewScheduledAt: true,
             lastReviewedAt: true,
-            reviewHistory: true,
             id: true
           }
         }
@@ -653,7 +652,21 @@ router.post('/:problemId/complete', authenticateToken, (async (req, res) => {
     const isCompleted = problem.completedBy.length > 0 || problem.progress.some(p => p.status === 'COMPLETED');
     
     // Get existing review data if present
-    const existingProgress = problem.progress[0];
+    const existingProgress = await prisma.progress.findUnique({
+      where: {
+        userId_topicId_problemId: {
+          userId,
+          topicId: problem.topicId!,
+          problemId: problemId
+        }
+      }, 
+      include: {
+        reviews: true // Include the reviews relation
+      }
+    });
+
+    // Then change the hasReviewHistory check to:
+    const hasReviewHistory = (existingProgress?.reviews?.length || 0) > 0;
 
     console.log('Problem state before update:', {
       problemId,
@@ -663,8 +676,7 @@ router.post('/:problemId/complete', authenticateToken, (async (req, res) => {
       existingProgressId: existingProgress?.id,
       progressStatus: existingProgress?.status,
       reviewLevel: existingProgress?.reviewLevel,
-      hasReviewHistory: existingProgress?.reviewHistory ? 
-        Array.isArray(existingProgress.reviewHistory) && existingProgress.reviewHistory.length > 0 : false
+      hasReviewHistory
     });
 
     // If problem is completed and we're not forcing completion, and not admin, return error
@@ -709,6 +721,9 @@ router.post('/:problemId/complete', authenticateToken, (async (req, res) => {
           where: {
             userId,
             problemId
+          },
+          include: {
+            reviews: true
           }
         }) : null;
         
@@ -721,17 +736,15 @@ router.post('/:problemId/complete', authenticateToken, (async (req, res) => {
         
         // Determine what review data to use
         const reviewData = preserveReviewData && currentProgress && currentProgress.reviewLevel !== null ? {
-          // Keep existing review data
+          // Copy existing review data for preservation
           reviewLevel: currentProgress.reviewLevel,
           reviewScheduledAt: currentProgress.reviewScheduledAt,
           lastReviewedAt: currentProgress.lastReviewedAt,
-          reviewHistory: currentProgress.reviewHistory as Prisma.InputJsonValue
         } : {
           // Initialize new review data
           reviewLevel: 0,
           reviewScheduledAt: calculateNextReviewDate(0),
           lastReviewedAt: new Date(),
-          reviewHistory: [] as Prisma.InputJsonValue
         };
         
         console.log('Review data to be used:', reviewData);
@@ -754,14 +767,11 @@ router.post('/:problemId/complete', authenticateToken, (async (req, res) => {
           },
           update: {
             status: 'COMPLETED',
-            // Only update review fields if we're not preserving existing data
             ...(!preserveReviewData && {
               reviewLevel: 0,
               reviewScheduledAt: calculateNextReviewDate(0),
               lastReviewedAt: new Date(),
-              reviewHistory: [] as Prisma.InputJsonValue
             })
-            // When preserveReviewData is true, we don't modify any review fields
           }
         });
         
@@ -774,6 +784,20 @@ router.post('/:problemId/complete', authenticateToken, (async (req, res) => {
             }
           }
         });
+        
+        // After creating/updating progress, add a new ReviewHistory entry when appropriate
+        if (!preserveReviewData) {
+          await tx.reviewHistory.create({
+            data: {
+              progressId: progressResult.id,
+              date: new Date(),
+              wasSuccessful: true,
+              reviewOption: 'added-to-repetition',
+              levelBefore: null,
+              levelAfter: 0
+            }
+          });
+        }
         
         return { progressResult, userResult };
       });
@@ -1002,6 +1026,8 @@ router.get('/slug/:slug', authenticateToken, (async (req, res) => {
     // Find next and previous problems if this problem belongs to a topic
     let nextProblemId = null;
     let prevProblemId = null;
+    let nextProblemSlug = null;
+    let prevProblemSlug = null;
 
     if (problem.topicId) {
       // Get all problems in the same topic, ordered by reqOrder
@@ -1014,7 +1040,8 @@ router.get('/slug/:slug', authenticateToken, (async (req, res) => {
         },
         select: { 
           id: true, 
-          reqOrder: true 
+          reqOrder: true,
+          slug: true
         }
       });
 
@@ -1025,11 +1052,13 @@ router.get('/slug/:slug', authenticateToken, (async (req, res) => {
         // Get previous problem if not the first
         if (currentIndex > 0) {
           prevProblemId = topicProblems[currentIndex - 1].id;
+          prevProblemSlug = topicProblems[currentIndex - 1].slug;
         }
         
         // Get next problem if not the last
         if (currentIndex < topicProblems.length - 1) {
           nextProblemId = topicProblems[currentIndex + 1].id;
+          nextProblemSlug = topicProblems[currentIndex + 1].slug;
         }
       }
     }
@@ -1040,6 +1069,8 @@ router.get('/slug/:slug', authenticateToken, (async (req, res) => {
       isCompleted: problem.completedBy.length > 0 || problem.progress.some(p => p.status === 'COMPLETED'),
       nextProblemId,
       prevProblemId,
+      nextProblemSlug,
+      prevProblemSlug,
       collectionIds,
       completedBy: undefined, // Remove these from the response
       progress: undefined,

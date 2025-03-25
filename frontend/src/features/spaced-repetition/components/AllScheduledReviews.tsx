@@ -53,9 +53,9 @@ function MemoryJourneyButton({ problem }: { problem: ReviewProblem }) {
       {/* Memory progression journey modal */}
       {showMemoryJourney && (
         <MemoryProgressionJourney
-          problemId={problem.id}
-          currentLevel={problem.reviewLevel}
-          reviewHistory={problem.reviewHistory || []}
+          progressId={problem.progressId}
+          reviewLevel={problem.reviewLevel}
+          reviews={problem.reviews || []}
           onClose={() => setShowMemoryJourney(false)}
         />
       )}
@@ -65,7 +65,7 @@ function MemoryJourneyButton({ problem }: { problem: ReviewProblem }) {
 
 interface AllScheduledReviewsProps {
   scheduledReviews?: ScheduledReviews;
-  onStartReview: (problemId: string, options?: { isEarly?: boolean; dueDate?: string }) => void;
+  onStartReview: (problem: { id: string; slug?: string | null }, options?: { isEarly?: boolean; dueDate?: string }) => void;
 }
 
 export function AllScheduledReviews({ scheduledReviews, onStartReview }: AllScheduledReviewsProps) {
@@ -138,7 +138,10 @@ export function AllScheduledReviews({ scheduledReviews, onStartReview }: AllSche
           <Button 
             size="sm" 
             onClick={() => onStartReview(
-              problem.id, 
+              { 
+                id: problem.id,
+                slug: problem.slug || undefined
+              }, 
               !isActiveDay ? { 
                 isEarly: true, 
                 dueDate: problem.dueDate ?? undefined 

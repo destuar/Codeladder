@@ -8,6 +8,7 @@ import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { useQueryClient } from '@tanstack/react-query';
 import { Problem } from '@/features/problems/types';
+import { getIdentifierForProblem } from '../index';
 
 interface ReviewControlsProps {
   problem: Problem;
@@ -36,21 +37,13 @@ export function ReviewControls({
   const [submittedOption, setSubmittedOption] = useState<string | null>(null);
   
   const problemId = problem?.id;
+  const problemSlug = problem?.slug;
   const currentLevel = problem?.reviewLevel || 0;
-  
-  // Log when component mounts to verify it's rendering
-  useEffect(() => {
-    console.log('ReviewControls mounted:', { problemId, isEarlyReview, scheduledDate, referrer });
-  }, [problemId, isEarlyReview, scheduledDate, referrer]);
   
   // Handle returning to the previous page after submitting
   const navigateBack = () => {
-    console.log('Navigating back with referrer:', referrer);
-    
     // If we have a referrer that's a local path, use that as first priority
     if (referrer && referrer.startsWith('/')) {
-      console.log('Returning to local referrer:', referrer);
-      
       // Add a timestamp to force refresh if it's the spaced repetition page
       if (referrer.includes('/spaced-repetition')) {
         const ts = Date.now();
@@ -61,18 +54,15 @@ export function ReviewControls({
     }
     // If referrer is external, use window.location
     else if (referrer && !referrer.startsWith('/')) {
-      console.log('Returning to external referrer:', referrer);
       window.location.href = referrer;
     }
     // Fall back to spaced-repetition page if we're in review mode
     else if (location.search.includes('mode=review')) {
-      console.log('No valid referrer, but in review mode - returning to spaced repetition page');
       const ts = Date.now();
       navigate(`/spaced-repetition?refresh=true&t=${ts}`, { replace: true });
     }
     // Last resort - go to problems page
     else {
-      console.log('No valid referrer, going to problems page');
       navigate('/problems', { replace: true });
     }
   };
@@ -84,11 +74,22 @@ export function ReviewControls({
     setSubmittedOption(option);
     
     try {
+      // ONLY use problemSlug - never use problemId
       const result: ReviewResult = {
-        problemId,
         wasSuccessful,
         reviewOption: option
       };
+      
+      // Use slug if available (preferred), otherwise convert ID to slug
+      if (problemSlug) {
+        result.problemSlug = problemSlug;
+      } else if (problemId) {
+        // Use ID as slug - this should be rare
+        console.log('Warning: No slug available, using ID instead');
+        result.problemSlug = problemId;
+      } else {
+        throw new Error('No problem identifier available');
+      }
       
       await onReviewSubmit(result);
       
@@ -131,7 +132,7 @@ export function ReviewControls({
     
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isSubmitting, handleReviewResult]);
+  }, [isSubmitting, problemId, problemSlug]);
   
   const formattedDate = scheduledDate ? format(new Date(scheduledDate), 'MMM d, yyyy') : '';
   
@@ -143,16 +144,18 @@ export function ReviewControls({
             <Dumbbell className="h-5 w-5 text-blue-500 dark:text-blue-400" />
             <CardTitle className="text-xl">How well did you remember?</CardTitle>
           </div>
-          <CardDescription>
-            {isEarlyReview && scheduledDate ? (
-              <div className="flex items-center gap-1 text-gray-700 dark:text-gray-300">
+          {isEarlyReview && scheduledDate ? (
+            <div className="text-sm text-muted-foreground mt-1">
+              <div className="flex items-center gap-1">
                 <AlertCircle className="h-4 w-4 flex-shrink-0" />
                 <span>Originally suggested for {formattedDate}</span>
               </div>
-            ) : (
-              <span>Your feedback helps optimize your learning schedule. This will determine when you'll see this problem again.</span>
-            )}
-          </CardDescription>
+            </div>
+          ) : (
+            <div className="text-sm text-muted-foreground">
+              Your feedback helps optimize your learning schedule. This will determine when you'll see this problem again.
+            </div>
+          )}
         </CardHeader>
         
         <CardContent className="pt-4 space-y-6">

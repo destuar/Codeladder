@@ -28,22 +28,48 @@ export function calculateNextReviewDate(reviewLevel: number | null): Date {
  * @returns Updated review level
  */
 export function calculateNewReviewLevel(currentLevel: number | null, wasSuccessful: boolean): number {
-  if (currentLevel === null) return wasSuccessful ? 1 : 0;
-  return wasSuccessful 
-    ? Math.min(7, currentLevel + 1) 
-    : Math.max(0, currentLevel - 1);
+  console.log('Calculating new review level with inputs:', {
+    currentLevel,
+    wasSuccessful,
+    typeofCurrentLevel: typeof currentLevel
+  });
+  
+  // Handle invalid or corrupt level
+  if (currentLevel === undefined || (typeof currentLevel === 'number' && isNaN(currentLevel))) {
+    console.log('WARNING: Invalid level detected, defaulting to 0');
+    currentLevel = 0;
+  }
+  
+  if (currentLevel === null) {
+    const result = wasSuccessful ? 1 : 0;
+    console.log(`Level was null, new level: ${result}`);
+    return result;
+  }
+  
+  // Parse integer to ensure proper calculation - IMPORTANT FIX
+  const actualCurrentLevel = Number(currentLevel);
+  
+  if (isNaN(actualCurrentLevel)) {
+    console.log('WARNING: Level could not be parsed to a number, defaulting to 0');
+    const result = wasSuccessful ? 1 : 0;
+    return result;
+  }
+  
+  // Force the calculation to happen with numbers, not strings
+  const result = wasSuccessful 
+    ? Math.min(7, actualCurrentLevel + 1) 
+    : Math.max(0, actualCurrentLevel - 1);
+    
+  console.log(`Level calculation: ${actualCurrentLevel} → ${result} (wasSuccessful: ${wasSuccessful})`);
+  return result;
 }
 
 /**
- * Creates a review history entry for the current review
- * @param wasSuccessful Whether the review was successful
- * @param currentLevel The current review level
- * @returns Review history entry object
+ * Types for spaced repetition system
  */
-export function createReviewHistoryEntry(wasSuccessful: boolean, currentLevel: number | null): Record<string, any> {
-  return {
-    date: new Date(),
-    wasSuccessful,
-    reviewLevel: currentLevel
-  };
+export interface ReviewResult {
+  problemId?: string;
+  problemSlug?: string;
+  wasSuccessful: boolean;
+  reviewOption?: 'easy' | 'difficult' | 'forgot';
 } 

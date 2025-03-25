@@ -44,12 +44,14 @@ export function useProblemCompletion(
     }
     
     // In review mode, directly complete without showing the dialog
-    // since the problem is already in spaced repetition
     if (isReviewMode) {
       // Set state immediately for faster UI feedback
       setIsProblemCompleted(true); 
-      // Run API call non-blocking for better perceived performance
-      completeToggleProblem(false);
+      // CRITICAL FIX: Don't call completeToggleProblem at all in review mode
+      // The spaced repetition endpoint will handle progress record creation/updating
+      // This prevents race conditions where the problem is being marked complete
+      // at the same time the review is being recorded
+      console.log('[ProblemCompletion] Skipping completion toggle in review mode');
       return;
     }
     
@@ -78,7 +80,7 @@ export function useProblemCompletion(
         setIsAddingToSpacedRepetition(true);
         try {
           if (token) {
-            await addCompletedProblemToSpacedRepetition(problemId, token);
+            await addCompletedProblemToSpacedRepetition({ problemId }, token);
             // Invalidate the queries to update the UI
             await Promise.all([
               queryClient.invalidateQueries({ queryKey: ['dueReviews'] }),
@@ -100,7 +102,7 @@ export function useProblemCompletion(
   };
 
   // This function performs the actual API call to complete/uncomplete a problem
-  const completeToggleProblem = async (addToSpacedRepetition: boolean) => {
+  const completeToggleProblem = async (addToSpacedRepetition: boolean = false) => {
     // When not in review mode, follow normal toggle behavior
     const isBeingMarkedComplete = !isProblemCompleted;
     
