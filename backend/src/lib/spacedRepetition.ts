@@ -8,15 +8,18 @@ import { prisma } from './prisma';
 /**
  * Calculates the next review date based on the review level
  * @param reviewLevel The current review level (0-based)
+ * @param previousDueDate The previous scheduled review date (optional)
  * @returns Date object for the next scheduled review
  */
-export function calculateNextReviewDate(reviewLevel: number): Date {
+export function calculateNextReviewDate(reviewLevel: number, previousDueDate?: Date | null): Date {
   // Fibonacci-based spacing (1, 1, 2, 3, 5, 8, 13, 21 days)
   const intervals = [1, 1, 2, 3, 5, 8, 13, 21];
   
   const daysToAdd = intervals[Math.min(reviewLevel, intervals.length - 1)];
   
-  const nextDate = new Date();
+  // Use the previous due date if provided, otherwise use current date
+  const baseDate = previousDueDate || new Date();
+  const nextDate = new Date(baseDate);
   nextDate.setDate(nextDate.getDate() + daysToAdd);
   return nextDate;
 }

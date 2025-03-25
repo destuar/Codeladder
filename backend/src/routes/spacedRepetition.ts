@@ -298,7 +298,7 @@ router.post('/review', authenticateToken, (async (req, res) => {
               where: { id: newProgress.id },
               data: {
                 reviewLevel: newLevel,
-                reviewScheduledAt: calculateNextReviewDate(newLevel)
+                reviewScheduledAt: calculateNextReviewDate(newLevel, calculateNextReviewDate(0))
               }
             });
             
@@ -333,7 +333,7 @@ router.post('/review', authenticateToken, (async (req, res) => {
           
           return res.json({ 
             message: 'Review recorded with new progress record',
-            nextReviewDate: calculateNextReviewDate(result.newLevel),
+            nextReviewDate: calculateNextReviewDate(result.newLevel, calculateNextReviewDate(0)),
             newLevel: result.newLevel,
             status: 'COMPLETED',
             reviewOption,
@@ -372,7 +372,7 @@ router.post('/review', authenticateToken, (async (req, res) => {
       // Calculate new review level and next review date
       const currentLevel = progress.reviewLevel ?? 0; // Default to 0 if null (shouldn't happen with new schema)
       const newLevel = calculateNewReviewLevel(currentLevel, wasSuccessful);
-      const nextReviewDate = calculateNextReviewDate(newLevel);
+      const nextReviewDate = calculateNextReviewDate(newLevel, progress.reviewScheduledAt);
       
       console.log('[SpacedRepetition:Review] Calculating review level:', { 
         currentLevel, 
