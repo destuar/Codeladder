@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useMemo, useCallback } from 'react';
 import { Card } from "@/components/ui/card";
 import { Markdown } from "@/components/ui/markdown";
 import { HtmlContent } from "@/components/ui/html-content";
@@ -58,94 +58,66 @@ export default function CodingProblem({
   sourceContext,
 }: CodingProblemProps) {
   const [leftPanelWidth, setLeftPanelWidth] = useState(window.innerWidth * 0.4);
-  const [editorHeight, setEditorHeight] = useState(DEFAULT_EDITOR_HEIGHT);
-  const [code, setCode] = useState(codeTemplate || "");
+  const [editorHeight, setEditorHeight] = useState(window.innerHeight * 0.6);
+  const [selectedLanguage, setSelectedLanguage] = useState<SupportedLanguage>('python');
+  const [code, setCode] = useState(codeTemplate || '');
   const [isRunning, setIsRunning] = useState(false);
-  const [selectedLanguage, setSelectedLanguage] = useState<SupportedLanguage>(() => {
-    // Try to get the saved language preference from localStorage
+  const editorRef = useRef<any>(null);
+
+  // Parse test cases
+  const testCases = useMemo(() => {
     try {
-      const savedLanguage = localStorage.getItem('preferredLanguage');
-      // If a valid language is saved, use it; otherwise default to Python
-      if (savedLanguage && Object.keys(LANGUAGE_CONFIGS).includes(savedLanguage)) {
-        return savedLanguage as SupportedLanguage;
+      // Check if testCasesString is already an object
+      if (testCasesString && typeof testCasesString === 'object') {
+        return testCasesString;
       }
+      // Otherwise try to parse it as JSON
+      return JSON.parse(testCasesString || '[]');
     } catch (e) {
-      console.error('Error accessing localStorage:', e);
+      console.error('Error parsing test cases:', e);
+      return [];
     }
-    // Default to Python if no valid saved preference is found
-    return 'python';
-  });
-  
-  // Add ref for the code editor component
-  const editorRef = useRef<CodeEditorRef>(null);
+  }, [testCasesString]);
 
-  const {
-    isProblemCompleted,
-    handleMarkAsComplete,
-    showCompletionDialog,
-    setShowCompletionDialog,
-    isAddingToSpacedRepetition,
-    handleConfirmCompletion,
-  } = useProblemCompletion(problemId, isCompleted, onCompleted, isReviewMode, 'CODING');
+  // Handle code changes
+  const handleCodeChange = useCallback((newCode: string) => {
+    setCode(newCode);
+    onCodeChange?.(newCode);
+  }, [onCodeChange]);
 
-  // Safe navigation handler to avoid undefined errors
-  const handleNavigate = (id: string, slug?: string) => {
+  // Handle language changes
+  const handleLanguageChange = useCallback((language: string) => {
+    setSelectedLanguage(language as SupportedLanguage);
+  }, []);
+
+  // Handle navigation
+  const handleNavigate = useCallback((id: string, slug?: string) => {
     if (onNavigate) {
       onNavigate(id, slug);
     }
-  };
+  }, [onNavigate]);
 
-  // Parse test cases
-  const testCases = (() => {
-    if (!testCasesString) return [];
-    try {
-      const jsonString = typeof testCasesString === 'object' 
-        ? JSON.stringify(testCasesString)
-        : testCasesString;
-      return JSON.parse(jsonString);
-    } catch (error) {
-      console.error('Error parsing test cases:', error);
-      return [];
-    }
-  })();
-
+  // Get difficulty color
   const getDifficultyColor = () => {
-    if (difficulty.startsWith('EASY')) return "text-green-500";
-    if (difficulty === 'MEDIUM') return "text-yellow-500";
-    return "text-red-500";
+    if (difficulty.includes('EASY')) return 'bg-emerald-500/15 text-emerald-600 border-emerald-500/20';
+    if (difficulty === 'MEDIUM') return 'bg-amber-500/15 text-amber-600 border-amber-500/20';
+    if (difficulty === 'HARD') return 'bg-rose-500/15 text-rose-600 border-rose-500/20';
+    return '';
   };
 
-  const formattedTime = formatEstimatedTime(estimatedTime);
+  // Format estimated time
+  const formattedTime = useMemo(() => {
+    if (!estimatedTime) return null;
+    const minutes = Math.round(estimatedTime);
+    return `${minutes} min${minutes !== 1 ? 's' : ''}`;
+  }, [estimatedTime]);
 
-  // Modified handler for code editor
-  const handleCodeChange = (newCode: string) => {
-    setCode(newCode);
-    
-    // If in quiz mode, call the onCodeChange prop
-    if (onCodeChange) {
-      onCodeChange(newCode);
+  // Handle marking problem as complete
+  const handleMarkAsComplete = useCallback(async () => {
+    if (onCompleted) {
+      await onCompleted();
     }
-  };
-
-  // Handle language changes
-  const handleLanguageChange = (language: string) => {
-    setSelectedLanguage(language as SupportedLanguage);
-    // Save the selected language to localStorage
-    try {
-      localStorage.setItem('preferredLanguage', language);
-    } catch (e) {
-      console.error('Error saving language preference to localStorage:', e);
-    }
-  };
-
-  // Create handlers for running tests and submitting solutions
-  const handleRunTests = async () => {
-    // We'll pass this to the TestRunner
-  };
-
-  const handleSubmitSolution = async () => {
-    // We'll pass this to the TestRunner
-  };
+  }, [onCompleted]);
 
   return (
     <div className={cn(
@@ -160,7 +132,7 @@ export default function CodingProblem({
         prevProblemId={prevProblemId}
         prevProblemSlug={prevProblemSlug}
         onNavigate={handleNavigate}
-        isCompleted={isProblemCompleted}
+        isCompleted={isCompleted}
         onMarkComplete={handleMarkAsComplete}
         isQuizMode={isQuizMode}
         isReviewMode={isReviewMode}
@@ -168,154 +140,119 @@ export default function CodingProblem({
         problemType="CODING"
       />
 
-      {/* Spaced Repetition Dialog */}
-      <AlertDialog open={showCompletionDialog} onOpenChange={setShowCompletionDialog}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Mark Problem as Completed</AlertDialogTitle>
-            <AlertDialogDescription>
-              Would you like to add this problem to your spaced repetition dashboard for future practice?
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction 
-              onClick={() => handleConfirmCompletion(false)}
-              className="bg-primary"
-            >
-              Just Complete
-            </AlertDialogAction>
-            <Button 
-              onClick={() => handleConfirmCompletion(true)}
-              disabled={isAddingToSpacedRepetition}
-              className="bg-indigo-600 hover:bg-indigo-700 text-white"
-            >
-              {isAddingToSpacedRepetition ? (
-                <>
-                  <div className="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
-                  Adding...
-                </>
-              ) : (
-                <>
-                  <RepeatIcon className="mr-2 h-4 w-4" />
-                  Add to Spaced Repetition
-                </>
-              )}
-            </Button>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-
-      <div className="flex flex-1 min-h-0">
-        {/* Left panel - Problem description */}
-        <ResizablePanel
-          defaultWidth={leftPanelWidth}
-          minWidth={MIN_PANEL_WIDTH}
-          maxWidth={MAX_PANEL_WIDTH}
-          onResize={setLeftPanelWidth}
-          className="border-r"
-        >
-          <ScrollArea className="h-full" type="hover">
-            <div className="p-6 space-y-6 w-full overflow-hidden">
-              <div className="space-y-4">
-                <h1 className="text-3xl font-bold">{title}</h1>
-                <div className="flex items-center gap-2">
-                  <Badge variant="outline" className={cn("font-semibold", getDifficultyColor())}>
-                    {difficulty.replace(/_/g, ' ')}
-                  </Badge>
-                  {formattedTime && (
-                    <div className="flex items-center text-sm text-muted-foreground">
-                      <Timer className="w-4 h-4 mr-1" />
-                      <span>{formattedTime}</span>
+      {/* Main content */}
+      <div className="flex-1 overflow-hidden">
+        <div className="flex flex-1 min-h-0">
+          {/* Left panel - Problem description */}
+          <ResizablePanel
+            defaultWidth={leftPanelWidth}
+            minWidth={MIN_PANEL_WIDTH}
+            maxWidth={MAX_PANEL_WIDTH}
+            onResize={setLeftPanelWidth}
+            className="border-r"
+          >
+            <ScrollArea className="h-full" type="hover">
+              <div className="p-6 space-y-6 w-full overflow-hidden">
+                <div className="space-y-4">
+                  <h1 className="text-3xl font-bold">{title}</h1>
+                  <div className="flex items-center gap-2">
+                    <Badge variant="outline" className={cn("font-semibold", getDifficultyColor())}>
+                      {difficulty.replace(/_/g, ' ')}
+                    </Badge>
+                    {formattedTime && (
+                      <div className="flex items-center text-sm text-muted-foreground">
+                        <Timer className="w-4 h-4 mr-1" />
+                        <span>{formattedTime}</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+                <div className="max-w-full overflow-hidden">
+                  {isMarkdown(content) ? (
+                    // For backward compatibility, use Markdown for existing markdown content
+                    <div className="prose dark:prose-invert max-w-full overflow-hidden">
+                      <Markdown 
+                        content={content}
+                        className="max-w-full [&_pre]:!whitespace-pre-wrap [&_pre]:!break-words [&_code]:!whitespace-pre-wrap [&_code]:!break-words [&_pre]:!max-w-full [&_pre]:!overflow-x-auto"
+                      />
                     </div>
+                  ) : (
+                    // Use HtmlContent for HTML content
+                    <HtmlContent 
+                      content={content} 
+                      className="max-w-full [&_pre]:!whitespace-pre-wrap [&_pre]:!break-words [&_code]:!whitespace-pre-wrap [&_code]:!break-words [&_pre]:!max-w-full [&_pre]:!overflow-x-auto"
+                    />
                   )}
                 </div>
               </div>
-              <div className="max-w-full overflow-hidden">
-                {isMarkdown(content) ? (
-                  // For backward compatibility, use Markdown for existing markdown content
-                  <div className="prose dark:prose-invert max-w-full overflow-hidden">
-                    <Markdown 
-                      content={content}
-                      className="max-w-full [&_pre]:!whitespace-pre-wrap [&_pre]:!break-words [&_code]:!whitespace-pre-wrap [&_code]:!break-words [&_pre]:!max-w-full [&_pre]:!overflow-x-auto"
-                    />
-                  </div>
-                ) : (
-                  // Use HtmlContent for HTML content
-                  <HtmlContent 
-                    content={content} 
-                    className="max-w-full [&_pre]:!whitespace-pre-wrap [&_pre]:!break-words [&_code]:!whitespace-pre-wrap [&_code]:!break-words [&_pre]:!max-w-full [&_pre]:!overflow-x-auto"
-                  />
-                )}
-              </div>
-            </div>
-          </ScrollArea>
-        </ResizablePanel>
+            </ScrollArea>
+          </ResizablePanel>
 
-        {/* Right panel - Vertically arranged Code Editor and Test Runner */}
-        <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
-          {/* Code Editor */}
-          <Resizable
-            defaultSize={{ width: '100%', height: editorHeight }}
-            minHeight={MIN_EDITOR_HEIGHT}
-            maxHeight="70%"
-            enable={{ bottom: true }}
-            onResize={(e, direction, ref, d) => {
-              // Update the editor layout whenever size changes
-              requestAnimationFrame(() => {
-                if (editorRef.current) {
-                  editorRef.current.updateLayout();
-                }
-              });
-            }}
-            onResizeStop={(e, direction, ref, d) => {
-              // Save the new height when resize is complete
-              setEditorHeight(editorHeight + d.height);
-            }}
-            className="relative"
-            handleComponent={{
-              bottom: <div className="h-2 w-full bg-border hover:bg-primary/50 transition-colors cursor-ns-resize"></div>
-            }}
-          >
-            <div className="absolute inset-0 overflow-hidden">
-              <CodeEditor
-                initialCode={code}
-                onChange={handleCodeChange}
-                className="h-full"
+          {/* Right panel - Vertically arranged Code Editor and Test Runner */}
+          <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
+            {/* Code Editor */}
+            <Resizable
+              defaultSize={{ width: '100%', height: editorHeight }}
+              minHeight={MIN_EDITOR_HEIGHT}
+              maxHeight="70%"
+              enable={{ bottom: true }}
+              onResize={(e, direction, ref, d) => {
+                // Update the editor layout whenever size changes
+                requestAnimationFrame(() => {
+                  if (editorRef.current) {
+                    editorRef.current.updateLayout();
+                  }
+                });
+              }}
+              onResizeStop={(e, direction, ref, d) => {
+                // Save the new height when resize is complete
+                setEditorHeight(editorHeight + d.height);
+              }}
+              className="relative"
+              handleComponent={{
+                bottom: <div className="h-2 w-full bg-border hover:bg-primary/50 transition-colors cursor-ns-resize"></div>
+              }}
+            >
+              <div className="absolute inset-0 overflow-hidden">
+                <CodeEditor
+                  initialCode={code}
+                  onChange={handleCodeChange}
+                  className="h-full"
+                  language={selectedLanguage}
+                  onLanguageChange={handleLanguageChange}
+                  ref={editorRef}
+                  onRunTests={() => {
+                    // Use the data attribute to click the hidden button
+                    const testRunnerElement = document.querySelector('[data-testrunner-run-button]');
+                    if (testRunnerElement) {
+                      (testRunnerElement as HTMLButtonElement).click();
+                    }
+                  }}
+                  onSubmitSolution={() => {
+                    // Use the data attribute to click the hidden button
+                    const testRunnerElement = document.querySelector('[data-testrunner-submit-button]');
+                    if (testRunnerElement) {
+                      (testRunnerElement as HTMLButtonElement).click();
+                    }
+                  }}
+                  isRunning={isRunning}
+                />
+              </div>
+            </Resizable>
+
+            {/* Test Runner */}
+            <div className="flex-1 min-h-0 overflow-hidden border-t">
+              <TestRunner
+                code={code}
+                testCases={testCases}
+                problemId={problemId}
+                onRunComplete={() => {}}
                 language={selectedLanguage}
                 onLanguageChange={handleLanguageChange}
-                ref={editorRef}
-                onRunTests={() => {
-                  // Use the data attribute to click the hidden button
-                  const testRunnerElement = document.querySelector('[data-testrunner-run-button]');
-                  if (testRunnerElement) {
-                    (testRunnerElement as HTMLButtonElement).click();
-                  }
-                }}
-                onSubmitSolution={() => {
-                  // Use the data attribute to click the hidden button
-                  const testRunnerElement = document.querySelector('[data-testrunner-submit-button]');
-                  if (testRunnerElement) {
-                    (testRunnerElement as HTMLButtonElement).click();
-                  }
-                }}
                 isRunning={isRunning}
+                setIsRunning={setIsRunning}
               />
             </div>
-          </Resizable>
-
-          {/* Test Runner */}
-          <div className="flex-1 min-h-0 overflow-hidden border-t">
-            <TestRunner
-              code={code}
-              testCases={testCases}
-              problemId={problemId}
-              onRunComplete={() => {}}
-              language={selectedLanguage}
-              onLanguageChange={handleLanguageChange}
-              isRunning={isRunning}
-              setIsRunning={setIsRunning}
-            />
           </div>
         </div>
       </div>

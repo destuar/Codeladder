@@ -74,21 +74,17 @@ export function ReviewControls({
     setSubmittedOption(option);
     
     try {
-      // ONLY use problemSlug - never use problemId
+      // Prepare review result with either problemId or problemSlug, preferring slug if available
       const result: ReviewResult = {
         wasSuccessful,
         reviewOption: option
       };
       
-      // Use slug if available (preferred), otherwise convert ID to slug
+      // Use slug if available, otherwise fall back to ID
       if (problemSlug) {
         result.problemSlug = problemSlug;
       } else if (problemId) {
-        // Use ID as slug - this should be rare
-        console.log('Warning: No slug available, using ID instead');
-        result.problemSlug = problemId;
-      } else {
-        throw new Error('No problem identifier available');
+        result.problemId = problemId;
       }
       
       await onReviewSubmit(result);
@@ -145,16 +141,14 @@ export function ReviewControls({
             <CardTitle className="text-xl">How well did you remember?</CardTitle>
           </div>
           {isEarlyReview && scheduledDate ? (
-            <div className="text-sm text-muted-foreground mt-1">
-              <div className="flex items-center gap-1">
-                <AlertCircle className="h-4 w-4 flex-shrink-0" />
-                <span>Originally suggested for {formattedDate}</span>
-              </div>
+            <div className="text-sm text-muted-foreground flex items-center gap-1 mt-1">
+              <AlertCircle className="h-4 w-4 flex-shrink-0" />
+              <span>Originally suggested for {formattedDate}</span>
             </div>
           ) : (
-            <div className="text-sm text-muted-foreground">
+            <CardDescription>
               Your feedback helps optimize your learning schedule. This will determine when you'll see this problem again.
-            </div>
+            </CardDescription>
           )}
         </CardHeader>
         

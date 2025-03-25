@@ -111,42 +111,16 @@ export function AddProblemsModal({ isOpen, onClose }: AddProblemsModalProps) {
   const handleAddProblem = async (problem: Problem) => {
     setAddingProblemIds(prev => new Set(prev).add(problem.id));
     try {
-      // Only pass the slug if it's a non-empty string
-      const params: { problemId: string; problemSlug?: string } = { 
-        problemId: problem.id 
-      };
-      
-      if (problem.slug) {
-        params.problemSlug = problem.slug;
-      }
-      
-      console.log('Adding problem with params:', params);
-      
-      try {
-        await addCompletedProblem(params);
-        
-        // Remove the added problem from both lists
-        const updatedProblems = availableProblems.filter(p => p.id !== problem.id);
-        setAvailableProblems(updatedProblems);
-        setFilteredProblems(prev => prev.filter(p => p.id !== problem.id));
-      } catch (error: any) {
-        console.error('Error adding problem:', error);
-        
-        // Log more details for debugging
-        if (error.message) {
-          console.error('Error message:', error.message);
-        }
-        if (error.details) {
-          console.error('Error details:', error.details);
-        }
-        if (error.response) {
-          console.error('Response details:', error.response);
-        }
-        
-        throw error;
-      }
+      await addCompletedProblem({ 
+        problemId: problem.id,
+        problemSlug: problem.slug || undefined
+      });
+      // Remove the added problem from both lists
+      const updatedProblems = availableProblems.filter(p => p.id !== problem.id);
+      setAvailableProblems(updatedProblems);
+      setFilteredProblems(prev => prev.filter(p => p.id !== problem.id));
     } catch (error) {
-      console.error('Outer error handling in AddProblemsModal:', error);
+      console.error('Error adding problem:', error);
     } finally {
       setAddingProblemIds(prev => {
         const newSet = new Set(prev);

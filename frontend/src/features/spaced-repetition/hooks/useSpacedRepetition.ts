@@ -152,14 +152,7 @@ export function useSpacedRepetition(): UseSpacedRepetitionResult {
     
     // Prefer slug-based URL if available
     const identifier = problem.slug || problem.id;
-    let referrerPath = '';
-    
-    // Safely access location properties
-    if (location) {
-      referrerPath = encodeURIComponent(location.pathname + location.search);
-    }
-    
-    const url = `/problem/${identifier}/review?referrer=${referrerPath}`;
+    const url = `/problem/${identifier}/review?referrer=${encodeURIComponent(location.pathname + location.search)}`;
     
     // Keep tracking if this is an early review internally, but don't emphasize this in the UI
     const searchParams = new URLSearchParams();
@@ -211,16 +204,11 @@ export function useSpacedRepetition(): UseSpacedRepetitionResult {
       queryClient.invalidateQueries({ queryKey: ['dueReviews'] });
       queryClient.invalidateQueries({ queryKey: ['allScheduledReviews'] });
       queryClient.invalidateQueries({ queryKey: ['reviewStats'] });
+      toast.success('Problem added to spaced repetition dashboard');
     },
     onError: (error: any) => {
       console.error('Error adding problem to spaced repetition:', error);
-      
-      // Extract more specific error message if available from the response
-      const errorMessage = error.response?.data?.message || 
-                           error.response?.data?.error || 
-                           'Failed to add problem to spaced repetition';
-      
-      toast.error(errorMessage);
+      toast.error(error.response?.data?.message || 'Failed to add problem to spaced repetition');
     }
   });
 

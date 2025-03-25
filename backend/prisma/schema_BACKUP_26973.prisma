@@ -57,11 +57,18 @@ model Level {
 model Topic {
   id          String     @id @default(cuid())
   name        String
-  slug        String?    @unique  // URL-friendly unique identifier
+<<<<<<< HEAD
   description String?    @db.Text
   content     String?    @db.Text
   order       Int // For sorting topics within a level
   level       Level      @relation(fields: [levelId], references: [id])
+=======
+  slug        String?   @unique  // URL-friendly unique identifier
+  description String?   @db.Text
+  content     String?   @db.Text
+  order       Int       // For sorting topics within a level
+  level       Level     @relation(fields: [levelId], references: [id])
+>>>>>>> origin/polished-coding-area
   levelId     String
   problems    Problem[]
   progress    Progress[]
@@ -84,8 +91,12 @@ enum ProblemType {
 model Collection {
   id          String                @id @default(cuid())
   name        String
+<<<<<<< HEAD
+  description String?               @db.Text
+=======
   slug        String?   @unique  // URL-friendly unique identifier
   description String?   @db.Text
+>>>>>>> origin/polished-coding-area
   problems    ProblemToCollection[]
   createdAt   DateTime              @default(now())
   updatedAt   DateTime              @updatedAt
@@ -94,9 +105,9 @@ model Collection {
 }
 
 model Problem {
+<<<<<<< HEAD
   id            String                @id @default(cuid())
   name          String
-  slug          String?   @unique  // URL-friendly unique identifier
   description   String?               @db.Text
   difficulty    Difficulty
   required      Boolean               @default(false)
@@ -112,7 +123,28 @@ model Problem {
   completedBy   User[]                @relation("UserCompletedProblems")
   progress      Progress[]
   collections   ProblemToCollection[] // Relation to collections
+
+=======
+  id          String    @id @default(cuid())
+  name        String
+  slug        String?   @unique  // URL-friendly unique identifier
+  description String?   @db.Text
+  difficulty  Difficulty
+  required    Boolean   @default(false)
+  reqOrder    Int?      // Order number for required problems
+  content     String?   @db.Text  // Problem content/description
+  solution    String?   @db.Text  // Solution or hints
+  problemType ProblemType @default(INFO)  // Type of problem (Info, Coding, or Standalone Info)
+  codeTemplate String?   @db.Text  // Starting code template for coding problems
+  testCases   Json?     // Test cases for coding problems
+  estimatedTime Int?    // Estimated time to complete the problem (in minutes)
+  topic       Topic?    @relation(fields: [topicId], references: [id])  // Make topic optional for standalone info
+  topicId     String?   // Make topicId optional for standalone info
+  completedBy User[]    @relation("UserCompletedProblems")
+  progress    Progress[]
+  collections ProblemToCollection[] // Relation to collections
   
+>>>>>>> origin/polished-coding-area
   // Code submissions for this problem
   submissions Submission[]
 
@@ -142,34 +174,17 @@ model Progress {
   problemId String?
   status    ProgressStatus @default(NOT_STARTED)
 
-  // Spaced repetition fields
+  // New fields for spaced repetition
   reviewScheduledAt DateTime? // When this problem is scheduled to be reviewed next
-  reviewLevel       Int       @default(0) // Current review level (determines intervals)
+  reviewLevel       Int? // Current review level (determines intervals)
   lastReviewedAt    DateTime? // When the problem was last reviewed
-  reviews           ReviewHistory[] // Relation to review history entries
+  reviewHistory     Json? // JSON array of past review sessions with dates and success
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@unique([userId, topicId, problemId])
   @@map("progress")
-}
-
-// Model for storing review history
-model ReviewHistory {
-  id            String    @id @default(cuid())
-  progress      Progress  @relation(fields: [progressId], references: [id], onDelete: Cascade)
-  progressId    String    @map("progress_id")
-  date          DateTime  @default(now())
-  wasSuccessful Boolean   @map("was_successful")
-  reviewOption  String?   @map("review_option") // 'easy', 'difficult', 'forgot'
-  levelBefore   Int       @default(0) @map("level_before")
-  levelAfter    Int       @default(0) @map("level_after")
-  
-  createdAt     DateTime  @default(now()) @map("created_at")
-
-  @@index([progressId], name: "idx_review_history_progress_id")
-  @@map("review_history")
 }
 
 model StandaloneInfoPage {

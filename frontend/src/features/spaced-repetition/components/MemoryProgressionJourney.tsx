@@ -11,18 +11,17 @@ import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 
 interface ReviewHistoryEntry {
-  id: string;
   date: string;
   wasSuccessful: boolean;
-  levelBefore?: number | null;
-  levelAfter?: number | null;
-  reviewOption?: string;
+  reviewLevel: number;
+  reviewOption?: 'easy' | 'difficult' | 'forgot';
 }
 
 interface MemoryProgressionJourneyProps {
-  progressId?: string;
-  reviewLevel: number;
-  reviews?: ReviewHistoryEntry[];
+  problemId: string;
+  problemSlug?: string | null;
+  currentLevel: number;
+  reviewHistory?: ReviewHistoryEntry[];
   onClose?: () => void;
 }
 
@@ -31,9 +30,10 @@ interface MemoryProgressionJourneyProps {
  * Shows how memory retention has improved through spaced repetition reviews
  */
 export function MemoryProgressionJourney({
-  progressId,
-  reviewLevel = 0,
-  reviews = [],
+  problemId,
+  problemSlug,
+  currentLevel,
+  reviewHistory = [],
   onClose
 }: MemoryProgressionJourneyProps) {
   const [isOpen, setIsOpen] = useState(true);
@@ -106,13 +106,13 @@ export function MemoryProgressionJourney({
   };
   
   // Sort and prepare history data
-  const sortedReviews = [...reviews].sort((a, b) => 
+  const sortedHistory = [...reviewHistory].sort((a, b) => 
     new Date(a.date).getTime() - new Date(b.date).getTime()
   );
   
   // Calculate success rate
-  const successRate = reviews.length > 0
-    ? Math.round((reviews.filter(r => r.wasSuccessful).length / reviews.length) * 100)
+  const successRate = reviewHistory.length > 0
+    ? Math.round((reviewHistory.filter(r => r.wasSuccessful).length / reviewHistory.length) * 100)
     : 0;
   
   return (
@@ -125,7 +125,7 @@ export function MemoryProgressionJourney({
         <CardHeader>
           <div className="flex justify-between items-center">
             <div className="flex items-center gap-2">
-              <Lightbulb className={cn("h-4 w-4", getStrengthColor(reviewLevel))} />
+              <Lightbulb className={cn("h-4 w-4", getStrengthColor(currentLevel))} />
               <CardTitle>Memory Strengthening Journey</CardTitle>
             </div>
             <Button variant="ghost" size="sm" onClick={handleClose}>
@@ -144,28 +144,28 @@ export function MemoryProgressionJourney({
               <h3 className="font-medium">Current Memory Strength</h3>
               <div className={cn(
                 "px-2 py-1 rounded text-xs font-medium flex items-center gap-1.5",
-                getStrengthColor(reviewLevel),
+                getStrengthColor(currentLevel),
                 "bg-opacity-20",
-                getStrengthBgColor(reviewLevel).replace('bg-', 'bg-opacity-10')
+                getStrengthBgColor(currentLevel).replace('bg-', 'bg-opacity-10')
               )}>
                 <Lightbulb className="h-2.5 w-2.5" />
-                <span>Level {reviewLevel}/7</span>
+                <span>Level {currentLevel}/7</span>
               </div>
             </div>
             
             <div className="space-y-3">
               <div>
                 <div className="flex justify-between text-sm mb-1">
-                  <span>{getStrengthDescription(reviewLevel)}</span>
-                  <span>{getRetentionPercentage(reviewLevel)}% retention</span>
+                  <span>{getStrengthDescription(currentLevel)}</span>
+                  <span>{getRetentionPercentage(currentLevel)}% retention</span>
                 </div>
                 <div className="h-2 w-full bg-gray-200 rounded-full overflow-hidden">
                   <div 
                     className={cn(
                       "h-full rounded-full transition-all duration-700", 
-                      getStrengthBgColor(reviewLevel)
+                      getStrengthBgColor(currentLevel)
                     )} 
-                    style={{ width: `${(reviewLevel / 7) * 100}%` }}
+                    style={{ width: `${(currentLevel / 7) * 100}%` }}
                   />
                 </div>
               </div>
@@ -173,7 +173,7 @@ export function MemoryProgressionJourney({
               <div className="flex gap-4 text-sm pt-2">
                 <div>
                   <span className="text-muted-foreground">Next review:</span>{' '}
-                  <span className="font-medium">In {getNextReviewInterval(reviewLevel)} days</span>
+                  <span className="font-medium">In {getNextReviewInterval(currentLevel)} days</span>
                 </div>
                 <div>
                   <span className="text-muted-foreground">Success rate:</span>{' '}
@@ -184,7 +184,7 @@ export function MemoryProgressionJourney({
           </div>
           
           {/* Memory improvement over time */}
-          {sortedReviews.length > 0 ? (
+          {sortedHistory.length > 0 ? (
             <div className="border rounded-lg p-4 shadow-sm space-y-3">
               <h3 className="font-medium">Memory Improvement Timeline</h3>
               
@@ -212,14 +212,14 @@ export function MemoryProgressionJourney({
                     
                     {/* Plot review history points */}
                     <div className="relative h-full">
-                      {sortedReviews.map((entry, index) => {
-                        const nextEntry = sortedReviews[index + 1];
-                        const bottomPercentage = (entry.levelBefore || 0 / 7) * 100;
+                      {sortedHistory.map((entry, index) => {
+                        const nextEntry = sortedHistory[index + 1];
+                        const bottomPercentage = (entry.reviewLevel / 7) * 100;
                         
                         // Calculate position for the line to the next point
-                        const hasNextPoint = index < sortedReviews.length - 1;
+                        const hasNextPoint = index < sortedHistory.length - 1;
                         const nextBottomPercentage = hasNextPoint 
-                          ? (nextEntry.levelBefore || 0 / 7) * 100 
+                          ? (nextEntry.reviewLevel / 7) * 100 
                           : bottomPercentage;
                         
                         return (
@@ -228,7 +228,7 @@ export function MemoryProgressionJourney({
                             className="absolute"
                             style={{ 
                               bottom: `${bottomPercentage}%`,
-                              left: `${(index / (sortedReviews.length - 1 || 1)) * 100}%`
+                              left: `${(index / (sortedHistory.length - 1 || 1)) * 100}%`
                             }}
                           >
                             {/* Line to next point */}
@@ -239,10 +239,10 @@ export function MemoryProgressionJourney({
                                   entry.wasSuccessful ? "bg-green-500" : "bg-red-500"
                                 )}
                                 style={{
-                                  width: `${100 / (sortedReviews.length - 1)}%`,
+                                  width: `${100 / (sortedHistory.length - 1)}%`,
                                   transform: `rotate(${Math.atan2(
                                     nextBottomPercentage - bottomPercentage, 
-                                    100 / (sortedReviews.length - 1)
+                                    100 / (sortedHistory.length - 1)
                                   )}rad)`,
                                   transformOrigin: 'left',
                                 }}
@@ -276,7 +276,7 @@ export function MemoryProgressionJourney({
                                   </div>
                                   <div className="text-xs">
                                     <div>Date: {formatDate(entry.date)}</div>
-                                    <div>Level: {entry.levelBefore || 0}</div>
+                                    <div>Level: {entry.reviewLevel}</div>
                                     {entry.reviewOption && (
                                       <div>
                                         Option: {entry.reviewOption.charAt(0).toUpperCase() + entry.reviewOption.slice(1)}
@@ -294,13 +294,13 @@ export function MemoryProgressionJourney({
                   
                   {/* Time labels */}
                   <div className="flex justify-between text-xs text-muted-foreground mt-1">
-                    {sortedReviews.length > 0 && (
+                    {sortedHistory.length > 0 && (
                       <>
-                        <div>{new Date(sortedReviews[0].date).toLocaleDateString()}</div>
-                        {sortedReviews.length > 2 && (
-                          <div>{new Date(sortedReviews[Math.floor(sortedReviews.length / 2)].date).toLocaleDateString()}</div>
+                        <div>{new Date(sortedHistory[0].date).toLocaleDateString()}</div>
+                        {sortedHistory.length > 2 && (
+                          <div>{new Date(sortedHistory[Math.floor(sortedHistory.length / 2)].date).toLocaleDateString()}</div>
                         )}
-                        <div>{new Date(sortedReviews[sortedReviews.length - 1].date).toLocaleDateString()}</div>
+                        <div>{new Date(sortedHistory[sortedHistory.length - 1].date).toLocaleDateString()}</div>
                       </>
                     )}
                   </div>
@@ -308,8 +308,8 @@ export function MemoryProgressionJourney({
               </div>
               
               <div className="flex justify-between pt-2 text-xs text-muted-foreground">
-                <div>First Review: {formatDate(sortedReviews[0].date)}</div>
-                <div>Latest Review: {formatDate(sortedReviews[sortedReviews.length - 1].date)}</div>
+                <div>First Review: {formatDate(sortedHistory[0].date)}</div>
+                <div>Latest Review: {formatDate(sortedHistory[sortedHistory.length - 1].date)}</div>
               </div>
             </div>
           ) : (

@@ -91,9 +91,10 @@ function MemoryJourneyButton({ problem }: { problem: ReviewProblem }) {
       {/* Memory progression journey modal */}
       {showMemoryJourney && (
         <MemoryProgressionJourney
-          progressId={problem.progressId}
-          reviewLevel={problem.reviewLevel}
-          reviews={problem.reviews || []}
+          problemId={problem.id}
+          problemSlug={problem.slug}
+          currentLevel={problem.reviewLevel}
+          reviewHistory={problem.reviewHistory || []}
           onClose={() => setShowMemoryJourney(false)}
         />
       )}

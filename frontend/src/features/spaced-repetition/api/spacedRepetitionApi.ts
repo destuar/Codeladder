@@ -20,15 +20,11 @@ export interface ReviewProblem {
   lastReviewedAt: string | null;
   dueDate: string | null;
   progressId: string;
-  // Remove the old reviewHistory field
-  // New relation to the ReviewHistory table
-  reviews: Array<{
-    id: string;
+  reviewHistory?: Array<{
     date: string;
     wasSuccessful: boolean;
-    levelBefore?: number | null;
-    levelAfter?: number | null;
-    reviewOption?: string;
+    reviewLevel: number;
+    reviewOption?: 'easy' | 'difficult' | 'forgot';
   }>;
 }
 
@@ -126,30 +122,7 @@ export async function getAllScheduledReviews(token: string): Promise<ScheduledRe
  * Record a problem review result
  */
 export async function recordReview(token: string, result: ReviewResult): Promise<any> {
-  try {
-    // Ensure result has the correct format and data types
-    const cleanResult: ReviewResult = {
-      wasSuccessful: !!result.wasSuccessful, // Convert to boolean
-      reviewOption: result.reviewOption
-    };
-    
-    // Only use problemSlug, never problemId
-    if (result.problemSlug) {
-      cleanResult.problemSlug = result.problemSlug;
-    } else if (result.problemId) {
-      // If only ID is provided, look up the slug first (not ideal but sometimes needed)
-      console.log('Warning: Only problemId provided, slug would be better');
-      cleanResult.problemSlug = result.problemId; // Use ID as a fallback
-    }
-    
-    console.log('Recording review with data:', JSON.stringify(cleanResult));
-    const response = await api.post('/spaced-repetition/review', cleanResult, token);
-    console.log('Review recorded successfully:', response);
-    return response;
-  } catch (error) {
-    console.error('Error recording review:', error);
-    throw error;
-  }
+  return api.post('/spaced-repetition/review', result, token);
 }
 
 /**
@@ -197,40 +170,9 @@ export const addCompletedProblemToSpacedRepetition = async (
   token: string
 ): Promise<void> => {
   try {
-    // Log the exact data being sent
-    console.log('Adding problem to spaced repetition with data:', JSON.stringify(identifier));
-    
-    // Make sure we're not sending an empty or null slug
-    const payload = { ...identifier };
-    if (!payload.problemId) {
-      throw new Error('Problem ID is required');
-    }
-    
-    if (payload.problemSlug === null || payload.problemSlug === '' || payload.problemSlug === undefined) {
-      delete payload.problemSlug;
-      console.log('Removed null/empty slug from payload');
-    }
-    
-    // Use the correct endpoint format without leading slash
-    console.log('Making API request to endpoint: spaced-repetition/add-to-repetition');
-    await api.post('spaced-repetition/add-to-repetition', payload, token);
-  } catch (error: any) {
+    await api.post('/spaced-repetition/add-to-repetition', identifier, token);
+  } catch (error) {
     console.error('Error adding problem to spaced repetition:', error);
-    
-    // Check if there's a specific error message from the backend
-    if (error.message === 'Problem already exists in spaced repetition') {
-      console.log('This problem is already in spaced repetition - not an actual error');
-      // Don't throw for this specific case - it's not really an error
-      return;
-    }
-    
-    // Log more specific error details for debugging
-    if (error.response) {
-      console.error('Server error response:', {
-        status: error.response.status,
-        data: error.response.data
-      });
-    }
     throw error;
   }
 };

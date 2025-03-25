@@ -161,26 +161,38 @@ export function ProblemHeader({
       {/* Right section - Actions */}
       <div className="flex items-center gap-2 w-1/4 justify-end">
         {!isQuizMode && (
-          <Button 
-            variant={isCompleted ? "outline" : "default"}
-            size="sm"
-            className={cn(
-              "shadow-sm transition-all duration-200",
-              isCompleted && "border-green-500 text-green-500 hover:bg-green-500/10"
-            )}
-            onClick={onMarkComplete}
-          >
-            <div className="flex items-center">
-              {isCompleted ? (
-                <>
-                  <CheckCircle2 className="w-4 h-4 mr-1" />
-                  <span>Completed</span>
-                </>
-              ) : (
-                <span>Mark Complete</span>
-              )}
-            </div>
-          </Button>
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button 
+                  variant={isCompleted ? "outline" : "default"}
+                  size="sm"
+                  className={cn(
+                    "shadow-sm transition-all duration-200",
+                    isCompleted && "border-green-500 text-green-500 hover:bg-green-500/10"
+                  )}
+                  onClick={() => {
+                    console.log('Mark Complete button clicked, current status:', isCompleted);
+                    onMarkComplete();
+                  }}
+                >
+                  <div className="flex items-center">
+                    {isCompleted ? (
+                      <>
+                        <CheckCircle2 className="w-4 h-4 mr-1" />
+                        <span>Completed</span>
+                      </>
+                    ) : (
+                      <span>Mark Complete</span>
+                    )}
+                  </div>
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent className="bg-popover text-popover-foreground border shadow-md">
+                <p>{isCompleted ? "Click to mark as incomplete" : "Click to mark as complete"}</p>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
         )}
         
         <BorderlessThemeToggle />

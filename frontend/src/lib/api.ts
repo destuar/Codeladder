@@ -107,59 +107,16 @@ async function request(endpoint: string, options: RequestOptions = {}) {
     debug.log('Added auth token to request');
   }
 
+  // Ensure endpoint doesn't start with a slash if it's not meant to be at the root
   const cleanEndpoint = endpoint.startsWith('/') ? endpoint.slice(1) : endpoint;
   const baseUrl = getBaseUrl();
   const url = `${baseUrl}/${cleanEndpoint}`.replace(/\/+/g, '/');
 
-  // Enhanced logging for quiz-related endpoints
-  const isQuizRelated = endpoint.includes('quiz') || endpoint.includes('quizzes');
-  
-  // For quiz-related requests, implement throttling to prevent excessive calls
-  if (isQuizRelated) {
-    const method = options.method || 'GET';
-    // Create a key based on the URL and method to identify duplicate requests
-    const requestKey = `${method}:${url}`;
-    
-    // Special handling for critical quiz endpoints - never throttle these requests
-    const isCriticalEndpoint = url.includes('results') || 
-                              url.includes('next') || 
-                              url.includes('/quizzes/topic/') || 
-                              url.includes('complete') || 
-                              url.includes('/attempts/') ||
-                              url.includes('submit') ||
-                              method !== 'GET'; // All non-GET quiz requests are critical
-    
-    if (isCriticalEndpoint) {
-      console.log(`%c Making ${method} request to critical quiz endpoint: ${url}`, 
-                  'background: #f0f0f0; color: #0000ff; font-weight: bold;');
-    } 
-    // Check if this exact request was recently made
-    else {
-      const lastCall = throttleMap.get(requestKey);
-      const now = Date.now();
-      
-      if (lastCall && (now - lastCall < THROTTLE_PERIOD)) {
-        // If the request was made very recently, throttle it
-        console.log(`%c Throttling request to: ${url}`, 'background: #fff3cd; color: #856404; font-weight: bold;');
-        
-        // For GET requests that aren't critical, we can delay but should still make the request
-        if (method === 'GET') {
-          console.log(`%c Delaying GET request to: ${url}`, 'background: #fff3cd; color: #856404;');
-          await new Promise(resolve => setTimeout(resolve, THROTTLE_PERIOD - (now - lastCall)));
-        } else {
-          // For mutating requests, wait until the throttle period has passed
-          await new Promise(resolve => setTimeout(resolve, THROTTLE_PERIOD - (now - lastCall)));
-        }
-      }
-      
-      // Update the last call time for this endpoint
-      throttleMap.set(requestKey, now);
-    }
-    
-    console.log(`%c Making ${method} request to quiz endpoint: ${url}`, 'background: #f0f0f0; color: #0000ff; font-weight: bold;');
-  } else {
-    debug.log(`Making ${options.method || 'GET'} request to:`, url);
-  }
+  console.log(`Making ${options.method || 'GET'} request to: ${url}`, {
+    method: options.method || 'GET',
+    token: authToken ? 'Present' : 'Missing',
+    body: customOptions.body ? JSON.parse(customOptions.body as string) : null
+  });
 
   // Log the complete request
   debug.request(options.method || 'GET', url, {
@@ -175,22 +132,23 @@ async function request(endpoint: string, options: RequestOptions = {}) {
       credentials: 'include'
     });
 
-    const data = await response.json().catch(() => {
-      debug.log('No JSON response body');
-      return null;
-    });
-
-    // Enhanced logging for quiz-related responses
-    if (isQuizRelated) {
-      console.log(`%c Response from quiz endpoint ${url}:`, 'background: #f0f0f0; color: #008800; font-weight: bold;', {
-        status: response.status,
-        data
-      });
+    let data;
+    try {
+      data = await response.json();
+    } catch (e) {
+      console.warn('Response is not JSON:', e);
+      data = null;
     }
 
     // Add response debugging
     debug.log('Response headers:', {
       ...Object.fromEntries(response.headers.entries())
+    });
+
+    console.log(`Response from ${url}:`, {
+      status: response.status,
+      ok: response.ok,
+      data
     });
 
     if (response.status === 401) {

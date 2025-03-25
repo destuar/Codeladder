@@ -15,8 +15,6 @@ interface ProblemIdentifier {
  * @returns Problem data or null if not found
  */
 export async function resolveProblem(identifier: ProblemIdentifier) {
-  console.log('Resolving problem:', identifier);
-  
   if (!identifier.id && !identifier.slug) {
     throw new Error('Either problem ID or slug must be provided');
   }
@@ -64,56 +62,18 @@ export async function resolveProblem(identifier: ProblemIdentifier) {
  */
 export async function getProblemId(identifier: ProblemIdentifier): Promise<string | null> {
   try {
-    // Log the input parameters
-    console.log('getProblemId called with:', {
-      id: identifier.id || 'not provided',
-      slug: identifier.slug || 'not provided',
-      typeofId: identifier.id ? typeof identifier.id : 'N/A',
-      typeofSlug: identifier.slug ? typeof identifier.slug : 'N/A'
-    });
-    
-    if (!identifier.id && !identifier.slug) {
-      console.error('getProblemId called with no id or slug:', identifier);
-      return null;
-    }
-    
     if (identifier.id) {
       // Verify the ID exists
-      console.log(`Looking up problem by ID: "${identifier.id}"`);
       const exists = await prisma.problem.findUnique({
         where: { id: identifier.id },
         select: { id: true }
       });
-      
-      if (!exists) {
-        console.error(`No problem found with ID: "${identifier.id}"`);
-      }
-      
       return exists ? identifier.id : null;
     } else if (identifier.slug) {
-      // Handle null, undefined, or empty slug
-      if (typeof identifier.slug !== 'string') {
-        console.error('getProblemId called with non-string slug:', identifier.slug);
-        return null;
-      }
-      
-      // Check for empty string slugs
-      if (!identifier.slug.trim()) {
-        console.error('getProblemId called with empty slug string');
-        return null;
-      }
-      
-      console.log(`Looking up problem by slug: "${identifier.slug}"`);
-      
       const problem = await prisma.problem.findUnique({
         where: { slug: identifier.slug },
         select: { id: true }
       });
-      
-      if (!problem) {
-        console.error(`No problem found with slug: "${identifier.slug}"`);
-      }
-      
       return problem ? problem.id : null;
     }
     return null;
@@ -162,7 +122,6 @@ export async function getProgressForProblem(userId: string, identifier: ProblemI
     const problemId = await getProblemId(identifier);
     
     if (!problemId) {
-      console.log('getProgressForProblem: Problem ID could not be resolved');
       return null;
     }
     
@@ -176,31 +135,18 @@ export async function getProgressForProblem(userId: string, identifier: ProblemI
     });
     
     if (!problem || !problem.topicId) {
-      console.log('getProgressForProblem: Problem or its topic not found');
       return null;
     }
     
-    console.log('getProgressForProblem: Looking for progress with', {
-      userId,
-      problemId: problem.id,
-      topicId: problem.topicId
-    });
-    
-    // Find progress record using the composite key
-    return await prisma.progress.findUnique({
+    // Find progress record
+    return await prisma.progress.findFirst({
       where: {
-        userId_topicId_problemId: {
-          userId,
-          topicId: problem.topicId,
-          problemId: problem.id
-        }
+        userId,
+        problemId: problem.id,
+        topicId: problem.topicId
       },
-      include: {
-        reviews: {
-          orderBy: {
-            date: 'desc'
-          }
-        }
+      orderBy: {
+        updatedAt: 'desc'
       }
     });
   } catch (error) {

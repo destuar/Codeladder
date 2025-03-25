@@ -57,7 +57,6 @@ model Level {
 model Topic {
   id          String     @id @default(cuid())
   name        String
-  slug        String?    @unique  // URL-friendly unique identifier
   description String?    @db.Text
   content     String?    @db.Text
   order       Int // For sorting topics within a level
@@ -84,8 +83,7 @@ enum ProblemType {
 model Collection {
   id          String                @id @default(cuid())
   name        String
-  slug        String?   @unique  // URL-friendly unique identifier
-  description String?   @db.Text
+  description String?               @db.Text
   problems    ProblemToCollection[]
   createdAt   DateTime              @default(now())
   updatedAt   DateTime              @updatedAt
@@ -96,7 +94,6 @@ model Collection {
 model Problem {
   id            String                @id @default(cuid())
   name          String
-  slug          String?   @unique  // URL-friendly unique identifier
   description   String?               @db.Text
   difficulty    Difficulty
   required      Boolean               @default(false)
@@ -112,7 +109,7 @@ model Problem {
   completedBy   User[]                @relation("UserCompletedProblems")
   progress      Progress[]
   collections   ProblemToCollection[] // Relation to collections
-  
+
   // Code submissions for this problem
   submissions Submission[]
 
@@ -142,34 +139,17 @@ model Progress {
   problemId String?
   status    ProgressStatus @default(NOT_STARTED)
 
-  // Spaced repetition fields
+  // New fields for spaced repetition
   reviewScheduledAt DateTime? // When this problem is scheduled to be reviewed next
-  reviewLevel       Int       @default(0) // Current review level (determines intervals)
+  reviewLevel       Int? // Current review level (determines intervals)
   lastReviewedAt    DateTime? // When the problem was last reviewed
-  reviews           ReviewHistory[] // Relation to review history entries
+  reviewHistory     Json? // JSON array of past review sessions with dates and success
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@unique([userId, topicId, problemId])
   @@map("progress")
-}
-
-// Model for storing review history
-model ReviewHistory {
-  id            String    @id @default(cuid())
-  progress      Progress  @relation(fields: [progressId], references: [id], onDelete: Cascade)
-  progressId    String    @map("progress_id")
-  date          DateTime  @default(now())
-  wasSuccessful Boolean   @map("was_successful")
-  reviewOption  String?   @map("review_option") // 'easy', 'difficult', 'forgot'
-  levelBefore   Int       @default(0) @map("level_before")
-  levelAfter    Int       @default(0) @map("level_after")
-  
-  createdAt     DateTime  @default(now()) @map("created_at")
-
-  @@index([progressId], name: "idx_review_history_progress_id")
-  @@map("review_history")
 }
 
 model StandaloneInfoPage {

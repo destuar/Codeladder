@@ -15,15 +15,15 @@ import { logProblemReviewState, logWorkflowStep } from './utils/debug';
 
 // Custom hook to only use spaced repetition when needed
 function useConditionalSpacedRepetition(enabled: boolean) {
-  // Always call useSpacedRepetition to maintain consistent hook order
+  // Always call useSpacedRepetition to maintain hook call order
   const spacedRepetition = useSpacedRepetition();
   
-  // Return either the real implementation or a placeholder based on enabled flag
+  // Return the real hook results when enabled
   if (enabled) {
     return spacedRepetition;
   }
   
-  // Return a placeholder object when disabled
+  // Return a placeholder object that doesn't use the real functionality when disabled
   return {
     dueReviews: [],
     allScheduledReviews: undefined,
@@ -68,14 +68,14 @@ const ProblemPage: React.FC = () => {
   const scheduledDate = searchParams.get('dueDate') || undefined;
   
   // Determine if we should use spaced repetition
-  const shouldUseSpacedRepetition = isReviewMode || isEarlyReview;
-  
-  // Track if review was submitted
-  const [reviewSubmitted, setReviewSubmitted] = useState(false);
+  const shouldUseSpacedRepetition = isReviewMode || isEarlyReview || hasJustCompleted;
   
   // Get the spaced repetition hook for review functionality
   const { submitReview } = useConditionalSpacedRepetition(shouldUseSpacedRepetition);
   
+  // Track if review was submitted
+  const [reviewSubmitted, setReviewSubmitted] = useState(false);
+
   // Extract source context from query parameters
   const sourceContext = (() => {
     const from = searchParams.get('from');
@@ -226,12 +226,49 @@ const ProblemPage: React.FC = () => {
   };
 
   // Handler for when a problem is completed
-  const handleProblemCompleted = () => {
-    logWorkflowStep('ProblemCompleted', { problemIdentifier: effectiveIdentifier, isReviewMode });
-    // Immediately set this flag to show review controls faster
-    setHasJustCompleted(true);
-    
-    // We won't automatically navigate in any mode
+  const handleProblemCompleted = async () => {
+    if (!problem) {
+      console.error('Cannot toggle completion: problem data is not available');
+      return;
+    }
+
+    const isBeingMarkedComplete = !effectiveIsCompleted;
+    logWorkflowStep('ProblemCompleted', { 
+      problemIdentifier: effectiveIdentifier, 
+      isReviewMode,
+      isBeingMarkedComplete 
+    });
+
+    // Optimistically update the cache
+    queryClient.setQueryData(['problem', effectiveIdentifier], {
+      ...problem,
+      isCompleted: isBeingMarkedComplete
+    });
+
+    try {
+      // Make the API call to toggle completion status
+      await api.post(`/problems/${problem.id}/complete`, {
+        preserveReviewData: isReviewMode
+      }, token);
+
+      // Set this flag for review controls if marking as complete
+      if (isBeingMarkedComplete) {
+        setHasJustCompleted(true);
+      }
+
+      // Only navigate to next problem when marking as complete (not when unmarking)
+      if (!isReviewMode && isBeingMarkedComplete && problem.nextProblemId) {
+        navigateToOtherProblem(problem.nextProblemId, problem.nextProblemSlug);
+      }
+    } catch (error) {
+      // Revert the optimistic update on error
+      queryClient.setQueryData(['problem', effectiveIdentifier], problem);
+      console.error('Error toggling problem completion:', error);
+      // You might want to show an error toast here
+    } finally {
+      // Force refresh problem data to ensure we're in sync with server
+      queryClient.invalidateQueries({ queryKey: ['problem', effectiveIdentifier] });
+    }
   };
 
   // Check if we should show review controls

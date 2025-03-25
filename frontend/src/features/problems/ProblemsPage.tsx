@@ -54,27 +54,6 @@ export default function ProblemsPage() {
   const { token } = useAuth();
   const [selectedCollection, setSelectedCollection] = useState<string>("all");
   const [selectedDifficulty, setSelectedDifficulty] = useState<DifficultyFilter>("all");
-  
-  // Add spaced repetition hook
-  const { toggleReviewPanel, isReviewPanelOpen, stats } = useConditionalSpacedRepetition(!!token);
-
-  // Add CSS to hide the buttons in ProblemList
-  useEffect(() => {
-    // Add a style element to hide the buttons in ProblemList
-    const styleEl = document.createElement('style');
-    styleEl.innerHTML = `
-      .custom-problem-list .space-y-8 > .grid,
-      .custom-problem-list .space-y-8 > div:first-child {
-        display: none;
-      }
-    `;
-    document.head.appendChild(styleEl);
-
-    // Clean up when component unmounts
-    return () => {
-      document.head.removeChild(styleEl);
-    };
-  }, []);
 
   // Fetch all problems
   const { data: problems, isLoading: isLoadingProblems } = useQuery<Problem[]>({
@@ -114,17 +93,14 @@ export default function ProblemsPage() {
     return difficultyOrder.filter(d => difficultySet.has(d));
   }, [problems]);
 
+  // Handle difficulty change
+  const handleDifficultyChange = (value: string) => {
+    setSelectedDifficulty(value as DifficultyFilter);
+  };
+
+  // Handle starting a problem
   const handleProblemStart = (problemId: string) => {
-    navigate(`/problems/${problemId}`);
-  };
-
-  // Handle filter changes
-  const handleCollectionChange = (collectionId: string) => {
-    setSelectedCollection(collectionId);
-  };
-
-  const handleDifficultyChange = (difficulty: DifficultyFilter) => {
-    setSelectedDifficulty(difficulty);
+    navigate(`/problem/${problemId}`);
   };
 
   // Reset all filters
@@ -177,41 +153,17 @@ export default function ProblemsPage() {
 
   return (
     <div className="container py-8 space-y-6">
-      {/* Spaced repetition panel if open */}
-      {isReviewPanelOpen && (
-        <div className="bg-card p-6 rounded-lg shadow-sm">
-          <SpacedRepetitionPanel />
-        </div>
-      )}
-
       {/* Problem List - no card wrapper */}
-      <div>
-        {filteredProblems.length > 0 ? (
-          <div className="custom-problem-list">
-            <ProblemList
-              problems={filteredProblems}
-              onProblemStart={handleProblemStart}
-              itemsPerPage={50}
-              showTopicName={false}
-              showOrder={false}
-              enableSpacedRepetition={true}
-              collections={collections}
-              selectedCollection={selectedCollection}
-              onCollectionChange={handleCollectionChange}
-              difficulties={difficulties as string[]}
-              selectedDifficulty={selectedDifficulty as string}
-              onDifficultyChange={handleDifficultyChange as (value: string) => void}
-              resetFilters={hasActiveFilters ? resetFilters : undefined}
-              formatDifficultyLabel={(d: string) => formatDifficultyLabel(d as DifficultyFilter)}
-            />
-          </div>
-        ) : (
-          <div className="text-center py-6 text-muted-foreground">
-            {problems && problems.length > 0 ? 
-              'No problems match the current filters. Try adjusting your filter criteria.' : 
-              'No problems available'}
-          </div>
-        )}
+      <div className="custom-problem-list">
+        <ProblemList
+          problems={problems || []}
+          collections={collections}
+          selectedCollection={selectedCollection}
+          onCollectionChange={setSelectedCollection}
+          selectedDifficulty={selectedDifficulty}
+          onDifficultyChange={handleDifficultyChange}
+          onProblemStart={handleProblemStart}
+        />
       </div>
     </div>
   );
