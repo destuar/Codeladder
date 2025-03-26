@@ -113,8 +113,8 @@ export default function CollectionsPage() {
     
     if (value !== 'all') {
       const collection = collections.find(c => c.id === value);
-      // Navigate to collection-specific URL
-      navigate(`/collections/${collection?.id || value}`);
+      // Navigate to collection-specific URL - prefer slug if available
+      navigate(`/collections/${collection?.slug || collection?.id || value}`);
     } else {
       // Navigate to all collections
       navigate('/collections');
@@ -126,11 +126,19 @@ export default function CollectionsPage() {
     // Show loading state
     setIsNavigating(true);
 
+    // Set up a timeout to clear the loading state in case navigation takes too long
+    const navigationTimeout = setTimeout(() => {
+      setIsNavigating(false);
+    }, 5000); // Clear after 5 seconds max
+
     // Add query parameters for context
+    const currentCollection = selectedCollection !== 'all' ? 
+      collections.find(c => c.id === selectedCollection) : null;
+      
     const params = new URLSearchParams({
       from: 'collection',
       name: currentCollectionName,
-      id: selectedCollection !== 'all' ? selectedCollection : 'all'
+      ...(currentCollection?.slug ? { slug: currentCollection.slug } : { id: selectedCollection !== 'all' ? selectedCollection : 'all' })
     }).toString();
 
     // Enhanced debug logging
@@ -184,6 +192,7 @@ export default function CollectionsPage() {
         variant: "destructive"
       });
     } finally {
+      clearTimeout(navigationTimeout);
       setIsNavigating(false);
     }
 
@@ -247,10 +256,10 @@ export default function CollectionsPage() {
     if (!isNavigating) return null;
     
     return (
-      <div className="fixed inset-0 bg-background/80 flex items-center justify-center z-50">
-        <div className="bg-card p-6 rounded-lg shadow-lg flex flex-col items-center">
-          <Loader2 className="h-8 w-8 animate-spin text-primary mb-2" />
-          <p className="text-foreground">Loading problem...</p>
+      <div className="fixed top-4 right-4 z-50">
+        <div className="bg-card p-4 rounded-lg shadow-lg flex items-center gap-3">
+          <Loader2 className="h-5 w-5 animate-spin text-primary" />
+          <p className="text-foreground text-sm">Loading problem...</p>
         </div>
       </div>
     );
@@ -295,7 +304,7 @@ export default function CollectionsPage() {
 
         {/* Center column - Problem List */}
         <div className="col-span-6">
-          <div className="custom-problem-list">
+          <div className="custom-problem-list overflow-hidden">
             <ProblemList
               problems={filteredProblems}
               onProblemStart={handleProblemStart}

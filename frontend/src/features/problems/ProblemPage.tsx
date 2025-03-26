@@ -77,13 +77,22 @@ const ProblemPage: React.FC = () => {
   const [reviewSubmitted, setReviewSubmitted] = useState(false);
 
   // Extract source context from query parameters
-  const sourceContext = (() => {
+  const sourceContext: { from: string; name: string; id?: string; slug?: string } | undefined = (() => {
     const from = searchParams.get('from');
     const name = searchParams.get('name');
     const id = searchParams.get('id');
+    const slug = searchParams.get('slug');
     
-    if (from && name && id) {
-      return { from, name, id };
+    // First check if we have required parameters
+    if (from && name) {
+      // If we have a slug, prioritize that (preferred method)
+      if (slug) {
+        return { from, name, slug, ...(id ? { id } : {}) };
+      }
+      // Fall back to ID if no slug (for backward compatibility)
+      else if (id) {
+        return { from, name, id };
+      }
     }
     
     return undefined;
@@ -212,10 +221,24 @@ const ProblemPage: React.FC = () => {
 
   // Handler for navigation to other problems
   const navigateToOtherProblem = (id: string, slug?: string) => {
-    // Preserve the source context in the URL
-    const sourceParams = sourceContext 
-      ? `?${new URLSearchParams(sourceContext as any).toString()}` 
-      : '';
+    // Construct source parameters, prioritizing slug over id
+    let sourceParams = '';
+    if (sourceContext) {
+      // Create a copy to modify
+      const contextForParams: Record<string, string> = { 
+        from: sourceContext.from, 
+        name: sourceContext.name 
+      };
+      
+      // Prioritize slug over id in parameters when available
+      if (sourceContext.slug) {
+        contextForParams.slug = sourceContext.slug;
+      } else if (sourceContext.id) {
+        contextForParams.id = sourceContext.id;
+      }
+      
+      sourceParams = `?${new URLSearchParams(contextForParams).toString()}`;
+    }
     
     // Use slug-based navigation if a slug is provided, which is preferred
     if (slug) {

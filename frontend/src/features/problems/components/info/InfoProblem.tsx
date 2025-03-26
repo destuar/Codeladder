@@ -31,7 +31,8 @@ export interface InfoProblemProps {
   sourceContext?: {
     from: string;
     name: string;
-    id: string;
+    id?: string;
+    slug?: string;
   };
 }
 
@@ -68,7 +69,7 @@ const InfoProblem: React.FC<InfoProblemProps> = ({
   };
 
   return (
-    <div className="flex flex-col bg-background h-screen">
+    <div className="flex flex-col bg-background min-h-screen h-screen max-h-screen">
       <InfoHeader
         isCompleted={isProblemCompleted}
         onMarkComplete={handleMarkAsComplete}
@@ -83,7 +84,7 @@ const InfoProblem: React.FC<InfoProblemProps> = ({
       />
 
       <div className="flex-1 overflow-auto px-4 md:px-8">
-        <div className="py-4">
+        <div className="py-4 max-w-4xl mx-auto">
           {/* Reading time indicator */}
           {formattedTime && (
             <div className="flex items-center space-x-2 text-sm text-muted-foreground mb-4">
@@ -93,10 +94,10 @@ const InfoProblem: React.FC<InfoProblemProps> = ({
           )}
 
           {/* Main content */}
-          <div className="max-w-4xl mx-auto overflow-hidden">
+          <div className="max-w-full">
             {isMarkdown(content) ? (
               // For backward compatibility, use Markdown for existing markdown content
-              <div className="prose dark:prose-invert max-w-full overflow-hidden">
+              <div className="prose dark:prose-invert max-w-full">
                 <Markdown 
                   content={content} 
                   className="max-w-full [&_pre]:!whitespace-pre-wrap [&_pre]:!break-words [&_code]:!whitespace-pre-wrap [&_code]:!break-words [&_pre]:!max-w-full [&_pre]:!overflow-x-auto"
