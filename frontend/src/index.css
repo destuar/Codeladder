@@ -3,6 +3,11 @@
 @tailwind utilities;
 
 @layer base {
+  html {
+    overflow-y: scroll; /* Always show vertical scrollbar */
+    scrollbar-gutter: stable; /* Reserve space for scrollbar (modern browsers) */
+  }
+
   html, body, #root {
     height: 100%;
   }

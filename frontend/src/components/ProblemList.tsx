@@ -132,8 +132,8 @@ export function ProblemList({
   const paginatedProblems = sortedProblems.slice(startIndex, startIndex + itemsPerPage);
 
   return (
-    <div className="mt-2 mb-8">
-      <div className="mb-6">
+    <div className="mb-6">
+      <div className="mb-4">
         <div className="flex items-center justify-between flex-wrap gap-4">
           {!hideHeader && (
             <div>

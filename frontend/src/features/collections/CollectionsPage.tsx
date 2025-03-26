@@ -8,15 +8,25 @@ import { ProblemList } from '@/components/ProblemList';
 import { Problem, Difficulty as ProblemDifficulty } from '@/features/problems/types';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from '@/components/ui/button';
-import { X, ListFilter, Loader2 } from 'lucide-react';
+import { X, ListFilter, Loader2, Check, Filter, CheckCircle2, PenSquare, BookOpen, Hash, ChevronDown, ChevronUp, Shuffle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { toast } from '@/components/ui/use-toast';
+import { Badge } from '@/components/ui/badge';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 
 // Interface for our collection type
 interface Collection {
   id: string;
   name: string;
   slug?: string;
+}
+
+// Extend the Problem interface to include the properties we need
+interface ExtendedProblem extends Problem {
+  // Using problemType instead of type to match the Problem interface
+  // problemType will be 'INFO', 'CODING', or 'STANDALONE_INFO' from the backend
+  completed?: boolean;
 }
 
 // Type for difficulty filter - adds 'all' to the available difficulties
@@ -29,6 +39,14 @@ export default function CollectionsPage() {
   const [selectedCollection, setSelectedCollection] = useState<string>("all");
   const [selectedDifficulty, setSelectedDifficulty] = useState<DifficultyFilter>("all");
   const [isNavigating, setIsNavigating] = useState(false);
+  const [isShuffling, setIsShuffling] = useState(false);
+
+  // New filter states
+  const [selectedDifficulties, setSelectedDifficulties] = useState<ProblemDifficulty[]>([]);
+  const [selectedStatus, setSelectedStatus] = useState<string>("all"); // "all", "completed", "incomplete"
+  const [selectedType, setSelectedType] = useState<string>("all"); // "all", "coding", "info"
+  const [selectedTopics, setSelectedTopics] = useState<string[]>([]);
+  const [isFiltersOpen, setIsFiltersOpen] = useState(false);
 
   // Check for URL query parameters on mount
   useEffect(() => {
@@ -41,12 +59,12 @@ export default function CollectionsPage() {
   }, []);
 
   // Fetch all problems
-  const { data: problems, isLoading: isLoadingProblems } = useQuery<Problem[]>({
+  const { data: problems, isLoading: isLoadingProblems } = useQuery<ExtendedProblem[]>({
     queryKey: ['allProblems'],
     queryFn: async () => {
       if (!token) throw new Error('No token available');
       const response = await api.get('/problems?includeCompletion=true', token);
-      console.log('Problems fetched:', response.map((p: Problem) => ({ id: p.id, name: p.name, slug: p.slug })));
+      console.log('Problems fetched:', response.map((p: ExtendedProblem) => ({ id: p.id, name: p.name, slug: p.slug })));
       return response;
     },
     enabled: !!token,
@@ -129,6 +147,7 @@ export default function CollectionsPage() {
     // Set up a timeout to clear the loading state in case navigation takes too long
     const navigationTimeout = setTimeout(() => {
       setIsNavigating(false);
+      setIsShuffling(false);
     }, 5000); // Clear after 5 seconds max
 
     // Add query parameters for context
@@ -194,6 +213,7 @@ export default function CollectionsPage() {
     } finally {
       clearTimeout(navigationTimeout);
       setIsNavigating(false);
+      setIsShuffling(false);
     }
 
     // Always prefer the slug if available and not empty
@@ -220,15 +240,70 @@ export default function CollectionsPage() {
         selectedCollection === 'all' || 
         (problem.collectionIds && problem.collectionIds.includes(selectedCollection));
       
-      // Difficulty filter
+      // Difficulty filter (multi-select)
       const passesDifficultyFilter = 
-        selectedDifficulty === 'all' || 
-        problem.difficulty === selectedDifficulty;
+        selectedDifficulties.length === 0 || 
+        selectedDifficulties.includes(problem.difficulty as ProblemDifficulty);
+      
+      // Status filter
+      const passesStatusFilter = 
+        selectedStatus === 'all' || 
+        (selectedStatus === 'completed' && problem.completed) ||
+        (selectedStatus === 'incomplete' && !problem.completed);
+      
+      // Type filter - fixing the mapping between selectedType and actual problemType
+      const passesTypeFilter = 
+        selectedType === 'all' || 
+        (selectedType === 'coding' && problem.problemType === 'CODING') ||
+        (selectedType === 'info' && (problem.problemType === 'INFO' || problem.problemType === 'STANDALONE_INFO' || !problem.problemType));
+      
+      // Topic filter (multi-select)
+      const passesTopicFilter = 
+        selectedTopics.length === 0 || 
+        (problem.topic && problem.topic.name && selectedTopics.includes(problem.topic.name));
       
       // Problem must pass all active filters
-      return passesCollectionFilter && passesDifficultyFilter;
+      return passesCollectionFilter && passesDifficultyFilter && 
+             passesStatusFilter && passesTypeFilter && passesTopicFilter;
     }) || [];
-  }, [problems, selectedCollection, selectedDifficulty]);
+  }, [
+    problems, 
+    selectedCollection, 
+    selectedDifficulties, 
+    selectedStatus, 
+    selectedType, 
+    selectedTopics
+  ]);
+
+  // Get problem counts for each collection
+  const collectionProblemCounts = useMemo(() => {
+    if (!problems) return {};
+    
+    const counts: Record<string, number> = { all: problems.length };
+    
+    collections.forEach(collection => {
+      counts[collection.id] = problems.filter(
+        problem => problem.collectionIds && problem.collectionIds.includes(collection.id)
+      ).length;
+    });
+    
+    return counts;
+  }, [problems, collections]);
+
+  // Get problem counts for each difficulty
+  const difficultyProblemCounts = useMemo(() => {
+    if (!problems) return {};
+    
+    const counts: Record<string, number> = { all: problems.length };
+    
+    difficulties.forEach(difficulty => {
+      counts[difficulty] = problems.filter(
+        problem => problem.difficulty === difficulty
+      ).length;
+    });
+    
+    return counts;
+  }, [problems, difficulties]);
 
   // Format difficulty label for display
   const formatDifficultyLabel = (difficulty: DifficultyFilter): string => {
@@ -265,6 +340,82 @@ export default function CollectionsPage() {
     );
   };
 
+  // Get unique topics from problems
+  const topics = useMemo(() => {
+    if (!problems) return [];
+    
+    const topicSet = new Set<string>();
+    
+    problems.forEach(problem => {
+      if (problem.topic && problem.topic.name) {
+        topicSet.add(problem.topic.name);
+      }
+    });
+    
+    // Filter out empty topics and sort alphabetically
+    return Array.from(topicSet)
+      .filter(topic => topic.trim() !== '')
+      .sort((a, b) => a.localeCompare(b));
+  }, [problems]);
+
+  // Toggle a difficulty in the multi-select
+  const toggleDifficulty = (difficulty: ProblemDifficulty) => {
+    setSelectedDifficulties(prev => {
+      if (prev.includes(difficulty)) {
+        return prev.filter(d => d !== difficulty);
+      } else {
+        return [...prev, difficulty];
+      }
+    });
+  };
+
+  // Toggle a topic in the multi-select
+  const toggleTopic = (topic: string) => {
+    setSelectedTopics(prev => {
+      if (prev.includes(topic)) {
+        return prev.filter(t => t !== topic);
+      } else {
+        return [...prev, topic];
+      }
+    });
+  };
+
+  // Reset all advanced filters
+  const resetAdvancedFilters = () => {
+    setSelectedDifficulties([]);
+    setSelectedStatus("all");
+    setSelectedType("all");
+    setSelectedTopics([]);
+  };
+
+  // Check if any advanced filters are active
+  const hasAdvancedFilters = selectedDifficulties.length > 0 || 
+                          selectedStatus !== 'all' || 
+                          selectedType !== 'all' || 
+                          selectedTopics.length > 0;
+
+  // Add shuffle function
+  const shuffleProblems = () => {
+    // Only proceed if we have problems to shuffle
+    if (filteredProblems.length > 0) {
+      // Show loading state
+      setIsShuffling(true);
+      
+      // Get a random problem from the filtered problems
+      const randomIndex = Math.floor(Math.random() * filteredProblems.length);
+      const randomProblem = filteredProblems[randomIndex];
+      
+      toast({
+        title: "Random problem selected",
+        description: `Selected: ${randomProblem.name}`,
+        duration: 2000,
+      });
+      
+      // Navigate to the randomly selected problem
+      handleProblemStart(randomProblem.id, randomProblem.slug);
+    }
+  };
+
   if (isLoading) {
     return (
       <div className="container py-8">
@@ -278,108 +429,374 @@ export default function CollectionsPage() {
   }
 
   return (
-    <div className="container py-8">
+    <div className="container pt-6 pb-8">
       {/* Loading overlay */}
       <LoadingOverlay />
       
       <div className="grid grid-cols-12 gap-6">
-        {/* Left column - Collection Name */}
-        <div className="col-span-3">
-          <div className="sticky top-20">
-            <Card className="shadow-sm">
-              <CardHeader className="pb-3">
-                <CardTitle className="text-lg">Collection</CardTitle>
+        {/* Left column - Collection Name and Filter */}
+        <div className="col-span-4">
+          <div className="sticky top-20 space-y-4">
+            {/* Collection Title with Shuffle Button */}
+            <div className="flex items-center justify-between mb-2">
+              <div>
+                <h1 className="text-3xl font-bold leading-none">{currentCollectionName}</h1>
+                <div className="h-1 w-12 bg-primary mt-2 rounded-full"></div>
+          </div>
+              <Button 
+                variant="outline" 
+                size="icon" 
+                onClick={shuffleProblems}
+                className="h-9 w-9 rounded-full"
+                disabled={filteredProblems.length === 0 || isShuffling}
+                title="Shuffle problems"
+              >
+                {isShuffling ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Shuffle className={cn("h-4 w-4", filteredProblems.length === 0 && "text-muted-foreground/50")} />
+                )}
+              </Button>
+        </div>
+
+            {/* Problem Collections */}
+           
+              <CardHeader className="pb-2 pt-3">
+                <CardTitle className="text-lg flex items-center gap-2 mb-0">
+                  <ListFilter className="h-4 w-4" />
+                  Problem Collections
+                </CardTitle>
               </CardHeader>
-              <CardContent>
-                <h2 className="text-xl font-semibold">{currentCollectionName}</h2>
-                <p className="text-sm text-muted-foreground mt-1">
-                  {selectedCollection === 'all' 
-                    ? 'Problems list showing all problems' 
-                    : `Problems in ${currentCollectionName} collection`}
-                </p>
+              <CardContent className="pt-0 pb-4 space-y-4">
+                <div className="bg-card border border-border/40 rounded-md p-3">
+                  <div className="flex flex-wrap gap-2">
+                    <button 
+                      onClick={() => handleCollectionChange("all")}
+                      className={cn(
+                        "flex items-center px-3 py-1 rounded-full text-sm",
+                        selectedCollection === "all" 
+                          ? "bg-primary text-primary-foreground" 
+                          : "bg-muted hover:bg-muted/80"
+                      )}
+                    >
+                      All Collections
+                      <span className={cn(
+                        "ml-1.5 px-1.5 py-0.5 text-xs rounded-full",
+                        selectedCollection === "all"
+                          ? "bg-primary-foreground/20 text-primary-foreground"
+                          : "bg-background text-muted-foreground"
+                      )}>
+                        {collectionProblemCounts["all"] || 0}
+                      </span>
+                    </button>
+                      {collections.map(collection => (
+                      <button
+                        key={collection.id}
+                        onClick={() => handleCollectionChange(collection.id)}
+                        className={cn(
+                          "flex items-center px-3 py-1 rounded-full text-sm",
+                          selectedCollection === collection.id 
+                            ? "bg-primary text-primary-foreground" 
+                            : "bg-muted hover:bg-muted/80"
+                        )}
+                      >
+                          {collection.name}
+                        <span className={cn(
+                          "ml-1.5 px-1.5 py-0.5 text-xs rounded-full",
+                          selectedCollection === collection.id
+                            ? "bg-primary-foreground/20 text-primary-foreground"
+                            : "bg-background text-muted-foreground"
+                        )}>
+                          {collectionProblemCounts[collection.id] || 0}
+                        </span>
+                      </button>
+                    ))}
+                </div>
+                </div>
+
+                {/* Reset filters button */}
+                {selectedCollection !== 'all' && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={resetFilters}
+                    className="w-full"
+                  >
+                    <X className="h-4 w-4 mr-2" />
+                    Reset Selection
+                  </Button>
+                )}
               </CardContent>
-            </Card>
+            
           </div>
         </div>
 
-        {/* Center column - Problem List */}
-        <div className="col-span-6">
+        {/* Right column - Problem List with Filters */}
+        <div className="col-span-8">
+          {/* Advanced Filters */}
+          <Collapsible 
+            open={isFiltersOpen} 
+            onOpenChange={setIsFiltersOpen}
+            className="mb-1"
+          >
+            <div className="bg-background border border-border/40 rounded-md shadow-sm">
+              <CollapsibleTrigger asChild>
+                <div className="px-4 py-3 cursor-pointer hover:bg-secondary/20 transition-colors rounded-t-md">
+                  <div className="text-lg flex items-center gap-2 justify-between">
+                    <div className="flex items-center">
+                      <Filter className="h-4 w-4 mr-2" />
+                      Problem Filters
+                      {hasAdvancedFilters && (
+                        <Badge variant="default" className="ml-2 bg-primary/90">
+                          {selectedDifficulties.length + 
+                           (selectedStatus !== 'all' ? 1 : 0) + 
+                           (selectedType !== 'all' ? 1 : 0) + 
+                           selectedTopics.length}
+                        </Badge>
+                      )}
+                    </div>
+                    {isFiltersOpen ? (
+                      <ChevronUp className="h-4 w-4 text-muted-foreground" />
+                    ) : (
+                      <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                    )}
+                  </div>
+                </div>
+              </CollapsibleTrigger>
+              
+              <CollapsibleContent>
+                <div className="px-4 pb-4 space-y-4 border-t border-border/40">
+                  <div className="grid grid-cols-2 gap-4 pt-4">
+                    {/* Difficulty Filter - Multi-select */}
+                    <div className="space-y-2">
+                      <div className="flex items-center">
+                        <Hash className="h-4 w-4 mr-2 text-indigo-500" />
+                        <span className="text-sm font-medium">Difficulty</span>
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        {difficulties.map(difficulty => (
+                          <button
+                            key={difficulty}
+                            onClick={() => toggleDifficulty(difficulty as ProblemDifficulty)}
+                            className={cn(
+                              "flex items-center px-3 py-1 rounded-full text-xs",
+                              selectedDifficulties.includes(difficulty as ProblemDifficulty)
+                                ? "bg-indigo-500 text-white" 
+                                : "bg-indigo-100 text-indigo-800 hover:bg-indigo-200 dark:bg-indigo-950 dark:text-indigo-200 dark:hover:bg-indigo-900"
+                            )}
+                          >
+                            {formatDifficultyLabel(difficulty as DifficultyFilter)}
+                            {selectedDifficulties.includes(difficulty as ProblemDifficulty) && (
+                              <Check className="h-3 w-3 ml-1.5" />
+                            )}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Status Filter - Single select */}
+                    <div className="space-y-2">
+                      <div className="flex items-center">
+                        <CheckCircle2 className="h-4 w-4 mr-2 text-emerald-500" />
+                        <span className="text-sm font-medium">Status</span>
+                      </div>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => setSelectedStatus("all")}
+                          className={cn(
+                            "flex items-center px-3 py-1 rounded-full text-xs",
+                            selectedStatus === "all"
+                              ? "bg-emerald-500 text-white" 
+                              : "bg-emerald-100 text-emerald-800 hover:bg-emerald-200 dark:bg-emerald-950 dark:text-emerald-200 dark:hover:bg-emerald-900"
+                          )}
+                        >
+                          All
+                          {selectedStatus === "all" && <Check className="h-3 w-3 ml-1.5" />}
+                        </button>
+                        <button
+                          onClick={() => setSelectedStatus("completed")}
+                          className={cn(
+                            "flex items-center px-3 py-1 rounded-full text-xs",
+                            selectedStatus === "completed"
+                              ? "bg-emerald-500 text-white" 
+                              : "bg-emerald-100 text-emerald-800 hover:bg-emerald-200 dark:bg-emerald-950 dark:text-emerald-200 dark:hover:bg-emerald-900"
+                          )}
+                        >
+                          Completed
+                          {selectedStatus === "completed" && <Check className="h-3 w-3 ml-1.5" />}
+                        </button>
+                        <button
+                          onClick={() => setSelectedStatus("incomplete")}
+                          className={cn(
+                            "flex items-center px-3 py-1 rounded-full text-xs",
+                            selectedStatus === "incomplete"
+                              ? "bg-emerald-500 text-white" 
+                              : "bg-emerald-100 text-emerald-800 hover:bg-emerald-200 dark:bg-emerald-950 dark:text-emerald-200 dark:hover:bg-emerald-900"
+                          )}
+                        >
+                          Incomplete
+                          {selectedStatus === "incomplete" && <Check className="h-3 w-3 ml-1.5" />}
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Type Filter - Single select */}
+                    <div className="space-y-2">
+                      <div className="flex items-center">
+                        <PenSquare className="h-4 w-4 mr-2 text-amber-500" />
+                        <span className="text-sm font-medium">Type</span>
+                      </div>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => setSelectedType("all")}
+                          className={cn(
+                            "flex items-center px-3 py-1 rounded-full text-xs",
+                            selectedType === "all"
+                              ? "bg-amber-500 text-white" 
+                              : "bg-amber-100 text-amber-800 hover:bg-amber-200 dark:bg-amber-950 dark:text-amber-200 dark:hover:bg-amber-900"
+                          )}
+                        >
+                          All
+                          {selectedType === "all" && <Check className="h-3 w-3 ml-1.5" />}
+                        </button>
+                        <button
+                          onClick={() => setSelectedType("coding")}
+                          className={cn(
+                            "flex items-center px-3 py-1 rounded-full text-xs",
+                            selectedType === "coding"
+                              ? "bg-amber-500 text-white" 
+                              : "bg-amber-100 text-amber-800 hover:bg-amber-200 dark:bg-amber-950 dark:text-amber-200 dark:hover:bg-amber-900"
+                          )}
+                        >
+                          Code
+                          {selectedType === "coding" && <Check className="h-3 w-3 ml-1.5" />}
+                        </button>
+                        <button
+                          onClick={() => setSelectedType("info")}
+                          className={cn(
+                            "flex items-center px-3 py-1 rounded-full text-xs",
+                            selectedType === "info"
+                              ? "bg-amber-500 text-white" 
+                              : "bg-amber-100 text-amber-800 hover:bg-amber-200 dark:bg-amber-950 dark:text-amber-200 dark:hover:bg-amber-900"
+                          )}
+                        >
+                          Info
+                          {selectedType === "info" && <Check className="h-3 w-3 ml-1.5" />}
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Topics Filter - Multi-select */}
+                    <div className="space-y-2">
+                      <div className="flex items-center">
+                        <BookOpen className="h-4 w-4 mr-2 text-rose-500" />
+                        <span className="text-sm font-medium">Topics</span>
+                      </div>
+                      <div className="flex flex-wrap gap-2 max-h-24 overflow-y-auto pr-2">
+                        {topics.map(topic => (
+                          <button
+                            key={topic}
+                            onClick={() => toggleTopic(topic)}
+                            className={cn(
+                              "flex items-center px-3 py-1 rounded-full text-xs",
+                              selectedTopics.includes(topic)
+                                ? "bg-rose-500 text-white" 
+                                : "bg-rose-100 text-rose-800 hover:bg-rose-200 dark:bg-rose-950 dark:text-rose-200 dark:hover:bg-rose-900"
+                            )}
+                          >
+                            {topic}
+                            {selectedTopics.includes(topic) && (
+                              <Check className="h-3 w-3 ml-1.5" />
+                            )}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Reset advanced filters button */}
+                  {hasAdvancedFilters && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={resetAdvancedFilters}
+                      className="mt-2"
+                    >
+                      <X className="h-4 w-4 mr-2" />
+                      Reset Filters
+                    </Button>
+                  )}
+
+                  {/* Active filters display */}
+                  {hasAdvancedFilters && (
+                    <div className="flex flex-wrap gap-2 pt-2 border-t border-border/40">
+                      <span className="text-xs text-muted-foreground py-1">Active filters:</span>
+                      
+                      {selectedDifficulties.map(difficulty => (
+                        <Badge key={difficulty} variant="secondary" className="bg-indigo-100 text-indigo-800 dark:bg-indigo-950 dark:text-indigo-200">
+                          <span className="mr-1">Difficulty:</span>
+                          {formatDifficultyLabel(difficulty as DifficultyFilter)}
+                          <button 
+                            className="ml-1 hover:text-destructive" 
+                            onClick={() => toggleDifficulty(difficulty)}
+                          >
+                            <X className="h-3 w-3" />
+                          </button>
+                        </Badge>
+                      ))}
+                      
+                      {selectedStatus !== 'all' && (
+                        <Badge variant="secondary" className="bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-200">
+                          <span className="mr-1">Status:</span>
+                          {selectedStatus === 'completed' ? 'Completed' : 'Incomplete'}
+                          <button 
+                            className="ml-1 hover:text-destructive" 
+                            onClick={() => setSelectedStatus('all')}
+                          >
+                            <X className="h-3 w-3" />
+                          </button>
+                        </Badge>
+                      )}
+                      
+                      {selectedType !== 'all' && (
+                        <Badge variant="secondary" className="bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-200">
+                          <span className="mr-1">Type:</span>
+                          {selectedType === 'coding' ? 'Code Exercise' : 'Reading/Info'}
+                          <button 
+                            className="ml-1 hover:text-destructive" 
+                            onClick={() => setSelectedType('all')}
+                          >
+                            <X className="h-3 w-3" />
+                          </button>
+                        </Badge>
+                      )}
+                      
+                      {selectedTopics.map(topic => (
+                        <Badge key={topic} variant="secondary" className="bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-200">
+                          <span className="mr-1">Topic:</span>
+                          {topic}
+                          <button 
+                            className="ml-1 hover:text-destructive" 
+                            onClick={() => toggleTopic(topic)}
+                          >
+                            <X className="h-3 w-3" />
+                          </button>
+                        </Badge>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </CollapsibleContent>
+            </div>
+          </Collapsible>
+
+          {/* Problem List */}
           <div className="custom-problem-list overflow-hidden">
             <ProblemList
               problems={filteredProblems}
               onProblemStart={handleProblemStart}
               hideHeader={true}
             />
-          </div>
-        </div>
-
-        {/* Right column - Filters */}
-        <div className="col-span-3">
-          <div className="sticky top-20">
-            <Card className="shadow-sm">
-              <CardHeader className="pb-3">
-                <CardTitle className="text-lg flex items-center gap-2">
-                  <ListFilter className="h-4 w-4" />
-                  Filters
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                {/* Collection filter */}
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">Collection</label>
-                  <Select 
-                    value={selectedCollection} 
-                    onValueChange={handleCollectionChange}
-                  >
-                    <SelectTrigger className="w-full h-9 focus:ring-blue-500/30 bg-background border-border/40">
-                      <SelectValue placeholder="Select collection" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">All Collections</SelectItem>
-                      {collections.map(collection => (
-                        <SelectItem key={collection.id} value={collection.id}>
-                          {collection.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                {/* Difficulty filter */}
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">Difficulty</label>
-                  <Select 
-                    value={selectedDifficulty} 
-                    onValueChange={handleDifficultyChange}
-                  >
-                    <SelectTrigger className="w-full h-9 focus:ring-blue-500/30 bg-background border-border/40">
-                      <SelectValue placeholder="Select difficulty" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">All Difficulties</SelectItem>
-                      {difficulties.map(difficulty => (
-                        <SelectItem key={difficulty} value={difficulty}>
-                          {formatDifficultyLabel(difficulty as DifficultyFilter)}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                {/* Reset filters button */}
-                {hasActiveFilters && (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={resetFilters}
-                    className="w-full mt-2"
-                  >
-                    <X className="h-4 w-4 mr-2" />
-                    Reset Filters
-                  </Button>
-                )}
-              </CardContent>
-            </Card>
           </div>
         </div>
       </div>
