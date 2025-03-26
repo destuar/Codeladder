@@ -12,6 +12,7 @@ import { useAdmin } from '@/features/admin/AdminContext';
 import { ensureHtml, isMarkdown } from '@/lib/markdown-to-html';
 import { useProblemCompletion } from '@/features/problems/hooks/useProblemCompletion';
 import { ProblemHeader } from '@/features/problems/components/coding/ProblemHeader';
+import { ScrollArea } from "@/components/ui/scroll-area";
 
 function formatEstimatedTime(minutes: number | null | undefined): string | null {
   if (!minutes) return null;
@@ -46,7 +47,8 @@ export interface InfoProblemProps {
   sourceContext?: {
     from: string;
     name: string;
-    id: string;
+    id?: string;
+    slug?: string;
   };
   title?: string;
 }
@@ -101,7 +103,7 @@ const InfoProblem: React.FC<InfoProblemProps> = ({
   };
 
   return (
-    <div className={`${isReviewMode ? 'h-auto' : 'h-screen'} flex flex-col relative`}>
+    <div className={`flex flex-col bg-background min-h-screen h-screen max-h-screen relative`}>
       {/* Problem Header - Same as in CodingProblem */}
       <ProblemHeader
         isCompleted={isProblemCompleted}
@@ -117,35 +119,39 @@ const InfoProblem: React.FC<InfoProblemProps> = ({
         problemType={problemType}
       />
 
-      <div className={`${isReviewMode ? 'flex-auto' : 'flex-1'} overflow-auto px-4 md:px-8`}>
-        <div className="py-4">
-          {/* Reading time indicator */}
-          {formattedTime && (
-            <div className="flex items-center space-x-2 text-sm text-muted-foreground mb-4">
-              <Timer className="w-4 h-4" />
-              <span>Reading Time: {formattedTime}</span>
-            </div>
-          )}
+      <div className="flex-1 overflow-hidden">
+        <ScrollArea className="h-full" type="hover">
+          <div className="px-4 md:px-8 py-4">
+            <div className="max-w-4xl mx-auto">
+              {/* Reading time indicator */}
+              {formattedTime && (
+                <div className="flex items-center space-x-2 text-sm text-muted-foreground mb-4">
+                  <Timer className="w-4 h-4" />
+                  <span>Reading Time: {formattedTime}</span>
+                </div>
+              )}
 
-          {/* Main content */}
-          <div className="max-w-4xl mx-auto overflow-hidden">
-            {isMarkdown(content) ? (
-              // For backward compatibility, use Markdown for existing markdown content
-              <div className="prose dark:prose-invert max-w-full overflow-hidden">
-                <Markdown 
-                  content={content} 
-                  className="max-w-full [&_pre]:!whitespace-pre-wrap [&_pre]:!break-words [&_code]:!whitespace-pre-wrap [&_code]:!break-words [&_pre]:!max-w-full [&_pre]:!overflow-x-auto"
-                />
+              {/* Main content */}
+              <div className="max-w-full">
+                {isMarkdown(content) ? (
+                  // For backward compatibility, use Markdown for existing markdown content
+                  <div className="prose dark:prose-invert max-w-full">
+                    <Markdown 
+                      content={content} 
+                      className="max-w-full [&_pre]:!whitespace-pre-wrap [&_pre]:!break-words [&_code]:!whitespace-pre-wrap [&_code]:!break-words [&_pre]:!max-w-full [&_pre]:!overflow-x-auto"
+                    />
+                  </div>
+                ) : (
+                  // Use HtmlContent for HTML content
+                  <HtmlContent 
+                    content={content} 
+                    className="max-w-full [&_pre]:!whitespace-pre-wrap [&_pre]:!break-words [&_code]:!whitespace-pre-wrap [&_code]:!break-words [&_pre]:!max-w-full [&_pre]:!overflow-x-auto"
+                  />
+                )}
               </div>
-            ) : (
-              // Use HtmlContent for HTML content
-              <HtmlContent 
-                content={content} 
-                className="max-w-full [&_pre]:!whitespace-pre-wrap [&_pre]:!break-words [&_code]:!whitespace-pre-wrap [&_code]:!break-words [&_pre]:!max-w-full [&_pre]:!overflow-x-auto"
-              />
-            )}
+            </div>
           </div>
-        </div>
+        </ScrollArea>
       </div>
     </div>
   );

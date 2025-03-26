@@ -27,6 +27,7 @@ interface ProblemHeaderProps {
     from: string;
     name: string;
     id: string;
+    slug?: string;
   };
 }
 
@@ -100,7 +101,7 @@ export function ProblemHeader({
                         asChild
                         className="font-medium rounded-md h-8 transition-colors"
                       >
-                        <Link to={`/topics/${sourceContext.id}`}>
+                        <Link to={`/topic/${sourceContext.slug || sourceContext.id}`}>
                           {displayTitle}
                         </Link>
                       </Button>
@@ -119,7 +120,7 @@ export function ProblemHeader({
                         asChild
                         className="font-medium rounded-md h-8 transition-colors"
                       >
-                        <Link to={`/collections/${sourceContext.id}`}>
+                        <Link to={`/collections/${sourceContext.slug || sourceContext.id}`}>
                           {displayTitle}
                         </Link>
                       </Button>
