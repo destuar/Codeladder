@@ -45,10 +45,10 @@ export function Navigation() {
                   Review
                 </Link>
                 <Link 
-                  to="/problems" 
+                  to="/categories" 
                   className="text-sm font-medium text-muted-foreground hover:text-foreground"
                 >
-                  Problems
+                  Categories
                 </Link>
               </>
             )}

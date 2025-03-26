@@ -6,7 +6,7 @@ import LoginPage from './features/auth/LoginPage';
 import RegisterPage from './features/auth/RegisterPage';
 import ProfilePage from './features/profile/ProfilePage';
 import DashboardPage from './features/dashboard/DashboardPage';
-import ProblemsPage from './features/problems/ProblemsPage';
+import CategoriesPage from './features/categories/CategoriesPage';
 import ProtectedRoute from './components/ProtectedRoute';
 import { Navigation } from './components/Navigation';
 import { AdminDashboard } from './features/admin/AdminDashboard';
@@ -106,7 +106,17 @@ function MainLayout() {
             element={
               <ProtectedRoute>
                 <AdminViewWrapper>
-                  <ProblemsPage />
+                  <CategoriesPage />
+                </AdminViewWrapper>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/categories"
+            element={
+              <ProtectedRoute>
+                <AdminViewWrapper>
+                  <CategoriesPage />
                 </AdminViewWrapper>
               </ProtectedRoute>
             }

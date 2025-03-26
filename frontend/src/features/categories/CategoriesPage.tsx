@@ -1,18 +1,12 @@
 import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo } from 'react';
 import { useAuth } from '@/features/auth/AuthContext';
 import { api } from '@/lib/api';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { ProblemList } from '@/components/ProblemList';
 import { Problem, Difficulty as ProblemDifficulty } from '@/features/problems/types';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import { X, PlayCircle, RepeatIcon } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { useSpacedRepetition } from '@/features/spaced-repetition/hooks/useSpacedRepetition';
-import { SpacedRepetitionPanel } from '@/features/spaced-repetition/components/SpacedRepetitionPanel';
 
 // Interface for our collection type
 interface Collection {
@@ -23,33 +17,7 @@ interface Collection {
 // Type for difficulty filter - adds 'all' to the available difficulties
 type DifficultyFilter = ProblemDifficulty | 'all';
 
-// Custom hook to only use spaced repetition when needed
-function useConditionalSpacedRepetition(enabled: boolean) {
-  // Only call useSpacedRepetition when enabled
-  if (enabled) {
-    return useSpacedRepetition();
-  }
-  
-  // Return a placeholder object when disabled
-  return {
-    dueReviews: [],
-    allScheduledReviews: undefined,
-    stats: undefined,
-    isLoading: false,
-    isReviewPanelOpen: false,
-    toggleReviewPanel: () => {},
-    submitReview: async () => null,
-    startReview: () => {},
-    refreshReviews: async () => {},
-    removeProblem: async () => {},
-    addCompletedProblem: async () => {},
-    isAddingProblem: false,
-    getAvailableProblems: async () => [],
-    isLoadingAvailableProblems: false
-  };
-}
-
-export default function ProblemsPage() {
+export default function CategoriesPage() {
   const navigate = useNavigate();
   const { token } = useAuth();
   const [selectedCollection, setSelectedCollection] = useState<string>("all");
@@ -153,7 +121,7 @@ export default function ProblemsPage() {
 
   return (
     <div className="container py-8 space-y-6">
-      {/* Problem List - no card wrapper */}
+      {/* Categories List - no card wrapper */}
       <div className="custom-problem-list">
         <ProblemList
           problems={problems || []}
