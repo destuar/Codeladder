@@ -10,6 +10,7 @@ import imageUploadRouter from './image-upload';
 import collectionsRouter from './collections';
 import spacedRepetitionRoutes from './spacedRepetition';
 import codeExecutionRouter from './codeExecution';
+import quizRouter from './quiz';
 
 const router = express.Router();
 
@@ -25,5 +26,6 @@ router.use('/image-upload', imageUploadRouter);
 router.use('/collections', collectionsRouter);
 router.use('/spaced-repetition', spacedRepetitionRoutes);
 router.use('/code', codeExecutionRouter);
+router.use('/quizzes', quizRouter);
 
 export default router; 

@@ -6,8 +6,9 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "@/features/auth/AuthContext";
+import { useAdmin } from "@/features/admin/AdminContext";
 import { api } from "@/lib/api";
 import { useLearningPath, Topic, Level, Problem } from "@/hooks/useLearningPath";
 import { toast } from "sonner";
@@ -29,6 +30,7 @@ type NewTopic = {
   description: string;
   content: string;
   order: number;
+  slug?: string;
 };
 
 type NewProblem = {
@@ -42,6 +44,7 @@ type NewProblem = {
   testCases: string;
   estimatedTime?: number;
   collectionIds: string[];
+  slug?: string;
 };
 
 type DraggedProblem = Problem & {
@@ -63,6 +66,7 @@ type ProblemData = {
   testCases?: string;
   estimatedTime?: number;
   collectionIds: string[];
+  slug?: string;
 };
 
 interface DynamicCollection {
@@ -101,6 +105,7 @@ const updateTopic = (topic: Topic, updates: Partial<Topic>): Topic => ({
   ...updates,
   description: updates.description ?? topic.description ?? "",
   content: updates.content ?? topic.content ?? "",
+  slug: updates.slug ?? topic.slug ?? "",
   problems: topic.problems
 });
 
@@ -108,7 +113,8 @@ const updateProblem = (problem: Problem, updates: Partial<Problem>): Problem => 
   ...problem,
   ...updates,
   content: updates.content ?? problem.content ?? "",
-  reqOrder: updates.reqOrder ?? problem.reqOrder ?? 1
+  reqOrder: updates.reqOrder ?? problem.reqOrder ?? 1,
+  slug: updates.slug ?? problem.slug ?? ""
 });
 
 /**
@@ -188,6 +194,8 @@ declare global {
 
 export function LearningPathAdmin() {
   const { token } = useAuth();
+  const { setIsAdminView } = useAdmin();
+  const navigate = useNavigate();
   const { levels, loading, error, refresh, setLevels } = useLearningPath();
   const [isAddingLevel, setIsAddingLevel] = useState(false);
   const [isEditingLevel, setIsEditingLevel] = useState(false);
@@ -213,7 +221,8 @@ export function LearningPathAdmin() {
     name: "", 
     description: "", 
     content: "", 
-    order: 1 
+    order: 1,
+    slug: ""
   });
   
   const [newProblem, setNewProblem] = useState<NewProblem>({ 
@@ -226,7 +235,8 @@ export function LearningPathAdmin() {
     codeTemplate: "",
     testCases: "",
     estimatedTime: undefined,
-    collectionIds: []
+    collectionIds: [],
+    slug: ""
   });
 
   const [isDragging, setIsDragging] = useState(false);
@@ -365,7 +375,7 @@ export function LearningPathAdmin() {
     try {
       await api.post(`/learning/levels/${selectedLevel.id}/topics`, newTopic, token);
       setIsAddingTopic(false);
-      setNewTopic({ name: "", description: "", content: "", order: 1 });
+      setNewTopic({ name: "", description: "", content: "", order: 1, slug: "" });
       setSelectedLevel(null);
       toast.success("Topic added successfully");
       refresh();
@@ -386,7 +396,8 @@ export function LearningPathAdmin() {
         name: selectedTopic.name,
         description: selectedTopic.description || "",
         content: selectedTopic.content || "",
-        order: selectedTopic.order
+        order: selectedTopic.order,
+        slug: selectedTopic.slug || ""
       };
       await api.put(`/learning/topics/${selectedTopic.id}`, updatedTopic, token);
       setIsEditingTopic(false);
@@ -416,6 +427,7 @@ export function LearningPathAdmin() {
         problemType: newProblem.problemType,
         topicId: selectedTopic.id,
         collectionIds: newProblem.collectionIds,
+        slug: newProblem.slug,
         ...(newProblem.problemType === 'CODING' ? {
           codeTemplate: newProblem.codeTemplate,
           testCases: newProblem.testCases
@@ -437,7 +449,8 @@ export function LearningPathAdmin() {
         codeTemplate: "",
         testCases: "",
         estimatedTime: undefined,
-        collectionIds: []
+        collectionIds: [],
+        slug: ""
       });
       
       toast.success("Problem added successfully");
@@ -471,6 +484,7 @@ export function LearningPathAdmin() {
             difficulty: selectedProblem.difficulty,
             required: selectedProblem.required,
             problemType: selectedProblem.problemType,
+            slug: selectedProblem.slug || "",
             ...(selectedProblem.problemType === 'CODING' ? {
               codeTemplate: selectedProblem.codeTemplate,
               testCases: selectedProblem.testCases
@@ -529,6 +543,7 @@ export function LearningPathAdmin() {
             difficulty: selectedProblem.difficulty,
             required: selectedProblem.required,
             problemType: selectedProblem.problemType,
+            slug: selectedProblem.slug || "",
             ...(selectedProblem.problemType === 'CODING' ? {
               codeTemplate: selectedProblem.codeTemplate,
               testCases: selectedProblem.testCases
@@ -551,6 +566,7 @@ export function LearningPathAdmin() {
           difficulty: selectedProblem.difficulty,
           required: selectedProblem.required,
           problemType: selectedProblem.problemType,
+          slug: selectedProblem.slug || "",
           ...(selectedProblem.problemType === 'CODING' ? {
             codeTemplate: selectedProblem.codeTemplate,
             testCases: selectedProblem.testCases
@@ -938,6 +954,14 @@ export function LearningPathAdmin() {
       });
   };
 
+  // Function to handle View button click - exit admin view and navigate to problem
+  const handleViewProblem = (problemId: string) => {
+    // Exit admin view
+    setIsAdminView(false);
+    // Navigate to the problem
+    navigate(`/problems/${problemId}`);
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center p-8">
@@ -968,7 +992,7 @@ export function LearningPathAdmin() {
           <DialogTrigger asChild>
             <Button>Add New Level</Button>
           </DialogTrigger>
-          <DialogContent>
+          <DialogContent className="max-h-[90vh] overflow-y-auto max-w-[800px] w-full">
             <DialogHeader>
               <DialogTitle>Add New Level</DialogTitle>
               <DialogDescription>
@@ -1053,6 +1077,11 @@ export function LearningPathAdmin() {
                     <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                       <div>
                         <CardTitle>{topic.name}</CardTitle>
+                        {topic.slug && (
+                          <div className="text-xs text-muted-foreground">
+                            Slug: {topic.slug}
+                          </div>
+                        )}
                         <CardDescription>{topic.description}</CardDescription>
                       </div>
                       <div className="flex gap-2">
@@ -1141,6 +1170,11 @@ export function LearningPathAdmin() {
                               </span>
                               <div>
                                 <div className="font-medium">{problem.name}</div>
+                                {problem.slug && (
+                                  <div className="text-xs text-muted-foreground">
+                                    Slug: {problem.slug}
+                                  </div>
+                                )}
                                 <div className="text-sm text-muted-foreground">
                                   <span className="inline-flex items-center">
                                     <Badge variant={problem.required ? "outline" : "secondary"} className="mr-2 w-[4.5rem] justify-center">
@@ -1167,9 +1201,9 @@ export function LearningPathAdmin() {
                               <Button 
                                 variant="ghost" 
                                 size="sm"
-                                asChild
+                                onClick={() => handleViewProblem(problem.id)}
                               >
-                                <Link to={`/problems/${problem.id}`}>View</Link>
+                                View
                               </Button>
                               <Button 
                                 variant="ghost" 
@@ -1213,7 +1247,7 @@ export function LearningPathAdmin() {
 
       {/* Edit Level Dialog */}
       <Dialog open={isEditingLevel} onOpenChange={setIsEditingLevel}>
-        <DialogContent>
+        <DialogContent className="max-h-[90vh] overflow-y-auto max-w-[800px] w-full">
           <DialogHeader>
             <DialogTitle>Edit Level</DialogTitle>
             <DialogDescription>
@@ -1262,7 +1296,7 @@ export function LearningPathAdmin() {
 
       {/* Add Topic Dialog */}
       <Dialog open={isAddingTopic} onOpenChange={setIsAddingTopic}>
-        <DialogContent>
+        <DialogContent className="max-h-[90vh] overflow-y-auto max-w-[800px] w-full">
           <DialogHeader>
             <DialogTitle>Add Topic</DialogTitle>
             <DialogDescription>
@@ -1280,6 +1314,18 @@ export function LearningPathAdmin() {
               />
             </div>
             <div className="grid gap-2">
+              <Label htmlFor="topic-slug">Slug</Label>
+              <Input
+                id="topic-slug"
+                value={newTopic.slug}
+                onChange={(e) => setNewTopic({ ...newTopic, slug: e.target.value })}
+                placeholder="URL-friendly identifier (optional)"
+              />
+              <p className="text-xs text-muted-foreground mt-1">
+                A URL-friendly identifier for this topic. Used in topic URLs. If left empty, will be auto-generated from the name.
+              </p>
+            </div>
+            <div className="grid gap-2">
               <Label htmlFor="topic-description">Description</Label>
               <Textarea
                 id="topic-description"
@@ -1295,6 +1341,7 @@ export function LearningPathAdmin() {
                 value={newTopic.content}
                 onChange={(e) => setNewTopic({ ...newTopic, content: e.target.value })}
                 placeholder="Topic content"
+                className="min-h-[150px] max-h-[300px] overflow-y-auto"
               />
             </div>
             <div className="grid gap-2">
@@ -1319,7 +1366,7 @@ export function LearningPathAdmin() {
 
       {/* Edit Topic Dialog */}
       <Dialog open={isEditingTopic} onOpenChange={setIsEditingTopic}>
-        <DialogContent>
+        <DialogContent className="max-h-[90vh] overflow-y-auto max-w-[800px] w-full">
           <DialogHeader>
             <DialogTitle>Edit Topic</DialogTitle>
             <DialogDescription>
@@ -1337,6 +1384,18 @@ export function LearningPathAdmin() {
               />
             </div>
             <div className="grid gap-2">
+              <Label htmlFor="edit-topic-slug">Slug</Label>
+              <Input
+                id="edit-topic-slug"
+                name="slug"
+                value={selectedTopic?.slug || ""}
+                onChange={handleTopicChange}
+              />
+              <p className="text-xs text-muted-foreground mt-1">
+                A URL-friendly identifier for this topic. Used in topic URLs.
+              </p>
+            </div>
+            <div className="grid gap-2">
               <Label htmlFor="edit-topic-description">Description</Label>
               <Textarea
                 id="edit-topic-description"
@@ -1352,6 +1411,7 @@ export function LearningPathAdmin() {
                 name="content"
                 value={selectedTopic?.content || ""}
                 onChange={handleTopicChange}
+                className="min-h-[150px] max-h-[300px] overflow-y-auto"
               />
             </div>
             <div className="grid gap-2">
@@ -1377,7 +1437,7 @@ export function LearningPathAdmin() {
 
       {/* Add Problem Dialog */}
       <Dialog open={isAddingProblem} onOpenChange={setIsAddingProblem}>
-        <DialogContent>
+        <DialogContent className="max-h-[90vh] overflow-y-auto max-w-[800px] w-full">
           <DialogHeader>
             <DialogTitle>Add New Problem</DialogTitle>
             <DialogDescription>
@@ -1395,13 +1455,25 @@ export function LearningPathAdmin() {
               />
             </div>
             <div className="grid gap-2">
+              <Label htmlFor="slug">Slug</Label>
+              <Input
+                id="slug"
+                name="slug"
+                value={newProblem.slug}
+                onChange={handleProblemChange}
+              />
+              <p className="text-xs text-muted-foreground mt-1">
+                A URL-friendly identifier for this problem. Used in problem URLs. If left empty, will be auto-generated from the name.
+              </p>
+            </div>
+            <div className="grid gap-2">
               <Label htmlFor="content">Content (Markdown)</Label>
               <Textarea
                 id="content"
                 name="content"
                 value={newProblem.content}
                 onChange={handleProblemChange}
-                className="min-h-[100px]"
+                className="min-h-[150px] max-h-[300px] overflow-y-auto"
               />
             </div>
             <div className="grid gap-2">
@@ -1485,7 +1557,7 @@ export function LearningPathAdmin() {
                     name="codeTemplate"
                     value={newProblem.codeTemplate}
                     onChange={handleProblemChange}
-                    className="min-h-[100px] font-mono"
+                    className="min-h-[150px] max-h-[300px] overflow-y-auto font-mono"
                     placeholder="function solution() {\n  // Write your code here\n}"
                   />
                 </div>
@@ -1496,7 +1568,7 @@ export function LearningPathAdmin() {
                     name="testCases"
                     value={newProblem.testCases}
                     onChange={handleProblemChange}
-                    className="min-h-[100px] font-mono"
+                    className="min-h-[150px] max-h-[300px] overflow-y-auto font-mono"
                     placeholder='[{\n  "input": [],\n  "expected": "Hello, World!"\n}]'
                   />
                 </div>
@@ -1550,7 +1622,7 @@ export function LearningPathAdmin() {
 
       {/* Edit Problem Dialog */}
       <Dialog open={isEditingProblem} onOpenChange={setIsEditingProblem}>
-        <DialogContent>
+        <DialogContent className="max-h-[90vh] overflow-y-auto max-w-[800px] w-full">
           <DialogHeader>
             <DialogTitle>Edit Problem</DialogTitle>
             <DialogDescription>
@@ -1568,12 +1640,25 @@ export function LearningPathAdmin() {
               />
             </div>
             <div className="grid gap-2">
+              <Label htmlFor="edit-problem-slug">Slug</Label>
+              <Input
+                id="edit-problem-slug"
+                name="slug"
+                value={selectedProblem?.slug || ""}
+                onChange={handleEditProblemChange}
+              />
+              <p className="text-xs text-muted-foreground mt-1">
+                A URL-friendly identifier for this problem. Used in problem URLs.
+              </p>
+            </div>
+            <div className="grid gap-2">
               <Label htmlFor="edit-problem-content">Content</Label>
               <Textarea
                 id="edit-problem-content"
                 name="content"
                 value={selectedProblem?.content || ""}
                 onChange={handleEditProblemChange}
+                className="min-h-[150px] max-h-[300px] overflow-y-auto"
               />
             </div>
             <div className="grid gap-2">

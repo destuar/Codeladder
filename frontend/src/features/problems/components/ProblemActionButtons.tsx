@@ -14,7 +14,7 @@ interface ProblemActionButtonsProps {
  */
 export function ProblemActionButtons({ nextProblem, isLocked, onProblemStart }: ProblemActionButtonsProps) {
   return (
-    <div className="grid grid-cols-2 gap-4">
+    <div className="grid grid-cols-1 gap-4">
       <Button
         variant="outline"
         size="lg"
@@ -36,18 +36,6 @@ export function ProblemActionButtons({ nextProblem, isLocked, onProblemStart }: 
           ) : (
             <div className="text-sm text-muted-foreground mt-1">All problems completed!</div>
           )}
-        </div>
-      </Button>
-      <Button
-        variant="outline"
-        size="lg"
-        className="h-32 flex flex-col items-center justify-center gap-2 border-2 hover:border-primary"
-        onClick={() => {/* TODO: Implement spaced repetition */}}
-      >
-        <RepeatIcon className="h-8 w-8" />
-        <div className="text-center">
-          <div className="font-semibold">Spaced Repetition</div>
-          <div className="text-sm text-muted-foreground mt-1">Review completed problems</div>
         </div>
       </Button>
     </div>

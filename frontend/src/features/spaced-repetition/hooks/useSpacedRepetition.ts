@@ -25,25 +25,27 @@ export interface UseSpacedRepetitionResult {
   isReviewPanelOpen: boolean;
   toggleReviewPanel: () => void;
   submitReview: (result: ReviewResult) => void;
-  startReview: (problemId: string, options?: { isEarly?: boolean; dueDate?: string }) => void;
+  startReview: (problem: { id?: string; slug?: string }, options?: { isEarly?: boolean; dueDate?: string }) => void;
   refreshReviews: () => Promise<void>;
-  removeProblem: (problemId: string) => Promise<void>;
-  addCompletedProblem: (problemId: string) => Promise<void>;
+  removeProblem: (identifier: string) => Promise<void>;
+  addCompletedProblem: (identifier: { problemId?: string; problemSlug?: string }) => Promise<void>;
   isAddingProblem: boolean;
   getAvailableProblems: () => Promise<Array<{
     id: string;
+    slug: string | null;
     name: string;
     difficulty: string;
     topic?: {
       id: string;
       name: string;
+      slug: string | null;
     };
   }>>;
   isLoadingAvailableProblems: boolean;
 }
 
 /**
- * Custom hook for managing spaced repetition functionality
+ * Custom hook for managing spaced repetition functionality with slug support
  */
 export function useSpacedRepetition(): UseSpacedRepetitionResult {
   const { token } = useAuth();
@@ -139,18 +141,32 @@ export function useSpacedRepetition(): UseSpacedRepetitionResult {
   }, []);
   
   // Start a review for a specific problem
-  const startReview = useCallback((problemId: string, options?: { isEarly?: boolean; dueDate?: string }) => {
-    let url = `/problems/${problemId}?mode=review&referrer=${encodeURIComponent(location.pathname + location.search)}`;
+  const startReview = useCallback((
+    problem: { id?: string; slug?: string }, 
+    options?: { isEarly?: boolean; dueDate?: string }
+  ) => {
+    if (!problem.id && !problem.slug) {
+      console.error('Cannot start review: no problem ID or slug provided');
+      return;
+    }
+    
+    // Prefer slug-based URL if available
+    const identifier = problem.slug || problem.id;
+    const url = `/problem/${identifier}/review?referrer=${encodeURIComponent(location.pathname + location.search)}`;
     
     // Keep tracking if this is an early review internally, but don't emphasize this in the UI
+    const searchParams = new URLSearchParams();
     if (options?.isEarly) {
-      url += `&early=true`;
+      searchParams.set('early', 'true');
       if (options.dueDate) {
-        url += `&dueDate=${options.dueDate}`;
+        searchParams.set('dueDate', options.dueDate);
       }
     }
     
-    navigate(url);
+    const queryString = searchParams.toString();
+    const finalUrl = queryString ? `${url}&${queryString}` : url;
+    
+    navigate(finalUrl);
   }, [navigate, location]);
   
   // Force refresh all spaced repetition data
@@ -164,11 +180,11 @@ export function useSpacedRepetition(): UseSpacedRepetitionResult {
   
   // Remove a problem from spaced repetition
   const { mutateAsync: removeProblemMutation, isPending: isRemovingProblem } = useMutation({
-    mutationFn: async (problemId: string) => {
+    mutationFn: async (identifier: string) => {
       if (!token) {
         throw new Error('Authentication required');
       }
-      await removeProblemFromSpacedRepetition(problemId, token);
+      await removeProblemFromSpacedRepetition(identifier, token);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['dueReviews'] });
@@ -178,11 +194,11 @@ export function useSpacedRepetition(): UseSpacedRepetitionResult {
   });
 
   const { mutateAsync: addCompletedProblemMutation, isPending: isAddingProblem } = useMutation({
-    mutationFn: async (problemId: string) => {
+    mutationFn: async (identifier: { problemId?: string; problemSlug?: string }) => {
       if (!token) {
         throw new Error('Authentication required');
       }
-      await addCompletedProblemToSpacedRepetition(problemId, token);
+      await addCompletedProblemToSpacedRepetition(identifier, token);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['dueReviews'] });
@@ -196,18 +212,20 @@ export function useSpacedRepetition(): UseSpacedRepetitionResult {
     }
   });
 
-  const removeProblem = async (problemId: string) => {
+  const removeProblem = async (identifier: string) => {
     try {
-      await removeProblemMutation(problemId);
+      await removeProblemMutation(identifier);
+      toast.success('Problem removed from spaced repetition');
     } catch (error) {
       console.error('Error removing problem from spaced repetition:', error);
+      toast.error('Failed to remove problem from spaced repetition');
       throw error;
     }
   };
 
-  const addCompletedProblem = async (problemId: string) => {
+  const addCompletedProblem = async (identifier: { problemId?: string; problemSlug?: string }) => {
     try {
-      await addCompletedProblemMutation(problemId);
+      await addCompletedProblemMutation(identifier);
     } catch (error) {
       console.error('Error adding problem to spaced repetition:', error);
       throw error;

@@ -39,6 +39,12 @@ export function Navigation() {
                   Dashboard
                 </Link>
                 <Link 
+                  to="/review" 
+                  className="text-sm font-medium text-muted-foreground hover:text-foreground"
+                >
+                  Review
+                </Link>
+                <Link 
                   to="/problems" 
                   className="text-sm font-medium text-muted-foreground hover:text-foreground"
                 >

@@ -1,5 +1,7 @@
 /**
  * Debug utilities for problem and review tracking
+ * These functions are now no-ops (they do nothing) to reduce console noise
+ * but are kept as placeholders to avoid breaking existing code
  */
 
 /**
@@ -8,25 +10,8 @@
  * @param context Additional context information
  */
 export function logProblemReviewState(problem: any, context: string = 'General') {
-  if (!problem) {
-    console.log(`[${context}] No problem provided`);
-    return;
-  }
-
-  console.log(`[${context}] Problem review state:`, {
-    id: problem.id,
-    name: problem.name,
-    isCompleted: problem.isCompleted || problem.completed,
-    // Review fields might be in different locations depending on the API
-    reviewFields: {
-      reviewLevel: problem.reviewLevel,
-      reviewScheduledAt: problem.reviewScheduledAt || problem.dueDate,
-      lastReviewedAt: problem.lastReviewedAt,
-      hasReviewHistory: problem.reviewHistory ? 
-        (Array.isArray(problem.reviewHistory) ? problem.reviewHistory.length > 0 : !!problem.reviewHistory) : 
-        false
-    }
-  });
+  // No-op implementation
+  return;
 }
 
 /**
@@ -35,5 +20,6 @@ export function logProblemReviewState(problem: any, context: string = 'General')
  * @param data Any relevant data for the step
  */
 export function logWorkflowStep(step: string, data: any = {}) {
-  console.log(`[Workflow: ${step}]`, data);
+  // No-op implementation
+  return;
 } 

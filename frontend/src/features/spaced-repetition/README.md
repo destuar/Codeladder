@@ -8,11 +8,9 @@ This directory contains the code for the spaced repetition feature in the CodeLa
   - `SpacedRepetitionPanel.tsx` - Main panel for managing spaced repetition reviews
   - `ReviewControls.tsx` - Controls for submitting review results
   - `MemoryStrengthIndicator.tsx` - Visual indicator for memory strength
-  - `DashboardReviewCard.tsx` - Card component for the dashboard
   - `ReviewCalendar.tsx` - Calendar view for scheduled reviews
 - `/hooks` - Custom React hooks for spaced repetition logic
   - `useSpacedRepetition.ts` - Main hook for spaced repetition functionality
-  - `useDashboardReviews.ts` - Hook for dashboard reviews integration
 - `/api` - API integration for spaced repetition
 - `index.ts` - Exports for the spaced repetition feature
 

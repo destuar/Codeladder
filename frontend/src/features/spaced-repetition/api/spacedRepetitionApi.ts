@@ -7,11 +7,13 @@ import axios from 'axios';
 
 export interface ReviewProblem {
   id: string;
+  slug: string | null;
   name: string;
   difficulty: string;
   topic: {
     id: string;
     name: string;
+    slug: string | null;
   };
   problemType: string;
   reviewLevel: number;
@@ -27,7 +29,8 @@ export interface ReviewProblem {
 }
 
 export interface ReviewResult {
-  problemId: string;
+  problemId?: string;
+  problemSlug?: string;
   wasSuccessful: boolean;
   reviewOption?: 'easy' | 'difficult' | 'forgot';
 }
@@ -145,13 +148,14 @@ export async function getReviewStats(token: string): Promise<ReviewStats> {
 
 /**
  * Remove a problem from the spaced repetition system
+ * Can be called with either ID or slug
  */
 export const removeProblemFromSpacedRepetition = async (
-  problemId: string,
+  identifier: string,
   token: string
 ): Promise<void> => {
   try {
-    await api.delete(`/spaced-repetition/remove-problem/${problemId}`, token);
+    await api.delete(`/spaced-repetition/remove-problem/${identifier}`, token);
   } catch (error) {
     console.error('Error removing problem from spaced repetition:', error);
     throw error;
@@ -162,11 +166,11 @@ export const removeProblemFromSpacedRepetition = async (
  * Add a completed problem to the spaced repetition system
  */
 export const addCompletedProblemToSpacedRepetition = async (
-  problemId: string,
+  identifier: { problemId?: string; problemSlug?: string },
   token: string
 ): Promise<void> => {
   try {
-    await api.post(`/spaced-repetition/add-to-repetition/${problemId}`, {}, token);
+    await api.post('/spaced-repetition/add-to-repetition', identifier, token);
   } catch (error) {
     console.error('Error adding problem to spaced repetition:', error);
     throw error;
@@ -180,11 +184,13 @@ export const getAvailableProblemsForSpacedRepetition = async (
   token: string
 ): Promise<Array<{
   id: string;
+  slug: string | null;
   name: string;
   difficulty: string;
   topic?: {
     id: string;
     name: string;
+    slug: string | null;
   };
 }>> => {
   try {

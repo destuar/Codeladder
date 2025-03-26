@@ -4,15 +4,15 @@ import { TestResult } from '../../../types/coding';
 
 interface TestCaseProps {
   result: TestResult;
-  index: number;
-  onSelect?: () => void;
-  isSelected?: boolean;
+  expanded: boolean;
+  onToggle: () => void;
+  index?: number;
 }
 
 /**
  * Component for displaying a single test case result
  */
-export function TestCase({ result, index, onSelect, isSelected = false }: TestCaseProps) {
+export function TestCase({ result, expanded, onToggle, index }: TestCaseProps) {
   const { passed, input, expected, output, runtime, memory, error } = result;
 
   // Helper function to format input values for display
@@ -34,12 +34,15 @@ export function TestCase({ result, index, onSelect, isSelected = false }: TestCa
     return `${(kb / 1024).toFixed(2)} MB`;
   };
 
+  // Use the index or a counter for display
+  const displayIndex = index !== undefined ? index + 1 : 1;
+
   return (
     <div
       className={`border rounded-lg overflow-hidden transition-colors ${
         passed ? 'border-green-500/50' : 'border-red-500/50'
-      } ${isSelected ? 'bg-muted/50' : 'bg-background'} cursor-pointer`}
-      onClick={onSelect}
+      } ${expanded ? 'bg-muted/50' : 'bg-background'} cursor-pointer`}
+      onClick={onToggle}
     >
       {/* Header section - always visible */}
       <div className="flex items-center p-3 gap-3">
@@ -53,7 +56,7 @@ export function TestCase({ result, index, onSelect, isSelected = false }: TestCa
         
         <div className="flex-1">
           <div className="font-medium text-sm">
-            Test Case {index + 1}
+            Test Case {displayIndex}
           </div>
           <div className="text-xs text-muted-foreground truncate max-w-md">
             {formatInputs(input)}
@@ -74,7 +77,7 @@ export function TestCase({ result, index, onSelect, isSelected = false }: TestCa
         </div>
         
         <div>
-          {isSelected ? (
+          {expanded ? (
             <ChevronDown className="h-4 w-4 text-muted-foreground" />
           ) : (
             <ChevronRight className="h-4 w-4 text-muted-foreground" />
@@ -82,8 +85,8 @@ export function TestCase({ result, index, onSelect, isSelected = false }: TestCa
         </div>
       </div>
       
-      {/* Details section - only visible when selected */}
-      {isSelected && (
+      {/* Details section - only visible when expanded */}
+      {expanded && (
         <div className="p-3 pt-0 border-t bg-muted/30">
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">

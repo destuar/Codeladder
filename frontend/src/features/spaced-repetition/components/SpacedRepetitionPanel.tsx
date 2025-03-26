@@ -7,7 +7,7 @@ import { format, formatDistanceToNow, isSameDay, isToday, addDays, isWithinInter
 import { MemoryStrengthIndicator } from './MemoryStrengthIndicator';
 import { ReviewCalendar } from './ReviewCalendar';
 import { ReviewProblem } from '../api/spacedRepetitionApi';
-import { CalendarIcon, Clock, Calendar, ClockIcon, RefreshCw, ChevronDown, ChevronUp, ArrowLeft, Dumbbell, Check, Brain, Shuffle, Trash2, Edit2, Save, X, Plus } from 'lucide-react';
+import { CalendarIcon, Clock, Calendar, ClockIcon, RefreshCw, ChevronDown, ChevronUp, ArrowLeft, Dumbbell, Check, Brain, Shuffle, Trash2, Edit2, Save, X, Plus, CalendarDays, HelpCircle, Lightbulb } from 'lucide-react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { MemoryProgressionJourney } from './MemoryProgressionJourney';
@@ -29,6 +29,7 @@ import {
   AlertDialogTrigger
 } from "@/components/ui/alert-dialog";
 import { AddProblemsModal } from './AddProblemsModal';
+import { cn } from '@/lib/utils';
 
 /**
  * A component to handle the memory journey button and state
@@ -59,6 +60,22 @@ function MemoryJourneyButton({ problem }: { problem: ReviewProblem }) {
     console.error('Error accessing localStorage:', e);
   }
   
+  // Get color based on strength level
+  const getStrengthColor = () => {
+    if (problem.reviewLevel <= 1) return 'text-blue-500 dark:text-blue-400';
+    if (problem.reviewLevel <= 3) return 'text-indigo-500 dark:text-indigo-400';
+    if (problem.reviewLevel <= 5) return 'text-violet-500 dark:text-violet-400';
+    return 'text-purple-500 dark:text-purple-400';
+  };
+  
+  // Get background color based on strength
+  const getStrengthBgColor = () => {
+    if (problem.reviewLevel <= 1) return 'bg-blue-50 border-blue-200 hover:bg-blue-100 dark:bg-blue-900/20 dark:border-blue-800 dark:hover:bg-blue-900/30';
+    if (problem.reviewLevel <= 3) return 'bg-indigo-50 border-indigo-200 hover:bg-indigo-100 dark:bg-indigo-900/20 dark:border-indigo-800 dark:hover:bg-indigo-900/30';
+    if (problem.reviewLevel <= 5) return 'bg-violet-50 border-violet-200 hover:bg-violet-100 dark:bg-violet-900/20 dark:border-violet-800 dark:hover:bg-violet-900/30';
+    return 'bg-purple-50 border-purple-200 hover:bg-purple-100 dark:bg-purple-900/20 dark:border-purple-800 dark:hover:bg-purple-900/30';
+  };
+  
   return (
     <>
       <div 
@@ -66,16 +83,16 @@ function MemoryJourneyButton({ problem }: { problem: ReviewProblem }) {
         onClick={() => setShowMemoryJourney(true)}
         title="View memory progression"
       >
-        <MemoryStrengthIndicator 
-          level={problem.reviewLevel} 
-          previousLevel={previousLevel}
-        />
+        <div className={`flex items-center justify-center w-6 h-6 rounded-full border transition-colors hover:shadow-sm ${getStrengthBgColor()}`}>
+          <Lightbulb className={`h-3 w-3 ${getStrengthColor()}`} />
+        </div>
       </div>
       
       {/* Memory progression journey modal */}
       {showMemoryJourney && (
         <MemoryProgressionJourney
           problemId={problem.id}
+          problemSlug={problem.slug}
           currentLevel={problem.reviewLevel}
           reviewHistory={problem.reviewHistory || []}
           onClose={() => setShowMemoryJourney(false)}
@@ -100,7 +117,11 @@ export function SpacedRepetitionPanel() {
     toggleReviewPanel,
     isReviewPanelOpen,
     refreshReviews,
-    removeProblem
+    removeProblem,
+    addCompletedProblem,
+    isAddingProblem,
+    getAvailableProblems,
+    isLoadingAvailableProblems
   } = useSpacedRepetition();
   
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -146,7 +167,6 @@ export function SpacedRepetitionPanel() {
     const refreshParam = searchParams.get('refresh');
     
     if (refreshParam) {
-      console.log('Detected refresh parameter, refreshing data...');
       handleRefresh();
       
       // Remove the refresh parameter from the URL to avoid repeated refreshes
@@ -165,26 +185,27 @@ export function SpacedRepetitionPanel() {
   };
   
   const handleDaySelect = (date: Date, problems: ReviewProblem[]) => {
-    // Update state
+    // If the date is already selected, unselect it
+    if (isCalendarDateSelected && isSameDay(date, selectedDate)) {
+      setIsCalendarDateSelected(false);
+      setSelectedDate(new Date()); // Reset to today
+      
+      // Show a brief flash notification when returning to the main dashboard
+      const dashboardElement = document.querySelector('[data-section="problems-card"]');
+      if (dashboardElement) {
+        dashboardElement.classList.add('bg-blue-50/30', 'dark:bg-blue-900/10');
+        setTimeout(() => {
+          dashboardElement.classList.remove('bg-blue-50/30', 'dark:bg-blue-900/10');
+        }, 800);
+      }
+      
+      return;
+    }
+    
+    // Otherwise, select the new date
     setSelectedDate(date);
     setSelectedDayProblems(problems);
     setIsCalendarDateSelected(true);
-    
-    // If there are due problems on this date, scroll to the problems section
-    if (problems.length > 0) {
-      // Add a small delay to ensure DOM is updated
-      setTimeout(() => {
-        const problemsCard = document.querySelector('[data-section="problems-card"]');
-        if (problemsCard) {
-          problemsCard.scrollIntoView({ behavior: 'smooth', block: 'start' });
-        }
-      }, 100);
-    }
-    
-    // Reset to today view if today is selected
-    if (isToday(date)) {
-      setIsCalendarDateSelected(false);
-    }
   };
   
   const toggleEditMode = () => {
@@ -228,32 +249,32 @@ export function SpacedRepetitionPanel() {
   };
   
   // Render a problem card
-  const renderProblemCard = (problem: ReviewProblem, isActiveDay: boolean) => {
+  const renderProblemCard = (problem: ReviewProblem, isActiveDay: boolean, index?: number) => {
     return (
     <div 
       key={problem.id} 
-      className={`flex items-center justify-between p-3 border border-slate-200 rounded-lg transition-colors ${
+      className={`flex items-center justify-between p-3 border-b border-border/10 ${
         isEditMode 
           ? selectedProblems.has(problem.id)
-            ? 'bg-blue-50 border-blue-200' 
-            : 'hover:bg-slate-50 cursor-pointer' 
-          : 'hover:bg-slate-50'
-      }`}
+            ? 'bg-primary/10' 
+            : 'hover:bg-blue-50/20 dark:hover:bg-blue-900/5 cursor-pointer' 
+          : 'hover:bg-blue-50/20 dark:hover:bg-blue-900/5'
+      } ${index !== undefined && index % 2 === 0 ? "bg-muted/10 dark:bg-muted/15" : ""}`}
       onClick={isEditMode ? () => toggleProblemSelection(problem.id) : undefined}
     >
       <div className="flex items-center gap-2">
         {isEditMode && (
           <div className={`w-5 h-5 flex-shrink-0 border rounded ${
             selectedProblems.has(problem.id) 
-              ? 'bg-blue-500 border-blue-500 text-white flex items-center justify-center' 
-              : 'border-slate-300'
+              ? 'bg-primary border-primary text-primary-foreground flex items-center justify-center' 
+              : 'border-muted-foreground/30'
           }`}>
             {selectedProblems.has(problem.id) && <Check className="h-3 w-3" />}
           </div>
         )}
         <div>
-          <div className="font-medium text-slate-900">{problem.name}</div>
-          <div className="text-sm text-slate-500 flex items-center gap-2 mt-1">
+          <div className="font-medium text-foreground">{problem.name}</div>
+          <div className="text-sm text-muted-foreground flex items-center gap-2 mt-1">
               {typeof problem.topic === 'string' ? (
                 <span>{problem.topic}</span>
               ) : problem.topic && typeof problem.topic === 'object' && 'name' in problem.topic ? (
@@ -276,32 +297,29 @@ export function SpacedRepetitionPanel() {
         <MemoryJourneyButton problem={problem} />
         
         {!isEditMode && (
-          <TooltipProvider delayDuration={300}>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button 
-                  size="sm" 
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    startReview(
-                      problem.id, 
-                      !isActiveDay ? { 
-                        isEarly: true, 
-                        dueDate: problem.dueDate || undefined 
-                      } : undefined
-                    );
-                  }}
-                  variant={isActiveDay ? "default" : "secondary"}
-                  className={!isActiveDay ? "bg-white text-blue-600 border border-slate-200 hover:bg-slate-50 hover:text-blue-600" : ""}
-                >
-                  Review
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent side="top" className="px-3 py-1.5 text-sm bg-white text-slate-800 font-medium border border-slate-200">
-                <p>{isActiveDay ? "Start review now" : "Review ahead of schedule"}</p>
-              </TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
+          <Button 
+            size="sm" 
+            onClick={(e) => {
+              e.stopPropagation();
+              startReview(
+                { 
+                  id: problem.id,
+                  slug: problem.slug || undefined
+                }, 
+                !isActiveDay ? { 
+                  isEarly: true, 
+                  dueDate: problem.dueDate || undefined 
+                } : undefined
+              );
+            }}
+            variant={isActiveDay ? "default" : "secondary"}
+            className={isActiveDay 
+              ? "transition-all hover:shadow-sm" 
+              : "dark:bg-muted dark:hover:bg-muted/80 transition-all hover:shadow-sm"
+            }
+          >
+            Review
+          </Button>
         )}
       </div>
     </div>
@@ -318,7 +336,10 @@ export function SpacedRepetitionPanel() {
     
     // Start review for the randomly selected problem
     startReview(
-      randomProblem.id,
+      {
+        id: randomProblem.id,
+        slug: randomProblem.slug || undefined
+      },
       !isActiveSection ? {
         isEarly: true,
         dueDate: randomProblem.dueDate || undefined
@@ -340,54 +361,52 @@ export function SpacedRepetitionPanel() {
       onOpenChange={setIsOpen}
       className="space-y-2"
     >
-      <CollapsibleTrigger asChild>
-        <Button 
-          variant="ghost" 
-          size="sm" 
-          className="w-full justify-between border border-slate-200 text-left h-10 mb-2 hover:bg-slate-50"
-        >
-          <div className="flex items-center gap-2 text-sm font-medium">
-            {icon}
-            <span>{title} ({problems.length})</span>
-          </div>
-          {isOpen ? (
-            <ChevronUp className="h-4 w-4" />
-          ) : (
-            <ChevronDown className="h-4 w-4" />
+      <div className="mb-4 overflow-hidden border border-border rounded-md">
+        <div className="flex w-full">
+          <CollapsibleTrigger asChild className="flex-1">
+            <Button 
+              variant="ghost" 
+              size="sm" 
+              className="w-full justify-between text-left h-10 p-0 hover:bg-muted/30 rounded-none group"
+            >
+              <div className="flex items-center gap-2 text-sm font-medium pl-3">
+                {icon}
+                <span className="text-foreground">{title}</span>
+                <Badge variant="outline" className={isActiveSection ? "ml-1 bg-background" : "ml-1"}>
+                  {problems.length}
+                </Badge>
+              </div>
+              <div className="flex-shrink-0 pr-3">
+                {isOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+              </div>
+            </Button>
+          </CollapsibleTrigger>
+          
+          {problems.length > 0 && (
+            <Button 
+              variant="ghost" 
+              size="sm" 
+              className="h-10 px-3 text-xs font-normal rounded-none hover:bg-muted/30 border-l border-border"
+              onClick={(e) => {
+                e.stopPropagation();
+                handleShufflePractice(problems, isActiveSection);
+              }}
+            >
+              <Shuffle className="h-3 w-3 mr-1.5" />
+              Shuffle
+            </Button>
           )}
-        </Button>
-      </CollapsibleTrigger>
-      <CollapsibleContent className="space-y-2">
+        </div>
+      </div>
+      
+      <CollapsibleContent className="space-y-2 border-t border-border mx-0.5 pt-2 px-0.5 pb-0.5">
         {problems.length > 0 ? (
-          <>
-            <div className="flex justify-end mb-2">
-              <TooltipProvider delayDuration={300}>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="text-xs border-slate-200 hover:bg-slate-50 hover:text-blue-600"
-                      onClick={() => handleShufflePractice(problems, isActiveSection)}
-                      disabled={problems.length === 0}
-                    >
-                      <Shuffle className="h-3 w-3 mr-1" />
-                      Shuffle Practice
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent side="top" className="px-3 py-1.5 text-sm bg-white text-slate-800 font-medium border border-slate-200">
-                    <p>Randomly select a problem to review from this section</p>
-                  </TooltipContent>
-                </Tooltip>
-              </TooltipProvider>
-            </div>
-            <div className="grid gap-2 max-h-[300px] overflow-y-auto pr-1">
-              {problems.map(problem => renderProblemCard(problem, isActiveSection))}
-            </div>
-          </>
+          <div className="max-h-96 overflow-y-auto pr-1 space-y-2">
+            {problems.map((problem, index) => renderProblemCard(problem, isActiveSection, index))}
+          </div>
         ) : (
-          <div className="text-sm text-slate-500 italic py-2">
-            No problems due {title.toLowerCase()}.
+          <div className="text-center py-3 text-muted-foreground/60">
+            <p className="text-xs">No problems in this section.</p>
           </div>
         )}
       </CollapsibleContent>
@@ -396,7 +415,7 @@ export function SpacedRepetitionPanel() {
   
   // Render problems section
   const renderProblemsSection = () => {
-    // If a specific calendar date is selected
+    // Handle when a specific date is selected from the calendar
     if (isCalendarDateSelected && !isToday(selectedDate)) {
       return (
         <div className="space-y-4">
@@ -406,9 +425,9 @@ export function SpacedRepetitionPanel() {
               <span>Due on {format(selectedDate, 'MMMM d, yyyy')}</span>
             </div>
             <div className="flex items-center gap-2">
-            <Badge variant="outline" className="bg-muted/50">
-              {formatDistanceToNow(selectedDate, { addSuffix: true })}
-            </Badge>
+              <Badge variant="outline" className="bg-muted/50">
+                {formatDistanceToNow(selectedDate, { addSuffix: true })}
+              </Badge>
               <TooltipProvider delayDuration={300}>
                 <Tooltip>
                   <TooltipTrigger asChild>
@@ -416,13 +435,14 @@ export function SpacedRepetitionPanel() {
                       variant="ghost" 
                       size="sm"
                       onClick={() => setIsCalendarDateSelected(false)}
+                      className="text-blue-600 dark:text-blue-400 hover:bg-blue-50/50 dark:hover:bg-blue-900/20 hover:text-blue-700 dark:hover:text-blue-300"
                     >
                       <ArrowLeft className="h-4 w-4 mr-1" />
                       Back to All
                     </Button>
                   </TooltipTrigger>
-                  <TooltipContent side="top" className="px-3 py-1.5 text-sm bg-white text-slate-800 font-medium border border-slate-200">
-                    <p>Return to all scheduled reviews</p>
+                  <TooltipContent side="top" className="px-3 py-1.5 text-sm font-medium bg-popover text-popover-foreground">
+                    <p className="whitespace-nowrap">Return to all scheduled reviews</p>
                   </TooltipContent>
                 </Tooltip>
               </TooltipProvider>
@@ -431,10 +451,10 @@ export function SpacedRepetitionPanel() {
           
           {selectedDayProblems.length > 0 ? (
             <div className="grid gap-2 max-h-[500px] overflow-y-auto pr-1">
-              {selectedDayProblems.map(problem => renderProblemCard(problem, false))}
+              {selectedDayProblems.map((problem, index) => renderProblemCard(problem, false, index))}
             </div>
           ) : (
-            <div className="text-center text-slate-500 p-6">
+            <div className="text-center py-6 text-muted-foreground">
               <p>No problems due for review on this day.</p>
               <p className="text-sm mt-2">Try selecting a different day.</p>
             </div>
@@ -447,7 +467,7 @@ export function SpacedRepetitionPanel() {
     if (isLoading) {
       return (
         <div className="flex justify-center p-6">
-          <div className="animate-spin rounded-full h-8 w-8 border-2 border-blue-500 border-t-transparent" />
+          <div className="animate-spin rounded-full h-8 w-8 border-2 border-primary border-t-transparent" />
         </div>
       );
     }
@@ -455,12 +475,12 @@ export function SpacedRepetitionPanel() {
     if (!allScheduledReviews) {
       return (
         <div className="space-y-4">
-          <div className="text-center text-slate-500 p-6">
+          <div className="text-center text-muted-foreground p-6">
             <p>Loading review problems...</p>
             <Button 
               variant="outline" 
               size="sm" 
-              className="mt-4 border-slate-200 hover:bg-slate-50 hover:text-blue-600"
+              className="mt-4"
               onClick={handleRefresh}
               disabled={isRefreshing}
             >
@@ -477,60 +497,19 @@ export function SpacedRepetitionPanel() {
     
     if (totalProblems === 0) {
       return (
-        <div className="text-center text-slate-500 p-6">
+        <div className="text-center py-6 text-muted-foreground">
           <p>No problems due for review at the moment.</p>
           <p className="text-sm mt-2">Great job! Your queue is clear.</p>
         </div>
       );
     }
     
-    // Add stats summary section
-    const statsSection = (
-      <div className="bg-white rounded-lg p-5 mb-6 grid grid-cols-3 gap-4 text-center border border-slate-200 shadow-sm">
-        <div className="flex flex-col items-center p-2 rounded-md transition-all hover:bg-slate-50 group">
-          <span className="text-sm text-slate-500 mb-1.5">Due Today</span>
-          <div className="flex items-center justify-center">
-            <span className="text-2xl font-bold text-slate-900">
-              {dueToday.length}
-            </span>
-            {dueToday.length > 0 && 
-              <div className="ml-2 w-2 h-2 rounded-full bg-blue-500 animate-pulse"></div>
-            }
-          </div>
-        </div>
-        <div className="flex flex-col items-center p-2 rounded-md transition-all hover:bg-slate-50 group">
-          <span className="text-sm text-slate-500 mb-1.5">Total Problems</span>
-          <div className="flex items-center justify-center">
-            <span className="text-2xl font-bold text-slate-900">
-              {totalProblems}
-            </span>
-          </div>
-        </div>
-        <div className="flex flex-col items-center p-2 rounded-md transition-all hover:bg-slate-50 group">
-          <span className="text-sm text-slate-500 mb-1.5">Next Review</span>
-          <div className="flex items-center justify-center">
-            <span className="text-lg font-medium text-slate-900">
-              {dueToday.length > 0 
-                ? 'Today' 
-                : dueThisWeek.length > 0 
-                  ? 'This Week' 
-                  : dueThisMonth.length > 0 
-                    ? 'This Month' 
-                    : 'Later'}
-            </span>
-          </div>
-        </div>
-      </div>
-    );
-    
     return (
       <div className="space-y-6">
-        {statsSection}
-        
         {/* Due Today */}
         {renderCollapsibleSection(
           'Due Today', 
-          <Calendar className="h-4 w-4 text-slate-600" />, 
+          <Calendar className="h-4 w-4 text-muted-foreground" />, 
           dueToday, 
           true,
           isTodayOpen,
@@ -540,7 +519,7 @@ export function SpacedRepetitionPanel() {
         {/* Due This Week */}
         {renderCollapsibleSection(
           'Due This Week', 
-          <Calendar className="h-4 w-4 text-slate-600" />, 
+          <Calendar className="h-4 w-4 text-muted-foreground" />, 
           dueThisWeek, 
           false,
           isThisWeekOpen,
@@ -550,7 +529,7 @@ export function SpacedRepetitionPanel() {
         {/* Due This Month */}
         {renderCollapsibleSection(
           'Due This Month', 
-          <Calendar className="h-4 w-4 text-slate-600" />, 
+          <Calendar className="h-4 w-4 text-muted-foreground" />, 
           dueThisMonth, 
           false,
           isThisMonthOpen,
@@ -560,7 +539,7 @@ export function SpacedRepetitionPanel() {
         {/* Due Later */}
         {renderCollapsibleSection(
           'Due Later', 
-          <Calendar className="h-4 w-4 text-slate-600" />, 
+          <Calendar className="h-4 w-4 text-muted-foreground" />, 
           dueLater, 
           false,
           isLaterOpen,
@@ -571,84 +550,25 @@ export function SpacedRepetitionPanel() {
   };
   
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-7 gap-4">
-      {/* Calendar Card */}
-      <Card className="lg:col-span-2 border border-slate-200 shadow-sm overflow-hidden">
-        <CardHeader className="pb-2 bg-white">
-          <div className="flex justify-between items-center mb-3">
-            <TooltipProvider delayDuration={300}>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button 
-                    variant="outline" 
-                    size="sm" 
-                    className="flex items-center gap-2 w-full justify-center bg-gradient-to-r from-blue-50/60 to-blue-50/90 hover:from-blue-50/80 hover:to-blue-100 border-blue-100 text-blue-600 shadow-sm transition-all duration-300 hover:shadow font-medium rounded-md py-2.5"
-                    onClick={() => setShowMemoryInfo(true)}
-                  >
-                    <Brain className="h-4 w-4 text-blue-500" />
-                    <span>About Your Memory</span>
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent side="bottom" className="px-3 py-1.5 text-sm bg-white text-slate-800 font-medium border border-slate-200">
-                  <p>Learn how spaced repetition helps your memory</p>
-                </TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
-          </div>
-          <CardTitle className="text-xl text-slate-900 flex items-center gap-2">
-            Your Review Stats
-          </CardTitle>
-          <CardDescription className="text-slate-500">
-            Track your completed problems using spaced repetition— keep climbing the CodeLadder!
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="p-4">
-          <div className="space-y-5">
-            {stats && (
-              <div className="grid grid-cols-3 gap-3 text-center">
-                <div className="p-3 rounded-lg bg-white border border-slate-200 shadow-sm transition-all duration-200 hover:shadow hover:border-indigo-200 transform hover:-translate-y-0.5 cursor-pointer">
-                  <div className="text-2xl font-bold text-slate-900">{stats.completedToday || 0}</div>
-                  <div className="text-xs font-medium text-slate-500 mt-1">Today</div>
-                </div>
-                <div className="p-3 rounded-lg bg-white border border-slate-200 shadow-sm transition-all duration-200 hover:shadow hover:border-indigo-200 transform hover:-translate-y-0.5 cursor-pointer">
-                  <div className="text-2xl font-bold text-slate-900">{stats.completedThisWeek || 0}</div>
-                  <div className="text-xs font-medium text-slate-500 mt-1">This Week</div>
-                </div>
-                <div className="p-3 rounded-lg bg-white border border-slate-200 shadow-sm transition-all duration-200 hover:shadow hover:border-indigo-200 transform hover:-translate-y-0.5 cursor-pointer">
-                  <div className="text-2xl font-bold text-slate-900">{stats.totalReviewed || 0}</div>
-                  <div className="text-xs font-medium text-slate-500 mt-1">All Time</div>
-                </div>
-              </div>
-            )}
-            
-            <div className="border-slate-200 rounded-lg">
-              <ReviewCalendar 
-                stats={stats} 
-                problems={allScheduledReviews ? allScheduledReviews.all : dueReviews} 
-                onDaySelect={handleDaySelect} 
-              />
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-      
-      {/* Problems Card */}
-      <Card className="lg:col-span-5" data-section="problems-card">
-        <CardHeader className="pb-2">
+    <div className="grid grid-cols-1 lg:grid-cols-7 gap-8 mt-2 mb-8 items-start">
+      {/* Problems Card - now on the left, without card border */}
+      <div className="lg:col-span-5 relative" data-section="problems-card">
+        <div className="mb-6">
           <div className="flex items-center justify-between">
             <div>
-              <CardTitle className="text-xl">
+              <h2 className="text-2xl flex items-center gap-2 font-semibold text-foreground">
+                <div className="h-6 w-1.5 rounded-full bg-blue-500 dark:bg-blue-400"></div>
                 {isCalendarDateSelected && !isToday(selectedDate)
                   ? `Reviews for ${format(selectedDate, 'MMMM d, yyyy')}`
-                  : "All Practice Problems"
+                  : "Review Dashboard"
                 }
-              </CardTitle>
-              <CardDescription>
+              </h2>
+              <p className="text-sm text-muted-foreground mt-1 ml-3">
                 {isCalendarDateSelected && !isToday(selectedDate)
                   ? "Reviews scheduled for the selected date"
-                  : "Select questions from the schedule below to review them in spaced intervals."
+                  : "Select questions from your schedule for review"
                 }
-              </CardDescription>
+              </p>
             </div>
             <div className="flex items-center gap-2">
               {isEditMode ? (
@@ -671,8 +591,8 @@ export function SpacedRepetitionPanel() {
                           {selectedProblems.size > 0 ? selectedProblems.size : ''}
                         </Button>
                       </TooltipTrigger>
-                      <TooltipContent side="bottom" className="px-3 py-1.5 text-sm bg-white text-slate-800 font-medium border border-slate-200">
-                        <p>Remove selected problems</p>
+                      <TooltipContent side="bottom" className="px-3 py-1.5 text-sm font-medium bg-popover text-popover-foreground">
+                        <p className="whitespace-nowrap">Remove selected problems from your review schedule</p>
                       </TooltipContent>
                     </Tooltip>
                   </TooltipProvider>
@@ -684,12 +604,13 @@ export function SpacedRepetitionPanel() {
                           variant="outline" 
                           size="icon"
                           onClick={toggleEditMode}
+                          className="hover:text-blue-500 hover:border-blue-200 dark:hover:text-blue-400 dark:hover:border-blue-800"
                         >
                           <X className="h-4 w-4" />
                         </Button>
                       </TooltipTrigger>
-                      <TooltipContent side="bottom" className="px-3 py-1.5 text-sm bg-white text-slate-800 font-medium border border-slate-200">
-                        <p>Cancel edit mode</p>
+                      <TooltipContent side="bottom" className="px-3 py-1.5 text-sm font-medium bg-popover text-popover-foreground">
+                        <p className="whitespace-nowrap">Cancel selection and exit edit mode</p>
                       </TooltipContent>
                     </Tooltip>
                   </TooltipProvider>
@@ -703,12 +624,13 @@ export function SpacedRepetitionPanel() {
                           variant="outline" 
                           size="icon"
                           onClick={() => setIsAddProblemsModalOpen(true)}
+                          className="hover:text-blue-500 hover:border-blue-200 dark:hover:text-blue-400 dark:hover:border-blue-800"
                         >
                           <Plus className="h-4 w-4" />
                         </Button>
                       </TooltipTrigger>
-                      <TooltipContent side="bottom" className="px-3 py-1.5 text-sm bg-white text-slate-800 font-medium border border-slate-200">
-                        <p>Add problems to spaced repetition</p>
+                      <TooltipContent side="bottom" className="px-3 py-1.5 text-sm font-medium bg-popover text-popover-foreground">
+                        <p className="whitespace-nowrap">Add new problems to your spaced repetition schedule</p>
                       </TooltipContent>
                     </Tooltip>
                   </TooltipProvider>
@@ -720,12 +642,13 @@ export function SpacedRepetitionPanel() {
                           variant="outline" 
                           size="icon"
                           onClick={toggleEditMode}
+                          className="hover:text-blue-500 hover:border-blue-200 dark:hover:text-blue-400 dark:hover:border-blue-800"
                         >
                           <Edit2 className="h-4 w-4" />
                         </Button>
                       </TooltipTrigger>
-                      <TooltipContent side="bottom" className="px-3 py-1.5 text-sm bg-white text-slate-800 font-medium border border-slate-200">
-                        <p>Edit dashboard</p>
+                      <TooltipContent side="bottom" className="px-3 py-1.5 text-sm font-medium bg-popover text-popover-foreground">
+                        <p className="whitespace-nowrap">Edit your review dashboard</p>
                       </TooltipContent>
                     </Tooltip>
                   </TooltipProvider>
@@ -738,12 +661,13 @@ export function SpacedRepetitionPanel() {
                           size="icon"
                           onClick={handleRefresh} 
                           disabled={isRefreshing}
+                          className="hover:text-blue-500 hover:border-blue-200 dark:hover:text-blue-400 dark:hover:border-blue-800"
                         >
                           <RefreshCw className={`h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`} />
                         </Button>
                       </TooltipTrigger>
-                      <TooltipContent side="bottom" className="px-3 py-1.5 text-sm bg-white text-slate-800 font-medium border border-slate-200">
-                        <p>Refresh data</p>
+                      <TooltipContent side="bottom" className="px-3 py-1.5 text-sm font-medium bg-popover text-popover-foreground">
+                        <p className="whitespace-nowrap">Refresh your review schedule</p>
                       </TooltipContent>
                     </Tooltip>
                   </TooltipProvider>
@@ -751,25 +675,107 @@ export function SpacedRepetitionPanel() {
               )}
             </div>
           </div>
-        </CardHeader>
-        <CardContent>
-          {isEditMode && (
-            <div className="mb-4 text-sm text-muted-foreground bg-muted/20 p-3 rounded-md border border-muted">
-              <p>The problems will remain marked as completed, but won't appear in your review schedule.</p>
+        </div>
+        <div>
+          {isCalendarDateSelected ? (
+            <div>
+              {selectedDayProblems.length > 0 ? (
+                <div className="space-y-3">
+                  {selectedDayProblems.map((problem, index) => renderProblemCard(problem, false, index))}
+                </div>
+              ) : (
+                <div className="text-center py-6 text-muted-foreground">
+                  No reviews scheduled for this day
+                </div>
+              )}
             </div>
+          ) : (
+            <>
+              {isEditMode && (
+                <div className="mb-4 text-sm text-muted-foreground bg-muted/20 p-3 rounded-md border border-muted">
+                  <p>The problems will remain marked as completed, but won't appear in your review schedule.</p>
+                </div>
+              )}
+              <div className="overflow-y-auto">
+                {renderProblemsSection()}
+              </div>
+            </>
           )}
-          {renderProblemsSection()}
+        </div>
+      </div>
+
+      {/* Calendar Card - now on the right */}
+      <Card className="lg:col-span-2 border border-border shadow-sm overflow-hidden h-fit sticky top-4">
+        <CardHeader className="pb-2 bg-card">
+          <div className="flex justify-between items-center mb-3">
+            <TooltipProvider delayDuration={300}>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    className="flex items-center gap-2 w-full justify-center border-blue-200 bg-blue-50/50 hover:bg-blue-100/60 text-blue-600 dark:border-blue-800 dark:bg-blue-900/20 dark:hover:bg-blue-900/30 dark:text-blue-400 shadow-sm rounded-md py-2.5"
+                    onClick={() => setShowMemoryInfo(true)}
+                  >
+                    <span className="flex items-center text-xs font-semibold">
+                      <Brain className="h-4 w-4 text-blue-500 dark:text-blue-400 mr-1.5" />
+                      About Your Memory
+                    </span>
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side="bottom" className="px-3 py-1.5 text-sm font-medium bg-popover text-popover-foreground">
+                  <p className="whitespace-nowrap">Learn how spaced repetition helps your memory</p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          </div>
+          <CardTitle className="text-xl text-foreground flex items-center gap-2">
+            Your Review Stats
+          </CardTitle>
+          <CardDescription>
+            Track your completed problems using spaced repetition— keep climbing the CodeLadder!
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="p-4">
+          <div className="space-y-5">
+            {stats && (
+              <div className="grid grid-cols-3 gap-3 text-center">
+                <div className="p-2 rounded-lg bg-card border border-border shadow-sm transition-all duration-200 hover:shadow hover:border-blue-500/50 transform hover:-translate-y-0.5 cursor-pointer">
+                  <div className="text-xl font-bold text-foreground">{stats.completedToday || 0}</div>
+                  <div className="text-xs font-medium text-muted-foreground">Today</div>
+                </div>
+                <div className="p-2 rounded-lg bg-card border border-border shadow-sm transition-all duration-200 hover:shadow hover:border-blue-500/50 transform hover:-translate-y-0.5 cursor-pointer">
+                  <div className="text-xl font-bold text-foreground">{stats.completedThisWeek || 0}</div>
+                  <div className="text-xs font-medium text-muted-foreground">This Week</div>
+                </div>
+                <div className="p-2 rounded-lg bg-card border border-border shadow-sm transition-all duration-200 hover:shadow hover:border-blue-500/50 transform hover:-translate-y-0.5 cursor-pointer">
+                  <div className="text-xl font-bold text-foreground">{stats.totalReviewed || 0}</div>
+                  <div className="text-xs font-medium text-muted-foreground">All Time</div>
+                </div>
+              </div>
+            )}
+             
+            <div className="border-border rounded-lg">
+              <ReviewCalendar 
+                stats={stats} 
+                problems={allScheduledReviews ? allScheduledReviews.all : dueReviews} 
+                onDaySelect={handleDaySelect}
+                selectedDate={isCalendarDateSelected ? selectedDate : null}
+                isCalendarDateSelected={isCalendarDateSelected}
+              />
+            </div>
+          </div>
         </CardContent>
       </Card>
       
-      {/* Memory strengthening info modal */}
+      {/* Memory strengthening info modal - only render when visible */}
       {showMemoryInfo && (
-        <div className="fixed inset-0 flex items-center justify-center z-50 bg-black/50 backdrop-blur-sm p-4">
+        <div className="fixed inset-0 flex items-center justify-center z-50 bg-background/80 backdrop-blur-sm p-4">
           <Card className="w-full max-w-2xl max-h-[80vh] overflow-y-auto">
             <CardHeader>
               <div className="flex justify-between items-center">
                 <div className="flex items-center gap-2">
-                  <Brain className="h-5 w-5 text-blue-500" />
+                  <Brain className="h-5 w-5 text-blue-500 dark:text-blue-400" />
                   <CardTitle>About Your Memory</CardTitle>
                 </div>
                 <Button variant="ghost" size="sm" onClick={() => setShowMemoryInfo(false)}>
@@ -777,7 +783,7 @@ export function SpacedRepetitionPanel() {
                 </Button>
               </div>
               <CardDescription>
-                How spaced repetition helps you retain knowledge more effectively
+                How spaced repetition levels help you retain knowledge more effectively
               </CardDescription>
             </CardHeader>
             
@@ -791,9 +797,9 @@ export function SpacedRepetitionPanel() {
                 </p>
                 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-6">
-                  <div className="border rounded-lg p-4 space-y-2">
-                    <h4 className="font-medium flex items-center gap-2 text-blue-600">
-                      <div className="w-6 h-6 rounded-full bg-blue-100 flex items-center justify-center text-blue-600">1</div>
+                  <div className="border border-border rounded-lg p-4 space-y-2">
+                    <h4 className="font-medium flex items-center gap-2 text-blue-600 dark:text-blue-400">
+                      <div className="w-6 h-6 rounded-full bg-blue-500/10 flex items-center justify-center text-blue-500 dark:text-blue-400">1</div>
                       The Forgetting Curve
                     </h4>
                     <p className="text-sm">
@@ -801,7 +807,7 @@ export function SpacedRepetitionPanel() {
                       forget up to 70% of what you learned.
                     </p>
                     <div className="relative h-32 mt-3">
-                      <div className="absolute inset-0 bg-gradient-to-b from-blue-50 to-blue-100 rounded-lg overflow-hidden">
+                      <div className="absolute inset-0 bg-blue-500/5 rounded-lg overflow-hidden dark:bg-blue-900/10">
                         <div className="w-full h-full relative">
                           <div className="absolute top-0 left-0 w-full h-full">
                             <svg viewBox="0 0 100 100" preserveAspectRatio="none" className="w-full h-full">
@@ -813,16 +819,16 @@ export function SpacedRepetitionPanel() {
                               />
                             </svg>
                           </div>
-                          <div className="absolute bottom-2 left-2 text-xs text-blue-600">Time</div>
-                          <div className="absolute top-2 left-2 text-xs text-blue-600">Memory</div>
+                          <div className="absolute bottom-2 left-2 text-xs text-blue-500 dark:text-blue-400">Time</div>
+                          <div className="absolute top-2 left-2 text-xs text-blue-500 dark:text-blue-400">Memory</div>
                         </div>
                       </div>
                     </div>
                   </div>
                   
-                  <div className="border rounded-lg p-4 space-y-2">
-                    <h4 className="font-medium flex items-center gap-2 text-indigo-600">
-                      <div className="w-6 h-6 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-600">2</div>
+                  <div className="border border-border rounded-lg p-4 space-y-2">
+                    <h4 className="font-medium flex items-center gap-2 text-blue-600 dark:text-blue-400">
+                      <div className="w-6 h-6 rounded-full bg-blue-500/10 flex items-center justify-center text-blue-500 dark:text-blue-400">2</div>
                       Spaced Repetition
                     </h4>
                     <p className="text-sm">
@@ -830,25 +836,25 @@ export function SpacedRepetitionPanel() {
                       each time, making it last longer.
                     </p>
                     <div className="relative h-32 mt-3">
-                      <div className="absolute inset-0 bg-gradient-to-b from-indigo-50 to-indigo-100 rounded-lg overflow-hidden">
+                      <div className="absolute inset-0 bg-blue-500/5 rounded-lg overflow-hidden dark:bg-blue-900/10">
                         <div className="w-full h-full relative">
                           <div className="absolute top-0 left-0 w-full h-full">
                             <svg viewBox="0 0 100 100" preserveAspectRatio="none" className="w-full h-full">
                               <path 
                                 d="M0,80 L10,40 L20,70 L30,20 L40,50 L50,10 L60,30 L70,5 L80,20 L90,3 L100,15" 
-                                stroke="rgba(99, 102, 241, 0.5)" 
+                                stroke="rgba(59, 130, 246, 0.5)" 
                                 strokeWidth="3" 
                                 fill="none" 
                               />
-                              <circle cx="10" cy="40" r="2" fill="rgba(99, 102, 241, 0.7)" />
-                              <circle cx="20" cy="70" r="2" fill="rgba(99, 102, 241, 0.7)" />
-                              <circle cx="30" cy="20" r="2" fill="rgba(99, 102, 241, 0.7)" />
-                              <circle cx="40" cy="50" r="2" fill="rgba(99, 102, 241, 0.7)" />
-                              <circle cx="50" cy="10" r="2" fill="rgba(99, 102, 241, 0.7)" />
+                              <circle cx="10" cy="40" r="2" fill="rgba(59, 130, 246, 0.7)" />
+                              <circle cx="20" cy="70" r="2" fill="rgba(59, 130, 246, 0.7)" />
+                              <circle cx="30" cy="20" r="2" fill="rgba(59, 130, 246, 0.7)" />
+                              <circle cx="40" cy="50" r="2" fill="rgba(59, 130, 246, 0.7)" />
+                              <circle cx="50" cy="10" r="2" fill="rgba(59, 130, 246, 0.7)" />
                             </svg>
                           </div>
-                          <div className="absolute bottom-2 left-2 text-xs text-indigo-600">Time</div>
-                          <div className="absolute top-2 left-2 text-xs text-indigo-600">Memory</div>
+                          <div className="absolute bottom-2 left-2 text-xs text-blue-500 dark:text-blue-400">Time</div>
+                          <div className="absolute top-2 left-2 text-xs text-blue-500 dark:text-blue-400">Memory</div>
                         </div>
                       </div>
                     </div>
@@ -862,8 +868,12 @@ export function SpacedRepetitionPanel() {
                 
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-4">
                   {[1, 2, 3, 4].map(level => (
-                    <div key={level} className="border rounded-md p-3 text-center">
-                      <div className={`text-xl font-bold ${level <= 1 ? 'text-blue-500' : level <= 3 ? 'text-indigo-500' : 'text-violet-500'}`}>
+                    <div key={level} className="border border-border rounded-md p-3 text-center">
+                      <div className={`text-xl font-bold ${
+                        level <= 1 ? 'text-blue-500 dark:text-blue-400' : 
+                        level <= 3 ? 'text-indigo-500 dark:text-indigo-400' : 
+                        'text-violet-500 dark:text-violet-400'
+                      }`}>
                         Level {level}
                       </div>
                       <div className="text-sm mt-1">
@@ -883,8 +893,11 @@ export function SpacedRepetitionPanel() {
                 </div>
                 <div className="grid grid-cols-2 md:grid-cols-3 gap-3 mt-3">
                   {[5, 6, 7].map(level => (
-                    <div key={level} className="border rounded-md p-3 text-center">
-                      <div className={`text-xl font-bold ${level <= 5 ? 'text-violet-500' : 'text-purple-500'}`}>
+                    <div key={level} className="border border-border rounded-md p-3 text-center">
+                      <div className={`text-xl font-bold ${
+                        level <= 5 ? 'text-violet-500 dark:text-violet-400' : 
+                        'text-purple-500 dark:text-purple-400'
+                      }`}>
                         Level {level}
                       </div>
                       <div className="text-sm mt-1">
@@ -901,23 +914,23 @@ export function SpacedRepetitionPanel() {
                   ))}
                 </div>
                 
-                <div className="bg-blue-50 dark:bg-blue-950 border border-blue-100 dark:border-blue-900 rounded-lg p-4 mt-6">
-                  <h4 className="font-medium mb-2">Tips for Effective Learning</h4>
+                <div className="bg-blue-500/5 border border-blue-500/10 rounded-lg p-4 mt-6 dark:bg-blue-900/10 dark:border-blue-900/20">
+                  <h4 className="font-medium mb-2 text-blue-600 dark:text-blue-400">Tips for Effective Learning</h4>
                   <ul className="space-y-2 text-sm">
                     <li className="flex items-start gap-2">
-                      <Check className="h-4 w-4 text-green-500 mt-0.5" />
+                      <Check className="h-4 w-4 text-green-500 dark:text-green-400 mt-0.5" />
                       <span>Stay consistent with your reviews - do them when they're due.</span>
                     </li>
                     <li className="flex items-start gap-2">
-                      <Check className="h-4 w-4 text-green-500 mt-0.5" />
+                      <Check className="h-4 w-4 text-green-500 dark:text-green-400 mt-0.5" />
                       <span>Be honest about how well you remember - this optimizes your learning schedule.</span>
                     </li>
                     <li className="flex items-start gap-2">
-                      <Check className="h-4 w-4 text-green-500 mt-0.5" />
+                      <Check className="h-4 w-4 text-green-500 dark:text-green-400 mt-0.5" />
                       <span>Explain concepts in your own words as you review them to strengthen recall.</span>
                     </li>
                     <li className="flex items-start gap-2">
-                      <Check className="h-4 w-4 text-green-500 mt-0.5" />
+                      <Check className="h-4 w-4 text-green-500 dark:text-green-400 mt-0.5" />
                       <span>Connect new information to things you already know to build stronger neural pathways.</span>
                     </li>
                   </ul>

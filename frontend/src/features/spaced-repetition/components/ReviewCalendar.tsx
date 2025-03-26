@@ -27,15 +27,19 @@ interface ReviewCalendarProps {
   stats?: ReviewStats;
   problems: ReviewProblem[];
   onDaySelect: (date: Date, problems: ReviewProblem[]) => void;
+  selectedDate?: Date | null;
+  isCalendarDateSelected?: boolean;
 }
 
 export function ReviewCalendar({ 
   stats, 
   problems, 
-  onDaySelect
+  onDaySelect,
+  selectedDate,
+  isCalendarDateSelected
 }: ReviewCalendarProps) {
   const [currentMonth, setCurrentMonth] = useState(new Date());
-  const [selectedDay, setSelectedDay] = useState(new Date());
+  const [selectedDay, setSelectedDay] = useState<Date | null>(selectedDate || null);
   const [animationDirection, setAnimationDirection] = useState<'left' | 'right' | null>(null);
   
   // Function to navigate months
@@ -56,7 +60,9 @@ export function ReviewCalendar({
   };
   
   // Get problems due on a specific date
-  const getDueProblems = (date: Date) => {
+  const getDueProblems = (date: Date | null): ReviewProblem[] => {
+    if (!date) return [];
+    
     return problems.filter(problem => {
       if (!problem.dueDate) return false;
       const dueDate = new Date(problem.dueDate);
@@ -83,8 +89,18 @@ export function ReviewCalendar({
   
   // Handle selecting a day
   const handleDaySelect = (date: Date) => {
-    setSelectedDay(date);
-    onDaySelect(date, getDueProblems(date));
+    // If the day is already selected, unselect it
+    if (selectedDay && isSameDay(selectedDay, date)) {
+      setSelectedDay(null);
+      onDaySelect(date, []);
+    } else {
+      setSelectedDay(date);
+      onDaySelect(date, getDueProblems(date));
+    }
+  };
+  
+  const isSelected = (date: Date) => {
+    return selectedDay ? isSameDay(date, selectedDay) : false;
   };
   
   // Generate calendar days for the current month view
@@ -116,120 +132,100 @@ export function ReviewCalendar({
   };
   
   const calendarDays = generateCalendarDays();
-  const selectedDayProblems = getDueProblems(selectedDay);
+  const selectedDayProblems = getDueProblems(selectedDay || new Date());
   
   return (
-    <div className="space-y-2 p-0.5">
-      <div className="flex items-center justify-between py-2 px-1">
-        <h3 className="text-base font-medium text-slate-900 flex items-center gap-1.5">
-          <CalendarDays className="h-4 w-4 text-blue-500" />
-          <span>{format(currentMonth, 'MMMM yyyy')}</span>
-        </h3>
-        <div className="flex items-center gap-1">
-          <Button 
-            variant="ghost" 
-            size="icon" 
-            onClick={prevMonth} 
-            className="h-7 w-7 rounded-full hover:bg-slate-100 hover:text-blue-500 transition-colors"
+    <div className="space-y-4">
+      {/* Month Navigation */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center">
+          <Calendar className="h-5 w-5 text-blue-500 mr-2" />
+          <h2 className="text-lg font-medium">
+            {format(currentMonth, 'MMMM yyyy')}
+          </h2>
+        </div>
+        <div className="flex items-center space-x-2">
+          <Button
+            variant="outline"
+            size="icon"
+            onClick={prevMonth}
+            className="h-8 w-8 border-blue-200 hover:bg-blue-50 hover:text-blue-500 dark:border-blue-800 dark:hover:bg-blue-900/30 dark:hover:text-blue-400"
           >
             <ChevronLeft className="h-4 w-4" />
           </Button>
-          <Button 
-            variant="ghost" 
-            size="icon" 
-            onClick={nextMonth} 
-            className="h-7 w-7 rounded-full hover:bg-slate-100 hover:text-blue-500 transition-colors"
+          <Button
+            variant="outline"
+            size="icon"
+            onClick={nextMonth}
+            className="h-8 w-8 border-blue-200 hover:bg-blue-50 hover:text-blue-500 dark:border-blue-800 dark:hover:bg-blue-900/30 dark:hover:text-blue-400"
           >
             <ChevronRight className="h-4 w-4" />
           </Button>
         </div>
       </div>
       
+      {/* Calendar Grid */}
       <div className={cn(
-        "transition-all duration-300 transform",
-        animationDirection === 'left' ? 'translate-x-2 opacity-0' : 
-        animationDirection === 'right' ? '-translate-x-2 opacity-0' : 
-        'translate-x-0 opacity-100'
+        "grid grid-cols-7 gap-1",
+        animationDirection === 'left' && "animate-in slide-in-from-right-5 duration-300",
+        animationDirection === 'right' && "animate-in slide-in-from-left-5 duration-300"
       )}>
-        <div>
-          {/* Day of week headers */}
-          <div className="grid grid-cols-7 text-center">
-            {['M', 'T', 'W', 'T', 'F', 'S', 'S'].map((day, i) => (
-              <div key={i} className="py-2 text-xs font-medium text-slate-600">
-                {day}
-              </div>
-            ))}
+        {/* Weekday headers */}
+        {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((day) => (
+          <div 
+            key={day} 
+            className="text-center text-xs font-medium py-2 text-muted-foreground"
+          >
+            {day}
           </div>
+        ))}
+        
+        {/* Calendar days - flatten the 2D array for display */}
+        {calendarDays.flat().map((day, index) => {
+          const dayProblems = getDueProblems(day);
+          const isCurrentSelected = selectedDay ? isSameDay(day, selectedDay) : false;
+          const isCurrentDay = isToday(day);
+          const inCurrentMonth = isSameMonth(day, currentMonth);
+          const inNextWeek = isWithinNextWeek(day);
+          const inFuture = isFutureDate(day);
           
-          {/* Calendar grid */}
-          <div className="grid grid-cols-7">
-            {calendarDays.map((week, weekIndex) => (
-              week.map((day, dayIndex) => {
-                const dueProblems = getDueProblems(day);
-                const reviewCount = dueProblems.length;
-                const isCurrentDay = isToday(day);
-                const isSelected = isSameDay(day, selectedDay);
-                const isCurrentMonth = isSameMonth(day, currentMonth);
-                const isDueThisWeek = isWithinNextWeek(day) && reviewCount > 0;
-                const isFuture = isFutureDate(day) && reviewCount > 0;
-                
-                return (
+          const dayClasses = cn(
+            "h-12 flex flex-col justify-center items-center relative rounded-md text-sm transition-colors",
+            "hover:bg-muted/80 cursor-pointer",
+            !inCurrentMonth && "text-muted-foreground/40",
+            isCurrentDay && !isCurrentSelected && "bg-blue-50 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400 font-medium border border-blue-200 dark:border-blue-800",
+            isCurrentSelected && "bg-blue-500 text-white font-medium",
+            dayProblems.length > 0 && inCurrentMonth && !isCurrentSelected && !isCurrentDay && "font-medium"
+          );
+          
+          return (
+            <div 
+              key={`${format(day, 'yyyy-MM-dd')}-${index}`}
+              className={dayClasses}
+              onClick={() => handleDaySelect(day)}
+            >
+              <div>
+                {format(day, 'd')}
+              </div>
+              
+              {/* Dots indicator for number of problems */}
+              {dayProblems.length > 0 && inCurrentMonth && (
+                <div className="absolute bottom-1 flex justify-center">
                   <div 
-                    key={`${weekIndex}-${dayIndex}`} 
                     className={cn(
-                      "relative bg-white aspect-square",
-                      "flex flex-col items-center justify-center cursor-pointer",
-                      isCurrentMonth ? "" : "text-slate-400 bg-slate-50",
-                      isCurrentDay && !isSelected ? "font-bold text-blue-500" : "",
-                      isDueThisWeek ? "bg-slate-50" : 
-                      isFuture ? "bg-slate-50" : 
-                      "hover:bg-slate-50",
-                      isSelected ? "ring-2 ring-blue-500 bg-blue-50/30 z-10" : ""
+                      "w-2 h-2 rounded-full", 
+                      isCurrentSelected ? "bg-white/80" : (
+                        inNextWeek ? "bg-blue-500 dark:bg-blue-400" :
+                        inFuture ? "bg-indigo-500 dark:bg-indigo-400" :
+                        "bg-amber-500 dark:bg-amber-400"
+                      )
                     )}
-                    onClick={() => handleDaySelect(day)}
-                  >
-                    <div className={cn(
-                      "flex items-center justify-center text-xs",
-                      isCurrentDay ? "font-bold text-blue-500" : "",
-                      isSelected ? "font-semibold" : "",
-                      isSelected && !isCurrentDay ? "text-slate-900" : ""
-                    )}>
-                      {format(day, 'd')}
-                    </div>
-                    
-                    {/* Review count indicator */}
-                    {reviewCount > 0 && (
-                      <div className="absolute bottom-1 w-full flex justify-center">
-                        <div 
-                          className={cn(
-                            "h-2 w-2 rounded-full",
-                            "bg-blue-500"
-                          )}
-                        />
-                      </div>
-                    )}
-                  </div>
-                );
-              })
-            ))}
-          </div>
-        </div>
-      </div>
-      
-      {/* Selected day info */}
-      <div className="mt-4 p-3 border rounded-md bg-white border-slate-200">
-        <div className="flex items-center justify-center gap-1.5">
-          <CalendarCheck className="h-4 w-4 text-slate-900" />
-          <span className="font-medium text-slate-900">{format(selectedDay, 'MMMM d, yyyy')}</span>
-          {isToday(selectedDay) && (
-            <Badge variant="secondary" className="text-xs bg-slate-100 text-slate-700 hover:bg-slate-200">Today</Badge>
-          )}
-        </div>
-        <div className="text-slate-600 text-xs mt-1.5 text-center">
-          {selectedDayProblems.length === 0
-            ? "No reviews scheduled"
-            : `${selectedDayProblems.length} ${selectedDayProblems.length === 1 ? 'review' : 'reviews'} scheduled`}
-        </div>
+                  />
+                </div>
+              )}
+            </div>
+          );
+        })}
       </div>
     </div>
   );

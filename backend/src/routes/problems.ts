@@ -2,7 +2,7 @@ import express from 'express';
 import { prisma } from '../lib/prisma';
 import { authenticateToken } from '../middleware/auth';
 import { authorizeRoles } from '../middleware/authorize';
-import { Prisma, Role, ProblemType } from '@prisma/client';
+import { Prisma, Role, ProblemType, ProgressStatus } from '@prisma/client';
 import type { RequestHandler } from 'express-serve-static-core';
 import { calculateNextReviewDate } from '../lib/spacedRepetition';
 
@@ -19,6 +19,7 @@ interface CreateProblemBody {
   testCases?: string;
   topicId?: string;
   estimatedTime?: string | number;
+  slug?: string;
 }
 
 interface UpdateProblemBody {
@@ -32,6 +33,7 @@ interface UpdateProblemBody {
   codeTemplate?: string;
   testCases?: string;
   estimatedTime?: string | number;
+  slug?: string;
 }
 
 const router = express.Router();
@@ -81,6 +83,8 @@ router.get('/:problemId', authenticateToken, (async (req, res) => {
     // Find next and previous problems if this problem belongs to a topic
     let nextProblemId = null;
     let prevProblemId = null;
+    let nextProblemSlug = null;
+    let prevProblemSlug = null;
 
     if (problem.topicId) {
       // Get all problems in the same topic, ordered by reqOrder
@@ -93,7 +97,8 @@ router.get('/:problemId', authenticateToken, (async (req, res) => {
         },
         select: { 
           id: true, 
-          reqOrder: true 
+          reqOrder: true,
+          slug: true
         }
       });
 
@@ -104,11 +109,13 @@ router.get('/:problemId', authenticateToken, (async (req, res) => {
         // Get previous problem if not the first
         if (currentIndex > 0) {
           prevProblemId = topicProblems[currentIndex - 1].id;
+          prevProblemSlug = topicProblems[currentIndex - 1].slug;
         }
         
         // Get next problem if not the last
         if (currentIndex < topicProblems.length - 1) {
           nextProblemId = topicProblems[currentIndex + 1].id;
+          nextProblemSlug = topicProblems[currentIndex + 1].slug;
         }
       }
     }
@@ -119,6 +126,8 @@ router.get('/:problemId', authenticateToken, (async (req, res) => {
       isCompleted: problem.completedBy.length > 0 || problem.progress.some(p => p.status === 'COMPLETED'),
       nextProblemId,
       prevProblemId,
+      nextProblemSlug,
+      prevProblemSlug,
       collectionIds,
       completedBy: undefined, // Remove these from the response
       progress: undefined,
@@ -233,7 +242,8 @@ router.post('/', authenticateToken, authorizeRoles([Role.ADMIN, Role.DEVELOPER])
       codeTemplate,
       testCases,
       topicId,
-      estimatedTime 
+      estimatedTime,
+      slug
     } = req.body as CreateProblemBody;
 
     console.log('Creating problem with data:', {
@@ -247,7 +257,8 @@ router.post('/', authenticateToken, authorizeRoles([Role.ADMIN, Role.DEVELOPER])
       codeTemplate: codeTemplate ? 'Provided' : undefined,
       testCases: testCases ? 'Provided' : undefined,
       topicId,
-      estimatedTime
+      estimatedTime,
+      slug: slug ? 'Provided' : undefined
     });
 
     // Only validate topic if topicId is provided
@@ -305,7 +316,8 @@ router.post('/', authenticateToken, authorizeRoles([Role.ADMIN, Role.DEVELOPER])
             topic: {
               connect: { id: topicId }
             }
-          })
+          }),
+          ...(slug && { slug })
         }
       });
 
@@ -471,7 +483,8 @@ router.put('/:problemId', authenticateToken, authorizeRoles([Role.ADMIN, Role.DE
           ...(problemType && { problemType: problemType }),
           ...(codeTemplate !== undefined && { codeTemplate }),
           ...(testCases !== undefined && { testCases: parsedTestCases }),
-          ...(estimatedTime !== undefined && { estimatedTime: parsedEstimatedTime })
+          ...(estimatedTime !== undefined && { estimatedTime: parsedEstimatedTime }),
+          ...(req.body.slug !== undefined && { slug: req.body.slug })
         },
         include: {
           collections: {
@@ -625,7 +638,6 @@ router.post('/:problemId/complete', authenticateToken, (async (req, res) => {
             reviewLevel: true,
             reviewScheduledAt: true,
             lastReviewedAt: true,
-            reviewHistory: true,
             id: true
           }
         }
@@ -639,8 +651,21 @@ router.post('/:problemId/complete', authenticateToken, (async (req, res) => {
     // Check if problem is already completed
     const isCompleted = problem.completedBy.length > 0 || problem.progress.some(p => p.status === 'COMPLETED');
     
-    // Get existing review data if present
-    const existingProgress = problem.progress[0];
+    // Get existing progress with reviews
+    const existingProgress = await prisma.progress.findUnique({
+      where: {
+        userId_topicId_problemId: problem.topicId ? {
+          userId,
+          topicId: problem.topicId,
+          problemId: problemId
+        } : undefined
+      }, 
+      include: {
+        reviews: true // Include the reviews relation
+      }
+    });
+
+    const hasReviewHistory = (existingProgress?.reviews?.length || 0) > 0;
 
     console.log('Problem state before update:', {
       problemId,
@@ -650,8 +675,8 @@ router.post('/:problemId/complete', authenticateToken, (async (req, res) => {
       existingProgressId: existingProgress?.id,
       progressStatus: existingProgress?.status,
       reviewLevel: existingProgress?.reviewLevel,
-      hasReviewHistory: existingProgress?.reviewHistory ? 
-        Array.isArray(existingProgress.reviewHistory) && existingProgress.reviewHistory.length > 0 : false
+      hasReviewHistory,
+      problemHasTopicId: !!problem.topicId
     });
 
     // If problem is completed and we're not forcing completion, and not admin, return error
@@ -660,21 +685,68 @@ router.post('/:problemId/complete', authenticateToken, (async (req, res) => {
       return res.status(400).json({ error: 'Problem is already completed' });
     }
 
-    let result;
+    // If the problem doesn't have a topic, we can't track progress properly
+    if (!problem.topicId) {
+      console.warn('Attempting to complete a problem without a topic ID:', problemId);
+      // Just connect the problem to user's completed list without progress tracking
+      await prisma.user.update({
+        where: { id: userId },
+        data: {
+          completedProblems: isCompleted && !forceComplete 
+            ? { disconnect: { id: problemId } } 
+            : { connect: { id: problemId } }
+        }
+      });
+
+      return res.json({
+        message: isCompleted && !forceComplete ? 'Problem marked as uncompleted' : 'Problem marked as completed',
+        preservedReviewData: false,
+        wasForced: forceComplete || false,
+        noTopicId: true
+      });
+    }
+
+    let result: any; // Use any type for result to avoid TypeScript errors with fallback
     
     // Only uncomplete if explicitly toggling (not in force complete mode) and already completed
     if (isCompleted && !forceComplete) {
-      // Remove completion status
-      result = await prisma.$transaction(async (tx) => {
-        await tx.progress.deleteMany({
-          where: {
-            userId,
-            problemId,
-            status: 'COMPLETED'
+      // CHANGED: Update progress record instead of deleting it to preserve ReviewHistory
+      try {
+        result = await prisma.$transaction(async (tx) => {
+          let progressToUpdate = existingProgress;
+          
+          // If we don't have existing progress but have progress records (from old schema)
+          if (!progressToUpdate && problem.progress.length > 0) {
+            progressToUpdate = await tx.progress.findUnique({
+              where: { id: problem.progress[0].id },
+              include: { reviews: true }
+            });
           }
+          
+          // If we have progress, update it instead of deleting it
+          if (progressToUpdate) {
+            await tx.progress.update({
+              where: { id: progressToUpdate.id },
+              data: {
+                status: 'NOT_STARTED' as ProgressStatus,
+                // Keep reviewLevel and other review data intact
+              }
+            });
+          }
+          
+          return await tx.user.update({
+            where: { id: userId },
+            data: {
+              completedProblems: {
+                disconnect: { id: problemId }
+              }
+            }
+          });
         });
-        
-        return await tx.user.update({
+      } catch (txError: any) {
+        console.error('Transaction error when uncompleting problem:', txError);
+        // Fall back to a simpler approach if transaction fails
+        result = await prisma.user.update({
           where: { id: userId },
           data: {
             completedProblems: {
@@ -682,78 +754,109 @@ router.post('/:problemId/complete', authenticateToken, (async (req, res) => {
             }
           }
         });
-      });
+      }
       
       console.log('Problem marked as uncompleted:', {
         problemId,
-        userId
+        userId,
+        preservedProgress: true
       });
     } else {
       // Mark as completed (either newly or forced)
-      result = await prisma.$transaction(async (tx) => {
-        // First, get any existing progress to preserve review data if needed
-        const currentProgress = preserveReviewData ? await tx.progress.findFirst({
-          where: {
-            userId,
-            problemId
-          }
-        }) : null;
-        
-        console.log('Existing progress in transaction:', currentProgress ? {
-          id: currentProgress.id,
-          status: currentProgress.status,
-          reviewLevel: currentProgress.reviewLevel,
-          reviewScheduledAt: currentProgress.reviewScheduledAt
-        } : 'No existing progress');
-        
-        // Determine what review data to use
-        const reviewData = preserveReviewData && currentProgress && currentProgress.reviewLevel !== null ? {
-          // Keep existing review data
-          reviewLevel: currentProgress.reviewLevel,
-          reviewScheduledAt: currentProgress.reviewScheduledAt,
-          lastReviewedAt: currentProgress.lastReviewedAt,
-          reviewHistory: currentProgress.reviewHistory as Prisma.InputJsonValue
-        } : {
-          // Initialize new review data
-          reviewLevel: 0,
-          reviewScheduledAt: calculateNextReviewDate(0),
-          lastReviewedAt: new Date(),
-          reviewHistory: [] as Prisma.InputJsonValue
-        };
-        
-        console.log('Review data to be used:', reviewData);
-        
-        // Update or create progress
-        const progressResult = await tx.progress.upsert({
-          where: {
-            userId_topicId_problemId: {
+      try {
+        result = await prisma.$transaction(async (tx) => {
+          // First, get any existing progress to preserve review data if needed
+          const currentProgress = preserveReviewData ? await tx.progress.findFirst({
+            where: {
+              userId,
+              problemId
+            },
+            include: {
+              reviews: true
+            }
+          }) : null;
+          
+          console.log('Existing progress in transaction:', currentProgress ? {
+            id: currentProgress.id,
+            status: currentProgress.status,
+            reviewLevel: currentProgress.reviewLevel,
+            reviewScheduledAt: currentProgress.reviewScheduledAt
+          } : 'No existing progress');
+          
+          // Determine what review data to use - ONLY if preserveReviewData is true
+          // otherwise, don't set any review data to avoid automatically adding to spaced repetition
+          const reviewData = preserveReviewData && currentProgress && currentProgress.reviewLevel !== null ? {
+            // Copy existing review data for preservation
+            reviewLevel: currentProgress.reviewLevel,
+            reviewScheduledAt: currentProgress.reviewScheduledAt,
+            lastReviewedAt: currentProgress.lastReviewedAt,
+          } : {};  // Empty object - don't set any review data
+          
+          console.log('Review data to be used:', reviewData);
+          
+          // Update or create progress
+          const progressResult = await tx.progress.upsert({
+            where: {
+              userId_topicId_problemId: {
+                userId,
+                topicId: problem.topicId!,
+                problemId
+              }
+            },
+            create: {
               userId,
               topicId: problem.topicId!,
-              problemId
+              problemId,
+              status: 'COMPLETED',
+              ...reviewData,
+              reviewLevel: reviewData.reviewLevel ?? 0 // Ensure reviewLevel has a default value
+            },
+            update: {
+              status: 'COMPLETED',
+              // Only update review data if explicitly preserving it
+              ...(preserveReviewData && currentProgress && currentProgress.reviewLevel !== null ? reviewData : {})
             }
-          },
-          create: {
-            userId,
-            topicId: problem.topicId!,
-            problemId,
-            status: 'COMPLETED',
-            ...reviewData
-          },
-          update: {
-            status: 'COMPLETED',
-            // Only update review fields if we're not preserving existing data
-            ...(!preserveReviewData && {
-              reviewLevel: 0,
-              reviewScheduledAt: calculateNextReviewDate(0),
-              lastReviewedAt: new Date(),
-              reviewHistory: [] as Prisma.InputJsonValue
-            })
-            // When preserveReviewData is true, we don't modify any review fields
+          });
+          
+          // Update user's completed problems
+          const userResult = await tx.user.update({
+            where: { id: userId },
+            data: {
+              completedProblems: {
+                connect: { id: problemId }
+              }
+            }
+          });
+          
+          // Only add ReviewHistory entry if preserveReviewData is true and we have review data
+          if (preserveReviewData && currentProgress && currentProgress.reviewLevel !== null) {
+            await tx.reviewHistory.create({
+              data: {
+                progressId: progressResult.id,
+                date: new Date(),
+                wasSuccessful: true,
+                reviewOption: 'continued-review',  // Use a standard value
+                levelBefore: currentProgress.reviewLevel,
+                levelAfter: currentProgress.reviewLevel
+              }
+            });
           }
+          
+          return { progressResult, userResult };
+        });
+      } catch (txError: any) {
+        // Log detailed error information
+        console.error('Transaction error when completing problem:', txError);
+        console.error('Error details:', {
+          name: txError.name,
+          code: txError.code,
+          meta: txError.meta,
+          stack: txError.stack
         });
         
-        // Update user's completed problems
-        const userResult = await tx.user.update({
+        // Fall back to a simpler approach if transaction fails
+        // Just connect the problem to the user's completed problems
+        result = await prisma.user.update({
           where: { id: userId },
           data: {
             completedProblems: {
@@ -761,16 +864,15 @@ router.post('/:problemId/complete', authenticateToken, (async (req, res) => {
             }
           }
         });
-        
-        return { progressResult, userResult };
-      });
+      }
       
+      // Log information about completion status, with optional chaining for safety
       console.log('Problem marked as completed:', {
         problemId,
         userId,
-        progressId: result.progressResult.id,
-        reviewLevel: result.progressResult.reviewLevel,
-        reviewScheduledAt: result.progressResult.reviewScheduledAt
+        progressId: result?.progressResult?.id,
+        reviewLevel: result?.progressResult?.reviewLevel,
+        reviewScheduledAt: result?.progressResult?.reviewScheduledAt
       });
     }
 
@@ -781,7 +883,12 @@ router.post('/:problemId/complete', authenticateToken, (async (req, res) => {
     });
   } catch (error) {
     console.error('Error toggling problem completion:', error);
-    res.status(500).json({ error: 'Failed to toggle problem completion' });
+    // Add more detailed error information
+    res.status(500).json({ 
+      error: 'Failed to toggle problem completion',
+      details: error instanceof Error ? error.message : 'Unknown error',
+      stack: process.env.NODE_ENV !== 'production' ? (error as Error).stack : undefined
+    });
   }
 }) as RequestHandler);
 
@@ -940,6 +1047,109 @@ router.get('/admin/dashboard', authenticateToken, authorizeRoles([Role.ADMIN, Ro
     res.json(transformedProblems);
   } catch (error) {
     console.error('Error fetching admin dashboard problems:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+}) as RequestHandler);
+
+// Get a specific problem by slug
+router.get('/slug/:slug', authenticateToken, (async (req, res) => {
+  try {
+    const { slug } = req.params;
+    const userId = req.user?.id;
+
+    if (!userId) {
+      return res.status(401).json({ error: 'User not authenticated' });
+    }
+
+    const problem = await prisma.problem.findUnique({
+      where: { slug },
+      include: {
+        completedBy: {
+          where: { id: userId },
+          select: { id: true }
+        },
+        progress: {
+          where: { userId },
+          select: { status: true }
+        },
+        topic: true,
+        collections: {
+          select: {
+            collection: {
+              select: {
+                id: true,
+                name: true
+              }
+            }
+          }
+        }
+      }
+    });
+
+    if (!problem) {
+      return res.status(404).json({ error: 'Problem not found' });
+    }
+
+    // Extract collection IDs for the frontend
+    const collectionIds = problem.collections.map(pc => pc.collection.id);
+
+    // Find next and previous problems if this problem belongs to a topic
+    let nextProblemId = null;
+    let prevProblemId = null;
+    let nextProblemSlug = null;
+    let prevProblemSlug = null;
+
+    if (problem.topicId) {
+      // Get all problems in the same topic, ordered by reqOrder
+      const topicProblems = await prisma.problem.findMany({
+        where: { 
+          topicId: problem.topicId 
+        },
+        orderBy: { 
+          reqOrder: 'asc' 
+        },
+        select: { 
+          id: true, 
+          reqOrder: true,
+          slug: true
+        }
+      });
+
+      // Find the current problem's index in the ordered list
+      const currentIndex = topicProblems.findIndex(p => p.id === problem.id);
+      
+      if (currentIndex !== -1) {
+        // Get previous problem if not the first
+        if (currentIndex > 0) {
+          prevProblemId = topicProblems[currentIndex - 1].id;
+          prevProblemSlug = topicProblems[currentIndex - 1].slug;
+        }
+        
+        // Get next problem if not the last
+        if (currentIndex < topicProblems.length - 1) {
+          nextProblemId = topicProblems[currentIndex + 1].id;
+          nextProblemSlug = topicProblems[currentIndex + 1].slug;
+        }
+      }
+    }
+
+    // Transform the response to include isCompleted, navigation IDs, and collections
+    const response = {
+      ...problem,
+      isCompleted: problem.completedBy.length > 0 || problem.progress.some(p => p.status === 'COMPLETED'),
+      nextProblemId,
+      prevProblemId,
+      nextProblemSlug,
+      prevProblemSlug,
+      collectionIds,
+      completedBy: undefined, // Remove these from the response
+      progress: undefined,
+      collections: undefined // Remove raw collections data
+    };
+
+    res.json(response);
+  } catch (error) {
+    console.error('Error fetching problem by slug:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 }) as RequestHandler);

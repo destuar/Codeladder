@@ -23,32 +23,37 @@ interface Collection {
 // Type for difficulty filter - adds 'all' to the available difficulties
 type DifficultyFilter = ProblemDifficulty | 'all';
 
+// Custom hook to only use spaced repetition when needed
+function useConditionalSpacedRepetition(enabled: boolean) {
+  // Only call useSpacedRepetition when enabled
+  if (enabled) {
+    return useSpacedRepetition();
+  }
+  
+  // Return a placeholder object when disabled
+  return {
+    dueReviews: [],
+    allScheduledReviews: undefined,
+    stats: undefined,
+    isLoading: false,
+    isReviewPanelOpen: false,
+    toggleReviewPanel: () => {},
+    submitReview: async () => null,
+    startReview: () => {},
+    refreshReviews: async () => {},
+    removeProblem: async () => {},
+    addCompletedProblem: async () => {},
+    isAddingProblem: false,
+    getAvailableProblems: async () => [],
+    isLoadingAvailableProblems: false
+  };
+}
+
 export default function ProblemsPage() {
   const navigate = useNavigate();
   const { token } = useAuth();
   const [selectedCollection, setSelectedCollection] = useState<string>("all");
   const [selectedDifficulty, setSelectedDifficulty] = useState<DifficultyFilter>("all");
-  
-  // Add spaced repetition hook
-  const { toggleReviewPanel, isReviewPanelOpen, stats } = useSpacedRepetition();
-
-  // Add CSS to hide the buttons in ProblemList
-  useEffect(() => {
-    // Add a style element to hide the buttons in ProblemList
-    const styleEl = document.createElement('style');
-    styleEl.innerHTML = `
-      .custom-problem-list .space-y-8 > .grid,
-      .custom-problem-list .space-y-8 > div:first-child {
-        display: none;
-      }
-    `;
-    document.head.appendChild(styleEl);
-
-    // Clean up when component unmounts
-    return () => {
-      document.head.removeChild(styleEl);
-    };
-  }, []);
 
   // Fetch all problems
   const { data: problems, isLoading: isLoadingProblems } = useQuery<Problem[]>({
@@ -88,17 +93,14 @@ export default function ProblemsPage() {
     return difficultyOrder.filter(d => difficultySet.has(d));
   }, [problems]);
 
+  // Handle difficulty change
+  const handleDifficultyChange = (value: string) => {
+    setSelectedDifficulty(value as DifficultyFilter);
+  };
+
+  // Handle starting a problem
   const handleProblemStart = (problemId: string) => {
-    navigate(`/problems/${problemId}`);
-  };
-
-  // Handle filter changes
-  const handleCollectionChange = (collectionId: string) => {
-    setSelectedCollection(collectionId);
-  };
-
-  const handleDifficultyChange = (difficulty: DifficultyFilter) => {
-    setSelectedDifficulty(difficulty);
+    navigate(`/problem/${problemId}`);
   };
 
   // Reset all filters
@@ -151,199 +153,18 @@ export default function ProblemsPage() {
 
   return (
     <div className="container py-8 space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold">Problems</h1>
-        <p className="text-muted-foreground">All available problems and info pages</p>
+      {/* Problem List - no card wrapper */}
+      <div className="custom-problem-list">
+        <ProblemList
+          problems={problems || []}
+          collections={collections}
+          selectedCollection={selectedCollection}
+          onCollectionChange={setSelectedCollection}
+          selectedDifficulty={selectedDifficulty}
+          onDifficultyChange={handleDifficultyChange}
+          onProblemStart={handleProblemStart}
+        />
       </div>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Problem List</CardTitle>
-          <CardDescription>
-            Browse and practice all available problems across topics
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="problem-list-wrapper">
-            {/* Custom rendering of ProblemList to control positioning */}
-            <div className="grid grid-cols-2 gap-4 mb-8">
-              {/* Find and render the next problem to continue with (first incomplete required problem) */}
-              <Button
-                variant="outline"
-                size="lg"
-                className={cn(
-                  "h-32 flex flex-col items-center justify-center gap-2 border-2",
-                  filteredProblems.find(p => !p.completed && p.required) ? 
-                    "hover:border-primary" : "opacity-50 cursor-not-allowed"
-                )}
-                disabled={!filteredProblems.find(p => !p.completed && p.required)}
-                onClick={() => {
-                  const nextProblem = filteredProblems
-                    .filter(p => !p.completed && p.required)
-                    .sort((a, b) => (a.reqOrder || Infinity) - (b.reqOrder || Infinity))[0];
-                  if (nextProblem) {
-                    handleProblemStart(nextProblem.id);
-                  }
-                }}
-              >
-                <div className="flex flex-col items-center gap-2">
-                  <PlayCircle className="h-8 w-8" />
-                  <div className="text-center">
-                    <div className="font-semibold">Continue</div>
-                    {filteredProblems.find(p => !p.completed && p.required) ? (
-                      <div className="text-sm text-muted-foreground mt-1">
-                        {(() => {
-                          const nextProblem = filteredProblems
-                            .filter(p => !p.completed && p.required)
-                            .sort((a, b) => (a.reqOrder || Infinity) - (b.reqOrder || Infinity))[0];
-                          return nextProblem ? 
-                            `${nextProblem.name}${nextProblem.reqOrder ? ` (#${nextProblem.reqOrder})` : ''}` : 
-                            '';
-                        })()}
-                      </div>
-                    ) : (
-                      <div className="text-sm text-muted-foreground mt-1">All problems completed!</div>
-                    )}
-                  </div>
-                </div>
-              </Button>
-              
-              {/* Update Spaced Repetition button */}
-              <Button
-                variant="outline"
-                size="lg"
-                className="h-32 flex flex-col items-center justify-center gap-2 border-2 hover:border-primary"
-                onClick={toggleReviewPanel}
-              >
-                <div className="flex flex-col items-center gap-2">
-                  <RepeatIcon className="h-8 w-8" />
-                  <div className="text-center">
-                    <div className="font-semibold">Spaced Repetition</div>
-                    <div className="text-sm text-muted-foreground mt-1">
-                      {stats?.dueNow 
-                        ? `${stats.dueNow} problem${stats.dueNow !== 1 ? 's' : ''} due for review` 
-                        : 'Review completed problems'}
-                    </div>
-                  </div>
-                </div>
-              </Button>
-            </div>
-
-            {/* Add spaced repetition panel */}
-            {isReviewPanelOpen && (
-              <div className="mb-8 mt-4">
-                <SpacedRepetitionPanel />
-              </div>
-            )}
-
-            {/* Filters Section - positioned below the buttons */}
-            <div className="space-y-4 pt-4 border-t mb-8">
-              <div className="flex flex-wrap gap-4">
-                {/* Collection filter dropdown */}
-                {collections.length > 0 && (
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm font-medium">Collection:</span>
-                    <Select 
-                      value={selectedCollection} 
-                      onValueChange={handleCollectionChange}
-                    >
-                      <SelectTrigger className="w-[200px]">
-                        <SelectValue placeholder="Select collection" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="all">All Collections</SelectItem>
-                        {collections.map(collection => (
-                          <SelectItem key={collection.id} value={collection.id}>
-                            {collection.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                )}
-
-                {/* Difficulty filter dropdown */}
-                {difficulties.length > 0 && (
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm font-medium">Difficulty:</span>
-                    <Select 
-                      value={selectedDifficulty} 
-                      onValueChange={handleDifficultyChange}
-                    >
-                      <SelectTrigger className="w-[200px]">
-                        <SelectValue placeholder="Select difficulty" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="all">All Difficulties</SelectItem>
-                        {difficulties.map(difficulty => (
-                          <SelectItem key={difficulty} value={difficulty}>
-                            {formatDifficultyLabel(difficulty)}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                )}
-
-                {/* Reset filters button - only show if any filters are active */}
-                {hasActiveFilters && (
-                  <Button 
-                    variant="outline" 
-                    size="sm" 
-                    onClick={resetFilters}
-                    className="h-10"
-                  >
-                    <X className="h-4 w-4 mr-1" />
-                    Clear Filters
-                  </Button>
-                )}
-              </div>
-
-              {/* Active filter badges */}
-              {hasActiveFilters && (
-                <div className="flex flex-wrap gap-2">
-                  {selectedCollection !== 'all' && (
-                    <Badge variant="secondary" className="flex items-center gap-1">
-                      Collection: {collections.find(c => c.id === selectedCollection)?.name}
-                      <X 
-                        className="h-3 w-3 cursor-pointer ml-1" 
-                        onClick={() => setSelectedCollection('all')}
-                      />
-                    </Badge>
-                  )}
-                  {selectedDifficulty !== 'all' && (
-                    <Badge variant="secondary" className="flex items-center gap-1">
-                      Difficulty: {formatDifficultyLabel(selectedDifficulty)}
-                      <X 
-                        className="h-3 w-3 cursor-pointer ml-1" 
-                        onClick={() => setSelectedDifficulty('all')}
-                      />
-                    </Badge>
-                  )}
-                </div>
-              )}
-            </div>
-
-            {filteredProblems.length > 0 ? (
-              <div className="custom-problem-list">
-                <ProblemList
-                  problems={filteredProblems}
-                  onProblemStart={handleProblemStart}
-                  itemsPerPage={50}
-                  showTopicName={false}
-                  showOrder={false}
-                />
-              </div>
-            ) : (
-              <div className="text-center py-8 text-muted-foreground">
-                {problems && problems.length > 0 ? 
-                  'No problems match the current filters. Try adjusting your filter criteria.' : 
-                  'No problems available'}
-              </div>
-            )}
-          </div>
-        </CardContent>
-      </Card>
     </div>
   );
 } 

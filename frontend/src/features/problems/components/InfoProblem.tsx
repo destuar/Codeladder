@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Markdown } from "@/components/ui/markdown";
 import { HtmlContent } from "@/components/ui/html-content";
 import { Button } from "@/components/ui/button";
-import { ChevronRight, Timer, CheckCircle, CheckCircle2, RepeatIcon } from "lucide-react";
+import { ChevronRight, Timer, CheckCircle, CheckCircle2 } from "lucide-react";
 import { useNavigate } from 'react-router-dom';
 import { cn } from "@/lib/utils";
 import { api } from '@/lib/api';
@@ -11,16 +11,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useAdmin } from '@/features/admin/AdminContext';
 import { ensureHtml, isMarkdown } from '@/lib/markdown-to-html';
 import { useProblemCompletion } from '@/features/problems/hooks/useProblemCompletion';
-import { 
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle
-} from "@/components/ui/alert-dialog";
+import { ProblemHeader } from '@/features/problems/components/coding/ProblemHeader';
 
 function formatEstimatedTime(minutes: number | null | undefined): string | null {
   if (!minutes) return null;
@@ -42,26 +33,40 @@ export interface InfoProblemProps {
   content: string;
   isCompleted?: boolean;
   nextProblemId?: string;
+  nextProblemSlug?: string;
   prevProblemId?: string;
+  prevProblemSlug?: string;
   problemId: string;
   estimatedTime?: number;
   isStandalone?: boolean;
   isReviewMode?: boolean;
   onCompleted?: () => void;
   problemType?: string;
+  onNavigate?: (id: string, slug?: string) => void;
+  sourceContext?: {
+    from: string;
+    name: string;
+    id: string;
+  };
+  title?: string;
 }
 
 const InfoProblem: React.FC<InfoProblemProps> = ({ 
   content, 
   isCompleted = false,
   nextProblemId,
+  nextProblemSlug,
   prevProblemId,
+  prevProblemSlug,
   problemId,
   estimatedTime,
   isStandalone = false,
   isReviewMode = false,
   onCompleted,
-  problemType = 'INFO'
+  problemType = 'INFO',
+  onNavigate,
+  sourceContext,
+  title = "Information"
 }) => {
   const navigate = useNavigate();
   const { token } = useAuth();
@@ -70,10 +75,7 @@ const InfoProblem: React.FC<InfoProblemProps> = ({
   const { 
     isProblemCompleted, 
     handleMarkAsComplete,
-    showCompletionDialog,
-    setShowCompletionDialog,
-    isAddingToSpacedRepetition,
-    handleConfirmCompletion 
+    problemType: problemTypeFromHook 
   } = useProblemCompletion(
     problemId, 
     isCompleted, 
@@ -84,45 +86,36 @@ const InfoProblem: React.FC<InfoProblemProps> = ({
 
   const formattedTime = formatEstimatedTime(estimatedTime);
 
+  // Handle navigation to next or previous problem
+  const handleNavigate = (id: string, slug?: string) => {
+    if (onNavigate) {
+      onNavigate(id, slug);
+    } else {
+      // Fallback to direct navigation if no navigation handler is provided
+      if (slug) {
+        navigate(`/problem/${slug}`);
+      } else {
+        navigate(`/problems/${id}`);
+      }
+    }
+  };
+
   return (
-    <div className={`${isReviewMode ? 'h-auto' : 'h-[calc(100vh-4rem)]'} flex flex-col relative`}>
-      {/* Spaced Repetition Dialog */}
-      <AlertDialog open={showCompletionDialog} onOpenChange={setShowCompletionDialog}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Mark Problem as Completed</AlertDialogTitle>
-            <AlertDialogDescription>
-              Would you like to add this problem to your spaced repetition dashboard for future practice?
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction 
-              onClick={() => handleConfirmCompletion(false)}
-              className="bg-primary"
-            >
-              Just Complete
-            </AlertDialogAction>
-            <Button 
-              onClick={() => handleConfirmCompletion(true)}
-              disabled={isAddingToSpacedRepetition}
-              className="bg-indigo-600 hover:bg-indigo-700 text-white"
-            >
-              {isAddingToSpacedRepetition ? (
-                <>
-                  <div className="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
-                  Adding...
-                </>
-              ) : (
-                <>
-                  <RepeatIcon className="mr-2 h-4 w-4" />
-                  Add to Spaced Repetition
-                </>
-              )}
-            </Button>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+    <div className={`${isReviewMode ? 'h-auto' : 'h-screen'} flex flex-col relative`}>
+      {/* Problem Header - Same as in CodingProblem */}
+      <ProblemHeader
+        isCompleted={isProblemCompleted}
+        onMarkComplete={handleMarkAsComplete}
+        nextProblemId={nextProblemId}
+        nextProblemSlug={nextProblemSlug}
+        prevProblemId={prevProblemId}
+        prevProblemSlug={prevProblemSlug}
+        onNavigate={handleNavigate}
+        title={title}
+        isReviewMode={isReviewMode}
+        sourceContext={sourceContext}
+        problemType={problemType}
+      />
 
       <div className={`${isReviewMode ? 'flex-auto' : 'flex-1'} overflow-auto px-4 md:px-8`}>
         <div className="py-4">
@@ -152,51 +145,6 @@ const InfoProblem: React.FC<InfoProblemProps> = ({
               />
             )}
           </div>
-        </div>
-      </div>
-
-      {/* Floating buttons */}
-      <div className={`${isReviewMode ? 'static bottom-auto right-auto mt-4 mr-4 self-end' : 'fixed bottom-6 right-6'} flex flex-col gap-2`}>
-        {/* Complete button */}
-        <Button 
-          variant={isProblemCompleted ? "outline" : "default"}
-          className={cn(
-            "shadow-sm transition-all duration-200",
-            isProblemCompleted && "border-green-500 text-green-500 hover:bg-green-500/10"
-          )}
-          onClick={handleMarkAsComplete}
-          disabled={isProblemCompleted && !canAccessAdmin}
-        >
-          <div className="flex items-center">
-            {isProblemCompleted ? (
-              <>
-                <CheckCircle2 className="w-5 h-5" />
-                <span className="ml-2">{canAccessAdmin ? "Toggle Complete" : "Completed"}</span>
-              </>
-            ) : (
-              <span>Mark as Complete</span>
-            )}
-          </div>
-        </Button>
-
-        {/* Navigation buttons */}
-        <div className="flex gap-2">
-          <Button
-            variant="outline"
-            onClick={() => prevProblemId && navigate(`/problems/${prevProblemId}`)}
-            disabled={!prevProblemId}
-            className="shadow-sm"
-          >
-            Previous
-          </Button>
-          <Button
-            onClick={() => nextProblemId && navigate(`/problems/${nextProblemId}`)}
-            disabled={!nextProblemId}
-            className="shadow-sm"
-          >
-            <span>Next</span>
-            <ChevronRight className="w-4 h-4 ml-2" />
-          </Button>
         </div>
       </div>
     </div>

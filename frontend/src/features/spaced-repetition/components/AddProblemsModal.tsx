@@ -25,9 +25,11 @@ interface Problem {
   id: string;
   name: string;
   difficulty: string;
+  slug: string | null;
   topic?: {
     id: string;
     name: string;
+    slug?: string | null;
   };
 }
 
@@ -106,20 +108,23 @@ export function AddProblemsModal({ isOpen, onClose }: AddProblemsModalProps) {
     }
   };
 
-  const handleAddProblem = async (problemId: string) => {
-    setAddingProblemIds(prev => new Set(prev).add(problemId));
+  const handleAddProblem = async (problem: Problem) => {
+    setAddingProblemIds(prev => new Set(prev).add(problem.id));
     try {
-      await addCompletedProblem(problemId);
+      await addCompletedProblem({ 
+        problemId: problem.id,
+        problemSlug: problem.slug || undefined
+      });
       // Remove the added problem from both lists
-      const updatedProblems = availableProblems.filter(p => p.id !== problemId);
+      const updatedProblems = availableProblems.filter(p => p.id !== problem.id);
       setAvailableProblems(updatedProblems);
-      setFilteredProblems(prev => prev.filter(p => p.id !== problemId));
+      setFilteredProblems(prev => prev.filter(p => p.id !== problem.id));
     } catch (error) {
       console.error('Error adding problem:', error);
     } finally {
       setAddingProblemIds(prev => {
         const newSet = new Set(prev);
-        newSet.delete(problemId);
+        newSet.delete(problem.id);
         return newSet;
       });
     }
@@ -229,7 +234,7 @@ export function AddProblemsModal({ isOpen, onClose }: AddProblemsModalProps) {
                         size="sm"
                         variant="outline"
                         className="gap-1 text-primary"
-                        onClick={() => handleAddProblem(problem.id)}
+                        onClick={() => handleAddProblem(problem)}
                         disabled={addingProblemIds.has(problem.id)}
                       >
                         {addingProblemIds.has(problem.id) ? (

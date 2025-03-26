@@ -7,46 +7,43 @@ import { ReviewResult } from '../api/spacedRepetitionApi';
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { useQueryClient } from '@tanstack/react-query';
+import { Problem } from '@/features/problems/types';
+import { getIdentifierForProblem } from '../index';
 
 interface ReviewControlsProps {
-  problemId: string;
-  onSubmitReview: (result: ReviewResult) => void;
+  problem: Problem;
+  onReviewSubmit: (result: ReviewResult) => void;
   isEarlyReview?: boolean;
   scheduledDate?: string;
   referrer?: string | null;
-  currentLevel?: number | null;
+  hasJustCompleted?: boolean;
 }
 
 /**
  * Component that displays controls for submitting a review result
  */
 export function ReviewControls({ 
-  problemId, 
-  onSubmitReview,
+  problem,
+  onReviewSubmit,
   isEarlyReview = false,
   scheduledDate,
   referrer,
-  currentLevel = 0
+  hasJustCompleted = false
 }: ReviewControlsProps) {
   const navigate = useNavigate();
   const location = useLocation();
   const queryClient = useQueryClient();
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [activeOption, setActiveOption] = useState<'easy' | 'difficult' | 'forgot' | null>(null);
+  const [submittedOption, setSubmittedOption] = useState<string | null>(null);
   
-  // Log when component mounts to verify it's rendering
-  useEffect(() => {
-    console.log('ReviewControls mounted:', { problemId, isEarlyReview, scheduledDate, referrer });
-  }, [problemId, isEarlyReview, scheduledDate, referrer]);
+  const problemId = problem?.id;
+  const problemSlug = problem?.slug;
+  const currentLevel = problem?.reviewLevel || 0;
   
   // Handle returning to the previous page after submitting
   const navigateBack = () => {
-    console.log('Navigating back with referrer:', referrer);
-    
     // If we have a referrer that's a local path, use that as first priority
     if (referrer && referrer.startsWith('/')) {
-      console.log('Returning to local referrer:', referrer);
-      
       // Add a timestamp to force refresh if it's the spaced repetition page
       if (referrer.includes('/spaced-repetition')) {
         const ts = Date.now();
@@ -57,76 +54,55 @@ export function ReviewControls({
     }
     // If referrer is external, use window.location
     else if (referrer && !referrer.startsWith('/')) {
-      console.log('Returning to external referrer:', referrer);
       window.location.href = referrer;
     }
     // Fall back to spaced-repetition page if we're in review mode
     else if (location.search.includes('mode=review')) {
-      console.log('No valid referrer, but in review mode - returning to spaced repetition page');
       const ts = Date.now();
       navigate(`/spaced-repetition?refresh=true&t=${ts}`, { replace: true });
     }
     // Last resort - go to problems page
     else {
-      console.log('No valid referrer, going to problems page');
       navigate('/problems', { replace: true });
     }
   };
   
   const handleReviewResult = async (wasSuccessful: boolean, option: 'easy' | 'difficult' | 'forgot') => {
+    if (isSubmitting) return;
+    
     setIsSubmitting(true);
-    setActiveOption(option);
+    setSubmittedOption(option);
     
     try {
-      console.log('Submitting review:', { problemId, wasSuccessful, option });
+      // Prepare review result with either problemId or problemSlug, preferring slug if available
+      const result: ReviewResult = {
+        wasSuccessful,
+        reviewOption: option
+      };
       
-      // Submit the review to the backend with the added reviewOption parameter
-      let response;
-      try {
-        response = await onSubmitReview({ 
-          problemId, 
-          wasSuccessful, 
-          reviewOption: option 
-        });
-        console.log('Review submission response:', response !== undefined ? response : 'No response data');
-      } catch (submitError) {
-        console.error('Error during review submission:', submitError);
-        // Continue with the flow even if the submission had an error
-        // This ensures users don't get stuck on the review screen
+      // Use slug if available, otherwise fall back to ID
+      if (problemSlug) {
+        result.problemSlug = problemSlug;
+      } else if (problemId) {
+        result.problemId = problemId;
       }
       
-      // Invalidate relevant queries to ensure data is fresh
-      try {
-        await Promise.all([
-          queryClient.invalidateQueries({ queryKey: ['dueReviews'] }),
-          queryClient.invalidateQueries({ queryKey: ['reviewStats'] }),
-          queryClient.invalidateQueries({ queryKey: ['learningPath'] }),
-          queryClient.invalidateQueries({ queryKey: ['topic'] }),
-          // Also invalidate problem data to refresh its state
-          queryClient.invalidateQueries({ queryKey: ['problem', problemId] })
-        ]);
-        console.log('All queries invalidated, preparing to navigate back');
-      } catch (queryError) {
-        console.error('Error invalidating queries:', queryError);
-        // Continue with navigation even if query invalidation fails
-      }
+      await onReviewSubmit(result);
       
-      // Navigate back immediately after submitting
-      navigateBack();
-    } catch (error) {
-      console.error('Error in review submission process:', error);
-      setIsSubmitting(false);
-      setActiveOption(null);
-      
-      // Add a recovery option for the user
+      // Short delay to show the confirmation state
       setTimeout(() => {
-        try {
-          navigateBack();
-        } catch (navError) {
-          // Fallback navigation
-          navigate('/spaced-repetition', { replace: true });
+        if (referrer) {
+          // Navigate back to the referrer
+          navigate(referrer);
+        } else {
+          // Default to the spaced repetition dashboard
+          navigate('/spaced-repetition');
         }
-      }, 2000);
+      }, 1000);
+    } catch (error) {
+      console.error('Error submitting review:', error);
+      setIsSubmitting(false);
+      setSubmittedOption(null);
     }
   };
   
@@ -152,28 +128,28 @@ export function ReviewControls({
     
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isSubmitting, handleReviewResult]);
+  }, [isSubmitting, problemId, problemSlug]);
   
   const formattedDate = scheduledDate ? format(new Date(scheduledDate), 'MMM d, yyyy') : '';
   
   return (
     <div className="fixed inset-0 flex items-center justify-center z-50 bg-black/50 backdrop-blur-sm">
-      <Card className="w-full max-w-md shadow-lg border-2 animate-in fade-in zoom-in-95 duration-100">
+      <Card className="w-full max-w-md shadow-lg border-2 border-blue-200 dark:border-blue-800 animate-in fade-in zoom-in-95 duration-100">
         <CardHeader className="pb-2">
           <div className="flex items-center gap-2">
-            <Dumbbell className="h-5 w-5 text-black" />
+            <Dumbbell className="h-5 w-5 text-blue-500 dark:text-blue-400" />
             <CardTitle className="text-xl">How well did you remember?</CardTitle>
           </div>
-          <CardDescription>
-            {isEarlyReview && scheduledDate ? (
-              <div className="flex items-center gap-1 text-gray-700">
-                <AlertCircle className="h-4 w-4 flex-shrink-0" />
-                <span>Originally suggested for {formattedDate}</span>
-              </div>
-            ) : (
-              <span>Your feedback helps optimize your learning schedule. This will determine when you'll see this problem again.</span>
-            )}
-          </CardDescription>
+          {isEarlyReview && scheduledDate ? (
+            <div className="text-sm text-muted-foreground flex items-center gap-1 mt-1">
+              <AlertCircle className="h-4 w-4 flex-shrink-0" />
+              <span>Originally suggested for {formattedDate}</span>
+            </div>
+          ) : (
+            <CardDescription>
+              Your feedback helps optimize your learning schedule. This will determine when you'll see this problem again.
+            </CardDescription>
+          )}
         </CardHeader>
         
         <CardContent className="pt-4 space-y-6">
@@ -184,12 +160,12 @@ export function ReviewControls({
               className={cn(
                 "border-2 border-green-500 hover:bg-green-500/10 text-green-500 gap-2 py-6 text-base font-medium",
                 "hover:text-green-600 hover:border-green-600 transition-all",
-                activeOption === 'easy' && "bg-green-500/20"
+                submittedOption === 'easy' && "bg-green-500/20"
               )}
               onClick={() => handleReviewResult(true, 'easy')}
               disabled={isSubmitting}
             >
-              {isSubmitting && activeOption === 'easy' ? (
+              {isSubmitting && submittedOption === 'easy' ? (
                 <Loader2 className="h-5 w-5 animate-spin" />
               ) : (
                 <Check className="h-5 w-5" />
@@ -204,12 +180,12 @@ export function ReviewControls({
               className={cn(
                 "border-2 border-amber-500 hover:bg-amber-500/10 text-amber-500 gap-2 py-6 text-base font-medium",
                 "hover:text-amber-600 hover:border-amber-600 transition-all",
-                activeOption === 'difficult' && "bg-amber-500/20"
+                submittedOption === 'difficult' && "bg-amber-500/20"
               )}
               onClick={() => handleReviewResult(true, 'difficult')}
               disabled={isSubmitting}
             >
-              {isSubmitting && activeOption === 'difficult' ? (
+              {isSubmitting && submittedOption === 'difficult' ? (
                 <Loader2 className="h-5 w-5 animate-spin" />
               ) : (
                 <HelpCircle className="h-5 w-5" />
@@ -224,12 +200,12 @@ export function ReviewControls({
               className={cn(
                 "border-2 border-red-500 hover:bg-red-500/10 text-red-500 gap-2 py-6 text-base font-medium",
                 "hover:text-red-600 hover:border-red-600 transition-all",
-                activeOption === 'forgot' && "bg-red-500/20"
+                submittedOption === 'forgot' && "bg-red-500/20"
               )}
               onClick={() => handleReviewResult(false, 'forgot')}
               disabled={isSubmitting}
             >
-              {isSubmitting && activeOption === 'forgot' ? (
+              {isSubmitting && submittedOption === 'forgot' ? (
                 <Loader2 className="h-5 w-5 animate-spin" />
               ) : (
                 <X className="h-5 w-5" />
