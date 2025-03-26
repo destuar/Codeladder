@@ -160,7 +160,7 @@ export default function TopicPage() {
     const params = topic ? new URLSearchParams({
       from: 'topic',
       name: topic.name,
-      id: topic.id
+      ...(topic.slug ? { slug: topic.slug } : { id: topic.id })
     }).toString() : '';
 
     if (slug) {

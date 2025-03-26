@@ -122,7 +122,7 @@ export default function CodingProblem({
   return (
     <div className={cn(
       "flex flex-col bg-background",
-      isQuizMode ? "h-full" : "h-screen"
+      isQuizMode ? "h-full" : "min-h-screen h-screen max-h-screen"
     )}>
       <ProblemHeader
         title={title || 'Problem'}
@@ -141,18 +141,18 @@ export default function CodingProblem({
       />
 
       {/* Main content */}
-      <div className="flex-1 overflow-hidden">
-        <div className="flex flex-1 min-h-0">
+      <div className="flex-1 overflow-hidden flex flex-col">
+        <div className="flex flex-1 min-h-0 overflow-auto">
           {/* Left panel - Problem description */}
           <ResizablePanel
             defaultWidth={leftPanelWidth}
             minWidth={MIN_PANEL_WIDTH}
             maxWidth={MAX_PANEL_WIDTH}
             onResize={setLeftPanelWidth}
-            className="border-r"
+            className="border-r h-full"
           >
             <ScrollArea className="h-full" type="hover">
-              <div className="p-6 space-y-6 w-full overflow-hidden">
+              <div className="p-6 space-y-6 w-full">
                 <div className="space-y-4">
                   <h1 className="text-3xl font-bold">{title}</h1>
                   <div className="flex items-center gap-2">

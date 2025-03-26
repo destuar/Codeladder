@@ -121,7 +121,8 @@ export interface CodingProblemProps {
   sourceContext?: {
     from: string;
     name: string;
-    id: string;
+    id?: string;
+    slug?: string;
   };
 }
 

@@ -139,10 +139,10 @@ export function ProblemList({
             <div>
               <h2 className="text-2xl font-semibold text-foreground flex items-center gap-2">
                 <div className="h-6 w-1.5 rounded-full bg-blue-500 dark:bg-blue-400"></div>
-                Problem List
+                Category List
               </h2>
               <p className="text-sm text-muted-foreground mt-1 ml-3">
-                Browse and practice all available problems across topics
+                Browse and practice all available problems across categories
               </p>
             </div>
           )}
