@@ -30,29 +30,24 @@ export function useProblemCompletion(
 
   // This function directly completes problems without showing a dialog
   const handleMarkAsComplete = async () => {
-    // If already completed, we can directly toggle it off
-    if (isProblemCompleted) {
-      await completeToggleProblem(false);
-      return;
-    }
+    // Store the previous state to use in case we need to revert
+    const previousState = isProblemCompleted;
     
-    // In review mode, directly complete without calling completeToggleProblem
+    // Always update UI immediately
+    setIsProblemCompleted(!isProblemCompleted);
+    
+    // In review mode, don't make API calls - just update UI
     if (isReviewMode) {
-      // Set state immediately for faster UI feedback
-      setIsProblemCompleted(true); 
-      // CRITICAL FIX: Don't call completeToggleProblem at all in review mode
-      // The spaced repetition endpoint will handle progress record creation/updating
-      // This prevents race conditions where the problem is being marked complete
-      // at the same time the review is being recorded
       console.log('[ProblemCompletion] Skipping completion toggle in review mode');
       return;
     }
     
-    // For non-review mode, directly complete without showing dialog
-    // Set state immediately for faster UI feedback
-    setIsProblemCompleted(true); 
-    // Run API call non-blocking for better perceived performance
-    completeToggleProblem(false);
+    // For non-review mode, fire API call asynchronously (non-blocking)
+    completeToggleProblem(false).catch(error => {
+      // Only revert UI on error
+      console.error('[ProblemCompletion] Error toggling completion:', error);
+      setIsProblemCompleted(previousState);
+    });
   };
 
   // This function performs the actual API call to complete/uncomplete a problem
@@ -67,9 +62,6 @@ export function useProblemCompletion(
       preserveReviewData: isReviewMode
     });
     
-    // Update local state (toggle behavior)
-    setIsProblemCompleted(!isProblemCompleted);
-
     try {
       // In review mode, we pass a parameter to preserve review data
       const response = await api.post(`/problems/${problemId}/complete`, { 
@@ -100,9 +92,8 @@ export function useProblemCompletion(
         onCompleted();
       }
     } catch (error) {
-      // Revert the optimistic update on error
-      setIsProblemCompleted(!isProblemCompleted);
-      console.error('[ProblemCompletion] Error toggling problem completion:', error);
+      // Error handling is now in the handleMarkAsComplete function
+      throw error;
     }
   };
 

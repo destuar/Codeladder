@@ -61,6 +61,9 @@ const ProblemPage: React.FC = () => {
   // Track completion state locally so we can show review controls immediately after completion
   const [hasJustCompleted, setHasJustCompleted] = useState(false);
   
+  // New state to track visual completion in review mode
+  const [reviewModeCompleted, setReviewModeCompleted] = useState(false);
+  
   // Check if we're in review mode
   const searchParams = new URLSearchParams(location.search);
   const isReviewMode = searchParams.get('mode') === 'review' || location.pathname.includes('/review');
@@ -216,8 +219,11 @@ const ProblemPage: React.FC = () => {
   const estimatedTimeNum = problem?.estimatedTime ? parseInt(problem.estimatedTime.toString()) : undefined;
 
   // In review mode, we want to start with the problem marked as not completed
-  // regardless of its actual completion status
-  const effectiveIsCompleted = isReviewMode ? false : problem?.isCompleted;
+  // regardless of its actual completion status, but show as completed if the user
+  // clicked the Mark Complete button in review mode
+  const effectiveIsCompleted = isReviewMode 
+    ? reviewModeCompleted 
+    : problem?.isCompleted;
 
   // Handler for navigation to other problems
   const navigateToOtherProblem = (id: string, slug?: string) => {
@@ -262,33 +268,45 @@ const ProblemPage: React.FC = () => {
       isBeingMarkedComplete 
     });
 
+    // For review mode, update the visual completion state FIRST for immediate feedback
+    if (isBeingMarkedComplete && isReviewMode) {
+      // Update review mode completion state immediately for visual feedback
+      setReviewModeCompleted(true);
+    }
+
     // Optimistically update the cache
     queryClient.setQueryData(['problem', effectiveIdentifier], {
       ...problem,
       isCompleted: isBeingMarkedComplete
     });
+    
+    // Show completion UI immediately if being marked complete
+    if (isBeingMarkedComplete) {
+      // No delay for better UX
+      setHasJustCompleted(true);
+    }
 
-    try {
-      // Make the API call to toggle completion status
-      await api.post(`/problems/${problem.id}/complete`, {
-        preserveReviewData: isReviewMode
-      }, token);
-
-      // Set this flag for review controls if marking as complete
-      if (isBeingMarkedComplete) {
-        setHasJustCompleted(true);
-      }
-
-      // Remove the automatic navigation
-    } catch (error) {
+    // Make API call non-blocking
+    api.post(`/problems/${problem.id}/complete`, {
+      preserveReviewData: isReviewMode
+    }, token).catch(error => {
       // Revert the optimistic update on error
       queryClient.setQueryData(['problem', effectiveIdentifier], problem);
       console.error('Error toggling problem completion:', error);
-      // You might want to show an error toast here
-    } finally {
+      
+      // Also revert the reviewModeCompleted state if there was an error
+      if (isReviewMode) {
+        setReviewModeCompleted(false);
+      }
+      
+      // Revert hasJustCompleted if needed
+      if (isBeingMarkedComplete) {
+        setHasJustCompleted(false);
+      }
+      
       // Force refresh problem data to ensure we're in sync with server
       queryClient.invalidateQueries({ queryKey: ['problem', effectiveIdentifier] });
-    }
+    });
   };
 
   // Check if we should show review controls

@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useToast } from '@/components/ui/use-toast';
 import { useQuiz, QuizQuestion } from './hooks/useQuiz';
@@ -37,26 +37,16 @@ export function QuizPage() {
     attempt,
   } = useQuiz(quizId);
   
+  const [localIsSubmitting, setLocalIsSubmitting] = useState(false);
+  
   useEffect(() => {
-    // Only start a quiz attempt if we have a quizId
+    // Initialize the quiz state in localStorage
     if (quizId) {
-      console.log('Starting quiz attempt for:', quizId);
+      console.log('Initializing quiz state in localStorage for:', quizId);
       startQuizAttempt(quizId);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [quizId]); // Intentionally omit startQuizAttempt to prevent re-runs
-  
-  // If the attempt is loaded and we don't have an attemptId, try to extract it
-  useEffect(() => {
-    if (attempt && !isLoading) {
-      console.log('Attempt loaded:', attempt);
-      // Store the attempt ID in localStorage for persistence
-      if (attempt.id && quizId) {
-        localStorage.setItem(`quiz_attempt_${quizId}`, attempt.id);
-        console.log(`Stored attempt ID ${attempt.id} in localStorage from loaded attempt`);
-      }
-    }
-  }, [attempt, isLoading, quizId]);
   
   // Get current question
   const currentQuestion = quiz?.questions?.[currentQuestionIndex];
@@ -138,67 +128,51 @@ export function QuizPage() {
   // Handle quiz completion
   const handleSubmit = async () => {
     try {
-      if (isSubmitting) return;
+      setLocalIsSubmitting(true);
       
-      console.log('Starting quiz submission process');
-      
-      // Show a submitting toast to the user
-      toast({
-        title: "Submitting Quiz",
-        description: "Please wait while your quiz is being submitted...",
-      });
-      
-      // Get the current attemptId from the hook before submitting
-      // This will be our fallback in case the submission result is null
-      const currentAttemptId = attempt?.id;
-      console.log('Current attempt ID before submission:', currentAttemptId);
-      
+      console.log('Submitting quiz...');
       const result = await submitQuiz();
-      console.log('Quiz submission result:', JSON.stringify(result));
       
-      // Add detailed logging for debugging
-      if (!result) {
-        console.error('Result is null or undefined, will try to use current attemptId');
-      } else {
-        console.log('Result structure:', Object.keys(result));
+      console.log('Quiz submission result:', result);
+      
+      // If submission was cancelled by the user
+      if (!result.success && result.message === 'Submission cancelled') {
+        setLocalIsSubmitting(false);
+        return;
       }
       
-      // Get attemptId from result, or fall back to the current attempt ID
-      let attemptId = result?.attemptId || currentAttemptId;
-      
-      // Check if the result indicates the attempt was already completed
-      const wasAlreadyCompleted = result?.result?.alreadyCompleted === true;
-      
-      // If we still don't have an attemptId, try localStorage as a last resort
-      if (!attemptId && quizId) {
-        const storedAttemptId = localStorage.getItem(`quiz_attempt_${quizId}`);
-        if (storedAttemptId) {
-          console.log(`Recovered attempt ID from localStorage: ${storedAttemptId}`);
-          attemptId = storedAttemptId;
+      // Show appropriate toast based on success/error
+      if (result.success) {
+        const attemptId = result.attemptId;
+        
+        if (attemptId) {
+          console.log(`Redirecting to results page for attempt: ${attemptId}`);
+          
+          // Short delay to allow the backend to process the quiz completion
+          await new Promise(resolve => setTimeout(resolve, 1000));
+          
+          // Navigate to the results page
+          navigate(`/quizzes/attempts/${attemptId}/results`);
+          
+          toast({
+            title: "Quiz Submitted",
+            description: "Your quiz has been submitted successfully!",
+            variant: "default",
+          });
+        } else {
+          console.error('Missing attempt ID in result:', result);
+          toast({
+            title: "Error",
+            description: "Failed to get quiz results. Please try again.",
+            variant: "destructive",
+          });
         }
-      }
-      
-      if (attemptId) {
-        console.log(`Redirecting to results page for attempt: ${attemptId}`);
-        
-        // Short delay to allow the backend to process the quiz completion
-        await new Promise(resolve => setTimeout(resolve, 1000));
-        
-        // Navigate to the results page
-        navigate(`/quizzes/attempts/${attemptId}/results`);
-        
-        toast({
-          title: wasAlreadyCompleted ? "Quiz Already Submitted" : "Quiz Submitted",
-          description: wasAlreadyCompleted 
-            ? "This quiz was already submitted. Viewing results."
-            : "Your quiz has been submitted successfully!",
-          variant: "default",
-        });
       } else {
-        console.error('Missing attempt ID in result and no current attempt ID available:', result);
+        // Handle error
+        console.error('Submission failed:', result.message);
         toast({
           title: "Error",
-          description: "Failed to submit quiz. Please try again.",
+          description: result.message || "Failed to submit quiz. Please try again.",
           variant: "destructive",
         });
       }
@@ -213,9 +187,6 @@ export function QuizPage() {
           errorMessage = "Authentication error. Please log in again.";
         } else if (error.message.includes('network') || error.message.includes('connection')) {
           errorMessage = "Network error. Please check your connection.";
-        } else if (error.message.includes('404')) {
-          // Special handling for 404 errors which might be due to the API not supporting all endpoints
-          errorMessage = "Error submitting quiz. The server endpoint may not be available yet.";
         }
       }
       
@@ -224,6 +195,8 @@ export function QuizPage() {
         description: errorMessage,
         variant: "destructive",
       });
+    } finally {
+      setLocalIsSubmitting(false);
     }
   };
   
@@ -330,9 +303,9 @@ export function QuizPage() {
                 <Button
                   size="sm"
                   onClick={handleSubmit}
-                  disabled={isSubmitting}
+                  disabled={localIsSubmitting}
                 >
-                  {isSubmitting ? "Submitting..." : "Submit Quiz"}
+                  {localIsSubmitting ? "Submitting..." : "Submit Quiz"}
                 </Button>
               )}
             </div>

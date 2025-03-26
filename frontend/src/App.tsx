@@ -23,6 +23,8 @@ import { LandingPage } from './features/landingpage';
 // Import quiz feature components
 import { QuizPage } from './features/quiz/QuizPage';
 import { QuizResultsPage } from './features/quiz/QuizResultsPage';
+import { QuizHistoryPage } from './features/quiz/QuizHistoryPage';
+import CollectionPage from './features/collections/CollectionPage';
 import { ReviewPage } from './features/spaced-repetition';
 
 // Regular components
@@ -218,6 +220,16 @@ function MainLayout() {
               <ProtectedRoute>
                 <AdminViewWrapper>
                   <QuizResultsPage />
+                </AdminViewWrapper>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/quizzes/history/:topicId"
+            element={
+              <ProtectedRoute>
+                <AdminViewWrapper>
+                  <QuizHistoryPage />
                 </AdminViewWrapper>
               </ProtectedRoute>
             }

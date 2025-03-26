@@ -244,15 +244,30 @@ export const api = {
 
   // Quiz management
   async getQuizzesByTopic(topicId: string, token: string) {
+    console.warn('DEPRECATED: Use getQuizzesByTopicSlug instead');
     return this.get(`/quizzes/topic/${topicId}`, token);
   },
 
+  async getQuizzesByTopicSlug(slug: string, token: string) {
+    return this.get(`/quizzes/topic/slug/${slug}`, token);
+  },
+
   async getAllQuizzesForTopic(topicId: string, token: string) {
+    console.warn('DEPRECATED: Use getAllQuizzesForTopicSlug instead');
     return this.get(`/quizzes/topic/${topicId}/all`, token);
   },
 
+  async getAllQuizzesForTopicSlug(slug: string, token: string) {
+    return this.get(`/quizzes/topic/slug/${slug}/all`, token);
+  },
+
   async getNextAvailableQuiz(topicId: string, token: string) {
+    console.warn('DEPRECATED: Use getNextAvailableQuizBySlug instead');
     return this.get(`/quizzes/topic/${topicId}/next`, token);
+  },
+
+  async getNextAvailableQuizBySlug(slug: string, token: string) {
+    return this.get(`/quizzes/topic/slug/${slug}/next`, token);
   },
 
   async getQuiz(id: string, token: string) {
@@ -347,31 +362,25 @@ export const api = {
   },
 
   async completeQuizAttempt(attemptId: string, token: string) {
-    console.log(`Completing quiz attempt: ${attemptId}`);
-    try {
-      const result = await this.post(`/quizzes/attempts/${attemptId}/complete`, {}, token);
-      console.log('Complete quiz attempt response:', result);
-      return result;
-    } catch (error) {
-      console.error('Error completing quiz attempt:', error);
-      // For specific error types, we'll return a structured error that the client can handle
-      if (error instanceof Error) {
-        const statusMatch = error.message.match(/status: (\d+)/);
-        const status = statusMatch ? parseInt(statusMatch[1]) : 500;
-        
-        // For 404 errors (endpoint not implemented), return an object that indicates partial success
-        if (status === 404) {
-          console.warn('Quiz completion endpoint not found (404). Providing fallback response.');
-          return { 
-            success: true, 
-            attemptId, 
-            fallback: true, 
-            message: 'Quiz marked as complete via fallback mechanism' 
-          };
-        }
-      }
-      throw error;
-    }
+    return this.post(`/quizzes/attempts/${attemptId}/complete`, {}, token);
+  },
+
+  // New method to submit entire quiz at once
+  async submitCompleteQuiz(
+    quizId: string,
+    startedAt: string,
+    answers: Record<string, any>,
+    token: string
+  ) {
+    return this.post(
+      `/quizzes/${quizId}/submit`,
+      { startedAt, answers },
+      token
+    );
+  },
+
+  async getQuizAttemptResults(attemptId: string, token: string) {
+    return this.get(`/quizzes/attempts/${attemptId}/results`, token);
   },
 
   async getQuizResults(attemptId: string, token: string) {
@@ -382,6 +391,25 @@ export const api = {
       return results;
     } catch (error) {
       console.error('Error fetching quiz results:', error);
+      throw error;
+    }
+  },
+
+  // Quiz history endpoints
+  async getQuizAttemptsByTopic(topicId: string, token: string) {
+    try {
+      return this.get(`/quizzes/topic/${topicId}/attempts`, token);
+    } catch (error) {
+      console.error('Error fetching quiz attempts by topic:', error);
+      throw error;
+    }
+  },
+
+  async getQuizAttemptsByTopicSlug(slug: string, token: string) {
+    try {
+      return this.get(`/quizzes/topic/slug/${slug}/attempts`, token);
+    } catch (error) {
+      console.error('Error fetching quiz attempts by topic slug:', error);
       throw error;
     }
   },
