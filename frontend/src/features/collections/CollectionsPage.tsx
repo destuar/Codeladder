@@ -791,7 +791,7 @@ export default function CollectionsPage() {
           </Collapsible>
 
           {/* Problem List */}
-          <div className="custom-problem-list overflow-hidden">
+          <div className="custom-problem-list">
             <ProblemList
               problems={filteredProblems}
               onProblemStart={handleProblemStart}

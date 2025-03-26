@@ -97,7 +97,7 @@ const InfoProblem: React.FC<InfoProblemProps> = ({
       if (slug) {
         navigate(`/problem/${slug}`);
       } else {
-        navigate(`/problems/${id}`);
+        navigate(`/problems/${id}`);kkk
       }
     }
   };

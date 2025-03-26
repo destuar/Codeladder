@@ -166,11 +166,12 @@ export function ProblemHeader({
             <Tooltip>
               <TooltipTrigger asChild>
                 <Button 
-                  variant={isCompleted ? "outline" : "default"}
+                  variant={isCompleted ? "outline" : "ghost"}
                   size="sm"
                   className={cn(
-                    "shadow-sm transition-all duration-100",
+                    "transition-all duration-100",
                     isCompleted && "border-green-500 text-green-500 hover:bg-green-500/10",
+                    !isCompleted && "text-muted-foreground hover:text-foreground",
                     "active:scale-95"
                   )}
                   onClick={() => {
