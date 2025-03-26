@@ -47,16 +47,8 @@ export interface QuizResponse {
   codeResponse?: CodeResponse;
 }
 
-// Re-export the core types from shared types
-export type { 
-  QuizQuestion,
-  McProblem,
-  McOption,
-  CodeProblem,
-  TestCase,
-  McResponse,
-  CodeResponse
-};
+// Export QuizQuestion to be used by quiz components
+export type { QuizQuestion };
 
 /**
  * Hook for managing quiz state during quiz-taking
