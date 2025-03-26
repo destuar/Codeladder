@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useAuth } from '@/features/auth/AuthContext';
 import { api } from '@/lib/api';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -106,26 +106,70 @@ export function useQuiz(quizId?: string) {
   const { token } = useAuth();
   const queryClient = useQueryClient();
   
-  // State
+  // Store quiz state in localStorage instead of creating db attempt immediately
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
   const [answers, setAnswers] = useState<Record<string, any>>({});
-  const [attemptId, setAttemptId] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [elapsedTime, setElapsedTime] = useState(0);
-  const [timerInterval, setTimerInterval] = useState<NodeJS.Timeout | null>(null);
+  const [startTime] = useState<Date>(new Date());
+  const [attemptId, setAttemptId] = useState<string | null>(null);
   const hasInitialized = useRef<boolean>(false);
 
-  // Get quiz data
+  // Load quiz state from localStorage on init
+  useEffect(() => {
+    if (quizId) {
+      const savedQuiz = localStorage.getItem(`quiz_${quizId}`);
+      if (savedQuiz) {
+        try {
+          const quizData = JSON.parse(savedQuiz);
+          setCurrentQuestionIndex(quizData.currentQuestionIndex || 0);
+          setAnswers(quizData.answers || {});
+          // Only use saved start time if it exists and is valid
+          if (quizData.startTime) {
+            const savedStartTime = new Date(quizData.startTime);
+            if (!isNaN(savedStartTime.getTime())) {
+              // Calculate elapsed time since the saved start
+              setElapsedTime(Math.floor((Date.now() - savedStartTime.getTime()) / 1000));
+            }
+          }
+        } catch (e) {
+          console.error('Error parsing saved quiz data:', e);
+          // Clear invalid data
+          localStorage.removeItem(`quiz_${quizId}`);
+        }
+      }
+    }
+  }, [quizId]);
+  
+  // Save quiz state to localStorage when it changes
+  useEffect(() => {
+    if (quizId) {
+      localStorage.setItem(`quiz_${quizId}`, JSON.stringify({
+        currentQuestionIndex,
+        answers,
+        startTime: startTime.toISOString()
+      }));
+    }
+  }, [quizId, currentQuestionIndex, answers, startTime]);
+  
+  // Timer effect
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setElapsedTime(prev => prev + 1);
+    }, 1000);
+    return () => clearInterval(timer);
+  }, []);
+
+  // Fetch quiz data
   const { data: quiz, isLoading: isQuizLoading, error: quizError } = useQuery({
     queryKey: ['quiz', quizId],
     queryFn: async () => {
-      if (!token || !quizId) throw new Error('No token or quiz ID available');
+      if (!token || !quizId) {
+        throw new Error('Token or quiz ID is missing');
+      }
       return api.getQuizForAttempt(quizId, token);
     },
-    enabled: !!token && !!quizId,
-    staleTime: 5 * 60 * 1000, // 5 minutes
-    gcTime: 10 * 60 * 1000, // 10 minutes
-    refetchOnWindowFocus: false,
+    enabled: !!token && !!quizId
   });
 
   // Get attempt data if we have an attemptId
@@ -230,70 +274,50 @@ export function useQuiz(quizId?: string) {
     },
   });
 
-  // Start the quiz attempt
+  // Start the quiz attempt (stored in localStorage only - no API call)
   const startQuizAttempt = useCallback((id: string, forceNew = false) => {
-    // If forceNew is true, clear any existing attempt
-    if (forceNew) {
-      console.log(`Force creating new attempt for quiz: ${id}`);
-      localStorage.removeItem(`quiz_attempt_${id}`);
-      setAttemptId(null);
+    // If forceNew is true or no saved attempt exists, initialize a new localStorage entry
+    if (forceNew || !localStorage.getItem(`quiz_${id}`)) {
+      console.log(`Initializing new quiz state in localStorage for: ${id}`);
+      
+      // Reset state
+      setCurrentQuestionIndex(0);
       setAnswers({});
-      startAttemptMutation.mutate(id);
+      setElapsedTime(0);
+      
+      // Initialize localStorage with fresh state
+      const newState = {
+        currentQuestionIndex: 0,
+        answers: {},
+        startTime: new Date().toISOString()
+      };
+      
+      localStorage.setItem(`quiz_${id}`, JSON.stringify(newState));
       return;
     }
     
-    // First check if we have a stored attempt ID in localStorage
-    const storedAttemptId = localStorage.getItem(`quiz_attempt_${id}`);
-    
-    if (storedAttemptId) {
-      console.log(`Found stored quiz attempt ID: ${storedAttemptId}`);
-      // Set the attempt ID from storage
-      setAttemptId(storedAttemptId);
-      // Start the timer for the existing attempt
-      startTimer();
-      return;
-    }
-    
-    if (id && !attemptId && !isQuizLoading) {
-      console.log(`Starting new quiz attempt for quiz: ${id}`);
-      startAttemptMutation.mutate(id);
-    } else {
-      console.log('Not starting quiz attempt because:', {
-        quizId: id,
-        currentAttemptId: attemptId,
-        isQuizLoading
-      });
-    }
-  }, [attemptId, isQuizLoading, startAttemptMutation]);
+    // If we have saved state, it's already loaded by the useEffect
+    console.log(`Using existing quiz state from localStorage for: ${id}`);
+  }, []);
 
-  // Timer management
-  const startTimer = () => {
-    if (timerInterval) {
-      clearInterval(timerInterval);
-    }
-    
-    const interval = setInterval(() => {
-      setElapsedTime(prev => prev + 1);
-    }, 1000);
-    
-    setTimerInterval(interval);
-  };
+  // Format elapsed time
+  const formattedTime = useMemo(() => {
+    const minutes = Math.floor(elapsedTime / 60);
+    const seconds = elapsedTime % 60;
+    return `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+  }, [elapsedTime]);
 
-  const stopTimer = () => {
-    if (timerInterval) {
-      clearInterval(timerInterval);
-      setTimerInterval(null);
-    }
-  };
+  // Start quiz timer
+  const startTimer = useCallback(() => {
+    // We don't need to do anything here since we already have a timer effect
+    console.log('Timer is already running');
+  }, []);
 
-  // Cleanup timer on unmount
-  useEffect(() => {
-    return () => {
-      if (timerInterval) {
-        clearInterval(timerInterval);
-      }
-    };
-  }, [timerInterval]);
+  // Stop quiz timer
+  const stopTimer = useCallback(() => {
+    // We don't need to do anything here - timer will be cleaned up naturally
+    console.log('Timer will be cleaned up automatically');
+  }, []);
 
   // Helper functions for navigation
   const nextQuestion = useCallback(() => {
@@ -524,98 +548,74 @@ export function useQuiz(quizId?: string) {
 
   // Submit the entire quiz
   const submitQuiz = useCallback(async () => {
-    // If attemptId is not in state, try to recover it from localStorage
-    const currentAttemptId = attemptId || (quizId ? localStorage.getItem(`quiz_attempt_${quizId}`) : null);
+    if (!quiz || !token || !quizId) {
+      console.error('Missing required data for quiz submission');
+      return { success: false, message: 'Missing required data' };
+    }
     
-    if (!currentAttemptId) {
-      console.error('No active quiz attempt ID found in state or localStorage');
+    // Prevent multiple submissions
+    if (isSubmitting) {
+      console.log('Quiz submission already in progress');
+      return { success: false, message: 'Submission in progress' };
+    }
+    
+    setIsSubmitting(true);
+    
+    try {
+      // Check for unanswered questions
+      const unansweredCount = quiz ? 
+        quiz.questions.filter((q: QuizQuestion) => !answers[q.id]).length : 0;
       
-      // If we don't have an attempt ID, but we have a quiz ID, try to create a new attempt as a fallback
-      if (quizId && token) {
-        try {
-          console.log('Attempting to create a new quiz attempt as fallback');
-          const newAttempt = await api.startQuizAttempt(quizId, token);
-          console.log('Created emergency quiz attempt:', newAttempt);
-          
-          // Save the new attempt ID
-          setAttemptId(newAttempt.id);
-          localStorage.setItem(`quiz_attempt_${quizId}`, newAttempt.id);
-          
-          // Continue with submission using the new attempt
-          return await submitWithAttemptId(newAttempt.id);
-        } catch (err) {
-          console.error('Failed to create emergency attempt:', err);
-          toast.error('Could not create a quiz attempt');
-          return null;
+      if (unansweredCount > 0) {
+        // Check if the quiz is completely empty (no answers at all)
+        const isCompletelyEmpty = Object.keys(answers).length === 0;
+        
+        const message = isCompletelyEmpty
+          ? `You haven't answered any questions. Are you sure you want to submit an empty quiz?`
+          : `You have ${unansweredCount} unanswered question${unansweredCount > 1 ? 's' : ''}. Are you sure you want to submit?`;
+        
+        const confirmed = window.confirm(message);
+        
+        if (!confirmed) {
+          setIsSubmitting(false);
+          return { success: false, message: 'Submission cancelled' };
         }
       }
       
-      toast.error('No active quiz attempt');
-      return null;
-    }
-
-    // Save the recovered attempt ID to state if needed
-    if (!attemptId && currentAttemptId) {
-      console.log(`Recovered attempt ID from localStorage: ${currentAttemptId}`);
-      setAttemptId(currentAttemptId);
-    }
-    
-    // Continue with the submission using the found attempt ID
-    return await submitWithAttemptId(currentAttemptId);
-  }, [attemptId, quizId, token, api, setAttemptId, submitWithAttemptId]);
-
-  // Format time for display
-  const formatTime = (seconds: number) => {
-    const mins = Math.floor(seconds / 60);
-    const secs = seconds % 60;
-    return `${mins}:${secs < 10 ? '0' : ''}${secs}`;
-  };
-
-  // Check localStorage for existing attempt on mount and start a new one if needed
-  useEffect(() => {
-    if (quizId && !hasInitialized.current) {
-      const storedAttemptId = localStorage.getItem(`quiz_attempt_${quizId}`);
+      // Submit the entire quiz at once (create and complete attempt)
+      console.log('Submitting entire quiz at once');
+      const result = await api.submitCompleteQuiz(
+        quizId,
+        startTime.toISOString(),
+        answers,
+        token
+      );
       
-      if (storedAttemptId) {
-        console.log(`Found stored quiz attempt ID on initialization: ${storedAttemptId}`);
-        
-        // Set the attempt ID from storage so we can load it
-        setAttemptId(storedAttemptId);
-        
-        // Don't start timer here - we'll wait until we verify the attempt is still valid
-      } else if (!attemptId) {
-        // No stored attempt and no current attempt, create a new one
-        console.log(`No stored attempt found for quiz ${quizId}, creating a new one`);
-        startAttemptMutation.mutate(quizId);
+      console.log('Quiz submission result:', result);
+      
+      // Store the new attempt ID
+      if (result && result.id) {
+        setAttemptId(result.id);
       }
       
-      hasInitialized.current = true;
+      // Clear the saved quiz data from localStorage
+      localStorage.removeItem(`quiz_${quizId}`);
+      
+      return { 
+        success: true,
+        message: 'Quiz submitted successfully',
+        attemptId: result?.id
+      };
+    } catch (error) {
+      console.error('Error submitting quiz:', error);
+      return { 
+        success: false, 
+        message: error instanceof Error ? error.message : 'Unknown error'
+      };
+    } finally {
+      setIsSubmitting(false);
     }
-  }, [quizId, attemptId, startAttemptMutation]);
-  
-  // Check if loaded attempt is valid (not completed) and create a new one if needed
-  useEffect(() => {
-    if (attempt && attempt.completedAt) {
-      console.log(`Attempt ${attempt.id} is already completed at ${attempt.completedAt}. Creating a new attempt.`);
-      
-      // Clear the stored attempt
-      if (quizId) {
-        localStorage.removeItem(`quiz_attempt_${quizId}`);
-      }
-      
-      // Reset state
-      setAttemptId(null);
-      setAnswers({});
-      
-      // Create a new attempt if we have a quiz ID
-      if (quizId && token) {
-        startAttemptMutation.mutate(quizId);
-      }
-    } else if (attempt && !attempt.completedAt) {
-      // Start timer for valid attempts
-      startTimer();
-    }
-  }, [attempt, quizId, token, startAttemptMutation]);
+  }, [quiz, quizId, token, answers, isSubmitting, startTime]);
 
   return {
     quiz,
@@ -628,12 +628,18 @@ export function useQuiz(quizId?: string) {
     progress: quiz ? ((Object.keys(answers).length / quiz.questions.length) * 100) : 0,
     answers,
     elapsedTime,
-    formattedTime: formatTime(elapsedTime),
+    formattedTime,
     nextQuestion,
     previousQuestion,
     goToQuestion,
     saveAnswer,
     submitQuiz,
-    startQuizAttempt
+    startQuizAttempt,
+    // Helper to clear saved quiz data if needed
+    clearSavedQuiz: useCallback(() => {
+      if (quizId) {
+        localStorage.removeItem(`quiz_${quizId}`);
+      }
+    }, [quizId])
   };
 }

@@ -168,8 +168,9 @@ export function ProblemHeader({
                   variant={isCompleted ? "outline" : "default"}
                   size="sm"
                   className={cn(
-                    "shadow-sm transition-all duration-200",
-                    isCompleted && "border-green-500 text-green-500 hover:bg-green-500/10"
+                    "shadow-sm transition-all duration-100",
+                    isCompleted && "border-green-500 text-green-500 hover:bg-green-500/10",
+                    "active:scale-95"
                   )}
                   onClick={() => {
                     console.log('Mark Complete button clicked, current status:', isCompleted);

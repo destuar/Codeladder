@@ -18,9 +18,10 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { ArrowUpDown, ChevronDown, ChevronUp, CheckCircle2, Circle, Book, Code2, Timer, Lock, AlertCircle } from "lucide-react";
+import { ArrowUpDown, ChevronDown, ChevronUp, CheckCircle2, Circle, Book, Code2, Timer, Lock, AlertCircle, BookOpen, History } from "lucide-react";
 import { cn } from '@/lib/utils';
 import { ProblemList } from '@/components/ProblemList';
+import { useToast } from '@/components/ui/use-toast';
 
 type Difficulty = 'EASY_IIII' | 'EASY_III' | 'EASY_II' | 'EASY_I' | 'MEDIUM' | 'HARD';
 
@@ -82,6 +83,7 @@ export default function TopicPage() {
   const { isAdminView, canAccessAdmin } = useAdmin();
   const { token } = useAuth();
   const navigate = useNavigate();
+  const { toast } = useToast();
   const [showWarning, setShowWarning] = useState(false);
   const [warningMessage, setWarningMessage] = useState('');
 
@@ -107,6 +109,30 @@ export default function TopicPage() {
       return api.get('/learning/levels', token);
     },
     enabled: !!token,
+  });
+
+  // Query to get the next available quiz for this topic
+  const { data: nextQuiz, isLoading: quizLoading } = useQuery({
+    queryKey: ['nextQuiz', topicId, slug],
+    queryFn: async () => {
+      if (!token) throw new Error('No token available');
+      
+      try {
+        // Always use the slug-based API
+        if (slug) {
+          return api.getNextAvailableQuizBySlug(slug, token);
+        } else if (topic?.slug) {
+          // If we have the topic data but were given an ID instead of slug
+          return api.getNextAvailableQuizBySlug(topic.slug, token);
+        }
+        throw new Error('No topic slug available');
+      } catch (error) {
+        console.error('Error fetching next quiz:', error);
+        return null;
+      }
+    },
+    // Enable only when we have the slug (either directly or from the topic)
+    enabled: !!token && (!!slug || (!!topic?.slug)),
   });
 
   // Check if the current topic's level is locked
@@ -170,6 +196,39 @@ export default function TopicPage() {
     }
   };
 
+  // Handle starting a quiz
+  const handleStartQuiz = async () => {
+    if (isLocked && !canAccessAdmin) {
+      const uncompletedLevel = learningPath?.find((level: Level, index: number) => {
+        if (index === 0) return false;
+        return !level.topics.every((topic: Topic) => {
+          const requiredProblems = topic.problems.filter((p: Problem) => p.required);
+          if (requiredProblems.length === 0) return true;
+          const completedRequired = requiredProblems.filter((p: Problem) => p.completed).length;
+          return completedRequired === requiredProblems.length;
+        });
+      });
+
+      if (uncompletedLevel) {
+        setWarningMessage(`You must complete Level ${uncompletedLevel.name} before continuing.`);
+        setShowWarning(true);
+        setTimeout(() => setShowWarning(false), 5000);
+        return;
+      }
+    }
+
+    if (!nextQuiz) {
+      toast({
+        title: "No Quiz Available",
+        description: "There are no quizzes available for this topic at the moment.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    navigate(`/quizzes/${nextQuiz.id}`);
+  };
+
   // Process content to remove duplicate title and description if present
   const processedContent = useMemo(() => {
     if (!topic?.content) return '';
@@ -228,14 +287,45 @@ export default function TopicPage() {
           <Badge variant="outline" className="bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400">
             {topic.level.name}
           </Badge>
-          {isAdminView && (
-            <Button variant="outline" size="sm" className="ml-auto">Edit Topic</Button>
-          )}
+
+          <div className="ml-auto flex items-center gap-2">
+            <Button 
+              onClick={handleStartQuiz} 
+              size="sm"
+              variant="default"
+              className="bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700"
+              disabled={quizLoading || isLocked || !nextQuiz}
+              title={!nextQuiz ? "No quiz available for this topic" : ""}
+            >
+              <BookOpen className="w-4 h-4 mr-2" />
+              {quizLoading ? 'Loading...' : 'Take Quiz'}
+            </Button>
+            <Button 
+              onClick={() => navigate(`/quizzes/history/${topicId || topic?.id}`)}
+              size="sm"
+              variant="outline"
+              className="bg-gray-100 hover:bg-gray-200 text-gray-700"
+            >
+              <History className="w-4 h-4 mr-2" />
+              Quiz History
+            </Button>
+            {isAdminView && (
+              <Button variant="outline" size="sm">Edit Topic</Button>
+            )}
+          </div>
         </div>
         <p className="text-sm text-muted-foreground ml-3 mb-0">
           {topic.description || 'In this topic, you will learn fundamental approaches to solving programming problems.'}
         </p>
       </div>
+
+      {/* Warning message for locked content */}
+      {showWarning && (
+        <div className="bg-yellow-100 border border-yellow-400 text-yellow-800 px-4 py-2 rounded flex items-center mt-4">
+          <AlertCircle className="h-5 w-5 mr-2" />
+          {warningMessage}
+        </div>
+      )}
 
       {/* Problems Section */}
       {topic.problems && topic.problems.length > 0 && (
@@ -262,21 +352,6 @@ export default function TopicPage() {
                 showOrder={true}
                 hideHeader={true}
               />
-            </CardContent>
-          </Card>
-        </div>
-      )}
-
-      {/* Warning Card */}
-      {showWarning && (
-        <div className="fixed bottom-6 right-6 z-50 animate-in fade-in slide-in-from-bottom-6 duration-300">
-          <Card className="bg-destructive/10 border-destructive">
-            <CardContent className="p-4 flex items-start gap-3">
-              <AlertCircle className="h-5 w-5 text-destructive flex-shrink-0 mt-0.5" />
-              <div>
-                <p className="font-medium text-destructive">{warningMessage}</p>
-                <p className="text-destructive/80 text-sm mt-1">Complete the required level to unlock this content.</p>
-              </div>
             </CardContent>
           </Card>
         </div>

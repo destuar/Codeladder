@@ -539,6 +539,7 @@ router.get('/attempts/:id/results', authenticateToken, (async (req, res) => {
  * @route GET /api/quizzes/topic/:topicId
  * @desc Get all quizzes for a topic
  * @access Private
+ * @deprecated Use /api/quizzes/topic/slug/:slug instead to avoid technical debt
  */
 router.get('/topic/:topicId', authenticateToken, (async (req, res) => {
   try {
@@ -587,6 +588,7 @@ router.get('/topic/:topicId', authenticateToken, (async (req, res) => {
  * @route GET /api/quizzes/topic/:topicId/next
  * @desc Get the next available quiz for a user in a specific topic 
  * @access Private
+ * @deprecated Use /api/quizzes/topic/slug/:slug/next instead to avoid technical debt
  */
 router.get('/topic/:topicId/next', authenticateToken, (async (req, res) => {
   try {
@@ -679,6 +681,7 @@ router.get('/topic/:topicId/next', authenticateToken, (async (req, res) => {
  * @route GET /api/quizzes/topic/:topicId/all
  * @desc Get all quizzes for a topic, including completed ones, with completion status
  * @access Private
+ * @deprecated Use /api/quizzes/topic/slug/:slug/all instead to avoid technical debt
  */
 router.get('/topic/:topicId/all', authenticateToken, (async (req, res) => {
   try {
@@ -729,39 +732,43 @@ router.get('/topic/:topicId/all', authenticateToken, (async (req, res) => {
         quiz: {
           topicId
         },
-        completedAt: {
-          not: null
-        }
+        completedAt: { not: null }
       },
       select: {
         quizId: true,
         score: true,
-        completedAt: true,
+        passed: true,
+        completedAt: true
       }
     });
     
-    // Create a map of completed quiz IDs to attempts
-    const completedQuizMap = completedAttempts.reduce((map, attempt) => {
-      if (!map[attempt.quizId]) {
-        map[attempt.quizId] = [];
+    // Create a map of quiz IDs to completion status
+    const quizCompletionStatus = new Map();
+    completedAttempts.forEach(attempt => {
+      // Keep only the highest score if there are multiple attempts
+      if (!quizCompletionStatus.has(attempt.quizId) || 
+          (quizCompletionStatus.get(attempt.quizId).score ?? 0) < (attempt.score ?? 0)) {
+        quizCompletionStatus.set(attempt.quizId, {
+          completed: true,
+          score: attempt.score,
+          passed: attempt.passed,
+          completedAt: attempt.completedAt
+        });
       }
-      map[attempt.quizId].push(attempt);
-      return map;
-    }, {} as Record<string, any[]>);
+    });
     
     // 3. Add completion status to each quiz
     const quizzesWithStatus = topicQuizzes.map(quiz => {
-      const attempts = completedQuizMap[quiz.id] || [];
-      const bestAttempt = attempts.length > 0 
-        ? attempts.reduce((best, current) => current.score > best.score ? current : best, attempts[0])
-        : null;
-        
+      const status = quizCompletionStatus.get(quiz.id) || {
+        completed: false,
+        score: null,
+        passed: false,
+        completedAt: null
+      };
+      
       return {
         ...quiz,
-        completed: attempts.length > 0,
-        attemptsCount: attempts.length,
-        bestScore: bestAttempt?.score || null,
-        lastCompletedAt: bestAttempt?.completedAt || null
+        ...status
       };
     });
     
@@ -1224,6 +1231,519 @@ router.post('/:id/attempts', authenticateToken, (async (req, res) => {
     console.error('Error starting quiz attempt:', error);
     res.status(500).json({ 
       error: 'Failed to start quiz attempt',
+      details: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+}) as RequestHandler);
+
+/**
+ * @route GET /api/quizzes/topic/slug/:slug
+ * @desc Get all quizzes for a topic using the topic slug
+ * @access Private
+ */
+router.get('/topic/slug/:slug', authenticateToken, (async (req, res) => {
+  try {
+    const { slug } = req.params;
+    const userId = req.user?.id;
+    
+    if (!slug) {
+      return res.status(400).json({ error: 'Topic slug is required' });
+    }
+    
+    // Find topic by slug
+    const topic = await prisma.topic.findUnique({
+      where: { slug }
+    });
+    
+    if (!topic) {
+      return res.status(404).json({ error: `Topic not found with slug: ${slug}` });
+    }
+    
+    // Find quizzes for the topic
+    const quizzes = await prisma.quiz.findMany({
+      where: { topicId: topic.id },
+      orderBy: { orderNum: 'asc' },
+      include: {
+        _count: {
+          select: { questions: true }
+        }
+      }
+    });
+    
+    res.json(quizzes);
+  } catch (error) {
+    console.error('Error fetching quizzes by topic slug:', error);
+    res.status(500).json({ 
+      error: 'Failed to fetch quizzes',
+      details: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+}) as RequestHandler);
+
+/**
+ * @route GET /api/quizzes/topic/slug/:slug/next
+ * @desc Get the next available quiz for a user in a specific topic using the topic slug
+ * @access Private
+ */
+router.get('/topic/slug/:slug/next', authenticateToken, (async (req, res) => {
+  try {
+    const { slug } = req.params;
+    const userId = req.user?.id;
+    
+    console.log(`Getting next available quiz for topic slug ${slug} and user ${userId}`);
+    
+    if (!slug) {
+      return res.status(400).json({ error: 'Topic slug is required' });
+    }
+    
+    if (!userId) {
+      return res.status(401).json({ error: 'User not authenticated' });
+    }
+    
+    // Find topic by slug
+    const topic = await prisma.topic.findUnique({
+      where: { slug }
+    });
+    
+    if (!topic) {
+      console.log(`Topic not found with slug: ${slug}`);
+      return res.status(404).json({ error: `Topic not found with slug: ${slug}` });
+    }
+    
+    // 1. Get all quizzes for the topic ordered by orderNum
+    const topicQuizzes = await prisma.quiz.findMany({
+      where: { topicId: topic.id },
+      orderBy: { orderNum: 'asc' },
+      include: {
+        _count: {
+          select: { questions: true }
+        }
+      }
+    });
+    
+    console.log(`Found ${topicQuizzes.length} quizzes for topic ${topic.id} (${slug})`);
+    
+    if (!topicQuizzes.length) {
+      return res.status(404).json({ error: 'No quizzes available for this topic' });
+    }
+    
+    // 2. Get all completed quiz attempts for this user/topic
+    const completedAttempts = await prisma.quizAttempt.findMany({
+      where: {
+        userId,
+        quiz: {
+          topicId: topic.id
+        },
+        completedAt: { not: null },
+        passed: true
+      },
+      select: {
+        quizId: true
+      }
+    });
+    
+    console.log(`User has completed ${completedAttempts.length} quiz attempts for this topic`);
+    
+    // Create a set of quiz IDs that have been completed
+    const completedQuizIds = new Set(completedAttempts.map(attempt => attempt.quizId));
+    
+    // 3. Find the first quiz that hasn't been completed
+    const nextQuiz = topicQuizzes.find(quiz => !completedQuizIds.has(quiz.id));
+    
+    // 4. Return the next quiz, or indicate all are completed
+    if (nextQuiz) {
+      return res.json(nextQuiz);
+    } else {
+      console.log('All quizzes completed for this topic');
+      // When all quizzes completed, return the last one to allow practice
+      return res.json({
+        ...topicQuizzes[topicQuizzes.length - 1],
+        allCompleted: true
+      });
+    }
+  } catch (error) {
+    console.error('Error fetching next quiz by topic slug:', error);
+    res.status(500).json({ 
+      error: 'Failed to fetch next quiz',
+      details: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+}) as RequestHandler);
+
+/**
+ * @route GET /api/quizzes/topic/slug/:slug/all
+ * @desc Get all quizzes for a topic using slug, including completed ones, with completion status
+ * @access Private
+ */
+router.get('/topic/slug/:slug/all', authenticateToken, (async (req, res) => {
+  try {
+    const { slug } = req.params;
+    const userId = req.user?.id;
+    
+    console.log(`Getting all quizzes for topic slug ${slug} for user ${userId}`);
+    
+    if (!slug) {
+      return res.status(400).json({ error: 'Topic slug is required' });
+    }
+    
+    if (!userId) {
+      return res.status(401).json({ error: 'User not authenticated' });
+    }
+    
+    // Find topic by slug
+    const topic = await prisma.topic.findUnique({
+      where: { slug }
+    });
+    
+    if (!topic) {
+      return res.status(404).json({ error: `Topic not found with slug: ${slug}` });
+    }
+    
+    // 1. Get all quizzes for the topic
+    const topicQuizzes = await prisma.quiz.findMany({
+      where: { topicId: topic.id },
+      orderBy: { orderNum: 'asc' },
+      include: {
+        _count: {
+          select: { questions: true }
+        }
+      }
+    });
+    
+    if (!topicQuizzes.length) {
+      return res.status(404).json({ error: 'No quizzes available for this topic' });
+    }
+    
+    // 2. Get all completed quiz attempts for this user/topic
+    const completedAttempts = await prisma.quizAttempt.findMany({
+      where: {
+        userId,
+        quiz: {
+          topicId: topic.id
+        },
+        completedAt: { not: null }
+      },
+      select: {
+        quizId: true,
+        score: true,
+        passed: true,
+        completedAt: true
+      }
+    });
+    
+    // Create a map of quiz IDs to completion status
+    const quizCompletionStatus = new Map();
+    completedAttempts.forEach(attempt => {
+      // Keep only the highest score if there are multiple attempts
+      if (!quizCompletionStatus.has(attempt.quizId) || 
+          (quizCompletionStatus.get(attempt.quizId).score ?? 0) < (attempt.score ?? 0)) {
+        quizCompletionStatus.set(attempt.quizId, {
+          completed: true,
+          score: attempt.score,
+          passed: attempt.passed,
+          completedAt: attempt.completedAt
+        });
+      }
+    });
+    
+    // 3. Combine the data
+    const quizzesWithStatus = topicQuizzes.map(quiz => {
+      const status = quizCompletionStatus.get(quiz.id) || {
+        completed: false,
+        score: null,
+        passed: false,
+        completedAt: null
+      };
+      
+      return {
+        ...quiz,
+        ...status
+      };
+    });
+    
+    res.json(quizzesWithStatus);
+  } catch (error) {
+    console.error('Error fetching all quizzes by topic slug:', error);
+    res.status(500).json({ 
+      error: 'Failed to fetch quizzes',
+      details: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+}) as RequestHandler);
+
+/**
+ * @route GET /api/quizzes/topic/:topicId/attempts
+ * @desc Get all quiz attempts for a topic by the current user
+ * @access Private
+ */
+router.get('/topic/:topicId/attempts', authenticateToken, (async (req, res) => {
+  try {
+    const { topicId } = req.params;
+    const userId = req.user?.id;
+    
+    if (!userId) {
+      return res.status(401).json({ error: 'User not authenticated' });
+    }
+    
+    // First check if topic exists
+    const topic = await prisma.topic.findUnique({
+      where: { id: topicId }
+    });
+    
+    if (!topic) {
+      return res.status(404).json({ error: `Topic not found with ID: ${topicId}` });
+    }
+    
+    // Get all quizzes for this topic
+    const quizzes = await prisma.quiz.findMany({
+      where: { topicId },
+      select: { id: true }
+    });
+    
+    const quizIds = quizzes.map(quiz => quiz.id);
+    
+    // Get all attempts for these quizzes
+    const attempts = await prisma.quizAttempt.findMany({
+      where: {
+        userId,
+        quizId: { in: quizIds }
+      },
+      include: {
+        quiz: {
+          select: {
+            id: true,
+            name: true,
+            description: true,
+            passingScore: true,
+            orderNum: true
+          }
+        }
+      },
+      orderBy: {
+        startedAt: 'desc'
+      }
+    });
+    
+    res.json(attempts);
+  } catch (error) {
+    console.error('Error fetching topic quiz attempts:', error);
+    res.status(500).json({ 
+      error: 'Failed to fetch quiz attempts',
+      details: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+}) as RequestHandler);
+
+/**
+ * @route GET /api/quizzes/topic/slug/:slug/attempts
+ * @desc Get all quiz attempts for a topic by the current user using the topic slug
+ * @access Private
+ */
+router.get('/topic/slug/:slug/attempts', authenticateToken, (async (req, res) => {
+  try {
+    const { slug } = req.params;
+    const userId = req.user?.id;
+    
+    if (!userId) {
+      return res.status(401).json({ error: 'User not authenticated' });
+    }
+    
+    // First check if topic exists
+    const topic = await prisma.topic.findUnique({
+      where: { slug }
+    });
+    
+    if (!topic) {
+      return res.status(404).json({ error: `Topic not found with slug: ${slug}` });
+    }
+    
+    // Get all quizzes for this topic
+    const quizzes = await prisma.quiz.findMany({
+      where: { topicId: topic.id },
+      select: { id: true }
+    });
+    
+    const quizIds = quizzes.map(quiz => quiz.id);
+    
+    // Get all attempts for these quizzes
+    const attempts = await prisma.quizAttempt.findMany({
+      where: {
+        userId,
+        quizId: { in: quizIds }
+      },
+      include: {
+        quiz: {
+          select: {
+            id: true,
+            name: true,
+            description: true,
+            passingScore: true,
+            orderNum: true
+          }
+        }
+      },
+      orderBy: {
+        startedAt: 'desc'
+      }
+    });
+    
+    res.json(attempts);
+  } catch (error) {
+    console.error('Error fetching topic quiz attempts by slug:', error);
+    res.status(500).json({ 
+      error: 'Failed to fetch quiz attempts',
+      details: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+}) as RequestHandler);
+
+/**
+ * @route POST /api/quizzes/:id/submit
+ * @desc Create and complete a quiz attempt in a single transaction
+ * @access Private
+ */
+router.post('/:id/submit', authenticateToken, (async (req, res) => {
+  try {
+    const { id: quizId } = req.params;
+    const { startedAt, answers } = req.body;
+    const userId = req.user?.id;
+    
+    console.log(`Creating and completing quiz attempt for quiz ${quizId} and user ${userId}`);
+    
+    if (!userId) {
+      return res.status(401).json({ error: 'User not authenticated' });
+    }
+    
+    // Check if quiz exists
+    const quiz = await prisma.quiz.findUnique({
+      where: { id: quizId },
+      include: {
+        questions: true
+      }
+    });
+
+    if (!quiz) {
+      console.log(`Quiz not found with ID: ${quizId}`);
+      return res.status(404).json({ error: 'Quiz not found' });
+    }
+    
+    // Use a transaction to create attempt, responses, and complete it all at once
+    const result = await prisma.$transaction(async (tx) => {
+      // 1. Create the attempt
+      const attempt = await tx.quizAttempt.create({
+        data: {
+          quizId,
+          userId,
+          startedAt: new Date(startedAt),
+          completedAt: new Date() // Set completion time immediately
+        }
+      });
+      
+      console.log(`Created quiz attempt with ID: ${attempt.id}`);
+      
+      // Track total possible points and earned points
+      let totalPossiblePoints = 0;
+      let pointsEarned = 0;
+      
+      // 2. Process all question responses
+      for (const question of quiz.questions) {
+        const answer = answers[question.id];
+        totalPossiblePoints += question.points;
+        
+        // Skip if no answer provided
+        if (!answer) continue;
+        
+        if (question.questionType === 'MULTIPLE_CHOICE') {
+          // For MC questions, check if the answer is correct
+          const mcProblem = await tx.mcProblem.findUnique({
+            where: { questionId: question.id },
+            include: { options: true }
+          });
+          
+          if (!mcProblem) continue;
+          
+          // Find the selected option and correct option
+          const selectedOption = mcProblem.options.find(opt => opt.id === answer);
+          const correctOption = mcProblem.options.find(opt => opt.isCorrect);
+          
+          const isCorrect = selectedOption?.isCorrect || false;
+          const points = isCorrect ? question.points : 0;
+          
+          // Add points if correct
+          if (isCorrect) {
+            pointsEarned += points;
+          }
+          
+          // Create the response
+          await tx.quizResponse.create({
+            data: {
+              attemptId: attempt.id,
+              questionId: question.id,
+              isCorrect,
+              points,
+              mcResponse: {
+                create: {
+                  selectedOptionId: answer
+                }
+              }
+            }
+          });
+        } else if (question.questionType === 'CODE') {
+          // For code questions, we'd normally run tests, but for now just store the submission
+          // In a real implementation, you'd evaluate the code here or call a code execution service
+          
+          // For now, assume all code submissions are correct
+          // In a real implementation, this would depend on test case results
+          const isCorrect = true; 
+          const points = isCorrect ? question.points : 0;
+          
+          if (isCorrect) {
+            pointsEarned += points;
+          }
+          
+          // Create the response
+          await tx.quizResponse.create({
+            data: {
+              attemptId: attempt.id,
+              questionId: question.id,
+              isCorrect,
+              points,
+              codeResponse: {
+                create: {
+                  codeSubmission: answer
+                }
+              }
+            }
+          });
+        }
+      }
+      
+      // 3. Calculate score and update the attempt
+      const score = totalPossiblePoints > 0 
+        ? Math.round((pointsEarned / totalPossiblePoints) * 100) 
+        : 0;
+      
+      const passed = score >= quiz.passingScore;
+      
+      // Update the attempt with score and passed status
+      const updatedAttempt = await tx.quizAttempt.update({
+        where: { id: attempt.id },
+        data: {
+          score,
+          passed
+        }
+      });
+      
+      return updatedAttempt;
+    });
+    
+    console.log(`Successfully created and completed quiz attempt: ${result.id}`);
+    
+    res.status(201).json(result);
+  } catch (error) {
+    console.error('Error creating and completing quiz attempt:', error);
+    res.status(500).json({ 
+      error: 'Failed to submit quiz',
       details: error instanceof Error ? error.message : 'Unknown error'
     });
   }

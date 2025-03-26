@@ -24,6 +24,7 @@ interface Topic {
   order: number;
   description?: string;
   levelId: string;
+  slug?: string;
 }
 
 interface Level {
@@ -209,7 +210,18 @@ export function QuizAdmin() {
     setFetchErrors(prev => ({ ...prev, [topicId]: '' })); // Clear previous errors
     
     try {
-      const response = await api.getQuizzesByTopic(topicId, token);
+      // Find the topic in the available levels/topics to get its slug
+      const topic = levels.flatMap(level => level.topics).find(t => t.id === topicId);
+      
+      let response;
+      if (topic?.slug) {
+        // Preferred: use the slug-based API if slug is available
+        response = await api.getQuizzesByTopicSlug(topic.slug, token);
+      } else {
+        // Fallback: use the deprecated ID-based API with a warning in the console
+        console.warn(`Using deprecated ID-based API for topic ${topicId} - slug not available`);
+        response = await api.getQuizzesByTopic(topicId, token);
+      }
       
       // Initialize as empty array if response is null or undefined
       setQuizzesByTopic(prev => ({ 
