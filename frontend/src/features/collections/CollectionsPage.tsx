@@ -8,8 +8,9 @@ import { ProblemList } from '@/components/ProblemList';
 import { Problem, Difficulty as ProblemDifficulty } from '@/features/problems/types';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from '@/components/ui/button';
-import { X, ListFilter } from 'lucide-react';
+import { X, ListFilter, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { toast } from '@/components/ui/use-toast';
 
 // Interface for our collection type
 interface Collection {
@@ -27,6 +28,7 @@ export default function CollectionsPage() {
   const { token } = useAuth();
   const [selectedCollection, setSelectedCollection] = useState<string>("all");
   const [selectedDifficulty, setSelectedDifficulty] = useState<DifficultyFilter>("all");
+  const [isNavigating, setIsNavigating] = useState(false);
 
   // Check for URL query parameters on mount
   useEffect(() => {
@@ -44,6 +46,7 @@ export default function CollectionsPage() {
     queryFn: async () => {
       if (!token) throw new Error('No token available');
       const response = await api.get('/problems?includeCompletion=true', token);
+      console.log('Problems fetched:', response.map((p: Problem) => ({ id: p.id, name: p.name, slug: p.slug })));
       return response;
     },
     enabled: !!token,
@@ -63,14 +66,8 @@ export default function CollectionsPage() {
   // Update selectedCollection when the URL slug changes
   useEffect(() => {
     if (slug && collections.length > 0) {
-      // First try to find a collection by slug (preferred)
-      let collection = collections.find(c => c.slug === slug);
-      
-      // If no match by slug, try ID as fallback
-      if (!collection) {
-        collection = collections.find(c => c.id === slug);
-      }
-      
+      // If there's a slug in the URL, find the matching collection
+      const collection = collections.find(c => c.id === slug || c.slug === slug);
       if (collection) {
         setSelectedCollection(collection.id);
       }
@@ -116,12 +113,8 @@ export default function CollectionsPage() {
     
     if (value !== 'all') {
       const collection = collections.find(c => c.id === value);
-      // Navigate to collection-specific URL using slug if available, otherwise use ID
-      if (collection?.slug) {
-        navigate(`/collections/${collection.slug}`);
-      } else {
-        navigate(`/collections/${value}`);
-      }
+      // Navigate to collection-specific URL
+      navigate(`/collections/${collection?.id || value}`);
     } else {
       // Navigate to all collections
       navigate('/collections');
@@ -129,8 +122,77 @@ export default function CollectionsPage() {
   };
 
   // Handle starting a problem
-  const handleProblemStart = (problemId: string) => {
-    navigate(`/problem/${problemId}`);
+  const handleProblemStart = async (problemId: string, slug?: string) => {
+    // Show loading state
+    setIsNavigating(true);
+
+    // Add query parameters for context
+    const params = new URLSearchParams({
+      from: 'collection',
+      name: currentCollectionName,
+      id: selectedCollection !== 'all' ? selectedCollection : 'all'
+    }).toString();
+
+    // Enhanced debug logging
+    console.log('Problem navigation details:', { 
+      problemId, 
+      slug,
+      hasSlug: !!slug,
+      slugType: slug ? typeof slug : 'undefined',
+      slugLength: slug ? slug.length : 0,
+      navigationPath: slug ? `/problem/${slug}?${params}` : `/problems/${problemId}?${params}`
+    });
+
+    // Also log the actual problem object from our data
+    const problemFromData = problems?.find(p => p.id === problemId);
+    console.log('Problem data from state:', problemFromData ? {
+      id: problemFromData.id,
+      name: problemFromData.name,
+      slug: problemFromData.slug,
+      slugType: problemFromData.slug ? typeof problemFromData.slug : 'undefined',
+      slugLength: problemFromData.slug ? problemFromData.slug.length : 0
+    } : 'Not found');
+
+    try {
+      // Fetch the specific problem to get its slug (the all problems endpoint doesn't include slugs)
+      if (!slug && token) {
+        console.log('Fetching problem details to get slug...');
+        // Show a toast notification
+        toast({
+          title: "Loading problem...",
+          description: `Getting details for ${problemFromData?.name || 'selected problem'}`
+        });
+        
+        const problemDetails = await api.get(`/problems/${problemId}`, token);
+        console.log('Problem details:', { 
+          id: problemDetails.id, 
+          name: problemDetails.name, 
+          slug: problemDetails.slug 
+        });
+        
+        if (problemDetails.slug) {
+          console.log(`Using fetched slug: ${problemDetails.slug}`);
+          navigate(`/problem/${problemDetails.slug}?${params}`);
+          return;
+        }
+      }
+    } catch (error) {
+      console.error('Error fetching problem details:', error);
+      toast({
+        title: "Error loading problem",
+        description: "Unable to fetch problem details. Using ID-based navigation instead.",
+        variant: "destructive"
+      });
+    } finally {
+      setIsNavigating(false);
+    }
+
+    // Always prefer the slug if available and not empty
+    if (slug && slug.trim().length > 0) {
+      navigate(`/problem/${slug}?${params}`);
+    } else {
+      navigate(`/problems/${problemId}?${params}`);
+    }
   };
 
   // Reset all filters
@@ -143,14 +205,11 @@ export default function CollectionsPage() {
 
   // Filter problems based on all selected filters
   const filteredProblems = useMemo(() => {
-    // Make sure we're using the right collection ID for filtering
-    const collectionId = selectedCollection;
-    
     return problems?.filter(problem => {
       // Collection filter
       const passesCollectionFilter = 
-        collectionId === 'all' || 
-        (problem.collectionIds && problem.collectionIds.includes(collectionId));
+        selectedCollection === 'all' || 
+        (problem.collectionIds && problem.collectionIds.includes(selectedCollection));
       
       // Difficulty filter
       const passesDifficultyFilter = 
@@ -183,6 +242,20 @@ export default function CollectionsPage() {
   // Show loading state while either problems or collections are loading
   const isLoading = isLoadingProblems || isLoadingCollections;
 
+  // Loading overlay for problem navigation
+  const LoadingOverlay = () => {
+    if (!isNavigating) return null;
+    
+    return (
+      <div className="fixed inset-0 bg-background/80 flex items-center justify-center z-50">
+        <div className="bg-card p-6 rounded-lg shadow-lg flex flex-col items-center">
+          <Loader2 className="h-8 w-8 animate-spin text-primary mb-2" />
+          <p className="text-foreground">Loading problem...</p>
+        </div>
+      </div>
+    );
+  };
+
   if (isLoading) {
     return (
       <div className="container py-8">
@@ -197,6 +270,9 @@ export default function CollectionsPage() {
 
   return (
     <div className="container py-8">
+      {/* Loading overlay */}
+      <LoadingOverlay />
+      
       <div className="grid grid-cols-12 gap-6">
         {/* Left column - Collection Name */}
         <div className="col-span-3">
