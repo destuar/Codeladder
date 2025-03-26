@@ -1,14 +1,14 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useToast } from '@/components/ui/use-toast';
-import { useQuiz, QuizQuestion } from './hooks/useQuiz';
-import { MultipleChoiceQuestion } from './components/MultipleChoiceQuestion';
-import { CodeQuestion } from './components/CodeQuestion';
+import { useQuiz } from './hooks/useQuiz';
 import { QuizLayout } from '@/components/layouts/QuizLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { AlertCircle, Clock, Check, ChevronLeft, ChevronRight, Send } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
+// Import shared components
+import { MultipleChoiceQuestion, CodeQuestion, AssessmentNavigation } from '../shared/components';
 
 // Format time for display
 const formatTime = (seconds: number): string => {

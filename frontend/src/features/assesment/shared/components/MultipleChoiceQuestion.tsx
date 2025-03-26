@@ -1,12 +1,9 @@
 import React, { memo } from 'react';
 import { cn } from '@/lib/utils';
-import { QuizQuestion } from '../hooks/useQuiz';
-import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
-import { Label } from '@/components/ui/label';
-import { Card } from '@/components/ui/card';
+import { AssessmentQuestion } from '../types';
 
 interface MultipleChoiceQuestionProps {
-  question: QuizQuestion;
+  question: AssessmentQuestion;
   selectedOption?: string;
   onSelectOption: (optionId: string) => void;
   isReview?: boolean;
@@ -108,4 +105,4 @@ function MultipleChoiceQuestionComponent({
 }
 
 // Export a memoized version of the component
-export const MultipleChoiceQuestion = memo(MultipleChoiceQuestionComponent);
+export const MultipleChoiceQuestion = memo(MultipleChoiceQuestionComponent); 

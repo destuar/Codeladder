@@ -21,10 +21,9 @@ import { QueryClientProvider } from '@tanstack/react-query';
 import queryClient from '@/lib/queryClient';
 import { LandingPage } from './features/landingpage';
 // Import quiz feature components
-import { QuizPage } from './features/quiz/QuizPage';
-import { QuizResultsPage } from './features/quiz/QuizResultsPage';
-import { QuizHistoryPage } from './features/quiz/QuizHistoryPage';
-import CollectionPage from './features/collections/CollectionPage';
+import { QuizPage } from './features/assesment/quiz/QuizPage';
+import { QuizResultsPage } from './features/assesment/quiz/QuizResultsPage';
+import { QuizHistoryPage } from './features/assesment/quiz/QuizHistoryPage';
 import { ReviewPage } from './features/spaced-repetition';
 
 // Regular components
@@ -53,7 +52,7 @@ function MainLayout() {
   const isProblemPage = location.pathname.match(/^\/problems\/[^/]+$/) || location.pathname.match(/^\/problem\/[^/]+$/);
   const isTopicPage = location.pathname.match(/^\/topics\/[^/]+$/) || location.pathname.match(/^\/topic\/[^/]+$/);
   const isInfoPage = location.pathname.match(/^\/info\/[^/]+$/);
-  const isCollectionPage = location.pathname.match(/^\/collection\/[^/]+$/);
+  const isCollectionPage = location.pathname.match(/^\/collections\/[^/]+$/);
   const isQuizPage = location.pathname.match(/^\/quizzes\/[^/]+$/);
   const isQuizResultsPage = location.pathname.match(/^\/quizzes\/attempts\/[^/]+\/results$/);
   

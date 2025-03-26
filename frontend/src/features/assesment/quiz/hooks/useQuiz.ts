@@ -3,55 +3,18 @@ import { useAuth } from '@/features/auth/AuthContext';
 import { api } from '@/lib/api';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
+// Import shared types
+import { 
+  AssessmentQuestion as QuizQuestion,
+  McProblem,
+  McOption,
+  CodeProblem,
+  TestCase,
+  McResponse,
+  CodeResponse
+} from '../../shared/types';
 
-// Define types based on schema.prisma
-export interface QuizQuestion {
-  id: string;
-  questionText: string;
-  questionType: 'MULTIPLE_CHOICE' | 'CODE';
-  type: 'MULTIPLE_CHOICE' | 'CODE'; // Alias for compatibility
-  points: number;
-  orderNum?: number;
-  difficulty?: string;
-  mcProblem?: McProblem;
-  codeProblem?: CodeProblem;
-}
-
-export interface McProblem {
-  questionId: string;
-  explanation?: string;
-  shuffleOptions: boolean;
-  options: McOption[];
-}
-
-export interface McOption {
-  id: string;
-  questionId: string;
-  optionText: string;
-  isCorrect: boolean;
-  explanation?: string;
-  orderNum?: number;
-}
-
-export interface CodeProblem {
-  questionId: string;
-  codeTemplate?: string;
-  functionName?: string;
-  language: string;
-  timeLimit: number;
-  memoryLimit?: number;
-  testCases: TestCase[];
-}
-
-export interface TestCase {
-  id: string;
-  codeProblemId: string;
-  input: string;
-  expectedOutput: string;
-  isHidden: boolean;
-  orderNum?: number;
-}
-
+// Quiz-specific interfaces
 export interface Quiz {
   id: string;
   title: string;
@@ -84,20 +47,16 @@ export interface QuizResponse {
   codeResponse?: CodeResponse;
 }
 
-export interface McResponse {
-  responseId: string;
-  selectedOptionId?: string;
-}
-
-export interface CodeResponse {
-  responseId: string;
-  codeSubmission?: string;
-  compilationError?: string;
-  runtimeError?: string;
-  testCasesPassed?: number;
-  totalTestCases?: number;
-  executionTime?: number;
-}
+// Re-export the core types from shared types
+export type { 
+  QuizQuestion,
+  McProblem,
+  McOption,
+  CodeProblem,
+  TestCase,
+  McResponse,
+  CodeResponse
+};
 
 /**
  * Hook for managing quiz state during quiz-taking

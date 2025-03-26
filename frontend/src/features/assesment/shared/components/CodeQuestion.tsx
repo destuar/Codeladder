@@ -1,19 +1,14 @@
 import React from 'react';
-import { QuizQuestion } from '../hooks/useQuiz';
+import { AssessmentQuestion, TestResult } from '../types';
 import CodingProblem from '@/features/problems/components/coding/CodingProblem';
 
 interface CodeQuestionProps {
-  question: QuizQuestion;
+  question: AssessmentQuestion;
   code?: string;
   onCodeChange: (code: string) => void;
   isReview?: boolean;
-  testResults?: Array<{
-    passed: boolean;
-    input: string;
-    expectedOutput: string;
-    actualOutput?: string;
-    error?: string;
-  }>;
+  testResults?: TestResult[];
+  onCompleted?: () => void;
 }
 
 export function CodeQuestion({
@@ -21,7 +16,8 @@ export function CodeQuestion({
   code,
   onCodeChange,
   isReview = false,
-  testResults
+  testResults,
+  onCompleted = () => {}
 }: CodeQuestionProps) {
   if (!question.codeProblem) {
     return <div className="text-destructive">Error: Not a code question</div>;
@@ -29,15 +25,13 @@ export function CodeQuestion({
 
   const { codeTemplate, testCases, language } = question.codeProblem;
   
-  // Format test cases from quiz format to problem format
+  // Format test cases from assessment format to problem format
   const formattedTestCases = JSON.stringify(testCases);
-  
-  // Convert test results if in review mode
-  const onCompleted = () => {
-    // In quiz mode, completion is handled by the quiz flow
-  };
 
-  // Adapt the quiz question to the CodingProblem format
+  // Mock navigation function - not used in quiz/test mode but required by component
+  const handleNavigate = () => {}; 
+
+  // Adapt the assessment question to the CodingProblem format
   return (
     <div className="h-full flex flex-col">
       <CodingProblem
@@ -45,13 +39,14 @@ export function CodeQuestion({
         content={question.questionText}
         codeTemplate={code || codeTemplate || ''}
         testCases={formattedTestCases}
-        difficulty="MEDIUM" // Default difficulty
+        difficulty={question.difficulty || "MEDIUM"} // Use question difficulty or default to MEDIUM
         problemId={question.id}
         isReviewMode={isReview}
         onCodeChange={onCodeChange}
         onCompleted={onCompleted}
-        isQuizMode={true}
+        isQuizMode={true} // This is true for both quizzes and tests as they share the same UI behavior
+        onNavigate={handleNavigate} // Add the required prop
       />
     </div>
   );
-}
+} 

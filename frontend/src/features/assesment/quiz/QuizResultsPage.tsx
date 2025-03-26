@@ -18,9 +18,9 @@ import {
   ArrowLeft,
   RefreshCw
 } from 'lucide-react';
-import { MultipleChoiceQuestion } from './components/MultipleChoiceQuestion';
-import { CodeQuestion } from './components/CodeQuestion';
+import { MultipleChoiceQuestion, CodeQuestion } from '../shared/components';
 import { QuizQuestion } from './hooks/useQuiz';
+import { CircleCheck, CircleX } from 'lucide-react';
 
 type ResultQuestion = {
   id: string;
