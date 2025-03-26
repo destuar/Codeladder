@@ -45,10 +45,10 @@ export function Navigation() {
                   Review
                 </Link>
                 <Link 
-                  to="/categories" 
+                  to="/collections" 
                   className="text-sm font-medium text-muted-foreground hover:text-foreground"
                 >
-                  Categories
+                  Collections
                 </Link>
               </>
             )}

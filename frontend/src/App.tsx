@@ -6,7 +6,7 @@ import LoginPage from './features/auth/LoginPage';
 import RegisterPage from './features/auth/RegisterPage';
 import ProfilePage from './features/profile/ProfilePage';
 import DashboardPage from './features/dashboard/DashboardPage';
-import CategoriesPage from './features/categories/CategoriesPage';
+import CollectionsPage from './features/collections/CollectionsPage';
 import ProtectedRoute from './components/ProtectedRoute';
 import { Navigation } from './components/Navigation';
 import { AdminDashboard } from './features/admin/AdminDashboard';
@@ -23,7 +23,6 @@ import { LandingPage } from './features/landingpage';
 // Import quiz feature components
 import { QuizPage } from './features/quiz/QuizPage';
 import { QuizResultsPage } from './features/quiz/QuizResultsPage';
-import CollectionPage from './features/collections/CollectionPage';
 import { ReviewPage } from './features/spaced-repetition';
 
 // Regular components
@@ -106,17 +105,27 @@ function MainLayout() {
             element={
               <ProtectedRoute>
                 <AdminViewWrapper>
-                  <CategoriesPage />
+                  <CollectionsPage />
                 </AdminViewWrapper>
               </ProtectedRoute>
             }
           />
           <Route
-            path="/categories"
+            path="/collections"
             element={
               <ProtectedRoute>
                 <AdminViewWrapper>
-                  <CategoriesPage />
+                  <CollectionsPage />
+                </AdminViewWrapper>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/collections/:slug"
+            element={
+              <ProtectedRoute>
+                <AdminViewWrapper>
+                  <CollectionsPage />
                 </AdminViewWrapper>
               </ProtectedRoute>
             }
@@ -219,18 +228,6 @@ function MainLayout() {
               <ProtectedRoute>
                 <AdminViewWrapper>
                   <QuizPage />
-                </AdminViewWrapper>
-              </ProtectedRoute>
-            }
-          />
-
-          {/* Collection routes */}
-          <Route
-            path="/collection/:slug"
-            element={
-              <ProtectedRoute>
-                <AdminViewWrapper>
-                  <CollectionPage />
                 </AdminViewWrapper>
               </ProtectedRoute>
             }

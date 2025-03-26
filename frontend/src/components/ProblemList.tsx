@@ -132,17 +132,17 @@ export function ProblemList({
   const paginatedProblems = sortedProblems.slice(startIndex, startIndex + itemsPerPage);
 
   return (
-    <div className="mt-2 mb-8">
-      <div className="mb-6">
+    <div className={cn("mt-2 mb-8", hideHeader && "mt-0")}>
+      <div className={cn("mb-6", hideHeader && "mb-2")}>
         <div className="flex items-center justify-between flex-wrap gap-4">
           {!hideHeader && (
             <div>
               <h2 className="text-2xl font-semibold text-foreground flex items-center gap-2">
                 <div className="h-6 w-1.5 rounded-full bg-blue-500 dark:bg-blue-400"></div>
-                Category List
+                Collection List
               </h2>
               <p className="text-sm text-muted-foreground mt-1 ml-3">
-                Browse and practice all available problems across categories
+                Browse and practice all available problems across collections
               </p>
             </div>
           )}
