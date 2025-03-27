@@ -1,21 +1,19 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useToast } from '@/components/ui/use-toast';
-import { useQuiz, QuizQuestion } from './hooks/useQuiz';
-import { MultipleChoiceQuestion } from './components/MultipleChoiceQuestion';
-import { CodeQuestion } from './components/CodeQuestion';
+import { useQuiz } from './hooks/useQuiz';
 import { QuizLayout } from '@/components/layouts/QuizLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { AlertCircle, Clock, Check, ChevronLeft, ChevronRight, Send } from 'lucide-react';
+import { AlertCircle } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
-
-// Format time for display
-const formatTime = (seconds: number): string => {
-  const mins = Math.floor(seconds / 60).toString().padStart(2, '0');
-  const secs = (seconds % 60).toString().padStart(2, '0');
-  return `${mins}:${secs}`;
-};
+// Import shared components
+import { 
+  MultipleChoiceQuestion, 
+  CodeQuestion, 
+  QuizSidebar,
+  AssessmentHeader 
+} from '../shared/components';
 
 export function QuizPage() {
   const { quizId } = useParams<{ quizId: string }>();
@@ -125,6 +123,30 @@ export function QuizPage() {
     );
   }
   
+  // Calculate whether this is the first or last question
+  const isFirstQuestion = currentQuestionIndex === 0;
+  const isLastQuestion = !quiz || currentQuestionIndex >= quiz.questions.length - 1;
+
+  // Handle navigation
+  const handlePreviousQuestion = () => {
+    if (currentQuestionIndex > 0) {
+      goToQuestion(currentQuestionIndex - 1);
+    }
+  };
+
+  const handleNextQuestion = () => {
+    if (quiz && currentQuestionIndex < quiz.questions.length - 1) {
+      goToQuestion(currentQuestionIndex + 1);
+    }
+  };
+
+  const handleExitQuiz = () => {
+    if (quizId) {
+      // Navigate to the quiz overview but pass state to signal we should skip intro
+      navigate(`/quizzes/${quizId}`, { state: { skipIntro: true } });
+    }
+  };
+  
   // Handle quiz completion
   const handleSubmit = async () => {
     try {
@@ -225,95 +247,42 @@ export function QuizPage() {
     return <div>Unknown question type</div>;
   };
   
+  // Check if all questions are answered
+  const allAnswered = quiz && quiz.questions.length === Object.keys(answers).length;
+  
   return (
     <QuizLayout>
+      {/* Sidebar navigation */}
+      <QuizSidebar
+        questions={quiz.questions}
+        currentIndex={currentQuestionIndex}
+        answers={answers}
+        onNavigate={goToQuestion}
+        onExit={handleExitQuiz}
+        elapsedTime={elapsedTime}
+        quizTitle={quiz.title}
+      />
+    
       {/* Main quiz content area - full height/width */}
-      <div className="h-screen w-full relative flex flex-col">
-        {/* Top navigation bar */}
-        <div className="border-b bg-background py-2 px-6">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <span className="text-sm font-medium text-muted-foreground">
-                Question {currentQuestionIndex + 1} of {quiz?.questions?.length || 0}
-              </span>
-              
-              <div className="flex items-center text-muted-foreground">
-                <Clock className="h-3.5 w-3.5 mr-1" />
-                <span className="text-xs font-mono">{formatTime(elapsedTime)}</span>
-              </div>
-              
-              {/* Progress bar */}
-              <div className="hidden sm:flex items-center gap-1 ml-2">
-                <div className="w-32 h-1.5 bg-muted rounded-full overflow-hidden">
-                  <div 
-                    className="h-full bg-primary transition-all duration-300 ease-in-out rounded-full"
-                    style={{ width: `${(Object.keys(answers).length / (quiz?.questions?.length || 1)) * 100}%` }}
-                  />
-                </div>
-                <span className="text-xs text-muted-foreground">
-                  {Object.keys(answers).length}/{quiz?.questions?.length || 0}
-                </span>
-              </div>
-            </div>
-            
-            <div className="flex items-center gap-2">
-              {currentQuestionIndex > 0 && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => goToQuestion(currentQuestionIndex - 1)}
-                  className="text-muted-foreground hover:text-foreground"
-                >
-                  <ChevronLeft className="h-4 w-4 mr-1" />
-                  Previous
-                </Button>
-              )}
-              
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => {
-                  if (window.confirm('Are you sure you want to reset this quiz? This will clear all your answers and start a new attempt.')) {
-                    // Force create a new attempt
-                    startQuizAttempt(quizId!, true);
-                    // Reset the UI state
-                    goToQuestion(0);
-                    toast({
-                      title: "Quiz Reset",
-                      description: "Started a new quiz attempt",
-                    });
-                  }
-                }}
-                className="text-muted-foreground hover:text-foreground mr-2"
-              >
-                Reset Quiz
-              </Button>
-              
-              {currentQuestionIndex < (quiz?.questions?.length || 0) - 1 ? (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => goToQuestion(currentQuestionIndex + 1)}
-                  className="text-muted-foreground hover:text-foreground"
-                >
-                  Next
-                  <ChevronRight className="h-4 w-4 ml-1" />
-                </Button>
-              ) : (
-                <Button
-                  size="sm"
-                  onClick={handleSubmit}
-                  disabled={localIsSubmitting}
-                >
-                  {localIsSubmitting ? "Submitting..." : "Submit Quiz"}
-                </Button>
-              )}
-            </div>
-          </div>
-        </div>
+      <div className="h-screen w-full flex flex-col pl-10">
+        {/* Use the shared AssessmentHeader component */}
+        <AssessmentHeader
+          currentIndex={currentQuestionIndex}
+          totalQuestions={quiz.questions.length}
+          elapsedTime={elapsedTime}
+          answeredCount={Object.keys(answers).length}
+          isFirstQuestion={isFirstQuestion}
+          isLastQuestion={isLastQuestion}
+          allAnswered={allAnswered}
+          isSubmitting={localIsSubmitting}
+          onPrevious={handlePreviousQuestion}
+          onNext={handleNextQuestion}
+          onExit={handleExitQuiz}
+          onSubmit={handleSubmit}
+        />
         
         {/* Question content area - takes remaining screen height */}
-        <div className="flex-1 overflow-auto">
+        <div className="flex-1 flex flex-col overflow-hidden">
           {renderQuestion()}
         </div>
       </div>

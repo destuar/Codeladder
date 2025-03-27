@@ -1,12 +1,9 @@
 import React, { memo } from 'react';
 import { cn } from '@/lib/utils';
-import { QuizQuestion } from '../hooks/useQuiz';
-import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
-import { Label } from '@/components/ui/label';
-import { Card } from '@/components/ui/card';
+import { AssessmentQuestion } from '../types';
 
 interface MultipleChoiceQuestionProps {
-  question: QuizQuestion;
+  question: AssessmentQuestion;
   selectedOption?: string;
   onSelectOption: (optionId: string) => void;
   isReview?: boolean;
@@ -40,8 +37,8 @@ function MultipleChoiceQuestionComponent({
   }, [isReview, onSelectOption]);
 
   return (
-    <div className="flex items-start justify-center min-h-full w-full pt-8">
-      <div className="max-w-3xl w-full px-6">
+    <div className="flex items-start justify-center w-full h-full p-4">
+      <div className="max-w-3xl w-full">
         <div className="text-2xl font-medium mb-8">{question.questionText}</div>
         
         <div className="space-y-3">
@@ -108,4 +105,4 @@ function MultipleChoiceQuestionComponent({
 }
 
 // Export a memoized version of the component
-export const MultipleChoiceQuestion = memo(MultipleChoiceQuestionComponent);
+export const MultipleChoiceQuestion = memo(MultipleChoiceQuestionComponent); 

@@ -18,9 +18,9 @@ import {
   ArrowLeft,
   RefreshCw
 } from 'lucide-react';
-import { MultipleChoiceQuestion } from './components/MultipleChoiceQuestion';
-import { CodeQuestion } from './components/CodeQuestion';
+import { MultipleChoiceQuestion, CodeQuestion } from '../shared/components';
 import { QuizQuestion } from './hooks/useQuiz';
+import { CircleCheck, CircleX } from 'lucide-react';
 
 type ResultQuestion = {
   id: string;
@@ -506,18 +506,13 @@ export function QuizResultsPage() {
           ))}
         </div>
         
-        <div className="mt-8 flex justify-between">
-          <Button variant="outline" onClick={() => navigate('/dashboard')}>
-            <ArrowLeft className="h-4 w-4 mr-2" />
-            Back to Dashboard
+        <div className="flex gap-4 mt-8 justify-center">
+          <Button variant="outline" onClick={() => navigate('/topics')}>
+            Back to Topics
           </Button>
-          
-          {result && (
-            <Button variant="default" onClick={() => navigate(`/quizzes/${result.quizId || ''}`)}>
-              <RefreshCw className="h-4 w-4 mr-2" />
-              Retake Quiz
-            </Button>
-          )}
+          <Button variant="default" onClick={() => navigate(`/quizzes/${result.quizId || ''}`)}>
+            Retry Quiz
+          </Button>
         </div>
       </div>
     </QuizLayout>

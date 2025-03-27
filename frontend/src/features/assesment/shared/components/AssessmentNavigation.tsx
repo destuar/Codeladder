@@ -2,27 +2,33 @@ import React, { useEffect, useState } from 'react';
 import { Check, Clock, ChevronLeft, ChevronRight, Send } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import { QuizQuestion } from '../hooks/useQuiz';
+import { AssessmentQuestion } from '../types';
 
-interface QuizNavigationProps {
+interface AssessmentNavigationProps {
   currentIndex: number;
-  questions: QuizQuestion[];
+  questions: AssessmentQuestion[];
   answers: Record<string, any>;
   onNavigate: (index: number) => void;
   onSubmit: () => void;
   isSubmitting: boolean;
   elapsedTime: number;
+  submitButtonText?: string;
+  submitButtonIcon?: React.ReactNode;
+  title?: string;
 }
 
-export function QuizNavigation({
+export function AssessmentNavigation({
   currentIndex,
   questions,
   answers,
   onNavigate,
   onSubmit,
   isSubmitting,
-  elapsedTime
-}: QuizNavigationProps) {
+  elapsedTime,
+  submitButtonText = "Submit",
+  submitButtonIcon = <Send className="h-4 w-4 mr-2" />,
+  title = "Assessment Progress"
+}: AssessmentNavigationProps) {
   const [timeString, setTimeString] = useState('00:00');
   
   // Format time for display
@@ -49,7 +55,7 @@ export function QuizNavigation({
     <Card className="shadow-md">
       <CardHeader>
         <CardTitle className="text-lg flex items-center justify-between">
-          <span>Quiz Progress</span>
+          <span>{title}</span>
           <div className="flex items-center text-muted-foreground">
             <Clock className="h-4 w-4 mr-1" />
             <span className="text-sm">{timeString}</span>
@@ -98,12 +104,12 @@ export function QuizNavigation({
         <div className="mb-4 text-sm">
           <div className="flex items-center text-muted-foreground">
             <span className="font-medium text-foreground mr-2">Question type:</span>
-            {questions[currentIndex].questionType === 'MULTIPLE_CHOICE' ? 
+            {questions[currentIndex]?.questionType === 'MULTIPLE_CHOICE' ? 
               'Multiple Choice' : 'Coding Question'}
           </div>
           <div className="mt-1 flex items-center text-muted-foreground">
             <span className="font-medium text-foreground mr-2">Points:</span>
-            {questions[currentIndex].points || 1}
+            {questions[currentIndex]?.points || 1}
           </div>
         </div>
       </CardContent>
@@ -131,7 +137,7 @@ export function QuizNavigation({
           </Button>
         </div>
         
-        {/* Submit quiz button */}
+        {/* Submit button */}
         <Button
           className="w-full"
           onClick={onSubmit}
@@ -144,8 +150,8 @@ export function QuizNavigation({
             </>
           ) : (
             <>
-              <Send className="h-4 w-4 mr-2" />
-              Submit Quiz
+              {submitButtonIcon}
+              {submitButtonText}
             </>
           )}
         </Button>
@@ -158,4 +164,4 @@ export function QuizNavigation({
       </CardFooter>
     </Card>
   );
-}
+} 

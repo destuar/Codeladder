@@ -21,11 +21,11 @@ import { QueryClientProvider } from '@tanstack/react-query';
 import queryClient from '@/lib/queryClient';
 import { LandingPage } from './features/landingpage';
 // Import quiz feature components
-import { QuizPage } from './features/quiz/QuizPage';
-import { QuizResultsPage } from './features/quiz/QuizResultsPage';
-import { QuizHistoryPage } from './features/quiz/QuizHistoryPage';
-import CollectionPage from './features/collections/CollectionPage';
+import { QuizPage } from './features/assesment/quiz/QuizPage';
+import { QuizResultsPage } from './features/assesment/quiz/QuizResultsPage';
+import { QuizHistoryPage } from './features/assesment/quiz/QuizHistoryPage';
 import { ReviewPage } from './features/spaced-repetition';
+import { AssessmentEntryPage } from './features/assesment/shared/AssessmentEntryPage';
 
 // Regular components
 const UnauthorizedPage = () => (
@@ -53,11 +53,10 @@ function MainLayout() {
   const isProblemPage = location.pathname.match(/^\/problems\/[^/]+$/) || location.pathname.match(/^\/problem\/[^/]+$/);
   const isTopicPage = location.pathname.match(/^\/topics\/[^/]+$/) || location.pathname.match(/^\/topic\/[^/]+$/);
   const isInfoPage = location.pathname.match(/^\/info\/[^/]+$/);
-  const isCollectionPage = location.pathname.match(/^\/collection\/[^/]+$/);
-  const isQuizPage = location.pathname.match(/^\/quizzes\/[^/]+$/);
-  const isQuizResultsPage = location.pathname.match(/^\/quizzes\/attempts\/[^/]+\/results$/);
+  const isCollectionPage = false;
+  const isQuizPage = location.pathname.match(/^\/quizzes\/[^/]+\/take$/) || location.pathname.match(/^\/quizzes\/attempts\/[^/]+\/results$/);
   
-  const shouldHideNavigation = isProblemPage || isInfoPage || isCollectionPage || isQuizPage || isQuizResultsPage;
+  const shouldHideNavigation = isProblemPage || isInfoPage || isCollectionPage || isQuizPage;
   
   return (
     <div className="min-h-screen bg-background text-foreground">
@@ -235,11 +234,21 @@ function MainLayout() {
             }
           />
           <Route
-            path="/quizzes/:quizId"
+            path="/quizzes/:quizId/take"
             element={
               <ProtectedRoute>
                 <AdminViewWrapper>
                   <QuizPage />
+                </AdminViewWrapper>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/quizzes/:quizId"
+            element={
+              <ProtectedRoute>
+                <AdminViewWrapper>
+                  <AssessmentEntryPage />
                 </AdminViewWrapper>
               </ProtectedRoute>
             }

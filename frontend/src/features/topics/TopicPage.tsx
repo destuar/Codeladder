@@ -18,7 +18,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { ArrowUpDown, ChevronDown, ChevronUp, CheckCircle2, Circle, Book, Code2, Timer, Lock, AlertCircle, BookOpen, History } from "lucide-react";
+import { ArrowUpDown, ChevronDown, ChevronUp, CheckCircle2, Circle, Book, Code2, Timer, Lock, AlertCircle, BookOpen, History, Settings } from "lucide-react";
 import { cn } from '@/lib/utils';
 import { ProblemList } from '@/components/ProblemList';
 import { useToast } from '@/components/ui/use-toast';
@@ -289,28 +289,37 @@ export default function TopicPage() {
           </Badge>
 
           <div className="ml-auto flex items-center gap-2">
-            <Button 
-              onClick={handleStartQuiz} 
-              size="sm"
-              variant="default"
-              className="bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700"
-              disabled={quizLoading || isLocked || !nextQuiz}
-              title={!nextQuiz ? "No quiz available for this topic" : ""}
-            >
-              <BookOpen className="w-4 h-4 mr-2" />
-              {quizLoading ? 'Loading...' : 'Take Quiz'}
-            </Button>
+            {nextQuiz && (
+              <Button 
+                onClick={() => navigate(`/quizzes/${nextQuiz.id}`)}
+                size="sm"
+                variant="ghost"
+                className="border border-border/60 text-foreground hover:bg-secondary/30 hover:text-foreground transition-colors"
+                disabled={quizLoading || isLocked || !nextQuiz}
+                title={!nextQuiz ? "No quiz available for this topic" : ""}
+              >
+                <BookOpen className="w-4 h-4 mr-2 text-blue-500" />
+                {quizLoading ? 'Loading...' : 'Take Quiz'}
+              </Button>
+            )}
             <Button 
               onClick={() => navigate(`/quizzes/history/${topicId || topic?.id}`)}
               size="sm"
-              variant="outline"
-              className="bg-gray-100 hover:bg-gray-200 text-gray-700"
+              variant="ghost"
+              className="border border-border/60 text-muted-foreground hover:text-foreground hover:bg-secondary/30 transition-colors"
             >
-              <History className="w-4 h-4 mr-2" />
+              <History className="w-4 h-4 mr-2 text-amber-500" />
               Quiz History
             </Button>
             {isAdminView && (
-              <Button variant="outline" size="sm">Edit Topic</Button>
+              <Button 
+                variant="ghost" 
+                size="sm"
+                className="border border-border/60 text-muted-foreground hover:text-foreground hover:bg-secondary/30 transition-colors"
+              >
+                <Settings className="w-4 h-4 mr-2 text-green-500" />
+                Edit Topic
+              </Button>
             )}
           </div>
         </div>
