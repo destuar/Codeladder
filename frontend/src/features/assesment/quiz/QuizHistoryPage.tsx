@@ -31,7 +31,14 @@ import {
   XCircle, 
   ArrowLeft, 
   RefreshCw, 
-  ChevronLeft
+  ChevronLeft,
+  Check,
+  X,
+  FileText,
+  Medal,
+  Star,
+  Activity,
+  Award
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -50,6 +57,20 @@ type QuizAttempt = {
     description: string | null;
     passingScore: number;
   };
+};
+
+// Format time duration in minutes:seconds
+const formatDuration = (durationInSeconds: number) => {
+  const minutes = Math.floor(durationInSeconds / 60);
+  const seconds = durationInSeconds % 60;
+  return `${minutes}:${seconds < 10 ? '0' : ''}${seconds}`;
+};
+
+// Calculate time taken between two dates in seconds
+const calculateTimeTaken = (startDate: string, endDate: string) => {
+  const start = new Date(startDate);
+  const end = new Date(endDate);
+  return Math.floor((end.getTime() - start.getTime()) / 1000);
 };
 
 export function QuizHistoryPage() {
@@ -167,6 +188,32 @@ export function QuizHistoryPage() {
     );
   }
   
+  // Find the best attempt for each quiz
+  const getBestAttempt = (quizAttempts: QuizAttempt[]) => {
+    if (!quizAttempts || quizAttempts.length === 0) return null;
+    
+    return quizAttempts.reduce((best: QuizAttempt | null, current: QuizAttempt) => {
+      // If there is no current best or this attempt has a higher score
+      if (!best || ((current.score !== null && current.score !== undefined) && 
+                   (best.score === null || best.score === undefined || current.score > best.score))) {
+        return current;
+      }
+      return best;
+    }, null);
+  };
+  
+  // Count total attempts and passed attempts
+  const getTotalStats = () => {
+    if (!attempts) return { total: 0, passed: 0 };
+    
+    const total = attempts.length;
+    const passed = attempts.filter((a: QuizAttempt) => a.passed).length;
+    
+    return { total, passed };
+  };
+  
+  const stats = getTotalStats();
+  
   return (
     <QuizLayout>
       <div className="container py-8 max-w-6xl">
@@ -215,7 +262,7 @@ export function QuizHistoryPage() {
               <div className="space-y-6">
                 {quizzes.map((quiz: any) => {
                   const quizAttempts = attemptsByQuiz[quiz.id] || [];
-                  const bestAttempt = getBestScore(quiz.id);
+                  const bestAttempt = getBestAttempt(quizAttempts);
                   const sortedAttempts = [...quizAttempts].sort(
                     (a, b) => new Date(b.startedAt).getTime() - new Date(a.startedAt).getTime()
                   );
@@ -302,10 +349,10 @@ export function QuizHistoryPage() {
                                       <Button 
                                         variant="default" 
                                         size="sm"
-                                        onClick={() => navigate(`/quizzes/${quiz.id}`)}
+                                        onClick={() => navigate(`/quizzes/${attempt.quiz.id}`)}
                                       >
-                                        <RefreshCw className="h-3 w-3 mr-1" />
-                                        {attempt.completedAt ? 'Retake' : 'Continue'}
+                                        <RefreshCw className="h-4 w-4 mr-2" />
+                                        Retry Quiz
                                       </Button>
                                     </div>
                                   </TableCell>
@@ -316,13 +363,14 @@ export function QuizHistoryPage() {
                         </div>
                       </CardContent>
                       <CardFooter className="bg-gray-50 border-t flex justify-end py-3">
-                        <Button 
-                          onClick={() => navigate(`/quizzes/${quiz.id}`)}
-                          className="bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700"
-                        >
-                          <RefreshCw className="h-4 w-4 mr-2" />
-                          Take Quiz
-                        </Button>
+                        {!bestAttempt && (
+                          <Button 
+                            variant="default" 
+                            onClick={() => navigate(`/quizzes/${quiz.id}`)}
+                          >
+                            Take Quiz
+                          </Button>
+                        )}
                       </CardFooter>
                     </Card>
                   );
@@ -400,10 +448,10 @@ export function QuizHistoryPage() {
                                       <Button 
                                         variant="default" 
                                         size="sm"
-                                        onClick={() => navigate(`/quizzes/${quiz.id}`)}
+                                        onClick={() => navigate(`/quizzes/${attempt.quiz.id}`)}
                                       >
-                                        <RefreshCw className="h-3 w-3 mr-1" />
-                                        Retake
+                                        <RefreshCw className="h-4 w-4 mr-2" />
+                                        Retry Quiz
                                       </Button>
                                     </div>
                                   </TableCell>
@@ -436,7 +484,7 @@ export function QuizHistoryPage() {
                   </TableHeader>
                   <TableBody>
                     {quizzes.map((quiz: any) => {
-                      const bestAttempt = getBestScore(quiz.id);
+                      const bestAttempt = getBestAttempt(attemptsByQuiz[quiz.id] || []);
                       if (!bestAttempt) return null;
                       
                       return (
@@ -463,7 +511,7 @@ export function QuizHistoryPage() {
                                 onClick={() => navigate(`/quizzes/${quiz.id}`)}
                               >
                                 <RefreshCw className="h-3 w-3 mr-1" />
-                                Retake
+                                Retry Quiz
                               </Button>
                             </div>
                           </TableCell>

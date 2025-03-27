@@ -289,17 +289,19 @@ export default function TopicPage() {
           </Badge>
 
           <div className="ml-auto flex items-center gap-2">
-            <Button 
-              onClick={handleStartQuiz} 
-              size="sm"
-              variant="ghost"
-              className="border border-border/60 text-foreground hover:bg-secondary/30 hover:text-foreground transition-colors"
-              disabled={quizLoading || isLocked || !nextQuiz}
-              title={!nextQuiz ? "No quiz available for this topic" : ""}
-            >
-              <BookOpen className="w-4 h-4 mr-2 text-blue-500" />
-              {quizLoading ? 'Loading...' : 'Take Quiz'}
-            </Button>
+            {nextQuiz && (
+              <Button 
+                onClick={() => navigate(`/quizzes/${nextQuiz.id}`)}
+                size="sm"
+                variant="ghost"
+                className="border border-border/60 text-foreground hover:bg-secondary/30 hover:text-foreground transition-colors"
+                disabled={quizLoading || isLocked || !nextQuiz}
+                title={!nextQuiz ? "No quiz available for this topic" : ""}
+              >
+                <BookOpen className="w-4 h-4 mr-2 text-blue-500" />
+                {quizLoading ? 'Loading...' : 'Take Quiz'}
+              </Button>
+            )}
             <Button 
               onClick={() => navigate(`/quizzes/history/${topicId || topic?.id}`)}
               size="sm"

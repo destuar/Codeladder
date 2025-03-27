@@ -37,8 +37,8 @@ function MultipleChoiceQuestionComponent({
   }, [isReview, onSelectOption]);
 
   return (
-    <div className="flex items-start justify-center min-h-full w-full pt-8">
-      <div className="max-w-3xl w-full px-6">
+    <div className="flex items-start justify-center w-full h-full p-4">
+      <div className="max-w-3xl w-full">
         <div className="text-2xl font-medium mb-8">{question.questionText}</div>
         
         <div className="space-y-3">
