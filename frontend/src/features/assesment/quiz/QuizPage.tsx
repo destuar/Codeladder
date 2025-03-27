@@ -23,6 +23,9 @@ export function QuizPage() {
   
   // Get taskId from location state if it exists
   const taskId = location.state?.taskId;
+  // Get topic information from location state if available
+  const topicSlug = location.state?.topicSlug;
+  const topicName = location.state?.topicName;
   
   const {
     quiz,
@@ -42,6 +45,10 @@ export function QuizPage() {
   
   const [localIsSubmitting, setLocalIsSubmitting] = useState(false);
   const [submittedQuestions, setSubmittedQuestions] = useState<string[]>([]);
+  
+  // Calculate navigation state
+  const isFirstQuestion = currentQuestionIndex === 0;
+  const isLastQuestion = quiz?.questions ? currentQuestionIndex === quiz.questions.length - 1 : false;
   
   // Initialize the quiz state and track submission to session storage
   useEffect(() => {
@@ -80,21 +87,6 @@ export function QuizPage() {
         console.log('Using existing quiz session from sessionStorage');
       }
     }
-    
-    // Check if this session was directly accessed and quiz was completed, force redirect to the assessment page
-    useEffect(() => {
-      if (quizId) {
-        const completedFlag = sessionStorage.getItem(`quiz_${quizId}_completed`);
-        // Only do this for direct accesses - if coming from assessment page, state would have skipIntro
-        const isDirectAccess = !location.state?.skipIntro;
-        
-        if (completedFlag === 'true' && isDirectAccess) {
-          console.log('Quiz was completed and directly accessed - redirecting to assessment overview');
-          // Redirect to assessment overview 
-          navigate(`/quizzes/${quizId}`, { replace: true });
-        }
-      }
-    }, [quizId, navigate, location.state]);
     
     // Load submitted questions data from assessment storage
     const loadSubmittedQuestions = () => {
@@ -159,6 +151,21 @@ export function QuizPage() {
     }
   }, [quizId, startQuizAttempt, quiz, answers, forceReset]);
   
+  // Check if this session was directly accessed and quiz was completed, force redirect to the assessment page
+  useEffect(() => {
+    if (quizId) {
+      const completedFlag = sessionStorage.getItem(`quiz_${quizId}_completed`);
+      // Only do this for direct accesses - if coming from assessment page, state would have skipIntro
+      const isDirectAccess = !location.state?.skipIntro;
+      
+      if (completedFlag === 'true' && isDirectAccess) {
+        console.log('Quiz was completed and directly accessed - redirecting to assessment overview');
+        // Redirect to assessment overview 
+        navigate(`/quizzes/${quizId}`, { replace: true });
+      }
+    }
+  }, [quizId, navigate, location.state]);
+  
   // Navigate to the specific question when the quiz data loads
   useEffect(() => {
     // Only run this effect if we have a taskId in the location state and the quiz has loaded
@@ -214,14 +221,14 @@ export function QuizPage() {
   if (isLoading) {
     return (
       <QuizLayout>
-        <div className="py-12 container max-w-7xl flex items-center justify-center">
-          <div className="w-full max-w-3xl">
-            <Skeleton className="h-8 w-64 mb-8" />
-            <Skeleton className="h-64 w-full mb-6" />
-            <div className="flex gap-4">
-              <Skeleton className="h-10 w-24" />
-              <Skeleton className="h-10 w-24" />
+        <div className="flex items-center justify-center w-full h-screen">
+          <div className="flex flex-col items-center space-y-4">
+            <Skeleton className="h-12 w-12 rounded-full" />
+            <div className="space-y-2">
+              <Skeleton className="h-4 w-[250px]" />
+              <Skeleton className="h-4 w-[200px]" />
             </div>
+            <p className="text-muted-foreground">Loading quiz...</p>
           </div>
         </div>
       </QuizLayout>
@@ -231,20 +238,23 @@ export function QuizPage() {
   if (error || !quiz || !quiz.questions) {
     return (
       <QuizLayout>
-        <div className="py-12 container max-w-7xl flex items-center justify-center">
-          <Card className="w-full max-w-md">
+        <div className="flex items-center justify-center w-full h-screen">
+          <Card className="w-[400px]">
             <CardHeader>
-              <CardTitle className="flex items-center text-destructive">
-                <AlertCircle className="h-5 w-5 mr-2" />
+              <CardTitle className="flex items-center">
+                <AlertCircle className="h-5 w-5 mr-2 text-red-500" />
                 Error Loading Quiz
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <p className="text-muted-foreground mb-4">
-                {error?.message || "There was an error loading the quiz. Please try again later."}
+              <p className="text-muted-foreground">
+                There was a problem loading this quiz. Please try again later or contact support.
               </p>
-              <Button variant="default" onClick={() => navigate('/dashboard')}>
-                Return to Dashboard
+              <pre className="text-xs text-red-500 mt-2 p-2 bg-red-50 rounded overflow-auto max-h-[100px]">
+                {typeof error === 'object' ? JSON.stringify(error, null, 2) : String(error)}
+              </pre>
+              <Button onClick={() => window.location.reload()} className="mt-4 w-full">
+                Retry
               </Button>
             </CardContent>
           </Card>
@@ -253,10 +263,6 @@ export function QuizPage() {
     );
   }
   
-  // Calculate whether this is the first or last question
-  const isFirstQuestion = currentQuestionIndex === 0;
-  const isLastQuestion = !quiz || currentQuestionIndex >= quiz.questions.length - 1;
-
   // Check if all questions have been answered
   const allAnswered = quiz && quiz.questions && 
     quiz.questions.length > 0 && 
@@ -276,113 +282,40 @@ export function QuizPage() {
   };
 
   const handleExitQuiz = () => {
+    // Navigate back to the assessment overview
     if (quizId) {
-      // Navigate to the quiz overview but pass state to signal we should skip intro
       navigate(`/quizzes/${quizId}`, { state: { skipIntro: true } });
+    } else {
+      // Fallback to topics page if no quizId
+      navigate('/topics');
     }
   };
   
-  // Handle quiz completion
-  const handleSubmit = async () => {
-    console.log('handleSubmit function triggered');
+  // Handle submitting the entire quiz
+  const handleSubmitQuiz = async () => {
+    if (!quizId || !quiz) return;
+    
+    // Show confirmation dialog
+    const confirmMessage = `Are you sure you want to submit this quiz? 
+You have submitted ${submittedQuestions.length} out of ${quiz.questions.length} questions.`;
+    
+    const confirmed = window.confirm(confirmMessage);
+    if (!confirmed) return;
+    
+    setLocalIsSubmitting(true);
+    
     try {
-      // Check the submission state and show appropriate confirmation
-      if (submittedQuestions.length < quiz.questions.length) {
-        console.log('Not all questions submitted:', {
-          submitted: submittedQuestions.length,
-          total: quiz.questions.length
-        });
-        
-        // Calculate which questions haven't been submitted
-        const unsubmittedCount = quiz.questions.length - submittedQuestions.length;
-        const unsubmittedQuestions = quiz.questions.filter((q: { id: string }) => !submittedQuestions.includes(q.id));
-        console.log('Unsubmitted questions:', unsubmittedQuestions);
-        
-        // Create confirmation message based on submission state
-        let confirmMessage = `Quiz Submission Summary:\n\n`;
-        confirmMessage += `• Submitted: ${submittedQuestions.length} out of ${quiz.questions.length} questions\n`;
-        
-        // Add information about unanswered questions
-        const unansweredCount = quiz.questions.length - Object.keys(answers).length;
-        if (unansweredCount > 0) {
-          confirmMessage += `• Unanswered: ${unansweredCount} questions\n`;
-        }
-        
-        confirmMessage += `\nAre you sure you want to submit the quiz now?`;
-        console.log('Showing confirmation dialog with message:', confirmMessage);
-        
-        // Show confirmation dialog
-        if (!window.confirm(confirmMessage)) {
-          console.log('User cancelled submission via dialog');
-          return; // User cancelled submission
-        }
-        console.log('User confirmed submission via dialog');
-      } else {
-        // All questions have been submitted but still confirm
-        console.log('All questions have been submitted, showing confirmation');
-        if (!window.confirm('All questions have been submitted. Are you sure you want to submit the quiz?')) {
-          console.log('User cancelled submission via dialog');
-          return; // User cancelled submission
-        }
-        console.log('User confirmed submission via dialog');
-      }
-      
-      setLocalIsSubmitting(true);
-      console.log('Set localIsSubmitting to true');
-      
-      console.log('Calling submitQuiz()...');
       const result = await submitQuiz();
       
-      console.log('Quiz submission result:', result);
-      
-      // If submission was cancelled by the user
-      if (!result.success && result.message === 'Submission cancelled') {
-        console.log('Submission was cancelled by user');
-        setLocalIsSubmitting(false);
-        return;
-      }
-      
-      // Show appropriate toast based on success/error
       if (result.success) {
-        console.log('Submission was successful');
-        const attemptId = result.attemptId;
+        // Mark as completed in session storage
+        sessionStorage.setItem(`quiz_${quizId}_completed`, 'true');
         
-        if (attemptId) {
-          console.log(`Got valid attemptId: ${attemptId}, redirecting to results page`);
+        if (result.attemptId) {
+          // Navigate to results page
+          navigate(`/quizzes/attempts/${result.attemptId}/results`);
           
-          // Short delay to allow the backend to process the quiz completion
-          console.log('Waiting 1 second before redirecting...');
-          await new Promise(resolve => setTimeout(resolve, 1000));
-          
-          // Set a flag to indicate this quiz was completed
-          if (quizId) {
-            sessionStorage.setItem(`quiz_${quizId}_completed`, 'true');
-          }
-          
-          // Clean up all quiz session storage data
-          console.log('Clearing all quiz session storage data');
-          
-          // Clear direct quiz data
-          sessionStorage.removeItem(`quiz_${quizId}`);
-          sessionStorage.removeItem(`assessment_${quizId}`);
-          
-          // Clear attempt ID
-          sessionStorage.removeItem(`quiz_attempt_${quizId}`);
-          
-          // Find and clear any other quiz-related items
-          if (quizId) {
-            Object.keys(sessionStorage).forEach(key => {
-              if (key.includes(quizId)) {
-                console.log(`Clearing additional quiz session data: ${key}`);
-                sessionStorage.removeItem(key);
-              }
-            });
-          }
-          
-          // Navigate to the results page
-          console.log(`Navigating to: /quizzes/attempts/${attemptId}/results`);
-          navigate(`/quizzes/attempts/${attemptId}/results`);
-          
+          // Show success toast
           toast({
             title: "Quiz Submitted",
             description: "Your quiz has been submitted successfully!",
@@ -413,7 +346,6 @@ export function QuizPage() {
         variant: "destructive",
       });
     } finally {
-      console.log('Setting localIsSubmitting back to false');
       setLocalIsSubmitting(false);
     }
   };
@@ -478,16 +410,17 @@ export function QuizPage() {
     
     if (currentQuestion.questionType === 'MULTIPLE_CHOICE') {
       return (
-        <div className="flex flex-col h-full">
+        <div className="flex flex-col h-full relative">
           <MultipleChoiceQuestion 
             question={currentQuestion}
             selectedOption={answers[currentQuestion.id] as string || ''}
             onSelectOption={(optionId) => saveAnswer(currentQuestion.id, optionId)}
           />
           
-          <div className="mt-auto py-4 px-6 border-t flex justify-end">
+          {/* Floating submit button for multiple choice questions */}
+          <div className="absolute bottom-6 right-6">
             <Button 
-              className="px-8"
+              className="px-8 shadow-md hover:shadow-lg transition-all"
               disabled={!answers[currentQuestion.id]}
               onClick={submitQuestion}
             >
@@ -497,23 +430,15 @@ export function QuizPage() {
         </div>
       );
     } else if (currentQuestion.questionType === 'CODE') {
+      // For code questions, no extra submit button needed as CodeQuestion already has one
       return (
         <div className="flex flex-col h-full">
           <CodeQuestion
             question={currentQuestion}
             code={answers[currentQuestion.id] as string || ''}
             onCodeChange={(code) => saveAnswer(currentQuestion.id, code)}
+            onCompleted={submitQuestion}  // Pass the submitQuestion function to be called when tests pass
           />
-          
-          <div className="mt-auto py-4 px-6 border-t flex justify-end">
-            <Button 
-              className="px-8"
-              disabled={!answers[currentQuestion.id]}
-              onClick={submitQuestion}
-            >
-              Submit Answer
-            </Button>
-          </div>
         </div>
       );
     }
@@ -523,46 +448,110 @@ export function QuizPage() {
   
   return (
     <QuizLayout>
-      {/* Sidebar navigation */}
-      <QuizSidebar
-        questions={quiz.questions}
-        currentIndex={currentQuestionIndex}
-        answers={answers}
-        submittedQuestionIds={submittedQuestions}
-        onNavigate={goToQuestion}
-        onExit={handleExitQuiz}
-        elapsedTime={elapsedTime}
-        quizTitle={quiz.title}
-      />
-    
-      {/* Main quiz content area - full height/width */}
-      <div className="h-screen w-full flex flex-col pl-10">
-        {/* Use the shared AssessmentHeader component */}
-        <AssessmentHeader
-          currentIndex={currentQuestionIndex}
-          totalQuestions={quiz.questions.length}
-          elapsedTime={elapsedTime}
-          answeredCount={submittedQuestions.length}
-          isFirstQuestion={isFirstQuestion}
-          isLastQuestion={isLastQuestion}
-          isSubmitting={localIsSubmitting}
-          onPrevious={handlePreviousQuestion}
-          onNext={handleNextQuestion}
-          onExit={handleExitQuiz}
-        />
-        
-        {/* Information banner about submission */}
-        <div className="bg-blue-50 dark:bg-blue-900/20 py-2 px-4 border-b border-blue-200 dark:border-blue-800">
-          <p className="text-sm text-blue-700 dark:text-blue-300">
-            Submit your questions below, then click the "Back" button to return to the assessment overview page and submit the entire quiz.
-          </p>
+      {isLoading ? (
+        <div className="flex items-center justify-center w-full h-screen">
+          <div className="flex flex-col items-center space-y-4">
+            <Skeleton className="h-12 w-12 rounded-full" />
+            <div className="space-y-2">
+              <Skeleton className="h-4 w-[250px]" />
+              <Skeleton className="h-4 w-[200px]" />
+            </div>
+            <p className="text-muted-foreground">Loading quiz...</p>
+          </div>
         </div>
-        
-        {/* Question content area - takes remaining screen height */}
-        <div className="flex-1 flex flex-col overflow-hidden">
-          {renderQuestion()}
+      ) : error ? (
+        <div className="flex items-center justify-center w-full h-screen">
+          <Card className="w-[400px]">
+            <CardHeader>
+              <CardTitle className="flex items-center">
+                <AlertCircle className="h-5 w-5 mr-2 text-red-500" />
+                Error Loading Quiz
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-muted-foreground">
+                There was a problem loading this quiz. Please try again later or contact support.
+              </p>
+              <pre className="text-xs text-red-500 mt-2 p-2 bg-red-50 rounded overflow-auto max-h-[100px]">
+                {typeof error === 'object' ? JSON.stringify(error, null, 2) : String(error)}
+              </pre>
+              <Button onClick={() => window.location.reload()} className="mt-4 w-full">
+                Retry
+              </Button>
+            </CardContent>
+          </Card>
         </div>
-      </div>
+      ) : !quiz || !quiz.questions || quiz.questions.length === 0 ? (
+        <div className="flex items-center justify-center w-full h-screen">
+          <Card className="w-[400px]">
+            <CardHeader>
+              <CardTitle className="flex items-center">
+                <AlertCircle className="h-5 w-5 mr-2 text-amber-500" />
+                Quiz Not Available
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-muted-foreground">
+                This quiz doesn't have any questions or isn't available right now.
+              </p>
+              <Button 
+                onClick={() => navigate('/topics')} 
+                className="mt-4 w-full"
+              >
+                Return to Topics
+              </Button>
+            </CardContent>
+          </Card>
+        </div>
+      ) : (
+        <>
+          {/* Sidebar navigation - safe rendering with checks */}
+          {quiz && quiz.questions && (
+            <QuizSidebar
+              questions={quiz.questions}
+              currentIndex={currentQuestionIndex}
+              answers={answers}
+              submittedQuestionIds={submittedQuestions}
+              onNavigate={goToQuestion}
+              onExit={handleExitQuiz}
+              elapsedTime={elapsedTime}
+              quizTitle={quiz.title || "Quiz"}
+            />
+          )}
+        
+          {/* Main quiz content area - full height/width */}
+          <div className="h-screen w-full flex flex-col pl-10">
+            {/* Use the shared AssessmentHeader component with safe rendering */}
+            {quiz && quiz.questions && (
+              <AssessmentHeader
+                currentIndex={currentQuestionIndex}
+                totalQuestions={quiz.questions.length}
+                elapsedTime={elapsedTime}
+                answeredCount={submittedQuestions.length}
+                isFirstQuestion={isFirstQuestion}
+                isLastQuestion={isLastQuestion}
+                onPrevious={handlePreviousQuestion}
+                onNext={handleNextQuestion}
+                onExit={handleExitQuiz}
+                title={topicName || quiz.topicName || quiz.title || "Quiz"}
+                type="quiz"
+              />
+            )}
+            
+            {/* Information banner about submission */}
+            <div className="bg-blue-50 dark:bg-blue-900/20 py-2 px-4 border-b border-blue-200 dark:border-blue-800">
+              <p className="text-sm text-blue-700 dark:text-blue-300">
+                Submit your questions below, then click the "Back" button to return to the assessment overview page and submit the entire quiz.
+              </p>
+            </div>
+            
+            {/* Question content area - takes remaining screen height */}
+            <div className="flex-1 flex flex-col overflow-hidden">
+              {renderQuestion()}
+            </div>
+          </div>
+        </>
+      )}
     </QuizLayout>
   );
 }

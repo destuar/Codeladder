@@ -10,6 +10,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { FileX } from 'lucide-react';
 import { useToast } from '@/components/ui/use-toast';
+import { QuizLayout } from '@/components/layouts/QuizLayout';
 
 export function AssessmentEntryPage() {
   const { quizId } = useParams<{ quizId: string }>();
@@ -118,6 +119,20 @@ export function AssessmentEntryPage() {
     staleTime: 1000 * 60 * 5, // 5 minutes
   });
   
+  // Fetch topic data for the quiz
+  const {
+    data: topic,
+    isLoading: topicLoading
+  } = useQuery({
+    queryKey: ['topic', quiz?.topicId],
+    queryFn: async () => {
+      if (!token || !quiz?.topicId) throw new Error('No token or topic ID available');
+      return api.get(`/learning/topics/${quiz.topicId}`, token);
+    },
+    enabled: !!token && !!quiz?.topicId,
+    staleTime: 1000 * 60 * 5, // 5 minutes
+  });
+  
   // Format quiz data for the AssessmentOverview component
   const formatQuizTasks = (): AssessmentTask[] => {
     if (!quiz || !quiz.questions) return [];
@@ -140,7 +155,9 @@ export function AssessmentEntryPage() {
       navigate(`/quizzes/${quizId}/take`, {
         state: {
           taskId: taskId, // Pass the taskId in state
-          skipIntro: true
+          skipIntro: true,
+          topicName: topic?.name, // Pass topic name to the quiz page
+          topicSlug: topic?.slug
         }
       });
     }
@@ -329,7 +346,7 @@ This will finalize your answers and end the quiz session.`;
     return (
       <AssessmentIntro
         id={quizId || ''}
-        title={quiz.title || 'Assessment'}
+        title={topic?.name || quiz.title || 'Assessment'}
         description={quiz.description}
         duration={quiz.timeLimit || 60}
         questionsCount={quiz.questions?.length || 0}
@@ -347,13 +364,13 @@ This will finalize your answers and end the quiz session.`;
     <QuizLayout>
       <AssessmentOverview 
         id={quizId || ''}
-        title={quiz.title || 'Assessment'}
+        title={topic?.name || quiz.title || 'Assessment'}
         description={quiz.description}
         duration={quiz.timeLimit || 60}
         tasks={formatQuizTasks()}
         submittedCount={submittedCount}
         remainingTime={initialRemainingTime}
-        type={quiz.type === 'QUIZ' ? 'quiz' : 'test'}
+        type="quiz"
         onStartTask={handleStartQuiz}
         onFinishAssessment={handleFinishAssessment}
       />

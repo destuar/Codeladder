@@ -84,6 +84,43 @@ export function useQuiz(quizId?: string) {
     if (savedQuiz) {
       try {
         const quizData = JSON.parse(savedQuiz);
+        
+        // Check if the session has expired (older than 24 hours)
+        const lastUpdated = quizData.lastUpdated ? new Date(quizData.lastUpdated).getTime() : 0;
+        const now = Date.now();
+        const hoursElapsed = (now - lastUpdated) / (1000 * 60 * 60);
+        
+        // If session is older than 24 hours, clear it and start fresh
+        if (hoursElapsed > 24) {
+          console.log(`Quiz session has expired (${hoursElapsed.toFixed(2)} hours old). Starting fresh.`);
+          
+          // Clear session data
+          sessionStorage.removeItem(`quiz_${quizId}`);
+          sessionStorage.removeItem(`quiz_attempt_${quizId}`);
+          sessionStorage.removeItem(`assessment_${quizId}`);
+          
+          // Initialize new state
+          const newState = {
+            currentQuestionIndex: 0,
+            answers: {},
+            startTime: new Date().toISOString(),
+            elapsedTime: 0,
+            lastUpdated: new Date().toISOString()
+          };
+          
+          sessionStorage.setItem(`quiz_${quizId}`, JSON.stringify(newState));
+          
+          // Set state with fresh values
+          setCurrentQuestionIndex(0);
+          setAnswers({});
+          setElapsedTime(0);
+          setStartTime(new Date());
+          setAttemptId(null);
+          
+          return;
+        }
+        
+        // Session is still valid, load state as normal
         setCurrentQuestionIndex(quizData.currentQuestionIndex || 0);
         setAnswers(quizData.answers || {});
         
@@ -194,6 +231,112 @@ export function useQuiz(quizId?: string) {
     },
     enabled: !!token && !!quizId
   });
+
+  // Check if quiz content has changed and reset session if needed
+  useEffect(() => {
+    if (!quiz || !quizId) return;
+    
+    const savedQuiz = sessionStorage.getItem(`quiz_${quizId}`);
+    if (!savedQuiz) return;
+    
+    try {
+      const quizData = JSON.parse(savedQuiz);
+      
+      // If we have a cached version hash, compare it to current quiz
+      if (quizData.contentVersionHash) {
+        // Create a hash of the current quiz questions to detect changes
+        const currentQuestionsHash = JSON.stringify(quiz.questions.map((q: QuizQuestion) => ({
+          id: q.id,
+          type: q.questionType,
+          text: q.questionText,
+          orderNum: q.orderNum
+        })));
+        
+        // Use a simple hash calculation for comparison
+        const simpleHash = (str: string) => {
+          let hash = 0;
+          for (let i = 0; i < str.length; i++) {
+            const char = str.charCodeAt(i);
+            hash = ((hash << 5) - hash) + char;
+            hash = hash & hash; // Convert to 32bit integer
+          }
+          return hash.toString(36);
+        };
+        
+        const currentHash = simpleHash(currentQuestionsHash);
+        
+        // If hash is different, quiz content has changed
+        if (currentHash !== quizData.contentVersionHash) {
+          console.log('Quiz content has changed. Resetting session.');
+          
+          // Create a new reset function to avoid the circular dependency
+          const resetQuizSession = () => {
+            // Clear all session storage
+            sessionStorage.removeItem(`quiz_${quizId}`);
+            sessionStorage.removeItem(`quiz_attempt_${quizId}`);
+            sessionStorage.removeItem(`assessment_${quizId}`);
+            sessionStorage.removeItem(`quiz_${quizId}_completed`);
+            
+            // Find and clear any other quiz-related items
+            Object.keys(sessionStorage).forEach(key => {
+              if (key.includes(quizId)) {
+                console.log(`Clearing additional quiz session data: ${key}`);
+                sessionStorage.removeItem(key);
+              }
+            });
+            
+            // Reset state
+            setCurrentQuestionIndex(0);
+            setAnswers({});
+            setElapsedTime(0);
+            setStartTime(new Date());
+            setAttemptId(null);
+          };
+          
+          // Reset the session
+          resetQuizSession();
+          
+          // Start a new session with the updated hash
+          const newState = {
+            currentQuestionIndex: 0,
+            answers: {},
+            startTime: new Date().toISOString(),
+            elapsedTime: 0,
+            contentVersionHash: currentHash,
+            lastUpdated: new Date().toISOString()
+          };
+          
+          sessionStorage.setItem(`quiz_${quizId}`, JSON.stringify(newState));
+        }
+      } else {
+        // No hash exists, store the current hash
+        const currentQuestionsHash = JSON.stringify(quiz.questions.map((q: QuizQuestion) => ({
+          id: q.id,
+          type: q.questionType,
+          text: q.questionText,
+          orderNum: q.orderNum
+        })));
+        
+        const simpleHash = (str: string) => {
+          let hash = 0;
+          for (let i = 0; i < str.length; i++) {
+            const char = str.charCodeAt(i);
+            hash = ((hash << 5) - hash) + char;
+            hash = hash & hash;
+          }
+          return hash.toString(36);
+        };
+        
+        const currentHash = simpleHash(currentQuestionsHash);
+        
+        // Update the saved quiz data with the hash
+        quizData.contentVersionHash = currentHash;
+        sessionStorage.setItem(`quiz_${quizId}`, JSON.stringify(quizData));
+      }
+    } catch (e) {
+      console.error('Error checking quiz content version:', e);
+    }
+  }, [quiz, quizId, setCurrentQuestionIndex, setAnswers, setElapsedTime, setStartTime, setAttemptId]);
 
   // Get attempt data if we have an attemptId
   const { data: attempt, isLoading: isAttemptLoading } = useQuery({

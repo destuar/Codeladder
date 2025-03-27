@@ -4,9 +4,30 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
-import { Clock, ArrowRight, Timer, CheckSquare, Code2, CheckCircle2, Circle, AlertTriangle, Tag, BookOpenCheck } from 'lucide-react';
+import { Clock, ArrowRight, Timer, CheckSquare, Code2, CheckCircle2, Circle, AlertTriangle, Tag, BookOpenCheck, XIcon, Send } from 'lucide-react';
 import { Progress } from '@/components/ui/progress';
 import { cn } from '@/lib/utils';
+import { BorderlessThemeToggle } from "@/features/problems/components/shared/BorderlessThemeToggle";
+import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
+import { useProfile } from '@/features/profile/ProfileContext';
+import { useAuth } from '@/features/auth/AuthContext';
+import codeladderSvgLogo from '@/features/landingpage/images/CodeLadder.svg';
+import { 
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle
+} from "@/components/ui/alert-dialog";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger
+} from "@/components/ui/tooltip";
 
 // Interface for task item in assessment
 export interface AssessmentTask {
@@ -32,6 +53,112 @@ export interface AssessmentOverviewProps {
   onFinishAssessment?: () => void;
 }
 
+// Simple AssessmentOverviewHeader component
+function AssessmentOverviewHeader({ 
+  title, 
+  type, 
+  onExit,
+  id
+}: { 
+  title: string, 
+  type?: string, 
+  onExit: () => void,
+  id?: string
+}) {
+  const { profile } = useProfile();
+  const { user } = useAuth();
+  const [showExitDialog, setShowExitDialog] = useState(false);
+  
+  // Normalize the type to proper case
+  const displayType = type?.toUpperCase() === 'QUIZ' ? 'Quiz' : 
+                      type?.toUpperCase() === 'TEST' ? 'Test' : 
+                      type ? type.charAt(0).toUpperCase() + type.slice(1).toLowerCase() : 'Assessment';
+  
+  // Handle exit confirmation
+  const handleExitConfirm = () => {
+    // Clear session storage for this assessment
+    if (id) {
+      sessionStorage.removeItem(`assessment_${id}`);
+      sessionStorage.removeItem(`quiz_${id}`);
+      sessionStorage.removeItem(`quiz_attempt_${id}`);
+      sessionStorage.removeItem(`quiz_${id}_completed`);
+      
+      // Remove any other related keys
+      Object.keys(sessionStorage).forEach(key => {
+        if (key.includes(id)) {
+          sessionStorage.removeItem(key);
+        }
+      });
+    }
+    
+    // Call the original exit handler
+    onExit();
+  };
+  
+  return (
+    <div className="border-b bg-background py-3.5">
+      <div className="flex items-center justify-between w-full px-0">
+        {/* Left section - Exit button only */}
+        <div className="flex items-center gap-2 pl-3">
+          {/* CodeLadder logo */}
+          <div className="mr-2">
+            <img src={codeladderSvgLogo} alt="CodeLadder Logo" className="h-8 w-auto" />
+          </div>
+
+          {/* Exit button */}
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setShowExitDialog(true)}
+            className="gap-1 bg-red-50 hover:bg-red-100 text-red-600 border-red-200 dark:bg-red-950/30 dark:hover:bg-red-950/50 dark:border-red-800/50 dark:text-red-400"
+          >
+            <XIcon className="h-4 w-4 mr-1" />
+            Exit
+          </Button>
+        </div>
+        
+        {/* Middle section - assessment type and topic name */}
+        <div className="flex justify-center">
+          <span className="text-base font-medium text-center my-1">
+            {title} {displayType}
+          </span>
+        </div>
+
+        {/* Right section - profile and theme toggle */}
+        <div className="flex items-center justify-end gap-2 pr-3">
+          <BorderlessThemeToggle />
+          
+          <Avatar className="h-8 w-8 transition-transform hover:scale-105">
+            <AvatarImage src={profile?.avatarUrl} />
+            <AvatarFallback>{user?.name?.[0] || user?.email?.[0]}</AvatarFallback>
+          </Avatar>
+        </div>
+      </div>
+      
+      {/* Exit Confirmation Dialog */}
+      <AlertDialog open={showExitDialog} onOpenChange={setShowExitDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Exit {displayType}?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to exit this {displayType.toLowerCase()}? You will lose any progress you may have made.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction 
+              onClick={handleExitConfirm}
+              className="bg-red-600 text-white hover:bg-red-700"
+            >
+              Exit {displayType}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </div>
+  );
+}
+
 export function AssessmentOverview({
   id,
   title,
@@ -52,6 +179,7 @@ export function AssessmentOverview({
   const [localSubmittedCount, setLocalSubmittedCount] = useState<number>(submittedCount);
   const [localTasks, setLocalTasks] = useState<AssessmentTask[]>(tasks);
   const [localIsSubmitting, setLocalIsSubmitting] = useState<boolean>(false);
+  const [showSubmitDialog, setShowSubmitDialog] = useState<boolean>(false);
   
   // Load assessment state from sessionStorage on initial render
   useEffect(() => {
@@ -234,7 +362,15 @@ export function AssessmentOverview({
 
   return (
     <div className="min-h-screen bg-background pb-12">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-8">
+      {/* Add the Assessment Header with type */}
+      <AssessmentOverviewHeader 
+        title={title} 
+        type={type}
+        onExit={handleExit} 
+        id={id}
+      />
+      
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-4">
         <div className="flex flex-col gap-6">
           {/* Header Section */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
@@ -302,14 +438,50 @@ export function AssessmentOverview({
                 <div className="text-4xl font-mono font-bold tracking-wider pb-2 text-primary">
                   {formatRemainingTime(localRemainingTime)}
                 </div>
-                <Button 
-                  variant="outline"
-                  size="default"
-                  className="mt-2 w-full transition-colors border-blue-300/70 hover:border-blue-500 hover:bg-blue-50/30 text-blue-600 dark:border-blue-800/50 dark:text-blue-400 dark:hover:bg-blue-900/20"
-                  onClick={() => handleStartTask(localTasks[0]?.id || '')}
-                >
-                  {progressPercentage > 0 ? 'Continue Assessment' : `Start ${type}`}
-                </Button>
+                <div className="flex flex-col gap-2 mt-2">
+                  <Button 
+                    variant="outline"
+                    size="default"
+                    className="w-full transition-colors border-blue-300/70 hover:border-blue-500 hover:bg-blue-50/30 text-blue-600 dark:border-blue-800/50 dark:text-blue-400 dark:hover:bg-blue-900/20"
+                    onClick={() => handleStartTask(localTasks[0]?.id || '')}
+                  >
+                    {progressPercentage > 0 ? 'Continue Assessment' : `Start ${type}`}
+                  </Button>
+                  
+                  {/* Submit Button - Always show but disable when no submissions */}
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <div className="w-full">
+                          <Button 
+                            variant="outline"
+                            size="default"
+                            onClick={() => setShowSubmitDialog(true)}
+                            disabled={localSubmittedCount === 0 || localIsSubmitting}
+                            className="w-full transition-colors border-green-300/70 hover:border-green-500 hover:bg-green-50/30 text-green-600 dark:border-green-800/50 dark:text-green-400 dark:hover:bg-green-900/20"
+                          >
+                            {localIsSubmitting ? (
+                              <>
+                                <div className="animate-spin h-4 w-4 mr-2 border-2 border-green-600 border-t-transparent rounded-full" />
+                                Submitting...
+                              </>
+                            ) : (
+                              <>
+                                <Send className="h-4 w-4 mr-2" />
+                                Submit {type.charAt(0).toUpperCase() + type.slice(1)}
+                              </>
+                            )}
+                          </Button>
+                        </div>
+                      </TooltipTrigger>
+                      {localSubmittedCount === 0 && (
+                        <TooltipContent className="bg-muted text-muted-foreground border max-w-xs p-2">
+                          <p>Start at least one question before submitting your {type}</p>
+                        </TooltipContent>
+                      )}
+                    </Tooltip>
+                  </TooltipProvider>
+                </div>
               </CardContent>
             </Card>
           </div>
@@ -398,32 +570,34 @@ export function AssessmentOverview({
             </CardContent>
           </Card>
           
-          {/* Footer actions */}
-          <div className="flex justify-between">
-            <Button
-              variant="outline"
-              onClick={handleExit}
-              className="px-6 transition-colors bg-transparent hover:bg-red-50/70 text-red-600 border border-red-200/70 dark:border-red-800/50 dark:text-red-400 dark:hover:bg-red-900/20"
-            >
-              Exit
-            </Button>
-            
-            <Button
-              variant="outline"
-              onClick={handleFinishAssessment}
-              disabled={localSubmittedCount === 0 || localIsSubmitting}
-              className="px-6 transition-colors border-green-300/70 hover:border-green-500 hover:bg-green-50/30 text-green-600 dark:border-green-800/50 dark:text-green-400 dark:hover:bg-green-900/20"
-            >
-              {localIsSubmitting ? (
-                <>
-                  <div className="animate-spin h-4 w-4 mr-2 border-2 border-green-600 border-t-transparent rounded-full" />
-                  Submitting...
-                </>
-              ) : (
-                <>SUBMIT {type.toUpperCase()}</>
-              )}
-            </Button>
-          </div>
+          {/* Submit Confirmation Dialog */}
+          <AlertDialog open={showSubmitDialog} onOpenChange={setShowSubmitDialog}>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Submit {type.charAt(0).toUpperCase() + type.slice(1)}?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  Are you sure you want to submit this {type}? You have completed {localSubmittedCount} out of {localTasks.length} questions.
+                  <br /><br />
+                  {localSubmittedCount < localTasks.length && (
+                    <div className="flex items-center gap-2 text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 p-2 rounded-md mt-1 mb-2">
+                      <AlertTriangle className="h-4 w-4" />
+                      <span>Some questions are not yet completed. You can still submit, but unanswered questions will be scored as zero.</span>
+                    </div>
+                  )}
+                  After submission, you won't be able to change your answers.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogAction 
+                  onClick={handleFinishAssessment}
+                  className="bg-green-600 text-white hover:bg-green-700 transition-colors"
+                >
+                  Submit {type.charAt(0).toUpperCase() + type.slice(1)}
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
         </div>
       </div>
     </div>
