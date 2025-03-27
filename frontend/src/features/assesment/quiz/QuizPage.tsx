@@ -14,6 +14,7 @@ import {
   QuizSidebar,
   AssessmentHeader 
 } from '../shared/components';
+import { useAssessmentTimer } from '../shared/hooks/useAssessmentTimer';
 
 export function QuizPage() {
   const { quizId } = useParams<{ quizId: string }>();
@@ -45,6 +46,9 @@ export function QuizPage() {
   
   const [localIsSubmitting, setLocalIsSubmitting] = useState(false);
   const [submittedQuestions, setSubmittedQuestions] = useState<string[]>([]);
+  
+  // Use the shared timer hook
+  const remainingTime = useAssessmentTimer(quizId, quiz?.timeLimit);
   
   // Calculate navigation state
   const isFirstQuestion = currentQuestionIndex === 0;
@@ -514,7 +518,7 @@ You have submitted ${submittedQuestions.length} out of ${quiz.questions.length} 
               submittedQuestionIds={submittedQuestions}
               onNavigate={goToQuestion}
               onExit={handleExitQuiz}
-              elapsedTime={elapsedTime}
+              elapsedTime={remainingTime || 0}
               quizTitle={quiz.title || "Quiz"}
             />
           )}
@@ -526,7 +530,7 @@ You have submitted ${submittedQuestions.length} out of ${quiz.questions.length} 
               <AssessmentHeader
                 currentIndex={currentQuestionIndex}
                 totalQuestions={quiz.questions.length}
-                elapsedTime={elapsedTime}
+                elapsedTime={remainingTime || 0}
                 answeredCount={submittedQuestions.length}
                 isFirstQuestion={isFirstQuestion}
                 isLastQuestion={isLastQuestion}
@@ -537,13 +541,6 @@ You have submitted ${submittedQuestions.length} out of ${quiz.questions.length} 
                 type="quiz"
               />
             )}
-            
-            {/* Information banner about submission */}
-            <div className="bg-blue-50 dark:bg-blue-900/20 py-2 px-4 border-b border-blue-200 dark:border-blue-800">
-              <p className="text-sm text-blue-700 dark:text-blue-300">
-                Submit your questions below, then click the "Back" button to return to the assessment overview page and submit the entire quiz.
-              </p>
-            </div>
             
             {/* Question content area - takes remaining screen height */}
             <div className="flex-1 flex flex-col overflow-hidden">

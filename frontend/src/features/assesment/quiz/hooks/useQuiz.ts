@@ -189,7 +189,10 @@ export function useQuiz(quizId?: string) {
       clearInterval(timerRef.current);
     }
     
-    // Start a new timer
+    // Don't start a new timer - we're now handling timing in the QuizPage component
+    // to synchronize with the assessment overview timer
+    
+    /*
     timerRef.current = setInterval(() => {
       setElapsedTime(prev => {
         const newTime = prev + 1;
@@ -210,6 +213,7 @@ export function useQuiz(quizId?: string) {
         return newTime;
       });
     }, 1000);
+    */
     
     // Clean up timer on component unmount
     return () => {

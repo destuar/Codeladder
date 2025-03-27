@@ -12,7 +12,8 @@ import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { useProfile } from '@/features/profile/ProfileContext';
 import { useAuth } from '@/features/auth/AuthContext';
 import codeladderSvgLogo from '@/features/landingpage/images/CodeLadder.svg';
-import { 
+import { useAssessmentTimer } from '../hooks/useAssessmentTimer';
+import {
   AlertDialog,
   AlertDialogAction,
   AlertDialogCancel,
@@ -37,6 +38,7 @@ export interface AssessmentTask {
   score?: number;
   maxScore: number;
   isSubmitted?: boolean;
+  isViewed?: boolean;
 }
 
 // Main component props
@@ -175,11 +177,13 @@ export function AssessmentOverview({
   const location = useLocation();
   
   // State to track locally with session persistence
-  const [localRemainingTime, setLocalRemainingTime] = useState<number | undefined>(remainingTime);
   const [localSubmittedCount, setLocalSubmittedCount] = useState<number>(submittedCount);
   const [localTasks, setLocalTasks] = useState<AssessmentTask[]>(tasks);
   const [localIsSubmitting, setLocalIsSubmitting] = useState<boolean>(false);
   const [showSubmitDialog, setShowSubmitDialog] = useState<boolean>(false);
+  
+  // Use the shared timer hook
+  const localRemainingTime = useAssessmentTimer(id, duration);
   
   // Load assessment state from sessionStorage on initial render
   useEffect(() => {
@@ -189,21 +193,6 @@ export function AssessmentOverview({
     if (savedAssessment) {
       try {
         const assessmentData = JSON.parse(savedAssessment);
-        
-        // Restore time if it exists
-        if (assessmentData.remainingTime) {
-          // Adjust for time passed since last save
-          const lastUpdated = new Date(assessmentData.lastUpdated).getTime();
-          const now = new Date().getTime();
-          const secondsPassed = Math.floor((now - lastUpdated) / 1000);
-          
-          // Calculate new remaining time (don't go below 0)
-          const newRemainingTime = Math.max(0, assessmentData.remainingTime - secondsPassed);
-          setLocalRemainingTime(newRemainingTime);
-        } else if (remainingTime) {
-          // If no saved time but we have a prop, use it
-          setLocalRemainingTime(remainingTime);
-        }
         
         // Restore tasks and submitted count
         if (assessmentData.tasks && assessmentData.tasks.length > 0) {
@@ -222,51 +211,21 @@ export function AssessmentOverview({
       setLocalTasks(tasks);
       setLocalSubmittedCount(submittedCount);
       
-      // If remaining time is provided as a prop, use it, otherwise calculate from duration
-      if (remainingTime !== undefined) {
-        setLocalRemainingTime(remainingTime);
-      } else if (duration) {
-        setLocalRemainingTime(duration * 60); // Convert minutes to seconds
-      }
-      
       // Initialize session storage with current state
-      saveAssessmentState(tasks, submittedCount, remainingTime || (duration * 60));
+      saveAssessmentState(tasks, submittedCount);
     }
   }, [id]);
-  
-  // Timer effect to count down remaining time
-  useEffect(() => {
-    if (!id || localRemainingTime === undefined || localRemainingTime <= 0) return;
-    
-    const timer = setInterval(() => {
-      setLocalRemainingTime(prevTime => {
-        if (prevTime && prevTime > 0) {
-          const newTime = prevTime - 1;
-          // Save updated time to session storage
-          saveAssessmentState(localTasks, localSubmittedCount, newTime);
-          return newTime;
-        } else {
-          clearInterval(timer);
-          return 0;
-        }
-      });
-    }, 1000);
-    
-    return () => clearInterval(timer);
-  }, [id, localRemainingTime, localTasks, localSubmittedCount]);
   
   // Save assessment state to sessionStorage
   const saveAssessmentState = (
     currentTasks: AssessmentTask[], 
-    currentSubmittedCount: number, 
-    currentRemainingTime?: number
+    currentSubmittedCount: number
   ) => {
     if (!id) return;
     
     const assessmentData = {
       tasks: currentTasks,
       submittedCount: currentSubmittedCount,
-      remainingTime: currentRemainingTime,
       lastUpdated: new Date().toISOString()
     };
     
@@ -309,22 +268,14 @@ export function AssessmentOverview({
     }
   };
   
-  // Handle marking a task as submitted
-  const markTaskSubmitted = (taskId: string) => {
-    // Update local tasks state
-    const updatedTasks = localTasks.map(task => 
-      task.id === taskId ? { ...task, isSubmitted: true } : task
+  // Mark a task as viewed (separate from submission)
+  const markTaskViewed = (taskId: string) => {
+    const updatedTasks = localTasks.map(task =>
+      task.id === taskId ? { ...task, isViewed: true } : task
     );
     
-    // Calculate new submitted count
-    const newSubmittedCount = updatedTasks.filter(task => task.isSubmitted).length;
-    
-    // Update state
     setLocalTasks(updatedTasks);
-    setLocalSubmittedCount(newSubmittedCount);
-    
-    // Save to session storage
-    saveAssessmentState(updatedTasks, newSubmittedCount, localRemainingTime);
+    saveAssessmentState(updatedTasks, localSubmittedCount);
   };
   
   // Handle finishing the assessment
@@ -375,29 +326,29 @@ export function AssessmentOverview({
           {/* Header Section */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
             {/* Assessment Information */}
-            <Card className="lg:col-span-2">
-              <CardHeader className="pb-2">
+            <div className="lg:col-span-2 flex flex-col py-6">
+              <div className="pb-4">
                 <div className="flex items-start justify-between">
                   <div>
-                    <CardTitle className="text-xl font-bold">
+                    <h2 className="text-xl font-bold">
                       {title}
-                    </CardTitle>
+                    </h2>
                     {description && (
-                      <CardDescription className="mt-0.5 text-sm">
+                      <p className="mt-1.5 text-sm text-muted-foreground">
                         {description}
-                      </CardDescription>
+                      </p>
                     )}
                   </div>
                   <Badge variant="outline" className="font-medium">
                     {type.toUpperCase()} Assessment
                   </Badge>
                 </div>
-              </CardHeader>
-              <CardContent className="pt-2">
+              </div>
+              <div className="flex-1 flex flex-col">
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mt-1">
                   <div className="flex flex-col">
                     <span className="text-xs text-muted-foreground">Duration</span>
-                    <div className="flex items-center mt-0.5">
+                    <div className="flex items-center mt-1">
                       <Timer className="h-3.5 w-3.5 text-muted-foreground mr-1" />
                       <span className="font-medium text-sm">{duration} minutes</span>
                     </div>
@@ -405,7 +356,7 @@ export function AssessmentOverview({
                   
                   <div className="flex flex-col">
                     <span className="text-xs text-muted-foreground">Tasks</span>
-                    <div className="flex items-center mt-0.5">
+                    <div className="flex items-center mt-1">
                       <BookOpenCheck className="h-3.5 w-3.5 text-muted-foreground mr-1" />
                       <span className="font-medium text-sm">{localTasks.length} questions</span>
                     </div>
@@ -413,21 +364,21 @@ export function AssessmentOverview({
                   
                   <div className="flex flex-col">
                     <span className="text-xs text-muted-foreground">Progress</span>
-                    <div className="flex items-center gap-1 mt-0.5">
+                    <div className="flex items-center gap-1 mt-1">
                       <span className="font-medium text-sm">{localSubmittedCount}/{localTasks.length} completed</span>
                     </div>
                   </div>
                 </div>
                 
-                <div className="mt-3">
-                  <div className="flex justify-between text-xs mb-1">
+                <div className="mt-auto">
+                  <div className="flex justify-between text-xs mb-1.5">
                     <span>Progress</span>
                     <span>{Math.round(progressPercentage)}%</span>
                   </div>
                   <Progress value={progressPercentage} className="h-2" />
                 </div>
-              </CardContent>
-            </Card>
+              </div>
+            </div>
             
             {/* Timer Card */}
             <Card className="flex flex-col justify-center">
@@ -487,88 +438,82 @@ export function AssessmentOverview({
           </div>
           
           {/* Tasks List Section */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-xl">
-                <div className="flex items-center gap-2">
-                  <Tag className="h-5 w-5 text-primary" />
-                  Assessment Questions
-                </div>
-              </CardTitle>
-              <Separator />
-            </CardHeader>
-            <CardContent>
-              <div className="overflow-hidden">
-                <table className="w-full">
-                  <thead>
-                    <tr className="border-b">
-                      <th className="text-left py-3 px-4 font-medium text-sm">#</th>
-                      <th className="text-left py-3 px-4 font-medium text-sm">Question</th>
-                      <th className="text-left py-3 px-4 font-medium text-sm">Score</th>
-                      <th className="text-left py-3 px-4 font-medium text-sm">Submitted</th>
-                      <th className="text-right py-3 px-4 font-medium text-sm"></th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {localTasks.map((task, index) => (
-                      <tr 
-                        key={task.id} 
-                        className={cn(
-                          "border-b transition-colors hover:bg-blue-50/20 dark:hover:bg-blue-900/5",
-                          index % 2 === 0 ? "bg-muted/10 dark:bg-muted/15" : ""
-                        )}
-                      >
-                        <td className="py-3 px-4 text-muted-foreground text-sm">
-                          {index + 1}
-                        </td>
-                        <td className="py-3 px-4">
-                          <div className="flex items-center">
-                            {getTaskIcon(task.type)}
-                            <span className="ml-2 font-medium">{task.title}</span>
+          <div>
+            <div className="flex items-center gap-2 px-1 mb-4">
+              <Tag className="h-5 w-5 text-primary" />
+              <h2 className="text-xl font-semibold">Assessment Questions</h2>
+            </div>
+            <Separator className="mb-6" />
+            <div className="overflow-hidden">
+              <table className="w-full">
+                <thead>
+                  <tr className="border-b">
+                    <th className="text-left py-3 px-4 font-medium text-sm">#</th>
+                    <th className="text-left py-3 px-4 font-medium text-sm">Question</th>
+                    <th className="text-left py-3 px-4 font-medium text-sm">Score</th>
+                    <th className="text-left py-3 px-4 font-medium text-sm">Submitted</th>
+                    <th className="text-right py-3 px-4 font-medium text-sm"></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {localTasks.map((task, index) => (
+                    <tr 
+                      key={task.id} 
+                      className={cn(
+                        "border-b transition-colors hover:bg-blue-50/20 dark:hover:bg-blue-900/5",
+                        index % 2 === 0 ? "bg-muted/10 dark:bg-muted/15" : ""
+                      )}
+                    >
+                      <td className="py-3 px-4 text-muted-foreground text-sm">
+                        {index + 1}
+                      </td>
+                      <td className="py-3 px-4">
+                        <div className="flex items-center">
+                          {getTaskIcon(task.type)}
+                          <span className="ml-2 font-medium">{task.title}</span>
+                        </div>
+                      </td>
+                      <td className="py-3 px-4">
+                        <span className="text-sm font-medium">
+                          {task.score !== undefined ? task.score : 0}/{task.maxScore}
+                        </span>
+                      </td>
+                      <td className="py-3 px-4">
+                        {task.isSubmitted ? (
+                          <div className="flex items-center text-sm text-green-600">
+                            <CheckCircle2 className="h-4 w-4 mr-1.5" />
+                            Submitted
                           </div>
-                        </td>
-                        <td className="py-3 px-4">
-                          <span className="text-sm font-medium">
-                            {task.score !== undefined ? task.score : 0}/{task.maxScore}
-                          </span>
-                        </td>
-                        <td className="py-3 px-4">
-                          {task.isSubmitted ? (
-                            <div className="flex items-center text-sm text-green-600">
-                              <CheckCircle2 className="h-4 w-4 mr-1.5" />
-                              Submitted
-                            </div>
-                          ) : (
-                            <div className="flex items-center text-sm text-muted-foreground">
-                              <Clock className="h-4 w-4 mr-1.5" />
-                              Unsubmitted
-                            </div>
-                          )}
-                        </td>
-                        <td className="py-3 px-4 text-right">
-                          <Button 
-                            variant="outline"
-                            size="sm"
-                            className="transition-colors border-primary/30 hover:border-primary hover:bg-primary/10 text-primary"
-                            onClick={() => {
-                              handleStartTask(task.id);
-                              // Mark task as submitted when accessed
-                              if (!task.isSubmitted) {
-                                markTaskSubmitted(task.id);
-                              }
-                            }}
-                          >
-                            {task.isSubmitted ? "Review" : "Start"} 
-                            <ArrowRight className="h-3.5 w-3.5 ml-1.5" />
-                          </Button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </CardContent>
-          </Card>
+                        ) : (
+                          <div className="flex items-center text-sm text-muted-foreground">
+                            <Clock className="h-4 w-4 mr-1.5" />
+                            Unsubmitted
+                          </div>
+                        )}
+                      </td>
+                      <td className="py-3 px-4 text-right">
+                        <Button 
+                          variant="outline"
+                          size="sm"
+                          className="transition-colors border-primary/30 hover:border-primary hover:bg-primary/10 text-primary"
+                          onClick={() => {
+                            handleStartTask(task.id);
+                            // Only mark as viewed, not submitted
+                            if (!task.isViewed) {
+                              markTaskViewed(task.id);
+                            }
+                          }}
+                        >
+                          View
+                          <ArrowRight className="h-3.5 w-3.5 ml-1.5" />
+                        </Button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
           
           {/* Submit Confirmation Dialog */}
           <AlertDialog open={showSubmitDialog} onOpenChange={setShowSubmitDialog}>

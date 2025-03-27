@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { Button } from "@/components/ui/button";
-import { Clock, ChevronLeft, ChevronRight, XIcon, Settings } from 'lucide-react';
+import { Clock, ChevronLeft, ChevronRight, Settings } from 'lucide-react';
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { BorderlessThemeToggle } from "@/features/problems/components/shared/BorderlessThemeToggle";
 import { Link } from 'react-router-dom';
@@ -8,16 +8,6 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { useProfile } from '@/features/profile/ProfileContext';
 import { useAuth } from '@/features/auth/AuthContext';
 import codeladderSvgLogo from '@/features/landingpage/images/CodeLadder.svg';
-import { 
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle
-} from "@/components/ui/alert-dialog";
 
 interface AssessmentHeaderProps {
   currentIndex: number;
@@ -35,9 +25,10 @@ interface AssessmentHeaderProps {
 
 // Format time for display
 const formatTime = (seconds: number): string => {
-  const mins = Math.floor(seconds / 60).toString().padStart(2, '0');
+  const hours = Math.floor(seconds / 3600).toString().padStart(2, '0');
+  const mins = Math.floor((seconds % 3600) / 60).toString().padStart(2, '0');
   const secs = (seconds % 60).toString().padStart(2, '0');
-  return `${mins}:${secs}`;
+  return `${hours}:${mins}:${secs}`;
 };
 
 export function AssessmentHeader({
@@ -55,40 +46,14 @@ export function AssessmentHeader({
 }: AssessmentHeaderProps) {
   const { profile } = useProfile();
   const { user } = useAuth();
-  const [showExitDialog, setShowExitDialog] = useState(false);
 
   // Normalize the type to uppercase and ensure "quiz" is always "QUIZ"
   const displayType = type.toUpperCase() === 'QUIZ' ? 'Quiz' : 
                       type.toUpperCase() === 'TEST' ? 'Test' : 
                       type.charAt(0).toUpperCase() + type.slice(1).toLowerCase();
 
-  // Handle exit confirmation
-  const handleExitConfirm = () => {
-    // Clear session storage for quiz data
-    // Extract quiz ID from URL or props
-    const urlParts = window.location.pathname.split('/');
-    const quizId = urlParts[2]; // Assuming URL pattern like /quizzes/:id/take
-    
-    if (quizId) {
-      sessionStorage.removeItem(`quiz_${quizId}`);
-      sessionStorage.removeItem(`quiz_attempt_${quizId}`);
-      sessionStorage.removeItem(`assessment_${quizId}`);
-      sessionStorage.removeItem(`quiz_${quizId}_completed`);
-      
-      // Remove any other related keys
-      Object.keys(sessionStorage).forEach(key => {
-        if (key.includes(quizId)) {
-          sessionStorage.removeItem(key);
-        }
-      });
-    }
-    
-    // Call the original exit handler
-    onExit();
-  };
-
   return (
-    <div className="border-b bg-background py-2.5">
+    <div className="border-b bg-background py-1.5">
       <div className="flex items-center justify-between w-full px-0 relative">
         {/* Left section - Logo, Exit button, Title & Timer */}
         <div className="flex items-center gap-2 pl-3 w-1/3">
@@ -97,15 +62,15 @@ export function AssessmentHeader({
             <img src={codeladderSvgLogo} alt="CodeLadder Logo" className="h-8 w-auto" />
           </div>
           
-          {/* Exit button */}
+          {/* Back button - simple navigation without confirmation */}
           <Button
             variant="outline"
             size="sm"
-            onClick={() => setShowExitDialog(true)}
-            className="gap-1 bg-red-50 hover:bg-red-100 text-red-600 border-red-200 dark:bg-red-950/30 dark:hover:bg-red-950/50 dark:border-red-800/50 dark:text-red-400 mr-3"
+            onClick={onExit}
+            className="gap-1 mr-3"
           >
-            <XIcon className="h-4 w-4 mr-1" />
-            Exit
+            <ChevronLeft className="h-4 w-4 mr-1" />
+            Back
           </Button>
           
           {/* Title and Timer moved here from middle section */}
@@ -122,6 +87,7 @@ export function AssessmentHeader({
               {/* Timer */}
               <div className="flex items-center text-muted-foreground">
                 <Clock className="h-4 w-4 mr-1.5" />
+                <span className="text-xs mr-1">Time Remaining:</span>
                 <span className="text-sm font-mono">{formatTime(elapsedTime)}</span>
               </div>
               
@@ -195,30 +161,6 @@ export function AssessmentHeader({
           </Link>
         </div>
       </div>
-      
-      {/* Exit Confirmation Dialog */}
-      <AlertDialog open={showExitDialog} onOpenChange={setShowExitDialog}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Exit {displayType}?</AlertDialogTitle>
-            <AlertDialogDescription>
-              Are you sure you want to exit this {displayType.toLowerCase()}? Your progress will be saved, 
-              but any unsaved answers for the current question may be lost.
-              <br /><br />
-              You can return to complete this {displayType.toLowerCase()} later from the topic page.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction 
-              onClick={handleExitConfirm}
-              className="bg-red-600 text-white hover:bg-red-700"
-            >
-              Exit {displayType}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
     </div>
   );
 } 

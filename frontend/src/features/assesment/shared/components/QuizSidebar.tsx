@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { cn } from '@/lib/utils';
-import { ChevronLeft, ChevronRight, XCircle, CheckCircle, Circle, BookOpen, Code2 } from 'lucide-react';
+import { ChevronLeft, ChevronRight, CheckCircle, Circle, BookOpen, Code2 } from 'lucide-react';
 import { AssessmentQuestion } from '../types';
 
 interface QuizSidebarProps {
@@ -30,9 +30,10 @@ export function QuizSidebar({
 
   // Format time for display
   const formatTime = (seconds: number): string => {
-    const mins = Math.floor(seconds / 60).toString().padStart(2, '0');
+    const hours = Math.floor(seconds / 3600).toString().padStart(2, '0');
+    const mins = Math.floor((seconds % 3600) / 60).toString().padStart(2, '0');
     const secs = (seconds % 60).toString().padStart(2, '0');
-    return `${mins}:${secs}`;
+    return `${hours}:${mins}:${secs}`;
   };
 
   // Get question icon based on type
@@ -82,7 +83,7 @@ export function QuizSidebar({
             <div className="flex-1">
               <h3 className="font-medium text-sm truncate">{quizTitle}</h3>
               <div className="text-xs text-muted-foreground flex items-center">
-                {formatTime(elapsedTime)} • {completionPercentage}% complete
+                <span className="mr-1">Time:</span>{formatTime(elapsedTime)} • {completionPercentage}% complete
               </div>
             </div>
           )}
@@ -174,12 +175,12 @@ export function QuizSidebar({
           <Button
             variant="outline"
             className={cn(
-              "gap-2 justify-center bg-red-50 hover:bg-red-100 text-red-600 border-red-200 dark:bg-red-950/30 dark:hover:bg-red-950/50 dark:border-red-800/50 dark:text-red-400",
+              "gap-2 justify-center",
               isCollapsed ? "w-full p-0 h-8" : "w-full"
             )}
             onClick={onExit}
           >
-            <XCircle className="h-4 w-4" />
+            <ChevronLeft className="h-4 w-4" />
             {!isCollapsed && <span>Back to Overview</span>}
           </Button>
         </div>
