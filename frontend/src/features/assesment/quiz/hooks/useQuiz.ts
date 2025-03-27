@@ -57,59 +57,131 @@ export function useQuiz(quizId?: string) {
   const { token } = useAuth();
   const queryClient = useQueryClient();
   
-  // Store quiz state in localStorage instead of creating db attempt immediately
+  // Store quiz state in sessionStorage instead of creating db attempt immediately
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
   const [answers, setAnswers] = useState<Record<string, any>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [elapsedTime, setElapsedTime] = useState(0);
-  const [startTime] = useState<Date>(new Date());
+  const [startTime, setStartTime] = useState<Date>(new Date());
   const [attemptId, setAttemptId] = useState<string | null>(null);
   const hasInitialized = useRef<boolean>(false);
+  const timerRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Load quiz state from localStorage on init
+  // Save attempt ID to sessionStorage
   useEffect(() => {
-    if (quizId) {
-      const savedQuiz = localStorage.getItem(`quiz_${quizId}`);
-      if (savedQuiz) {
-        try {
-          const quizData = JSON.parse(savedQuiz);
-          setCurrentQuestionIndex(quizData.currentQuestionIndex || 0);
-          setAnswers(quizData.answers || {});
-          // Only use saved start time if it exists and is valid
-          if (quizData.startTime) {
-            const savedStartTime = new Date(quizData.startTime);
-            if (!isNaN(savedStartTime.getTime())) {
-              // Calculate elapsed time since the saved start
-              setElapsedTime(Math.floor((Date.now() - savedStartTime.getTime()) / 1000));
-            }
+    if (quizId && attemptId) {
+      sessionStorage.setItem(`quiz_attempt_${quizId}`, attemptId);
+      console.log(`Saved attempt ID ${attemptId} to sessionStorage for quiz ${quizId}`);
+    }
+  }, [quizId, attemptId]);
+
+  // Load quiz state from sessionStorage on init
+  useEffect(() => {
+    if (!quizId) return;
+    
+    // Check sessionStorage for existing state
+    const savedQuiz = sessionStorage.getItem(`quiz_${quizId}`);
+    if (savedQuiz) {
+      try {
+        const quizData = JSON.parse(savedQuiz);
+        setCurrentQuestionIndex(quizData.currentQuestionIndex || 0);
+        setAnswers(quizData.answers || {});
+        
+        // Only use saved start time if it exists and is valid
+        if (quizData.startTime) {
+          const savedStartTime = new Date(quizData.startTime);
+          
+          if (!isNaN(savedStartTime.getTime())) {
+            setStartTime(savedStartTime);
+            // Calculate elapsed time since the saved start
+            const elapsed = Math.floor((Date.now() - savedStartTime.getTime()) / 1000);
+            setElapsedTime(quizData.elapsedTime ? quizData.elapsedTime + elapsed : elapsed);
           }
-        } catch (e) {
-          console.error('Error parsing saved quiz data:', e);
-          // Clear invalid data
-          localStorage.removeItem(`quiz_${quizId}`);
         }
+        
+        // Restore attemptId if available
+        if (quizData.attemptId) {
+          setAttemptId(quizData.attemptId);
+        } else {
+          // Check if we have a separate saved attempt ID
+          const savedAttemptId = sessionStorage.getItem(`quiz_attempt_${quizId}`);
+          if (savedAttemptId) {
+            setAttemptId(savedAttemptId);
+          }
+        }
+      } catch (e) {
+        console.error('Error parsing saved quiz data:', e);
+        // Clear invalid data
+        sessionStorage.removeItem(`quiz_${quizId}`);
       }
+    } else {
+      // Initialize new attempt
+      console.log('No saved quiz data found, initializing new attempt');
+      const newState = {
+        currentQuestionIndex: 0,
+        answers: {},
+        startTime: new Date().toISOString(),
+        elapsedTime: 0,
+        lastUpdated: new Date().toISOString()
+      };
+      
+      sessionStorage.setItem(`quiz_${quizId}`, JSON.stringify(newState));
     }
   }, [quizId]);
   
-  // Save quiz state to localStorage when it changes
+  // Save quiz state to sessionStorage when it changes
   useEffect(() => {
     if (quizId) {
-      localStorage.setItem(`quiz_${quizId}`, JSON.stringify({
+      const stateToSave = {
         currentQuestionIndex,
         answers,
-        startTime: startTime.toISOString()
-      }));
+        startTime: startTime.toISOString(),
+        elapsedTime,
+        attemptId,
+        lastUpdated: new Date().toISOString()
+      };
+      
+      sessionStorage.setItem(`quiz_${quizId}`, JSON.stringify(stateToSave));
     }
-  }, [quizId, currentQuestionIndex, answers, startTime]);
+  }, [quizId, currentQuestionIndex, answers, startTime, elapsedTime, attemptId]);
   
-  // Timer effect
+  // Timer effect with better cleanup
   useEffect(() => {
-    const timer = setInterval(() => {
-      setElapsedTime(prev => prev + 1);
+    // Clear any existing timer first
+    if (timerRef.current) {
+      clearInterval(timerRef.current);
+    }
+    
+    // Start a new timer
+    timerRef.current = setInterval(() => {
+      setElapsedTime(prev => {
+        const newTime = prev + 1;
+        // Save the updated time to sessionStorage
+        if (quizId) {
+          const savedQuiz = sessionStorage.getItem(`quiz_${quizId}`);
+          if (savedQuiz) {
+            try {
+              const quizData = JSON.parse(savedQuiz);
+              quizData.elapsedTime = newTime;
+              quizData.lastUpdated = new Date().toISOString();
+              sessionStorage.setItem(`quiz_${quizId}`, JSON.stringify(quizData));
+            } catch (e) {
+              console.error('Error updating elapsed time in sessionStorage:', e);
+            }
+          }
+        }
+        return newTime;
+      });
     }, 1000);
-    return () => clearInterval(timer);
-  }, []);
+    
+    // Clean up timer on component unmount
+    return () => {
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+        timerRef.current = null;
+      }
+    };
+  }, [quizId]);
 
   // Fetch quiz data
   const { data: quiz, isLoading: isQuizLoading, error: quizError } = useQuery({
@@ -149,10 +221,10 @@ export function useQuiz(quizId?: string) {
       // Save the attempt ID to state
       setAttemptId(data.id);
       
-      // Also save it to localStorage for persistence
+      // Also save it to sessionStorage for persistence
       if (quizId && data.id) {
-        localStorage.setItem(`quiz_attempt_${quizId}`, data.id);
-        console.log(`Saved attempt ID ${data.id} to localStorage for quiz ${quizId}`);
+        sessionStorage.setItem(`quiz_attempt_${quizId}`, data.id);
+        console.log(`Saved attempt ID ${data.id} to sessionStorage for quiz ${quizId}`);
       }
       
       // Start timer when attempt is created
@@ -225,31 +297,65 @@ export function useQuiz(quizId?: string) {
     },
   });
 
-  // Start the quiz attempt (stored in localStorage only - no API call)
+  // Start the quiz attempt (stored in sessionStorage only - no API call)
   const startQuizAttempt = useCallback((id: string, forceNew = false) => {
-    // If forceNew is true or no saved attempt exists, initialize a new localStorage entry
-    if (forceNew || !localStorage.getItem(`quiz_${id}`)) {
-      console.log(`Initializing new quiz state in localStorage for: ${id}`);
+    // Check if this quiz was previously completed
+    const completedFlag = sessionStorage.getItem(`quiz_${id}_completed`);
+    if (completedFlag === 'true') {
+      console.log(`Quiz ${id} was previously completed. Starting fresh.`);
+      forceNew = true;
+      
+      // Clear the completion flag and any other data
+      sessionStorage.removeItem(`quiz_${id}_completed`);
+      sessionStorage.removeItem(`quiz_${id}`);
+      sessionStorage.removeItem(`quiz_attempt_${id}`);
+      sessionStorage.removeItem(`assessment_${id}`);
+      
+      // Find and clear any other items
+      Object.keys(sessionStorage).forEach(key => {
+        if (key.includes(id)) {
+          console.log(`Clearing additional quiz session data: ${key}`);
+          sessionStorage.removeItem(key);
+        }
+      });
+      
+      // Also invalidate any cached data for this quiz
+      queryClient.invalidateQueries({ queryKey: ['quiz', id] });
+      
+      // If we have an attemptId, invalidate that too
+      const savedAttemptId = sessionStorage.getItem(`quiz_attempt_${id}`);
+      if (savedAttemptId) {
+        queryClient.invalidateQueries({ queryKey: ['quizAttempt', savedAttemptId] });
+      }
+    }
+    
+    // If forceNew is true or no saved attempt exists, initialize a new sessionStorage entry
+    if (forceNew || !sessionStorage.getItem(`quiz_${id}`)) {
+      console.log(`Initializing new quiz state in sessionStorage for: ${id}`);
       
       // Reset state
       setCurrentQuestionIndex(0);
       setAnswers({});
       setElapsedTime(0);
+      const newStartTime = new Date();
+      setStartTime(newStartTime);
       
-      // Initialize localStorage with fresh state
+      // Initialize sessionStorage with fresh state
       const newState = {
         currentQuestionIndex: 0,
         answers: {},
-        startTime: new Date().toISOString()
+        startTime: newStartTime.toISOString(),
+        elapsedTime: 0,
+        lastUpdated: new Date().toISOString()
       };
       
-      localStorage.setItem(`quiz_${id}`, JSON.stringify(newState));
+      sessionStorage.setItem(`quiz_${id}`, JSON.stringify(newState));
       return;
     }
     
     // If we have saved state, it's already loaded by the useEffect
-    console.log(`Using existing quiz state from localStorage for: ${id}`);
-  }, []);
+    console.log(`Using existing quiz state from sessionStorage for: ${id}`);
+  }, [queryClient]);
 
   // Format elapsed time
   const formattedTime = useMemo(() => {
@@ -266,8 +372,12 @@ export function useQuiz(quizId?: string) {
 
   // Stop quiz timer
   const stopTimer = useCallback(() => {
-    // We don't need to do anything here - timer will be cleaned up naturally
-    console.log('Timer will be cleaned up automatically');
+    // Clear the timer
+    if (timerRef.current) {
+      clearInterval(timerRef.current);
+      timerRef.current = null;
+    }
+    console.log('Timer stopped');
   }, []);
 
   // Helper functions for navigation
@@ -289,17 +399,36 @@ export function useQuiz(quizId?: string) {
     }
   }, [quiz]);
 
-  // Save answer locally only - no immediate server submission
+  // Save answer locally
   const saveAnswer = useCallback((questionId: string, answer: any) => {
-    // Update local state only
-    setAnswers(prev => ({
-      ...prev,
-      [questionId]: answer
-    }));
+    // Update local state
+    setAnswers(prev => {
+      const updatedAnswers = {
+        ...prev,
+        [questionId]: answer
+      };
+      
+      // Save to sessionStorage immediately
+      if (quizId) {
+        const savedQuiz = sessionStorage.getItem(`quiz_${quizId}`);
+        if (savedQuiz) {
+          try {
+            const quizData = JSON.parse(savedQuiz);
+            quizData.answers = updatedAnswers;
+            quizData.lastUpdated = new Date().toISOString();
+            sessionStorage.setItem(`quiz_${quizId}`, JSON.stringify(quizData));
+          } catch (e) {
+            console.error('Error updating answers in sessionStorage:', e);
+          }
+        }
+      }
+      
+      return updatedAnswers;
+    });
     
     // Log the answer selection (for debugging)
     console.log(`Answer selected for question ${questionId}:`, answer);
-  }, []);
+  }, [quizId]);
 
   // Helper function to handle the actual submission with a valid attempt ID
   const submitWithAttemptId = useCallback(async (attemptId: string) => {
@@ -499,8 +628,14 @@ export function useQuiz(quizId?: string) {
 
   // Submit the entire quiz
   const submitQuiz = useCallback(async () => {
+    console.log('submitQuiz called with:', { quizId, token: !!token, answersCount: Object.keys(answers).length });
+    
     if (!quiz || !token || !quizId) {
-      console.error('Missing required data for quiz submission');
+      console.error('Missing required data for quiz submission:', { 
+        quiz: !!quiz, 
+        token: !!token, 
+        quizId: !!quizId 
+      });
       return { success: false, message: 'Missing required data' };
     }
     
@@ -511,6 +646,7 @@ export function useQuiz(quizId?: string) {
     }
     
     setIsSubmitting(true);
+    console.log('Set isSubmitting to true');
     
     try {
       // Check for unanswered questions
@@ -525,16 +661,28 @@ export function useQuiz(quizId?: string) {
           ? `You haven't answered any questions. Are you sure you want to submit an empty quiz?`
           : `You have ${unansweredCount} unanswered question${unansweredCount > 1 ? 's' : ''}. Are you sure you want to submit?`;
         
+        console.log('Showing confirmation for unanswered questions:', { 
+          unansweredCount, 
+          isCompletelyEmpty,
+          message 
+        });
+        
         const confirmed = window.confirm(message);
         
         if (!confirmed) {
+          console.log('User cancelled quiz submission');
           setIsSubmitting(false);
           return { success: false, message: 'Submission cancelled' };
         }
       }
       
       // Submit the entire quiz at once (create and complete attempt)
-      console.log('Submitting entire quiz at once');
+      console.log('Making API call to submit complete quiz:', { 
+        quizId, 
+        startTime: startTime.toISOString(),
+        answers: Object.keys(answers).length
+      });
+      
       const result = await api.submitCompleteQuiz(
         quizId,
         startTime.toISOString(),
@@ -542,16 +690,22 @@ export function useQuiz(quizId?: string) {
         token
       );
       
-      console.log('Quiz submission result:', result);
+      console.log('Quiz submission API result:', result);
       
       // Store the new attempt ID
       if (result && result.id) {
+        console.log(`Setting attemptId to: ${result.id}`);
         setAttemptId(result.id);
+      } else {
+        console.warn('API response missing attempt ID:', result);
       }
       
-      // Clear the saved quiz data from localStorage
-      localStorage.removeItem(`quiz_${quizId}`);
+      // Clear the saved quiz data from sessionStorage
+      console.log('Cleaning up session storage');
+      sessionStorage.removeItem(`quiz_${quizId}`);
+      sessionStorage.removeItem(`quiz_attempt_${quizId}`);
       
+      console.log('Returning success response with attemptId:', result?.id);
       return { 
         success: true,
         message: 'Quiz submitted successfully',
@@ -564,9 +718,10 @@ export function useQuiz(quizId?: string) {
         message: error instanceof Error ? error.message : 'Unknown error'
       };
     } finally {
+      console.log('Setting isSubmitting back to false');
       setIsSubmitting(false);
     }
-  }, [quiz, quizId, token, answers, isSubmitting, startTime]);
+  }, [quiz, quizId, token, answers, isSubmitting, startTime, api, setAttemptId]);
 
   return {
     quiz,
@@ -589,8 +744,67 @@ export function useQuiz(quizId?: string) {
     // Helper to clear saved quiz data if needed
     clearSavedQuiz: useCallback(() => {
       if (quizId) {
-        localStorage.removeItem(`quiz_${quizId}`);
+        console.log(`Thoroughly clearing all quiz data for: ${quizId}`);
+        // Clear direct quiz data
+        sessionStorage.removeItem(`quiz_${quizId}`);
+        sessionStorage.removeItem(`quiz_attempt_${quizId}`);
+        sessionStorage.removeItem(`assessment_${quizId}`);
+        sessionStorage.removeItem(`quiz_${quizId}_completed`);
+        
+        // Find and clear any other quiz-related items
+        Object.keys(sessionStorage).forEach(key => {
+          if (key.includes(quizId)) {
+            console.log(`Clearing additional quiz session data: ${key}`);
+            sessionStorage.removeItem(key);
+          }
+        });
       }
-    }, [quizId])
+    }, [quizId]),
+    // Force a complete reset to start fresh
+    forceReset: useCallback(() => {
+      if (quizId) {
+        console.log(`Forcing complete reset of quiz ${quizId}`);
+        
+        // Clear all session storage
+        sessionStorage.removeItem(`quiz_${quizId}`);
+        sessionStorage.removeItem(`quiz_attempt_${quizId}`);
+        sessionStorage.removeItem(`assessment_${quizId}`);
+        sessionStorage.removeItem(`quiz_${quizId}_completed`);
+        
+        // Find and clear any other quiz-related items
+        Object.keys(sessionStorage).forEach(key => {
+          if (key.includes(quizId)) {
+            console.log(`Clearing additional quiz session data: ${key}`);
+            sessionStorage.removeItem(key);
+          }
+        });
+        
+        // Reset state
+        setCurrentQuestionIndex(0);
+        setAnswers({});
+        setElapsedTime(0);
+        setStartTime(new Date());
+        setAttemptId(null);
+        
+        // Force a new session to be created
+        const newState = {
+          currentQuestionIndex: 0,
+          answers: {},
+          startTime: new Date().toISOString(),
+          elapsedTime: 0,
+          lastUpdated: new Date().toISOString()
+        };
+        
+        sessionStorage.setItem(`quiz_${quizId}`, JSON.stringify(newState));
+        
+        // Invalidate queries to force re-fetch
+        queryClient.invalidateQueries({ queryKey: ['quiz', quizId] });
+        if (attemptId) {
+          queryClient.invalidateQueries({ queryKey: ['quizAttempt', attemptId] });
+        }
+        
+        console.log('Quiz state has been completely reset');
+      }
+    }, [quizId, attemptId, queryClient])
   };
 }

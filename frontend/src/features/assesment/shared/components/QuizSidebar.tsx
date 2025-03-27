@@ -9,6 +9,7 @@ interface QuizSidebarProps {
   questions: AssessmentQuestion[];
   currentIndex: number;
   answers: Record<string, any>;
+  submittedQuestionIds?: string[];
   onNavigate: (index: number) => void;
   onExit: () => void;
   elapsedTime?: number;
@@ -19,6 +20,7 @@ export function QuizSidebar({
   questions,
   currentIndex,
   answers,
+  submittedQuestionIds = [],
   onNavigate,
   onExit,
   elapsedTime = 0,
@@ -44,7 +46,7 @@ export function QuizSidebar({
   };
 
   // Calculate completion percentage
-  const completedCount = Object.keys(answers).length;
+  const completedCount = submittedQuestionIds.length;
   const totalQuestions = questions.length;
   const completionPercentage = Math.round((completedCount / totalQuestions) * 100);
 
@@ -99,7 +101,8 @@ export function QuizSidebar({
             <div className="py-2">
               {questions.map((question, index) => {
                 const isActive = index === currentIndex;
-                const isAnswered = !!answers[question.id];
+                const hasAnswer = !!answers[question.id];
+                const isSubmitted = submittedQuestionIds.includes(question.id);
 
                 return (
                   <button
@@ -107,12 +110,14 @@ export function QuizSidebar({
                     className={cn(
                       "w-full px-3 py-2 text-left flex items-center gap-2 text-sm transition-colors",
                       isActive ? "bg-muted/60" : "hover:bg-muted/30",
-                      isAnswered && !isActive ? "text-primary" : "text-foreground"
+                      isSubmitted && !isActive ? "text-green-600" : hasAnswer && !isActive ? "text-primary" : "text-foreground"
                     )}
                     onClick={() => onNavigate(index)}
                   >
                     <div className="flex-shrink-0 w-6 flex justify-center">
-                      {isAnswered ? (
+                      {isSubmitted ? (
+                        <CheckCircle className="h-4 w-4 text-green-600" />
+                      ) : hasAnswer ? (
                         <CheckCircle className="h-4 w-4 text-primary" />
                       ) : (
                         <Circle className="h-4 w-4 text-muted-foreground" />
@@ -137,7 +142,8 @@ export function QuizSidebar({
           <div className="flex-1 py-2 flex flex-col items-center gap-1">
             {questions.map((question, index) => {
               const isActive = index === currentIndex;
-              const isAnswered = !!answers[question.id];
+              const hasAnswer = !!answers[question.id];
+              const isSubmitted = submittedQuestionIds.includes(question.id);
 
               return (
                 <button
@@ -145,12 +151,14 @@ export function QuizSidebar({
                   className={cn(
                     "w-6 h-6 rounded-full flex items-center justify-center text-xs font-medium transition-all",
                     isActive ? "bg-primary text-primary-foreground" : "",
-                    isAnswered && !isActive ? "text-primary" : "text-muted-foreground"
+                    isSubmitted && !isActive ? "text-green-600" : hasAnswer && !isActive ? "text-primary" : "text-muted-foreground"
                   )}
                   onClick={() => onNavigate(index)}
                   title={`Question ${index + 1}`}
                 >
-                  {isAnswered && !isActive ? (
+                  {isSubmitted && !isActive ? (
+                    <CheckCircle className="h-3.5 w-3.5 text-green-600" />
+                  ) : hasAnswer && !isActive ? (
                     <CheckCircle className="h-3.5 w-3.5" />
                   ) : (
                     index + 1

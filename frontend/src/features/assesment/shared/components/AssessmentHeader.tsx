@@ -15,12 +15,12 @@ interface AssessmentHeaderProps {
   answeredCount: number;
   isFirstQuestion: boolean;
   isLastQuestion: boolean;
-  allAnswered: boolean;
+  allAnswered?: boolean;
   isSubmitting: boolean;
   onPrevious: () => void;
   onNext: () => void;
   onExit: () => void;
-  onSubmit: () => void;
+  onSubmit?: () => void;
 }
 
 // Format time for display
@@ -111,31 +111,8 @@ export function AssessmentHeader({
           </div>
         </div>
 
-        {/* Right section - Submit button and action buttons */}
+        {/* Right section - action buttons */}
         <div className="flex items-center justify-end gap-2 w-1/3">
-          {/* Submit button - only shown when all questions answered */}
-          {allAnswered && (
-            <Button
-              variant="default"
-              size="sm"
-              onClick={onSubmit}
-              disabled={isSubmitting}
-              className="mr-2"
-            >
-              {isSubmitting ? (
-                <>
-                  <div className="animate-spin h-4 w-4 mr-2 border-2 border-primary-foreground border-t-transparent rounded-full" />
-                  Submitting...
-                </>
-              ) : (
-                <>
-                  <Send className="h-3.5 w-3.5 mr-2" />
-                  Submit
-                </>
-              )}
-            </Button>
-          )}
-          
           {/* Theme toggle, settings, and profile buttons */}
           <BorderlessThemeToggle />
           

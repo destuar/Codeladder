@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -47,6 +47,104 @@ export function AssessmentOverview({
   const navigate = useNavigate();
   const location = useLocation();
   
+  // State to track locally with session persistence
+  const [localRemainingTime, setLocalRemainingTime] = useState<number | undefined>(remainingTime);
+  const [localSubmittedCount, setLocalSubmittedCount] = useState<number>(submittedCount);
+  const [localTasks, setLocalTasks] = useState<AssessmentTask[]>(tasks);
+  const [localIsSubmitting, setLocalIsSubmitting] = useState<boolean>(false);
+  
+  // Load assessment state from sessionStorage on initial render
+  useEffect(() => {
+    if (!id) return;
+
+    const savedAssessment = sessionStorage.getItem(`assessment_${id}`);
+    if (savedAssessment) {
+      try {
+        const assessmentData = JSON.parse(savedAssessment);
+        
+        // Restore time if it exists
+        if (assessmentData.remainingTime) {
+          // Adjust for time passed since last save
+          const lastUpdated = new Date(assessmentData.lastUpdated).getTime();
+          const now = new Date().getTime();
+          const secondsPassed = Math.floor((now - lastUpdated) / 1000);
+          
+          // Calculate new remaining time (don't go below 0)
+          const newRemainingTime = Math.max(0, assessmentData.remainingTime - secondsPassed);
+          setLocalRemainingTime(newRemainingTime);
+        } else if (remainingTime) {
+          // If no saved time but we have a prop, use it
+          setLocalRemainingTime(remainingTime);
+        }
+        
+        // Restore tasks and submitted count
+        if (assessmentData.tasks && assessmentData.tasks.length > 0) {
+          setLocalTasks(assessmentData.tasks);
+          // Count submitted tasks
+          const submitted = assessmentData.tasks.filter((task: AssessmentTask) => task.isSubmitted).length;
+          setLocalSubmittedCount(submitted);
+        }
+      } catch (e) {
+        console.error('Error parsing saved assessment data:', e);
+        // Clear invalid data
+        sessionStorage.removeItem(`assessment_${id}`);
+      }
+    } else {
+      // No saved data, initialize from props
+      setLocalTasks(tasks);
+      setLocalSubmittedCount(submittedCount);
+      
+      // If remaining time is provided as a prop, use it, otherwise calculate from duration
+      if (remainingTime !== undefined) {
+        setLocalRemainingTime(remainingTime);
+      } else if (duration) {
+        setLocalRemainingTime(duration * 60); // Convert minutes to seconds
+      }
+      
+      // Initialize session storage with current state
+      saveAssessmentState(tasks, submittedCount, remainingTime || (duration * 60));
+    }
+  }, [id]);
+  
+  // Timer effect to count down remaining time
+  useEffect(() => {
+    if (!id || localRemainingTime === undefined || localRemainingTime <= 0) return;
+    
+    const timer = setInterval(() => {
+      setLocalRemainingTime(prevTime => {
+        if (prevTime && prevTime > 0) {
+          const newTime = prevTime - 1;
+          // Save updated time to session storage
+          saveAssessmentState(localTasks, localSubmittedCount, newTime);
+          return newTime;
+        } else {
+          clearInterval(timer);
+          return 0;
+        }
+      });
+    }, 1000);
+    
+    return () => clearInterval(timer);
+  }, [id, localRemainingTime, localTasks, localSubmittedCount]);
+  
+  // Save assessment state to sessionStorage
+  const saveAssessmentState = (
+    currentTasks: AssessmentTask[], 
+    currentSubmittedCount: number, 
+    currentRemainingTime?: number
+  ) => {
+    if (!id) return;
+    
+    const assessmentData = {
+      tasks: currentTasks,
+      submittedCount: currentSubmittedCount,
+      remainingTime: currentRemainingTime,
+      lastUpdated: new Date().toISOString()
+    };
+    
+    sessionStorage.setItem(`assessment_${id}`, JSON.stringify(assessmentData));
+  };
+  
   // Format the remaining time as HH:MM:SS
   const formatRemainingTime = (seconds?: number): string => {
     if (!seconds) return '--:--:--';
@@ -72,23 +170,57 @@ export function AssessmentOverview({
     } else {
       // Default behavior - navigate to the quiz/task
       if (type === 'quiz') {
-        navigate(`/quizzes/${id}/take`);
+        // Pass the taskId in state so the quiz knows which question to start with
+        navigate(`/quizzes/${id}/take`, { 
+          state: { 
+            taskId: taskId,
+            skipIntro: true 
+          }
+        });
       }
     }
   };
   
+  // Handle marking a task as submitted
+  const markTaskSubmitted = (taskId: string) => {
+    // Update local tasks state
+    const updatedTasks = localTasks.map(task => 
+      task.id === taskId ? { ...task, isSubmitted: true } : task
+    );
+    
+    // Calculate new submitted count
+    const newSubmittedCount = updatedTasks.filter(task => task.isSubmitted).length;
+    
+    // Update state
+    setLocalTasks(updatedTasks);
+    setLocalSubmittedCount(newSubmittedCount);
+    
+    // Save to session storage
+    saveAssessmentState(updatedTasks, newSubmittedCount, localRemainingTime);
+  };
+  
   // Handle finishing the assessment
-  const handleFinishAssessment = () => {
-    if (onFinishAssessment) {
-      onFinishAssessment();
-    } else if (type === 'quiz') {
-      // Default behavior for finishing - could navigate elsewhere
-      navigate(`/topics`);
+  const handleFinishAssessment = async () => {
+    setLocalIsSubmitting(true);
+    try {
+      if (onFinishAssessment) {
+        await onFinishAssessment();
+      } else if (type === 'quiz') {
+        // Default behavior for finishing - could navigate elsewhere
+        navigate(`/topics`);
+      }
+      
+      // Clear session storage when assessment is finished
+      sessionStorage.removeItem(`assessment_${id}`);
+    } catch (error) {
+      console.error('Error finishing assessment:', error);
+    } finally {
+      setLocalIsSubmitting(false);
     }
   };
 
   // Calculate progress percentage
-  const progressPercentage = tasks.length > 0 ? (submittedCount / tasks.length) * 100 : 0;
+  const progressPercentage = localTasks.length > 0 ? (localSubmittedCount / localTasks.length) * 100 : 0;
 
   // Get icon based on question type
   const getTaskIcon = (taskType: string) => {
@@ -139,14 +271,14 @@ export function AssessmentOverview({
                     <span className="text-xs text-muted-foreground">Tasks</span>
                     <div className="flex items-center mt-0.5">
                       <BookOpenCheck className="h-3.5 w-3.5 text-muted-foreground mr-1" />
-                      <span className="font-medium text-sm">{tasks.length} questions</span>
+                      <span className="font-medium text-sm">{localTasks.length} questions</span>
                     </div>
                   </div>
                   
                   <div className="flex flex-col">
                     <span className="text-xs text-muted-foreground">Progress</span>
                     <div className="flex items-center gap-1 mt-0.5">
-                      <span className="font-medium text-sm">{submittedCount}/{tasks.length} completed</span>
+                      <span className="font-medium text-sm">{localSubmittedCount}/{localTasks.length} completed</span>
                     </div>
                   </div>
                 </div>
@@ -168,13 +300,13 @@ export function AssessmentOverview({
               </CardHeader>
               <CardContent className="text-center pt-0">
                 <div className="text-4xl font-mono font-bold tracking-wider pb-2 text-primary">
-                  {formatRemainingTime(remainingTime)}
+                  {formatRemainingTime(localRemainingTime)}
                 </div>
                 <Button 
                   variant="outline"
                   size="default"
                   className="mt-2 w-full transition-colors border-blue-300/70 hover:border-blue-500 hover:bg-blue-50/30 text-blue-600 dark:border-blue-800/50 dark:text-blue-400 dark:hover:bg-blue-900/20"
-                  onClick={() => handleStartTask(tasks[0]?.id || '')}
+                  onClick={() => handleStartTask(localTasks[0]?.id || '')}
                 >
                   {progressPercentage > 0 ? 'Continue Assessment' : `Start ${type}`}
                 </Button>
@@ -206,7 +338,7 @@ export function AssessmentOverview({
                     </tr>
                   </thead>
                   <tbody>
-                    {tasks.map((task, index) => (
+                    {localTasks.map((task, index) => (
                       <tr 
                         key={task.id} 
                         className={cn(
@@ -246,7 +378,13 @@ export function AssessmentOverview({
                             variant="outline"
                             size="sm"
                             className="transition-colors border-primary/30 hover:border-primary hover:bg-primary/10 text-primary"
-                            onClick={() => handleStartTask(task.id)}
+                            onClick={() => {
+                              handleStartTask(task.id);
+                              // Mark task as submitted when accessed
+                              if (!task.isSubmitted) {
+                                markTaskSubmitted(task.id);
+                              }
+                            }}
                           >
                             {task.isSubmitted ? "Review" : "Start"} 
                             <ArrowRight className="h-3.5 w-3.5 ml-1.5" />
@@ -270,22 +408,20 @@ export function AssessmentOverview({
               Exit
             </Button>
             
-            {/* <Button
-              variant="default"
-              onClick={() => handleStartTask(tasks[0]?.id || '')}
-              className="px-6"
-              disabled={tasks.length === 0}
-            >
-              {progressPercentage > 0 ? 'Continue Assessment' : `Start ${type}`}
-            </Button> */}
-            
             <Button
               variant="outline"
               onClick={handleFinishAssessment}
-              disabled={submittedCount === 0}
+              disabled={localSubmittedCount === 0 || localIsSubmitting}
               className="px-6 transition-colors border-green-300/70 hover:border-green-500 hover:bg-green-50/30 text-green-600 dark:border-green-800/50 dark:text-green-400 dark:hover:bg-green-900/20"
             >
-              SUBMIT {type.toUpperCase()}
+              {localIsSubmitting ? (
+                <>
+                  <div className="animate-spin h-4 w-4 mr-2 border-2 border-green-600 border-t-transparent rounded-full" />
+                  Submitting...
+                </>
+              ) : (
+                <>SUBMIT {type.toUpperCase()}</>
+              )}
             </Button>
           </div>
         </div>
