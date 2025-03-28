@@ -122,7 +122,12 @@ export function useQuiz(quizId?: string) {
         
         // Session is still valid, load state as normal
         setCurrentQuestionIndex(quizData.currentQuestionIndex || 0);
-        setAnswers(quizData.answers || {});
+        
+        // Always load saved answers if they exist, even if empty object
+        if (quizData.answers) {
+          console.log('Loading saved answers from session storage:', quizData.answers);
+          setAnswers(quizData.answers);
+        }
         
         // Only use saved start time if it exists and is valid
         if (quizData.startTime) {
@@ -148,8 +153,17 @@ export function useQuiz(quizId?: string) {
         }
       } catch (e) {
         console.error('Error parsing saved quiz data:', e);
-        // Clear invalid data
-        sessionStorage.removeItem(`quiz_${quizId}`);
+        // Don't clear invalid data immediately, try to recover answers
+        try {
+          const savedAnswers = JSON.parse(savedQuiz).answers;
+          if (savedAnswers) {
+            console.log('Recovered answers from invalid session data:', savedAnswers);
+            setAnswers(savedAnswers);
+          }
+        } catch (e) {
+          console.error('Could not recover answers from invalid session data:', e);
+          sessionStorage.removeItem(`quiz_${quizId}`);
+        }
       }
     } else {
       // Initialize new attempt
@@ -168,18 +182,19 @@ export function useQuiz(quizId?: string) {
   
   // Save quiz state to sessionStorage when it changes
   useEffect(() => {
-    if (quizId) {
-      const stateToSave = {
-        currentQuestionIndex,
-        answers,
-        startTime: startTime.toISOString(),
-        elapsedTime,
-        attemptId,
-        lastUpdated: new Date().toISOString()
-      };
-      
-      sessionStorage.setItem(`quiz_${quizId}`, JSON.stringify(stateToSave));
-    }
+    if (!quizId || !hasInitialized.current) return;
+    
+    const stateToSave = {
+      currentQuestionIndex,
+      answers,
+      startTime: startTime.toISOString(),
+      elapsedTime,
+      attemptId,
+      lastUpdated: new Date().toISOString()
+    };
+    
+    console.log('Saving quiz state to session storage:', stateToSave);
+    sessionStorage.setItem(`quiz_${quizId}`, JSON.stringify(stateToSave));
   }, [quizId, currentQuestionIndex, answers, startTime, elapsedTime, attemptId]);
   
   // Timer effect with better cleanup
@@ -869,6 +884,11 @@ export function useQuiz(quizId?: string) {
       setIsSubmitting(false);
     }
   }, [quiz, quizId, token, answers, isSubmitting, startTime, api, setAttemptId]);
+
+  // Mark that we've initialized after the first render
+  useEffect(() => {
+    hasInitialized.current = true;
+  }, []);
 
   return {
     quiz,
