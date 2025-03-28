@@ -36,10 +36,14 @@ export function useProblemCompletion(
     // Always update UI immediately
     setIsProblemCompleted(!isProblemCompleted);
     
-    // In review mode, don't make API calls - just update UI
+    // In review mode, don't make API calls - just update UI and call the callback
     if (isReviewMode) {
-      console.log('[ProblemCompletion] Skipping completion toggle in review mode');
-      return;
+      console.log('[ProblemCompletion] Skipping API toggle in review mode, calling onCompleted directly');
+      // Call onCompleted here if it exists, as the API call is skipped
+      if (onCompleted) {
+        onCompleted(); 
+      }
+      return; // Still return early to prevent API call
     }
     
     // For non-review mode, fire API call asynchronously (non-blocking)
@@ -86,10 +90,11 @@ export function useProblemCompletion(
         console.log('[ProblemCompletion] All queries invalidated');
       }, 0);
       
-      // Call onCompleted callback when marking as complete
+      // Call onCompleted callback when marking as complete (only in non-review mode now)
+      // The review mode case is handled in handleMarkAsComplete
       if (onCompleted && isBeingMarkedComplete) {
-        console.log('[ProblemCompletion] Calling onCompleted callback');
-        onCompleted();
+        console.log('[ProblemCompletion] Calling onCompleted callback (non-review)');
+        // onCompleted(); // Already called earlier if in review mode
       }
     } catch (error) {
       // Error handling is now in the handleMarkAsComplete function
