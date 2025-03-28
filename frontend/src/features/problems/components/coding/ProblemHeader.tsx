@@ -10,7 +10,8 @@ import codeladderSvgLogo from '@/features/landingpage/images/CodeLadder.svg';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { BorderlessThemeToggle } from "../shared/BorderlessThemeToggle";
 
-interface ProblemHeaderProps {
+// Export the interface
+export interface ProblemHeaderProps {
   isCompleted: boolean;
   onMarkComplete: () => void;
   nextProblemId?: string;
@@ -26,7 +27,7 @@ interface ProblemHeaderProps {
   sourceContext?: {
     from: string;
     name: string;
-    id: string;
+    id?: string;
     slug?: string;
   };
 }

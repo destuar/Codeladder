@@ -13,6 +13,7 @@ import { ProblemTimer } from './timer/ProblemTimer';
 import { CodeEditor, CodeEditorRef } from './editor/CodeEditor';
 import { TestRunner } from './test-runner/TestRunner';
 import { ProblemHeader } from '@/features/problems/components/coding/ProblemHeader';
+import { ProblemHeaderProps } from '@/features/problems/components/coding/ProblemHeader';
 import { useProblemCompletion } from '@/features/problems/hooks/useProblemCompletion';
 import { formatEstimatedTime } from '../../utils/time';
 import { 
@@ -64,6 +65,17 @@ export default function CodingProblem({
   const [isRunning, setIsRunning] = useState(false);
   const editorRef = useRef<any>(null);
 
+  // Use the problem completion hook
+  const { 
+    isProblemCompleted: hookIsCompleted, 
+    handleMarkAsComplete: hookHandleMarkComplete 
+  } = useProblemCompletion(
+    problemId,
+    isCompleted, // Pass initial state from props
+    onCompleted, // Pass parent callback to hook
+    isReviewMode
+  );
+
   // Parse test cases
   const testCases = useMemo(() => {
     try {
@@ -112,13 +124,6 @@ export default function CodingProblem({
     return `${minutes} min${minutes !== 1 ? 's' : ''}`;
   }, [estimatedTime]);
 
-  // Handle marking problem as complete
-  const handleMarkAsComplete = useCallback(async () => {
-    if (onCompleted) {
-      await onCompleted();
-    }
-  }, [onCompleted]);
-
   return (
     <div className={cn(
       "flex flex-col bg-background",
@@ -132,8 +137,8 @@ export default function CodingProblem({
         prevProblemId={prevProblemId}
         prevProblemSlug={prevProblemSlug}
         onNavigate={handleNavigate}
-        isCompleted={isCompleted}
-        onMarkComplete={handleMarkAsComplete}
+        isCompleted={hookIsCompleted}
+        onMarkComplete={hookHandleMarkComplete}
         isQuizMode={isQuizMode}
         isReviewMode={isReviewMode}
         sourceContext={sourceContext}
