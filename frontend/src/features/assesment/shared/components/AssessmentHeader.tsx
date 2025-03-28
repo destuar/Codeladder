@@ -87,7 +87,6 @@ export function AssessmentHeader({
               {/* Timer */}
               <div className="flex items-center text-muted-foreground">
                 <Clock className="h-4 w-4 mr-1.5" />
-                <span className="text-xs mr-1">Time Remaining:</span>
                 <span className="text-sm font-mono">{formatTime(elapsedTime)}</span>
               </div>
               
