@@ -23,10 +23,10 @@ export function useProblemCompletion(
   const { token } = useAuth();
   const queryClient = useQueryClient();
 
-  // Update the state when problemId or initialCompletionState changes
+  // Update the internal state whenever the initialCompletionState prop changes
   useEffect(() => {
     setIsProblemCompleted(initialCompletionState);
-  }, [problemId, initialCompletionState]);
+  }, [initialCompletionState]); // Only depend on the prop value itself
 
   // This function directly completes problems without showing a dialog
   const handleMarkAsComplete = async () => {

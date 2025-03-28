@@ -274,39 +274,11 @@ const ProblemPage: React.FC = () => {
       setReviewModeCompleted(true);
     }
 
-    // Optimistically update the cache
-    queryClient.setQueryData(['problem', effectiveIdentifier], {
-      ...problem,
-      isCompleted: isBeingMarkedComplete
-    });
-    
     // Show completion UI immediately if being marked complete
     if (isBeingMarkedComplete) {
       // No delay for better UX
       setHasJustCompleted(true);
     }
-
-    // Make API call non-blocking
-    api.post(`/problems/${problem.id}/complete`, {
-      preserveReviewData: isReviewMode
-    }, token).catch(error => {
-      // Revert the optimistic update on error
-      queryClient.setQueryData(['problem', effectiveIdentifier], problem);
-      console.error('Error toggling problem completion:', error);
-      
-      // Also revert the reviewModeCompleted state if there was an error
-      if (isReviewMode) {
-        setReviewModeCompleted(false);
-      }
-      
-      // Revert hasJustCompleted if needed
-      if (isBeingMarkedComplete) {
-        setHasJustCompleted(false);
-      }
-      
-      // Force refresh problem data to ensure we're in sync with server
-      queryClient.invalidateQueries({ queryKey: ['problem', effectiveIdentifier] });
-    });
   };
 
   // Check if we should show review controls
