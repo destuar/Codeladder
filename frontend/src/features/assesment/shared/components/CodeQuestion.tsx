@@ -11,6 +11,7 @@ import { CodeEditor } from '@/features/problems/components/coding/editor/CodeEdi
 import { TestRunner } from '@/features/problems/components/coding/test-runner/TestRunner';
 import { Resizable } from "re-resizable";
 import { SupportedLanguage } from '@/features/problems/types/coding';
+import { Button } from "@/components/ui/button";
 
 // Constants for code editor layout
 const MIN_EDITOR_HEIGHT = 200; // px
@@ -43,6 +44,7 @@ export function CodeQuestion({
   const [isRunning, setIsRunning] = useState(false);
   const [editorHeight, setEditorHeight] = useState(window.innerHeight * 0.6);
   const editorRef = useRef<any>(null);
+  const [hasSubmitted, setHasSubmitted] = useState(false);
 
   // Format test cases from assessment format to problem format
   const formattedTestCases = JSON.stringify(testCases);
@@ -50,11 +52,81 @@ export function CodeQuestion({
   // Handle code changes
   const handleCodeChange = useCallback((newCode: string) => {
     onCodeChange(newCode);
+    // Reset submission status when code changes
+    setHasSubmitted(false);
   }, [onCodeChange]);
 
   // Handle language changes
   const handleLanguageChange = useCallback((language: string) => {
     setSelectedLanguage(language as SupportedLanguage);
+  }, []);
+  
+  // Handle submit
+  const handleSubmit = useCallback(() => {
+    if (!hasSubmitted) {
+      // STEP 1: Set submission state to prevent multiple submissions
+      setHasSubmitted(true);
+      
+      // STEP 2: Here you would integrate with Judge0 API to execute tests
+      // Example pseudocode:
+      // const testResults = await runTestsWithJudge0(code, testCases, language);
+      
+      // STEP 3: Process test results to determine if all tests pass
+      // Example pseudocode:
+      // const allTestsPassed = testResults.every(result => result.passed);
+      // const score = calculateScore(testResults);
+      
+      // STEP 4: Store the submission data
+      // Example pseudocode:
+      // await submitCodeSolution({
+      //   questionId: question.id,
+      //   code: code,
+      //   language: selectedLanguage,
+      //   testResults: testResults,
+      //   score: score,
+      //   allTestsPassed: allTestsPassed
+      // });
+      
+      // STEP 5: Call the completion callback to notify parent component
+      onCompleted();
+      
+      // STEP 6: Show success message to user
+      // Example pseudocode:
+      // toast.success(`Solution submitted successfully! Score: ${score}/${testCases.length}`);
+    }
+  }, [onCompleted, hasSubmitted, code, selectedLanguage, question.id]);
+  
+  // Handle test runner completion
+  const handleRunComplete = useCallback(() => {
+    // When tests are run but not submitted
+    // This could update UI to show if tests are passing
+    
+    // NOTE: For future integration, this could be enhanced to:
+    // 1. Analyze test results from Judge0
+    // 2. Update UI to show which tests passed/failed
+    // 3. Calculate preliminary score
+    // 4. Prompt user to submit if all tests pass
+  }, []);
+  
+  // Handle run tests button click
+  const handleRunTests = useCallback(() => {
+    // Use the data attribute to click the hidden button in TestRunner
+    const testRunnerElement = document.querySelector('[data-testrunner-run-button]');
+    if (testRunnerElement) {
+      (testRunnerElement as HTMLButtonElement).click();
+    }
+    
+    // NOTE: This could be replaced with direct Judge0 API call:
+    // Example pseudocode:
+    // setIsRunning(true);
+    // try {
+    //   const results = await runTestsWithJudge0(code, testCases, selectedLanguage);
+    //   displayTestResults(results);
+    // } catch (error) {
+    //   handleError(error);
+    // } finally {
+    //   setIsRunning(false);
+    // }
   }, []);
   
   return (
@@ -126,14 +198,8 @@ export function CodeQuestion({
                 language={selectedLanguage}
                 onLanguageChange={handleLanguageChange}
                 ref={editorRef}
-                onRunTests={() => {
-                  // Use the data attribute to click the hidden button
-                  const testRunnerElement = document.querySelector('[data-testrunner-run-button]');
-                  if (testRunnerElement) {
-                    (testRunnerElement as HTMLButtonElement).click();
-                  }
-                }}
-                onSubmitSolution={() => {}}
+                onRunTests={handleRunTests}
+                onSubmitSolution={handleSubmit}
                 isRunning={isRunning}
               />
             </div>
@@ -145,7 +211,7 @@ export function CodeQuestion({
               code={code || codeTemplate || ''}
               testCases={JSON.parse(formattedTestCases)}
               problemId={question.id}
-              onRunComplete={() => {}}
+              onRunComplete={handleRunComplete}
               language={selectedLanguage}
               onLanguageChange={handleLanguageChange}
               isRunning={isRunning}

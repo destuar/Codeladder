@@ -126,17 +126,21 @@ async function request(endpoint: string, options: RequestOptions = {}) {
   });
 
   try {
+    console.log(`Sending fetch request to ${url}...`);
     const response = await fetch(url, {
       ...customOptions,
       headers,
       credentials: 'include'
     });
+    console.log(`Received response from ${url}, status: ${response.status}`);
 
     let data;
     try {
       data = await response.json();
+      console.log(`Successfully parsed JSON response from ${url}`);
     } catch (e) {
-      console.warn('Response is not JSON:', e);
+      console.warn(`Response from ${url} is not JSON:`, e);
+      console.log(`Response status: ${response.status}, text:`, await response.text());
       data = null;
     }
 
@@ -179,7 +183,8 @@ async function request(endpoint: string, options: RequestOptions = {}) {
       debug.error('HTTP Error:', {
         url,
         status: response.status,
-        statusText: response.statusText
+        statusText: response.statusText,
+        responseData: data || null
       });
       const error = new Error(`HTTP error! status: ${response.status}`) as ApiError;
       error.status = response.status;
@@ -191,7 +196,12 @@ async function request(endpoint: string, options: RequestOptions = {}) {
   } catch (error) {
     debug.error('Request failed:', {
       url,
-      error: error instanceof Error ? error.message : 'Unknown error'
+      method: options.method || 'GET',
+      error: error instanceof Error ? {
+        message: error.message,
+        stack: error.stack,
+        name: error.name
+      } : 'Unknown error'
     });
     throw error;
   }
@@ -372,11 +382,29 @@ export const api = {
     answers: Record<string, any>,
     token: string
   ) {
-    return this.post(
-      `/quizzes/${quizId}/submit`,
-      { startedAt, answers },
-      token
-    );
+    console.log('API - submitCompleteQuiz called:', { 
+      quizId, 
+      startedAt,
+      answersCount: Object.keys(answers).length 
+    });
+    
+    try {
+      const endpoint = `/quizzes/${quizId}/submit`;
+      console.log(`Making POST request to ${endpoint}`);
+      
+      const result = await this.post(
+        endpoint,
+        { startedAt, answers },
+        token
+      );
+      
+      console.log('submitCompleteQuiz API response:', result);
+      return result;
+    } catch (error) {
+      console.error('submitCompleteQuiz failed:', error);
+      // Rethrow the error to be handled by the caller
+      throw error;
+    }
   },
 
   async getQuizAttemptResults(attemptId: string, token: string) {

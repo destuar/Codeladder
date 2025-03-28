@@ -281,6 +281,13 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     } catch (err) {
       console.error('Error during logout:', err);
     } finally {
+      // Clear all quiz and assessment related sessionStorage data
+      Object.keys(sessionStorage).forEach(key => {
+        if (key.startsWith('quiz_') || key.startsWith('assessment_')) {
+          sessionStorage.removeItem(key);
+        }
+      });
+      
       setUser(null);
       setToken(null);
       localStorage.removeItem('token');

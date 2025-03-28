@@ -54,7 +54,9 @@ function MainLayout() {
   const isTopicPage = location.pathname.match(/^\/topics\/[^/]+$/) || location.pathname.match(/^\/topic\/[^/]+$/);
   const isInfoPage = location.pathname.match(/^\/info\/[^/]+$/);
   const isCollectionPage = false;
-  const isQuizPage = location.pathname.match(/^\/quizzes\/[^/]+\/take$/) || location.pathname.match(/^\/quizzes\/attempts\/[^/]+\/results$/);
+  const isQuizPage = location.pathname.match(/^\/quizzes\/[^/]+\/take$/) || 
+                    location.pathname.match(/^\/quizzes\/attempts\/[^/]+\/results$/) || 
+                    location.pathname.match(/^\/quizzes\/[^/]+$/);
   
   const shouldHideNavigation = isProblemPage || isInfoPage || isCollectionPage || isQuizPage;
   
