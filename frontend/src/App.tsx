@@ -26,6 +26,9 @@ import { QuizResultsPage } from './features/assesment/quiz/QuizResultsPage';
 import { QuizHistoryPage } from './features/assesment/quiz/QuizHistoryPage';
 import { ReviewPage } from './features/spaced-repetition';
 import { AssessmentEntryPage } from './features/assesment/shared/AssessmentEntryPage';
+import { TestResultsPage } from './features/assesment/test/TestResultsPage';
+import { TestHistoryPage } from './features/assesment/test/TestHistoryPage';
+import { TestPage } from './features/assesment/test/TestPage';
 
 // Regular components
 const UnauthorizedPage = () => (
@@ -57,8 +60,12 @@ function MainLayout() {
   const isQuizPage = location.pathname.match(/^\/quizzes\/[^/]+\/take$/) || 
                     location.pathname.match(/^\/quizzes\/attempts\/[^/]+\/results$/) || 
                     location.pathname.match(/^\/quizzes\/[^/]+$/);
-  
-  const shouldHideNavigation = isProblemPage || isInfoPage || isCollectionPage || isQuizPage;
+  const isTestPage = location.pathname.match(/^\/tests\/[^/]+\/take$/) ||
+                    location.pathname.match(/^\/tests\/attempts\/[^/]+\/results$/) ||
+                    location.pathname.match(/^\/tests\/[^/]+$/);
+  const isAssessmentPage = location.pathname.match(/^\/assessment\/[^/]+\/[^/]+$/);
+                  
+  const shouldHideNavigation = isProblemPage || isInfoPage || isCollectionPage || isQuizPage || isTestPage || isAssessmentPage;
   
   return (
     <div className="min-h-screen bg-background text-foreground">
@@ -245,8 +252,40 @@ function MainLayout() {
               </ProtectedRoute>
             }
           />
+
+          {/* Test routes */}
           <Route
-            path="/quizzes/:quizId"
+            path="/tests/attempts/:attemptId/results"
+            element={
+              <ProtectedRoute>
+                <AdminViewWrapper>
+                  <TestResultsPage />
+                </AdminViewWrapper>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/tests/history/:levelId"
+            element={
+              <ProtectedRoute>
+                <AdminViewWrapper>
+                  <TestHistoryPage />
+                </AdminViewWrapper>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/tests/:testId/take"
+            element={
+              <ProtectedRoute>
+                <AdminViewWrapper>
+                  <TestPage />
+                </AdminViewWrapper>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/tests/:testId"
             element={
               <ProtectedRoute>
                 <AdminViewWrapper>
@@ -255,6 +294,15 @@ function MainLayout() {
               </ProtectedRoute>
             }
           />
+
+          {/* Assessment routes */}
+          <Route path="/assessment/:assessmentType/:assessmentId" element={
+            <ProtectedRoute>
+              <AdminViewWrapper>
+                <AssessmentEntryPage />
+              </AdminViewWrapper>
+            </ProtectedRoute>
+          } />
 
           {/* Default redirect */}
           <Route path="/" element={<Navigate to="/landing" replace />} />

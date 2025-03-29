@@ -13,7 +13,7 @@ import { useToast } from '@/components/ui/use-toast';
 import { QuizLayout } from '@/components/layouts/QuizLayout';
 
 export function AssessmentEntryPage() {
-  const { quizId } = useParams<{ quizId: string }>();
+  const { assessmentType, assessmentId } = useParams<{ assessmentType: string; assessmentId: string }>();
   const navigate = useNavigate();
   const location = useLocation();
   const { token } = useAuth();
@@ -23,30 +23,40 @@ export function AssessmentEntryPage() {
   const [savedTasks, setSavedTasks] = useState<AssessmentTask[] | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   
-  // Check if we should skip the intro (when returning from quiz)
+  // Check if we should skip the intro (when returning from quiz/test)
   const skipIntro = location.state?.skipIntro === true;
   const [showIntro, setShowIntro] = useState(!skipIntro); // Skip intro if flag is set
   
+  // Get additional location state (for level context in tests)
+  const levelId = location.state?.levelId;
+  const levelName = location.state?.levelName;
+  
+  // Determine if this is a quiz or test
+  const isQuiz = assessmentType === 'quiz';
+  const isTest = assessmentType === 'test';
+  
+  const storageKeyPrefix = isTest ? 'test' : 'quiz';
+  
   // Check for saved assessment state
   useEffect(() => {
-    if (!quizId) return;
+    if (!assessmentId) return;
 
-    // First check if this quiz was already completed
-    const completedFlag = sessionStorage.getItem(`quiz_${quizId}_completed`);
+    // First check if this assessment was already completed
+    const completedFlag = sessionStorage.getItem(`${storageKeyPrefix}_${assessmentId}_completed`);
     if (completedFlag === 'true') {
-      console.log('This quiz was previously completed. Clearing session data to start fresh.');
+      console.log('This assessment was previously completed. Clearing session data to start fresh.');
       
-      // Clear all session storage for this quiz
-      sessionStorage.removeItem(`quiz_${quizId}`);
-      sessionStorage.removeItem(`quiz_attempt_${quizId}`);
-      sessionStorage.removeItem(`assessment_${quizId}`);
-      sessionStorage.removeItem(`quiz_${quizId}_completed`);
+      // Clear all session storage for this assessment
+      sessionStorage.removeItem(`${storageKeyPrefix}_${assessmentId}`);
+      sessionStorage.removeItem(`${storageKeyPrefix}_attempt_${assessmentId}`);
+      sessionStorage.removeItem(`assessment_${assessmentId}`);
+      sessionStorage.removeItem(`${storageKeyPrefix}_${assessmentId}_completed`);
       
-      // Find and clear any other quiz-related items
-      if (quizId) {
+      // Find and clear any other assessment-related items
+      if (assessmentId) {
         Object.keys(sessionStorage).forEach(key => {
-          if (key.includes(quizId)) {
-            console.log(`Clearing additional quiz session data: ${key}`);
+          if (key.includes(assessmentId)) {
+            console.log(`Clearing additional assessment session data: ${key}`);
             sessionStorage.removeItem(key);
           }
         });
@@ -67,7 +77,7 @@ export function AssessmentEntryPage() {
     }
 
     // Check sessionStorage for saved assessment state
-    const savedAssessment = sessionStorage.getItem(`assessment_${quizId}`);
+    const savedAssessment = sessionStorage.getItem(`assessment_${assessmentId}`);
     if (savedAssessment) {
       try {
         const assessmentData = JSON.parse(savedAssessment);
@@ -97,50 +107,52 @@ export function AssessmentEntryPage() {
       } catch (e) {
         console.error('Error parsing saved assessment data:', e);
         // Clear invalid data
-        sessionStorage.removeItem(`assessment_${quizId}`);
+        sessionStorage.removeItem(`assessment_${assessmentId}`);
       }
     }
-  }, [quizId]);
+  }, [assessmentId, storageKeyPrefix]);
   
-  // Fetch quiz data
+  // Fetch assessment data (quiz or test)
   const { 
-    data: quiz,
-    isLoading: quizLoading,
-    isError: quizError,
+    data: assessment,
+    isLoading: assessmentLoading,
+    isError: assessmentError,
     error,
     status
   } = useQuery({
-    queryKey: ['quiz', quizId],
+    queryKey: [assessmentType, assessmentId],
     queryFn: async () => {
-      if (!token || !quizId) throw new Error('No token or quiz ID available');
-      return api.getQuizForAttempt(quizId, token);
+      if (!token || !assessmentId) throw new Error(`No token or ${assessmentType} ID available`);
+      
+      // Use the same API call for both quiz and test since backend handles both under /quizzes endpoint
+      return api.getQuizForAttempt(assessmentId, token);
     },
-    enabled: !!token && !!quizId,
+    enabled: !!token && !!assessmentId,
     staleTime: 1000 * 60 * 5, // 5 minutes
   });
   
-  // Fetch topic data for the quiz
+  // Fetch topic data for quiz (only for quizzes, not tests)
   const {
     data: topic,
     isLoading: topicLoading
   } = useQuery({
-    queryKey: ['topic', quiz?.topicId],
+    queryKey: ['topic', assessment?.topicId],
     queryFn: async () => {
-      if (!token || !quiz?.topicId) throw new Error('No token or topic ID available');
-      return api.get(`/learning/topics/${quiz.topicId}`, token);
+      if (!token || !assessment?.topicId) throw new Error('No token or topic ID available');
+      return api.get(`/learning/topics/${assessment.topicId}`, token);
     },
-    enabled: !!token && !!quiz?.topicId,
+    enabled: !!token && !!assessment?.topicId && isQuiz,
     staleTime: 1000 * 60 * 5, // 5 minutes
   });
   
-  // Format quiz data for the AssessmentOverview component
-  const formatQuizTasks = (): AssessmentTask[] => {
-    if (!quiz || !quiz.questions) return [];
+  // Format assessment data for the AssessmentOverview component
+  const formatAssessmentTasks = (): AssessmentTask[] => {
+    if (!assessment || !assessment.questions) return [];
     
     // If we have saved tasks, use those to preserve submission state
     if (savedTasks) return savedTasks;
     
-    return quiz.questions.map((question: any, index: number) => ({
+    return assessment.questions.map((question: any, index: number) => ({
       id: question.id,
       title: `Question ${index + 1}`,
       type: question.questionType === 'MULTIPLE_CHOICE' ? 'Multiple Choice' : 'Code',
@@ -149,17 +161,28 @@ export function AssessmentEntryPage() {
     }));
   };
   
-  // Handle starting the quiz
-  const handleStartQuiz = (taskId?: string) => {
-    if (quizId) {
-      navigate(`/quizzes/${quizId}/take`, {
-        state: {
-          taskId: taskId, // Pass the taskId in state
-          skipIntro: true,
-          topicName: topic?.name, // Pass topic name to the quiz page
-          topicSlug: topic?.slug
-        }
-      });
+  // Handle starting the assessment (quiz or test)
+  const handleStartAssessment = (taskId?: string) => {
+    if (assessmentId) {
+      if (isQuiz) {
+        navigate(`/quizzes/${assessmentId}/take`, {
+          state: {
+            taskId: taskId, // Pass the taskId in state
+            skipIntro: true,
+            topicName: topic?.name, // Pass topic name to the quiz page
+            topicSlug: topic?.slug
+          }
+        });
+      } else if (isTest) {
+        navigate(`/tests/${assessmentId}/take`, {
+          state: {
+            taskId: taskId, // Pass the taskId in state
+            skipIntro: true,
+            levelId: levelId,
+            levelName: levelName
+          }
+        });
+      }
     }
   };
   
@@ -170,10 +193,10 @@ export function AssessmentEntryPage() {
   
   // Handle finishing and submitting the assessment
   const handleFinishAssessment = async () => {
-    if (!quizId || !token) {
+    if (!assessmentId || !token) {
       toast({
         title: "Error",
-        description: "Missing required data to submit quiz.",
+        description: `Missing required data to submit ${isTest ? 'test' : 'quiz'}.`,
         variant: "destructive",
       });
       return;
@@ -183,8 +206,8 @@ export function AssessmentEntryPage() {
       setIsSubmitting(true);
       
       // Confirm submission
-      const confirmMessage = `Are you sure you want to submit this quiz? 
-This will finalize your answers and end the quiz session.`;
+      const confirmMessage = `Are you sure you want to submit this ${isTest ? 'test' : 'quiz'}? 
+This will finalize your answers and end the session.`;
       
       const shouldSubmit = window.confirm(confirmMessage);
       if (!shouldSubmit) {
@@ -192,90 +215,94 @@ This will finalize your answers and end the quiz session.`;
         return;
       }
       
-      // Need to load answers and quiz session data
-      const quizSessionData = sessionStorage.getItem(`quiz_${quizId}`);
-      if (!quizSessionData) {
+      // Need to load answers and session data
+      const sessionData = sessionStorage.getItem(`${storageKeyPrefix}_${assessmentId}`);
+      if (!sessionData) {
         toast({
           title: "Error",
-          description: "No quiz session found. Please try again.",
+          description: `No ${isTest ? 'test' : 'quiz'} session found. Please try again.`,
           variant: "destructive",
         });
         setIsSubmitting(false);
         return;
       }
       
-      const sessionData = JSON.parse(quizSessionData);
-      const { answers, startTime } = sessionData;
+      const parsedSessionData = JSON.parse(sessionData);
+      const { answers, startTime } = parsedSessionData;
       
       if (!answers || !startTime) {
         toast({
           title: "Error",
-          description: "Invalid quiz session data. Please try again.",
+          description: `Invalid ${isTest ? 'test' : 'quiz'} session data. Please try again.`,
           variant: "destructive",
         });
         setIsSubmitting(false);
         return;
       }
       
-      // Submit the quiz
-      console.log('Submitting quiz from assessment overview:', { 
-        quizId, 
+      // Submit the assessment
+      console.log(`Submitting ${isTest ? 'test' : 'quiz'} from assessment overview:`, { 
+        assessmentId, 
         startTime, 
         answersCount: Object.keys(answers).length 
       });
       
       const result = await api.submitCompleteQuiz(
-        quizId,
+        assessmentId,
         startTime,
         answers,
         token
       );
       
-      console.log('Quiz submission result:', result);
+      console.log(`${isTest ? 'Test' : 'Quiz'} submission result:`, result);
       
       if (result && result.id) {
-        // Set a flag to indicate this quiz was completed
-        if (quizId) {
-          sessionStorage.setItem(`quiz_${quizId}_completed`, 'true');
+        // Set a flag to indicate this assessment was completed
+        if (assessmentId) {
+          sessionStorage.setItem(`${storageKeyPrefix}_${assessmentId}_completed`, 'true');
         }
         
-        // Clean up ALL session storage related to this quiz
-        console.log('Clearing all quiz session storage data');
+        // Clean up ALL session storage related to this assessment
+        console.log('Clearing all session storage data');
         
-        // Clear direct quiz data
-        sessionStorage.removeItem(`quiz_${quizId}`);
-        sessionStorage.removeItem(`assessment_${quizId}`);
+        // Clear direct data
+        sessionStorage.removeItem(`${storageKeyPrefix}_${assessmentId}`);
+        sessionStorage.removeItem(`assessment_${assessmentId}`);
         
         // Clear attempt ID
-        sessionStorage.removeItem(`quiz_attempt_${quizId}`);
+        sessionStorage.removeItem(`${storageKeyPrefix}_attempt_${assessmentId}`);
         
-        // Find and clear any other quiz-related items
-        if (quizId) {
+        // Find and clear any other related items
+        if (assessmentId) {
           Object.keys(sessionStorage).forEach(key => {
-            if (key.includes(quizId)) {
-              console.log(`Clearing additional quiz session data: ${key}`);
+            if (key.includes(assessmentId)) {
+              console.log(`Clearing additional session data: ${key}`);
               sessionStorage.removeItem(key);
             }
           });
         }
         
         toast({
-          title: "Quiz Submitted",
-          description: "Your quiz has been submitted successfully!",
+          title: `${isTest ? 'Test' : 'Quiz'} Submitted`,
+          description: `Your ${isTest ? 'test' : 'quiz'} has been submitted successfully!`,
           variant: "default",
         });
         
-        // Navigate to results page
-        navigate(`/quizzes/attempts/${result.id}/results`);
+        // Navigate to results page - use the appropriate route based on type
+        if (isQuiz) {
+          navigate(`/quizzes/attempts/${result.id}/results`);
+        } else if (isTest) {
+          navigate(`/tests/attempts/${result.id}/results`);
+        }
       } else {
         toast({
           title: "Error",
-          description: "Failed to get quiz results. Please try again.",
+          description: `Failed to get ${isTest ? 'test' : 'quiz'} results. Please try again.`,
           variant: "destructive",
         });
       }
     } catch (error) {
-      console.error('Error submitting quiz:', error);
+      console.error(`Error submitting ${isTest ? 'test' : 'quiz'}:`, error);
       toast({
         title: "Error",
         description: error instanceof Error ? error.message : "An unexpected error occurred. Please try again.",
@@ -296,7 +323,7 @@ This will finalize your answers and end the quiz session.`;
   };
   
   // Handle loading state
-  if (quizLoading) {
+  if (assessmentLoading) {
     return (
       <QuizLayout>
         <div className="container py-8">
@@ -317,7 +344,7 @@ This will finalize your answers and end the quiz session.`;
   }
   
   // Handle error state
-  if (quizError || !quiz) {
+  if (assessmentError || !assessment) {
     return (
       <QuizLayout>
         <div className="container py-16">
@@ -345,33 +372,33 @@ This will finalize your answers and end the quiz session.`;
   if (showIntro) {
     return (
       <AssessmentIntro
-        id={quizId || ''}
-        title={topic?.name || quiz.title || 'Assessment'}
-        description={quiz.description}
-        duration={quiz.timeLimit || 60}
-        questionsCount={quiz.questions?.length || 0}
-        type={quiz.type === 'QUIZ' ? 'quiz' : 'test'}
+        id={assessmentId || ''}
+        title={isQuiz ? (topic?.name || assessment.title || 'Quiz') : (levelName ? `${levelName} Test` : assessment.title || 'Test')}
+        description={assessment.description}
+        duration={assessment.timeLimit || 60}
+        questionsCount={assessment.questions?.length || 0}
+        type={isTest ? 'test' : 'quiz'}
         onStart={handleProceedToOverview}
       />
     );
   }
   
   // Calculate initial time if we don't have a saved session
-  const initialRemainingTime = timeRemaining || (quiz.timeLimit ? quiz.timeLimit * 60 : 3600);
+  const initialRemainingTime = timeRemaining || (assessment.timeLimit ? assessment.timeLimit * 60 : 3600);
   
   // Render assessment overview after intro
   return (
     <QuizLayout>
       <AssessmentOverview 
-        id={quizId || ''}
-        title={topic?.name || quiz.title || 'Assessment'}
-        description={quiz.description}
-        duration={quiz.timeLimit || 60}
-        tasks={formatQuizTasks()}
+        id={assessmentId || ''}
+        title={isQuiz ? (topic?.name || assessment.title || 'Quiz') : (levelName ? `${levelName} Test` : assessment.title || 'Test')}
+        description={assessment.description}
+        duration={assessment.timeLimit || 60}
+        tasks={formatAssessmentTasks()}
         submittedCount={submittedCount}
         remainingTime={initialRemainingTime}
-        type="quiz"
-        onStartTask={handleStartQuiz}
+        type={isTest ? 'test' : 'quiz'}
+        onStartTask={handleStartAssessment}
         onFinishAssessment={handleFinishAssessment}
       />
     </QuizLayout>

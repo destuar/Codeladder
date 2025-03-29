@@ -21,6 +21,7 @@ import { StandaloneInfoAdmin } from "./components/StandaloneInfoAdmin";
 import { ContentMigrationTool } from "./components/ContentMigrationTool";
 import { ProblemListAdmin } from "./components/ProblemListAdmin";
 import { QuizAdmin } from "./components/QuizAdmin";
+import { TestAdmin } from "./components/TestAdmin";
 import { Card } from "@/components/ui/card";
 
 interface AdminData {
@@ -212,6 +213,7 @@ export function AdminDashboard() {
             <TabsTrigger value="editor">Learning Path Editor</TabsTrigger>
             <TabsTrigger value="problem-list">Problem List Editor</TabsTrigger>
             <TabsTrigger value="quiz-editor">Quiz Editor</TabsTrigger>
+            <TabsTrigger value="test-editor">Test Editor</TabsTrigger>
             <TabsTrigger value="info">Standalone Info Pages</TabsTrigger>
             <TabsTrigger value="tools">Content Tools</TabsTrigger>
             <TabsTrigger value="preview">User View Preview</TabsTrigger>
@@ -227,6 +229,10 @@ export function AdminDashboard() {
 
           <TabsContent value="quiz-editor" className="space-y-4">
             <QuizAdmin />
+          </TabsContent>
+
+          <TabsContent value="test-editor" className="space-y-4">
+            <TestAdmin />
           </TabsContent>
 
           <TabsContent value="info" className="space-y-4">

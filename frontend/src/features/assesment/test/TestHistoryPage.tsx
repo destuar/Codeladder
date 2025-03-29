@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 import { useAuth } from '@/features/auth/AuthContext';
@@ -43,8 +43,10 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { format } from 'date-fns';
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { AlertCircle } from "lucide-react";
 
-type QuizAttempt = {
+type TestAttempt = {
   id: string;
   quizId: string;
   score: number | null;
@@ -73,37 +75,44 @@ const calculateTimeTaken = (startDate: string, endDate: string) => {
   return Math.floor((end.getTime() - start.getTime()) / 1000);
 };
 
-export function QuizHistoryPage() {
-  const { topicId } = useParams<{ topicId: string }>();
+export function TestHistoryPage() {
+  const { levelId } = useParams<{ levelId: string }>();
   const navigate = useNavigate();
+  const location = useLocation();
   const { token } = useAuth();
   const [activeTab, setActiveTab] = useState('all');
   
-  // Fetch topic details
-  const { data: topic, isLoading: topicLoading } = useQuery({
-    queryKey: ['topic', topicId],
+  // Get level name from location state if available
+  const levelName = location.state?.levelName || 'Level';
+  
+  // Fetch level details if needed (similar to topic details in QuizHistoryPage)
+  const { data: level, isLoading: levelLoading } = useQuery({
+    queryKey: ['level', levelId],
     queryFn: async () => {
-      if (!token || !topicId) throw new Error('No token or topic ID');
-      return api.get(`/learning/topics/${topicId}`, token);
+      if (!token || !levelId) throw new Error('No token or level ID');
+      const levels = await api.getLevels(token);
+      const level = levels.find(l => l.id === levelId);
+      if (!level) throw new Error(`Level with ID ${levelId} not found`);
+      return level;
     },
-    enabled: !!token && !!topicId,
+    enabled: !!token && !!levelId,
   });
   
-  // Fetch quiz attempts for this topic
+  // Fetch test attempts for this level
   const { data: attempts, isLoading: attemptsLoading } = useQuery({
-    queryKey: ['quizAttempts', topicId],
+    queryKey: ['testAttempts', levelId],
     queryFn: async () => {
-      if (!token || !topicId) throw new Error('No token or topic ID');
-      return api.getQuizAttemptsByTopic(topicId, token);
+      if (!token || !levelId) throw new Error('No token or level ID');
+      return api.getTestAttemptsForLevel(levelId, token);
     },
-    enabled: !!token && !!topicId,
+    enabled: !!token && !!levelId,
   });
   
-  // Group attempts by quiz
-  const attemptsByQuiz = React.useMemo(() => {
+  // Group attempts by test (similar to byQuiz grouping in QuizHistoryPage)
+  const attemptsByTest = React.useMemo(() => {
     if (!attempts) return {};
     
-    return attempts.reduce((acc: Record<string, QuizAttempt[]>, attempt: QuizAttempt) => {
+    return attempts.reduce((acc: Record<string, TestAttempt[]>, attempt: TestAttempt) => {
       if (!acc[attempt.quizId]) {
         acc[attempt.quizId] = [];
       }
@@ -112,18 +121,18 @@ export function QuizHistoryPage() {
     }, {});
   }, [attempts]);
   
-  // Get unique quizzes
-  const quizzes = React.useMemo(() => {
+  // Get unique tests
+  const tests = React.useMemo(() => {
     if (!attempts) return [];
     
-    const quizMap = new Map();
-    attempts.forEach((attempt: QuizAttempt) => {
-      if (!quizMap.has(attempt.quizId)) {
-        quizMap.set(attempt.quizId, attempt.quiz);
+    const testMap = new Map();
+    attempts.forEach((attempt: TestAttempt) => {
+      if (!testMap.has(attempt.quizId)) {
+        testMap.set(attempt.quizId, attempt.quiz);
       }
     });
     
-    return Array.from(quizMap.values());
+    return Array.from(testMap.values());
   }, [attempts]);
   
   // Format date
@@ -131,20 +140,20 @@ export function QuizHistoryPage() {
     return format(new Date(dateString), 'MMM d, yyyy h:mm a');
   };
   
-  // Get best score for a quiz
-  const getBestScore = (quizId: string) => {
-    if (!attemptsByQuiz[quizId]) return null;
+  // Get best score for a test
+  const getBestScore = (testId: string) => {
+    if (!attemptsByTest[testId]) return null;
     
-    const validAttempts = attemptsByQuiz[quizId].filter((a: QuizAttempt) => a.completedAt && a.score !== null);
+    const validAttempts = attemptsByTest[testId].filter((a: TestAttempt) => a.completedAt && a.score !== null);
     if (validAttempts.length === 0) return null;
     
-    return validAttempts.reduce((best: QuizAttempt, current: QuizAttempt) => {
+    return validAttempts.reduce((best: TestAttempt, current: TestAttempt) => {
       return (current.score || 0) > (best.score || 0) ? current : best;
     }, validAttempts[0]);
   };
   
   // Handle loading state
-  if (topicLoading || attemptsLoading) {
+  if (levelLoading || attemptsLoading) {
     return (
       <QuizLayout>
         <div className="container py-8 max-w-6xl">
@@ -165,15 +174,15 @@ export function QuizHistoryPage() {
     );
   }
   
-  // Handle no topic found
-  if (!topic) {
+  // Handle no level found
+  if (!level) {
     return (
       <QuizLayout>
         <div className="container py-8">
           <Card>
             <CardContent className="p-6">
-              <h2 className="text-xl font-semibold text-destructive">Topic Not Found</h2>
-              <p className="mt-2">The requested topic could not be loaded.</p>
+              <h2 className="text-xl font-semibold text-destructive">Level Not Found</h2>
+              <p className="mt-2">The requested level could not be loaded.</p>
               <Button 
                 variant="outline" 
                 className="mt-4"
@@ -188,11 +197,11 @@ export function QuizHistoryPage() {
     );
   }
   
-  // Find the best attempt for each quiz
-  const getBestAttempt = (quizAttempts: QuizAttempt[]) => {
-    if (!quizAttempts || quizAttempts.length === 0) return null;
+  // Find the best attempt for each test
+  const getBestAttempt = (testAttempts: TestAttempt[]) => {
+    if (!testAttempts || testAttempts.length === 0) return null;
     
-    return quizAttempts.reduce((best: QuizAttempt | null, current: QuizAttempt) => {
+    return testAttempts.reduce((best: TestAttempt | null, current: TestAttempt) => {
       // If there is no current best or this attempt has a higher score
       if (!best || ((current.score !== null && current.score !== undefined) && 
                    (best.score === null || best.score === undefined || current.score > best.score))) {
@@ -207,7 +216,7 @@ export function QuizHistoryPage() {
     if (!attempts) return { total: 0, passed: 0 };
     
     const total = attempts.length;
-    const passed = attempts.filter((a: QuizAttempt) => a.passed).length;
+    const passed = attempts.filter((a: TestAttempt) => a.passed).length;
     
     return { total, passed };
   };
@@ -222,62 +231,60 @@ export function QuizHistoryPage() {
             <Button
               variant="ghost"
               size="sm"
-              onClick={() => navigate(`/topic/${topic.slug || topic.id}`)}
+              onClick={() => navigate(`/dashboard`)}
               className="mb-2"
             >
               <ChevronLeft className="h-4 w-4 mr-1" />
-              Back to {topic.name}
+              Back to Dashboard
             </Button>
             <h1 className="text-2xl font-bold flex items-center">
               <History className="h-5 w-5 mr-2 text-blue-500" />
-              Quiz History: {topic.name}
+              Test History: {levelName}
             </h1>
           </div>
         </div>
         
         <Tabs defaultValue="all" className="mb-8" onValueChange={setActiveTab}>
           <TabsList>
-            <TabsTrigger value="all">All Quizzes</TabsTrigger>
+            <TabsTrigger value="all">All Tests</TabsTrigger>
             <TabsTrigger value="completed">Completed</TabsTrigger>
             <TabsTrigger value="best">Best Scores</TabsTrigger>
           </TabsList>
           
           <TabsContent value="all" className="mt-4">
-            {quizzes.length === 0 ? (
+            {tests.length === 0 ? (
               <Card>
                 <CardContent className="pt-6 pb-6 flex flex-col items-center justify-center text-center">
                   <div className="bg-blue-50 p-4 rounded-full mb-3">
                     <History className="h-8 w-8 text-blue-500" />
                   </div>
-                  <h3 className="text-lg font-medium mb-1">No Quiz Attempts Yet</h3>
-                  <p className="text-muted-foreground mb-4">You haven't taken any quizzes for this topic yet.</p>
-                  <Button
-                    onClick={() => navigate(`/topic/${topic.slug || topic.id}`)}
-                  >
-                    Go to Topic
+                  <h3 className="text-lg font-medium mb-1">No Test Attempts Yet</h3>
+                  <p className="text-muted-foreground mb-4">You haven't attempted any tests for this level yet.</p>
+                  <Button onClick={() => navigate(`/levels/${levelId}`)}>
+                    View Available Tests
                   </Button>
                 </CardContent>
               </Card>
             ) : (
               <div className="space-y-6">
-                {quizzes.map((quiz: any) => {
-                  const quizAttempts = attemptsByQuiz[quiz.id] || [];
-                  const bestAttempt = getBestAttempt(quizAttempts);
-                  const sortedAttempts = [...quizAttempts].sort(
+                {tests.map((test) => {
+                  const testAttempts = attemptsByTest[test.id] || [];
+                  const bestAttempt = getBestAttempt(testAttempts);
+                  const sortedAttempts = [...testAttempts].sort(
                     (a, b) => new Date(b.startedAt).getTime() - new Date(a.startedAt).getTime()
                   );
                   
                   return (
-                    <Card key={quiz.id} className="overflow-hidden">
+                    <Card key={test.id} className="overflow-hidden">
                       <CardHeader className="bg-gray-50">
                         <div className="flex justify-between items-center">
                           <div>
-                            <CardTitle>{quiz.name}</CardTitle>
-                            <CardDescription>{quiz.description}</CardDescription>
+                            <CardTitle>{test.name}</CardTitle>
+                            <CardDescription>{test.description}</CardDescription>
                           </div>
                           <div className="text-right">
                             <div className="text-sm text-muted-foreground mb-1">
-                              Passing score: {quiz.passingScore}%
+                              Passing score: {test.passingScore}%
                             </div>
                             {bestAttempt && (
                               <Badge className={bestAttempt.passed ? "bg-green-100 text-green-800" : "bg-orange-100 text-orange-800"}>
@@ -304,7 +311,7 @@ export function QuizHistoryPage() {
                               </TableRow>
                             </TableHeader>
                             <TableBody>
-                              {sortedAttempts.map((attempt: QuizAttempt) => (
+                              {sortedAttempts.map((attempt: TestAttempt) => (
                                 <TableRow key={attempt.id}>
                                   <TableCell>
                                     {attempt.completedAt ? 
@@ -349,10 +356,10 @@ export function QuizHistoryPage() {
                                       <Button 
                                         variant="default" 
                                         size="sm"
-                                        onClick={() => navigate(`/assessment/quiz/${attempt.quiz.id}`)}
+                                        onClick={() => navigate(`/assessment/quiz/${test.id}`)}
                                       >
                                         <RefreshCw className="h-4 w-4 mr-2" />
-                                        Retry Quiz
+                                        Retry Test
                                       </Button>
                                     </div>
                                   </TableCell>
@@ -366,9 +373,9 @@ export function QuizHistoryPage() {
                         {!bestAttempt && (
                           <Button 
                             variant="default" 
-                            onClick={() => navigate(`/assessment/quiz/${quiz.id}`)}
+                            onClick={() => navigate(`/assessment/quiz/${test.id}`)}
                           >
-                            Take Quiz
+                            Take Test
                           </Button>
                         )}
                       </CardFooter>
@@ -380,33 +387,40 @@ export function QuizHistoryPage() {
           </TabsContent>
           
           <TabsContent value="completed" className="mt-4">
-            {quizzes.filter(quiz => 
-              (attemptsByQuiz[quiz.id] || []).some((a: QuizAttempt) => a.completedAt)
-            ).length === 0 ? (
+            {tests.filter((test) => {
+              const testAttempts = attemptsByTest[test.id] || [];
+              return testAttempts.some((a: TestAttempt) => a.completedAt);
+            }).length === 0 ? (
               <Card>
                 <CardContent className="pt-6 pb-6 flex flex-col items-center justify-center text-center">
                   <div className="bg-blue-50 p-4 rounded-full mb-3">
                     <CheckCircle className="h-8 w-8 text-blue-500" />
                   </div>
-                  <h3 className="text-lg font-medium mb-1">No Completed Quizzes</h3>
-                  <p className="text-muted-foreground mb-4">You haven't completed any quizzes for this topic yet.</p>
+                  <h3 className="text-lg font-medium mb-1">No Completed Tests</h3>
+                  <p className="text-muted-foreground mb-4">You haven't completed any tests for this level yet.</p>
+                  <Button onClick={() => navigate(`/levels/${levelId}`)}>
+                    View Available Tests
+                  </Button>
                 </CardContent>
               </Card>
             ) : (
               <div className="space-y-6">
-                {quizzes
-                  .filter(quiz => (attemptsByQuiz[quiz.id] || []).some((a: QuizAttempt) => a.completedAt))
-                  .map((quiz: any) => {
-                    const completedAttempts = (attemptsByQuiz[quiz.id] || [])
-                      .filter((a: QuizAttempt) => a.completedAt)
-                      .sort((a: QuizAttempt, b: QuizAttempt) => 
+                {tests
+                  .filter((test) => {
+                    const testAttempts = attemptsByTest[test.id] || [];
+                    return testAttempts.some((a: TestAttempt) => a.completedAt);
+                  })
+                  .map((test) => {
+                    const completedAttempts = (attemptsByTest[test.id] || [])
+                      .filter((a: TestAttempt) => a.completedAt)
+                      .sort((a: TestAttempt, b: TestAttempt) => 
                         new Date(b.completedAt!).getTime() - new Date(a.completedAt!).getTime()
                       );
                     
                     return (
-                      <Card key={quiz.id}>
+                      <Card key={test.id}>
                         <CardHeader>
-                          <CardTitle>{quiz.name}</CardTitle>
+                          <CardTitle>{test.name}</CardTitle>
                         </CardHeader>
                         <CardContent>
                           <Table>
@@ -419,7 +433,7 @@ export function QuizHistoryPage() {
                               </TableRow>
                             </TableHeader>
                             <TableBody>
-                              {completedAttempts.map((attempt: QuizAttempt) => (
+                              {completedAttempts.map((attempt: TestAttempt) => (
                                 <TableRow key={attempt.id}>
                                   <TableCell>{formatDate(attempt.completedAt!)}</TableCell>
                                   <TableCell>{attempt.score}%</TableCell>
@@ -448,10 +462,10 @@ export function QuizHistoryPage() {
                                       <Button 
                                         variant="default" 
                                         size="sm"
-                                        onClick={() => navigate(`/assessment/quiz/${attempt.quiz.id}`)}
+                                        onClick={() => navigate(`/assessment/quiz/${test.id}`)}
                                       >
                                         <RefreshCw className="h-4 w-4 mr-2" />
-                                        Retry Quiz
+                                        Retry Test
                                       </Button>
                                     </div>
                                   </TableCell>
@@ -468,63 +482,91 @@ export function QuizHistoryPage() {
           </TabsContent>
           
           <TabsContent value="best" className="mt-4">
-            <Card>
-              <CardHeader>
-                <CardTitle>Best Scores</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Quiz</TableHead>
-                      <TableHead>Best Score</TableHead>
-                      <TableHead>Date</TableHead>
-                      <TableHead>Actions</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {quizzes.map((quiz: any) => {
-                      const bestAttempt = getBestAttempt(attemptsByQuiz[quiz.id] || []);
-                      if (!bestAttempt) return null;
-                      
-                      return (
-                        <TableRow key={quiz.id}>
-                          <TableCell className="font-medium">{quiz.name}</TableCell>
-                          <TableCell>
-                            <div className={bestAttempt.passed ? "text-green-600" : "text-amber-600"}>
-                              {bestAttempt.score}%
-                            </div>
-                          </TableCell>
-                          <TableCell>{formatDate(bestAttempt.completedAt!)}</TableCell>
-                          <TableCell>
-                            <div className="flex gap-2">
-                              <Button 
-                                variant="outline" 
-                                size="sm"
-                                onClick={() => navigate(`/quizzes/attempts/${bestAttempt.id}/results`)}
-                              >
-                                View Results
-                              </Button>
-                              <Button 
-                                variant="default" 
-                                size="sm"
-                                onClick={() => navigate(`/assessment/quiz/${quiz.id}`)}
-                              >
-                                <RefreshCw className="h-3 w-3 mr-1" />
-                                Retry Quiz
-                              </Button>
-                            </div>
-                          </TableCell>
-                        </TableRow>
-                      );
-                    })}
-                  </TableBody>
-                </Table>
-              </CardContent>
-            </Card>
+            {tests.filter((test) => {
+              const testAttempts = attemptsByTest[test.id] || [];
+              return testAttempts.some((a: TestAttempt) => a.completedAt);
+            }).length === 0 ? (
+              <Card>
+                <CardContent className="pt-6 pb-6 flex flex-col items-center justify-center text-center">
+                  <div className="bg-blue-50 p-4 rounded-full mb-3">
+                    <Trophy className="h-8 w-8 text-blue-500" />
+                  </div>
+                  <h3 className="text-lg font-medium mb-1">No Best Scores Yet</h3>
+                  <p className="text-muted-foreground mb-4">Complete some tests to see your best scores here.</p>
+                  <Button onClick={() => navigate(`/levels/${levelId}`)}>
+                    View Available Tests
+                  </Button>
+                </CardContent>
+              </Card>
+            ) : (
+              <Card>
+                <CardHeader>
+                  <CardTitle>Best Scores</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Test</TableHead>
+                        <TableHead>Best Score</TableHead>
+                        <TableHead>Date</TableHead>
+                        <TableHead>Actions</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {tests
+                        .filter((test) => {
+                          const testAttempts = attemptsByTest[test.id] || [];
+                          return testAttempts.some((a: TestAttempt) => a.completedAt);
+                        })
+                        .map((test) => {
+                          const testAttempts = (attemptsByTest[test.id] || [])
+                            .filter((a: TestAttempt) => a.completedAt);
+                          const bestAttempt = getBestAttempt(testAttempts);
+                          
+                          if (!bestAttempt) return null;
+                          
+                          return (
+                            <TableRow key={test.id}>
+                              <TableCell className="font-medium">{test.name}</TableCell>
+                              <TableCell>
+                                <div className={bestAttempt.passed ? "text-green-600" : "text-amber-600"}>
+                                  {bestAttempt.score}%
+                                </div>
+                              </TableCell>
+                              <TableCell>{formatDate(bestAttempt.completedAt || bestAttempt.startedAt)}</TableCell>
+                              <TableCell>
+                                <div className="flex gap-2">
+                                  <Button 
+                                    variant="outline" 
+                                    size="sm"
+                                    onClick={() => navigate(`/quizzes/attempts/${bestAttempt.id}/results`)}
+                                  >
+                                    View Results
+                                  </Button>
+                                  <Button 
+                                    variant="default" 
+                                    size="sm"
+                                    onClick={() => navigate(`/assessment/quiz/${test.id}`)}
+                                  >
+                                    <RefreshCw className="h-4 w-4 mr-2" />
+                                    Retry Test
+                                  </Button>
+                                </div>
+                              </TableCell>
+                            </TableRow>
+                          );
+                        })}
+                    </TableBody>
+                  </Table>
+                </CardContent>
+              </Card>
+            )}
           </TabsContent>
         </Tabs>
       </div>
     </QuizLayout>
   );
-} 
+}
+
+export default TestHistoryPage; 

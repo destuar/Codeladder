@@ -363,6 +363,12 @@ export function QuizResultsPage() {
     );
   }
   
+  const handleRetakeQuiz = () => {
+    if (result && result.quizId) {
+      navigate(`/assessment/quiz/${result.quizId}`);
+    }
+  };
+  
   return (
     <QuizLayout>
       <div className="py-6 container max-w-6xl">
@@ -510,8 +516,8 @@ export function QuizResultsPage() {
           <Button variant="outline" onClick={() => navigate('/topics')}>
             Back to Topics
           </Button>
-          <Button variant="default" onClick={() => navigate(`/quizzes/${result.quizId || ''}`)}>
-            Retry Quiz
+          <Button variant="default" onClick={handleRetakeQuiz}>
+            Retake Quiz
           </Button>
         </div>
       </div>

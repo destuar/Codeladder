@@ -165,7 +165,7 @@ export function QuizPage() {
       if (completedFlag === 'true' && isDirectAccess) {
         console.log('Quiz was completed and directly accessed - redirecting to assessment overview');
         // Redirect to assessment overview 
-        navigate(`/quizzes/${quizId}`, { replace: true });
+        navigate(`/assessment/quiz/${quizId}`, { replace: true });
       }
     }
   }, [quizId, navigate, location.state]);
@@ -288,7 +288,7 @@ export function QuizPage() {
   const handleExitQuiz = () => {
     // Navigate back to the assessment overview
     if (quizId) {
-      navigate(`/quizzes/${quizId}`, { state: { skipIntro: true } });
+      navigate(`/assessment/quiz/${quizId}`, { state: { skipIntro: true } });
     } else {
       // Fallback to topics page if no quizId
       navigate('/topics');
