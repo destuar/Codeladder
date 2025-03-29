@@ -54,10 +54,30 @@ router.get('/levels', authenticateToken, (async (req, res) => {
             },
           },
         },
+        // Include tests associated with the level
+        tests: {
+          where: { assessmentType: 'TEST' },
+          orderBy: [
+            { orderNum: 'asc' },
+            { createdAt: 'asc' }
+          ],
+          select: {
+            id: true,
+            name: true,
+            description: true,
+            levelId: true,
+            passingScore: true,
+            estimatedTime: true,
+            orderNum: true,
+            _count: { // Optionally include question count
+              select: { questions: true }
+            }
+          }
+        }
       },
     });
 
-    // Transform the response to include completion status and collection IDs
+    // Transform the response to include completion status, collection IDs, and tests
     const transformedLevels = levels.map(level => ({
       ...level,
       topics: level.topics.map(topic => ({
@@ -70,7 +90,9 @@ router.get('/levels', authenticateToken, (async (req, res) => {
           progress: undefined,
           collections: undefined
         }))
-      }))
+      })),
+      // Ensure tests array is included (it should be from the Prisma query)
+      tests: level.tests || [] 
     }));
 
     res.json(transformedLevels);

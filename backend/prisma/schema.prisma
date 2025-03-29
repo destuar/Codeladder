@@ -48,6 +48,7 @@ model Level {
   order       Int // For sorting levels
   description String?  @db.Text
   topics      Topic[]
+  tests       Quiz[]   @relation("LevelTests")
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
@@ -66,8 +67,7 @@ model Topic {
   problems    Problem[]
   progress    Progress[]
 
-  // Quiz relationship
-  quizzes Quiz[]
+  quizzes Quiz[] @relation("TopicQuizzes")
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -218,21 +218,28 @@ model Quiz {
   id            String  @id @default(cuid())
   name          String
   description   String? @db.Text
-  topic         Topic   @relation(fields: [topicId], references: [id], onDelete: Cascade)
-  topicId       String  @map("topic_id")
-  orderNum      Int?    @map("order_num") // For sorting quizzes within a topic
-  estimatedTime Int?    @map("estimated_time") // Estimated time in minutes
-  passingScore  Int     @default(70) @map("passing_score") // Percentage required to pass
+  
+  topic         Topic?  @relation("TopicQuizzes", fields: [topicId], references: [id], onDelete: Cascade)
+  topicId       String? @map("topic_id")
+  
+  level         Level?  @relation("LevelTests", fields: [levelId], references: [id], onDelete: Cascade)
+  levelId       String? @map("level_id")
+  
+  orderNum      Int?    @map("order_num") 
+  estimatedTime Int?    @map("estimated_time") 
+  passingScore  Int     @default(70) @map("passing_score")
+  
+  assessmentType AssessmentType @default(QUIZ) @map("assessment_type")
 
-  // Relationships
   questions QuizQuestion[]
   attempts  QuizAttempt[]
 
-  // Timestamps
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
   @@index([topicId])
+  @@index([levelId])
+  @@index([assessmentType])
   @@map("quizzes")
 }
 
@@ -434,4 +441,9 @@ enum SubmissionStatus {
   COMPLETED
   ERROR
   TIMEOUT
+}
+
+enum AssessmentType {
+  QUIZ
+  TEST
 }
