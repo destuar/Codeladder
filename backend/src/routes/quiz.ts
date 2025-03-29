@@ -9,6 +9,154 @@ import { authorizeRoles } from '../middleware/authorize';
 const router = Router();
 
 /**
+ * @route POST /api/quizzes/validate
+ * @desc Validate quiz or test data before saving
+ * @access Private (Admin/Developer only)
+ */
+router.post('/validate', authenticateToken, authorizeRoles([Role.ADMIN, Role.DEVELOPER]), (async (req, res) => {
+  try {
+    const { 
+      name, 
+      description, 
+      topicId,
+      levelId,
+      assessmentType = 'QUIZ', // Default to QUIZ for backward compatibility
+      problems = [] 
+    } = req.body;
+    
+    console.log(`Validating ${assessmentType} data:`, { 
+      name, 
+      topicId, 
+      levelId,
+      assessmentType,
+      problemCount: problems.length 
+    });
+    
+    // Initialize validation results
+    const validationResult = {
+      isValid: true,
+      generalErrors: [] as string[],
+      problemErrors: [] as {index: number; errors: string[]}[]
+    };
+    
+    // Validate basic properties
+    if (!name || name.trim() === '') {
+      validationResult.generalErrors.push('Name is required.');
+      validationResult.isValid = false;
+    }
+    
+    // Validate assessment type
+    if (assessmentType !== 'QUIZ' && assessmentType !== 'TEST') {
+      validationResult.generalErrors.push('Assessment type must be either QUIZ or TEST.');
+      validationResult.isValid = false;
+    }
+    
+    // Different validation based on assessment type
+    if (assessmentType === 'QUIZ') {
+      // Validate quiz-specific properties
+      if (!topicId) {
+        validationResult.generalErrors.push('Topic ID is required for quizzes.');
+        validationResult.isValid = false;
+      } else {
+        // Check if topic exists
+        const topic = await prisma.topic.findUnique({
+          where: { id: topicId }
+        });
+        
+        if (!topic) {
+          validationResult.generalErrors.push(`Topic with ID ${topicId} not found.`);
+          validationResult.isValid = false;
+        }
+      }
+      
+      // For quizzes, levelId should not be provided
+      if (levelId) {
+        validationResult.generalErrors.push('Level ID should not be provided for quizzes.');
+        validationResult.isValid = false;
+      }
+    } else if (assessmentType === 'TEST') {
+      // Validate test-specific properties
+      if (!levelId) {
+        validationResult.generalErrors.push('Level ID is required for tests.');
+        validationResult.isValid = false;
+      } else {
+        // Check if level exists
+        const level = await prisma.level.findUnique({
+          where: { id: levelId }
+        });
+        
+        if (!level) {
+          validationResult.generalErrors.push(`Level with ID ${levelId} not found.`);
+          validationResult.isValid = false;
+        }
+      }
+      
+      // For tests, topicId should not be provided
+      if (topicId) {
+        validationResult.generalErrors.push('Topic ID should not be provided for tests.');
+        validationResult.isValid = false;
+      }
+    }
+    
+    // Validate problems if any
+    if (problems.length > 0) {
+      problems.forEach((problem: any, index: number) => {
+        const errors: string[] = [];
+        
+        // Validate common problem properties
+        if (!problem.questionText || problem.questionText.trim() === '') {
+          errors.push('Question text is required.');
+        }
+        
+        if (problem.points === undefined || problem.points <= 0) {
+          errors.push('Points must be a positive number.');
+        }
+        
+        // Validate specific problem types
+        if (problem.questionType === 'MULTIPLE_CHOICE') {
+          // Validate MC options
+          if (!problem.options || problem.options.length < 2) {
+            errors.push('Multiple-choice questions must have at least 2 options.');
+          } else {
+            const hasCorrectOption = problem.options.some((opt: any) => opt.isCorrect);
+            if (!hasCorrectOption) {
+              errors.push('At least one option must be marked as correct.');
+            }
+          }
+        } else if (problem.questionType === 'CODE') {
+          // Validate code problem
+          if (!problem.language) {
+            errors.push('Programming language is required for code problems.');
+          }
+          
+          if (!problem.testCases || problem.testCases.length === 0) {
+            errors.push('At least one test case is required for code problems.');
+          }
+        } else {
+          errors.push('Invalid question type.');
+        }
+        
+        // Add errors if any
+        if (errors.length > 0) {
+          validationResult.problemErrors.push({ index, errors });
+          validationResult.isValid = false;
+        }
+      });
+    }
+    
+    // Return validation results
+    console.log('Validation result:', validationResult);
+    res.json(validationResult);
+  } catch (error) {
+    console.error('Error validating quiz/test:', error);
+    res.status(500).json({ 
+      error: 'Failed to validate quiz/test',
+      details: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+}) as RequestHandler);
+
+/**
  * @route GET /api/quizzes/attempts/:id
  * @desc Get a quiz attempt by ID
  * @access Private

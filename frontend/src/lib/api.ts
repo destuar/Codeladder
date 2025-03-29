@@ -415,6 +415,23 @@ export const api = {
     return this.post('/quizzes/validate', data, token);
   },
 
+  // New method to validate tests
+  async validateTest(data: {
+    name: string;
+    description?: string;
+    levelId: string;
+    passingScore?: number;
+    estimatedTime?: number | undefined;
+    orderNum?: number | undefined;
+    problems?: any[];
+    assessmentType: 'TEST';
+  }, token: string) {
+    return this.post('/quizzes/validate', {
+      ...data,
+      assessmentType: 'TEST' // Ensure this is set
+    }, token);
+  },
+
   async deleteQuiz(id: string, token: string) {
     return this.delete(`/quizzes/${id}`, token);
   },

@@ -429,7 +429,23 @@ export function TestAdmin() {
 
   // Save (create/update) a test
   const handleSaveTest = async () => {
-    if (!selectedLevel || !token) return;
+    console.log('[handleSaveTest] Function called.'); // Added log
+    console.log('[handleSaveTest] Checking prerequisites:', { 
+      hasSelectedLevel: !!selectedLevel, 
+      hasToken: !!token 
+    }); // Added log
+    
+    // --- Early Exit Check ---
+    if (!selectedLevel || !token) {
+      console.error('[handleSaveTest] Save prerequisites not met.', { 
+        selectedLevel: selectedLevel ? selectedLevel.id : null, 
+        tokenExists: !!token 
+      });
+      toast.error("Cannot save: Missing level context or authentication token.");
+      return; 
+    }
+    
+    console.log('[handleSaveTest] Prerequisites met. Starting frontend validation...'); // Added log
     
     // Enhanced validation - collect all validation errors
     const errors = [];
@@ -442,8 +458,8 @@ export function TestAdmin() {
       errors.push("Passing score must be between 0 and 100");
     }
     
-    if (estimatedTime !== undefined && (estimatedTime <= 0 || isNaN(estimatedTime))) {
-      errors.push("Estimated time must be a positive number");
+    if (estimatedTime !== undefined && estimatedTime !== null && (estimatedTime <= 0 || isNaN(estimatedTime))) {
+      errors.push("Estimated time must be a positive number if provided");
     }
     
     // If we're in create mode, require at least one question
@@ -453,10 +469,13 @@ export function TestAdmin() {
     
     // Display all validation errors if any
     if (errors.length > 0) {
+      console.log('[handleSaveTest] Frontend validation failed:', errors); // Added log
       errors.forEach(error => toast.error(error));
       return;
     }
     
+    console.log('[handleSaveTest] Frontend validation passed. Attempting backend validation...'); // Added log
+
     try {
       // Prep test metadata (without the questions)
       const testData = {
@@ -471,6 +490,26 @@ export function TestAdmin() {
       
       // Debug the test data
       console.log('Prepared test metadata:', testData);
+      
+      // First validate the test data on the server
+      toast.info("Validating test data...");
+      const validationResult = await api.validateTest(testData, token);
+      
+      if (!validationResult.isValid) {
+        // Show validation errors
+        if (validationResult.generalErrors && validationResult.generalErrors.length > 0) {
+          validationResult.generalErrors.forEach((error: string) => toast.error(error));
+        }
+        
+        if (validationResult.problemErrors && validationResult.problemErrors.length > 0) {
+          validationResult.problemErrors.forEach((pe: {index: number; errors: string[]}) => {
+            pe.errors.forEach(error => toast.error(`Problem ${pe.index + 1}: ${error}`));
+          });
+        }
+        
+        toast.error("Please fix the errors before saving the test");
+        return;
+      }
       
       // Step 1: Save test metadata
       toast.info("Saving test...");
@@ -1106,8 +1145,12 @@ export function TestAdmin() {
                   id="estimated-time"
                   type="number"
                   min={1}
-                  value={estimatedTime}
-                  onChange={(e) => setEstimatedTime(parseInt(e.target.value))}
+                  value={estimatedTime === null ? '' : (estimatedTime || '')}
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    // Set to undefined if empty or invalid, otherwise parse
+                    setEstimatedTime(value === '' ? undefined : parseInt(value, 10));
+                  }}
                   placeholder="Optional"
                 />
               </div>
@@ -1312,7 +1355,7 @@ export function TestAdmin() {
                   id="order-num"
                   type="number"
                   min={1}
-                  value={problemOrderNum || ''}
+                  value={problemOrderNum === null ? '' : problemOrderNum || ''}
                   onChange={(e) => setProblemOrderNum(e.target.value ? Number(e.target.value) : undefined)}
                   placeholder="Auto"
                 />
@@ -1476,7 +1519,7 @@ export function TestAdmin() {
                       id="memory-limit"
                       type="number"
                       min={1}
-                      value={codeMemoryLimit || ''}
+                      value={codeMemoryLimit === null ? '' : codeMemoryLimit || ''}
                       onChange={(e) => setCodeMemoryLimit(e.target.value ? Number(e.target.value) : undefined)}
                       placeholder="Unlimited"
                     />
