@@ -1,14 +1,14 @@
 import React from 'react';
 import { useParams, useLocation } from 'react-router-dom';
-import { useQuiz } from './hooks/useQuiz';
+import { useTest } from './hooks/useTest';
 import { AssessmentPage } from '../shared/components/AssessmentPage';
 
-export function QuizPage() {
-  const { quizId } = useParams<{ quizId: string }>();
+export function TestPage() {
+  const { testId } = useParams<{ testId: string }>();
   const location = useLocation();
   
   const {
-    quiz,
+    test,
     currentQuestionIndex,
     answers,
     isLoading,
@@ -16,16 +16,16 @@ export function QuizPage() {
     isSubmitting,
     goToQuestion,
     saveAnswer,
-    submitQuiz,
-    startQuizAttempt,
+    submitTest,
+    startTestAttempt,
     forceReset,
-  } = useQuiz(quizId);
+  } = useTest(testId);
 
   return (
     <AssessmentPage
-      type="quiz"
-      id={quizId || ''}
-      assessment={quiz}
+      type="test"
+      id={testId || ''}
+      assessment={test}
       currentQuestionIndex={currentQuestionIndex}
       answers={answers}
       isLoading={isLoading}
@@ -33,8 +33,8 @@ export function QuizPage() {
       isSubmitting={isSubmitting}
       goToQuestion={goToQuestion}
       saveAnswer={saveAnswer}
-      submitAssessment={submitQuiz}
-      startAttempt={startQuizAttempt}
+      submitAssessment={submitTest}
+      startAttempt={startTestAttempt}
       forceReset={forceReset}
       locationState={location.state}
     />

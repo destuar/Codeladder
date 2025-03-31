@@ -140,7 +140,9 @@ async function request(endpoint: string, options: RequestOptions = {}) {
       console.log(`Successfully parsed JSON response from ${url}`);
     } catch (e) {
       console.warn(`Response from ${url} is not JSON:`, e);
-      console.log(`Response status: ${response.status}, text:`, await response.text());
+      // Don't try to read response.text() after response.json() failed
+      // as the body stream can only be read once
+      console.log(`Response status: ${response.status}, text: [Cannot read body again]`);
       data = null;
     }
 
@@ -284,6 +286,47 @@ export const api = {
     return this.get(`/quizzes/${id}`, token);
   },
 
+  // Tests - new endpoints
+  async getTestsByLevel(levelId: string, token: string) {
+    try {
+      console.log(`Fetching tests for level ${levelId} using endpoint /quizzes/levels/:levelId`);
+      
+      // Use the correct endpoint identified from backend route definitions
+      const tests = await this.get(`/quizzes/levels/${levelId}`, token);
+      
+      // If the response is null/undefined, return an empty array
+      if (!tests) {
+        console.log(`No tests found for level ${levelId}, returning empty array`);
+        return [];
+      }
+      
+      // Ensure response is an array
+      const testsArray = Array.isArray(tests) ? tests : [tests];
+      console.log(`Found ${testsArray.length} tests for level ${levelId}`);
+      
+      return testsArray;
+    } catch (error) {
+      console.error(`Error fetching tests for level ${levelId}:`, error);
+      // Return empty array instead of throwing to avoid breaking UI
+      return [];
+    }
+  },
+
+  // New function that can handle both quizzes and tests
+  async createAssessment(data: {
+    name: string;
+    description?: string;
+    topicId?: string;
+    levelId?: string;
+    assessmentType: 'QUIZ' | 'TEST';
+    passingScore?: number;
+    estimatedTime?: number | undefined;
+    orderNum?: number | undefined;
+  }, token: string) {
+    return this.post('/quizzes', data, token);
+  },
+
+  // Update existing createQuiz to use createAssessment
   async createQuiz(data: {
     name: string;
     description?: string;
@@ -293,7 +336,71 @@ export const api = {
     orderNum?: number | undefined;
     problems?: any[];
   }, token: string) {
-    return this.post('/quizzes', data, token);
+    // Add assessmentType to ensure backward compatibility
+    return this.createAssessment({
+      ...data,
+      assessmentType: 'QUIZ'
+    }, token);
+  },
+
+  // Add updateAssessment to handle both quizzes and tests
+  async updateAssessment(id: string, data: {
+    name: string;
+    description?: string;
+    topicId?: string;
+    levelId?: string;
+    assessmentType?: 'QUIZ' | 'TEST';
+    passingScore?: number;
+    estimatedTime?: number | undefined;
+    orderNum?: number | undefined;
+  }, token: string) {
+    return this.put(`/quizzes/${id}`, data, token);
+  },
+
+  // Update existing updateQuiz to use updateAssessment
+  async updateQuiz(id: string, data: {
+    name: string;
+    description?: string;
+    topicId: string;
+    passingScore?: number;
+    estimatedTime?: number | undefined;
+    orderNum?: number | undefined;
+    problems?: any[];
+  }, token: string) {
+    // Add assessmentType to ensure backward compatibility
+    return this.updateAssessment(id, {
+      ...data,
+      assessmentType: 'QUIZ'
+    }, token);
+  },
+
+  // Shorthand for creating/updating tests
+  async createTest(data: {
+    name: string;
+    description?: string;
+    levelId: string;
+    passingScore?: number;
+    estimatedTime?: number | undefined;
+    orderNum?: number | undefined;
+  }, token: string) {
+    return this.createAssessment({
+      ...data,
+      assessmentType: 'TEST'
+    }, token);
+  },
+
+  async updateTest(id: string, data: {
+    name: string;
+    description?: string;
+    levelId: string;
+    passingScore?: number;
+    estimatedTime?: number | undefined;
+    orderNum?: number | undefined;
+  }, token: string) {
+    return this.updateAssessment(id, {
+      ...data,
+      assessmentType: 'TEST'
+    }, token);
   },
 
   async validateQuiz(data: {
@@ -308,16 +415,21 @@ export const api = {
     return this.post('/quizzes/validate', data, token);
   },
 
-  async updateQuiz(id: string, data: {
+  // New method to validate tests
+  async validateTest(data: {
     name: string;
     description?: string;
-    topicId: string;
+    levelId: string;
     passingScore?: number;
     estimatedTime?: number | undefined;
     orderNum?: number | undefined;
     problems?: any[];
+    assessmentType: 'TEST';
   }, token: string) {
-    return this.put(`/quizzes/${id}`, data, token);
+    return this.post('/quizzes/validate', {
+      ...data,
+      assessmentType: 'TEST' // Ensure this is set
+    }, token);
   },
 
   async deleteQuiz(id: string, token: string) {
@@ -345,8 +457,30 @@ export const api = {
     return this.delete(`/quizzes/questions/${questionId}`, token);
   },
 
-  async getQuizForAttempt(quizId: string, token: string) {
-    return this.get(`/quizzes/${quizId}/attempt`, token);
+  async getQuizForAttempt(quizId: string, token: string, assessmentType: 'QUIZ' | 'TEST' = 'QUIZ') {
+    try {
+      console.log(`Fetching ${assessmentType.toLowerCase()} data for attempt with ID ${quizId}`);
+      
+      // Add assessment type as a query parameter to help the backend distinguish between quizzes and tests
+      const endpoint = `/quizzes/${quizId}/attempt?assessmentType=${assessmentType}`;
+      const data = await this.get(endpoint, token);
+      
+      // Ensure the response has a questions array, even if empty
+      if (data && !data.questions) {
+        console.warn(`Response for ${assessmentType.toLowerCase()} ${quizId} did not include questions array:`, data);
+        data.questions = [];
+      }
+      
+      // If questions exist, log them for debugging
+      if (data && data.questions) {
+        console.log(`Received ${data.questions.length} questions for ${assessmentType.toLowerCase()} ${quizId}`);
+      }
+      
+      return data;
+    } catch (error) {
+      console.error(`Error fetching ${assessmentType.toLowerCase()} data for attempt:`, error);
+      throw error;
+    }
   },
 
   // Quiz attempt and response management
@@ -441,8 +575,98 @@ export const api = {
       throw error;
     }
   },
+
+  // Get test attempts for a specific level
+  async getTestAttemptsForLevel(levelId: string, token: string) {
+    try {
+      console.log(`Fetching test attempts for level ${levelId}`);
+      const attempts = await this.get(`/quizzes/levels/${levelId}/attempts`, token);
+      return Array.isArray(attempts) ? attempts : [];
+    } catch (error) {
+      console.error(`Error fetching test attempts for level ${levelId}:`, error);
+      return []; // Return empty array on error
+    }
+  },
+
+  // Learning Path Endpoints
+  async getLevels(token: string) {
+    console.log("Fetching levels via API client...");
+    try {
+      const levels = await this.get('/learning/levels', token);
+      console.log("Received levels from API:", levels);
+      return Array.isArray(levels) ? levels : [];
+    } catch (error) {
+      console.error("Error in api.getLevels:", error);
+      throw error; // Re-throw to be caught by useQuery or caller
+    }
+  },
+  
+  async getTopics(levelId: string, token: string) {
+    // Note: Depending on backend routes, might need levelId or slug
+    return this.get(`/learning/levels/${levelId}/topics`, token);
+  },
+
+  // Method to get the next recommended quiz ID for a topic
+  async getNextQuizForTopic(topicId: string, token: string | null) {
+    try {
+      console.log(`[API Client] Fetching next quiz ID for topic ${topicId}`);
+      const response = await this.get(`/quizzes/topic/${topicId}/next-quiz`, token);
+      // Backend sends { nextAssessmentId: string | null, message?: string }
+      if (!response || typeof response.nextAssessmentId === 'undefined') {
+        throw new Error('Invalid response structure from next-quiz endpoint');
+      }
+      if (response.message) {
+        console.log(`[API Client] Message from next-quiz: ${response.message}`);
+      }
+      return response.nextAssessmentId; // Return only the ID (or null)
+    } catch (error) {
+      console.error(`[API Client] Error fetching next quiz for topic ${topicId}:`, error);
+      // Depending on desired behavior, could return null or re-throw
+      return null; // Return null on error to prevent breaking navigation
+    }
+  },
+
+  // Method to get the next recommended test ID for a level
+  async getNextTestForLevel(levelId: string, token: string | null) {
+    try {
+      console.log(`[API Client] Fetching next test ID for level ${levelId}`);
+      const response = await this.get(`/quizzes/level/${levelId}/next-test`, token);
+      // Backend sends { nextAssessmentId: string | null, message?: string }
+       if (!response || typeof response.nextAssessmentId === 'undefined') {
+        throw new Error('Invalid response structure from next-test endpoint');
+      }
+       if (response.message) {
+        console.log(`[API Client] Message from next-test: ${response.message}`);
+      }
+      return response.nextAssessmentId; // Return only the ID (or null)
+    } catch (error) {
+      console.error(`[API Client] Error fetching next test for level ${levelId}:`, error);
+       // Depending on desired behavior, could return null or re-throw
+      return null; // Return null on error
+    }
+  },
 };
 
 export const getProblem = async (problemId: string) => {
   return request(`problems/${problemId}`);
-}; 
+};
+
+/**
+ * Fetch a specific quiz/test attempt by its ID.
+ */
+export const getQuizAttempt = async (attemptId: string, token: string | null) => {
+  if (!attemptId) {
+    console.error('[API Client] getQuizAttempt requires an attemptId');
+    throw new Error('Attempt ID is required to fetch quiz/test attempt details.');
+  }
+  console.log(`[API Client] Fetching attempt details for ID: ${attemptId}`);
+  return await request(`/quizzes/attempts/${attemptId}`, {
+    method: 'GET',
+    token: token,
+  });
+};
+
+/**
+ * Complete a quiz/test attempt.
+ */
+// ... existing completeQuizAttempt function ... 

@@ -4,7 +4,7 @@ import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter }
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { api } from '@/lib/api';
 import type { Topic, Problem, Level } from '@/hooks/useLearningPath';
 import { useAuth } from '@/features/auth/AuthContext';
@@ -86,8 +86,9 @@ export default function TopicPage() {
   const { toast } = useToast();
   const [showWarning, setShowWarning] = useState(false);
   const [warningMessage, setWarningMessage] = useState('');
+  const [nextQuiz, setNextQuiz] = useState<any>(null);
 
-  const { data: topic, isLoading: loading, error } = useQuery<Topic>({
+  const { data: topic, isLoading: loading, error } = useQuery<any>({
     queryKey: ['topic', topicId, slug],
     queryFn: async () => {
       if (!token) throw new Error('No token available');
@@ -112,7 +113,7 @@ export default function TopicPage() {
   });
 
   // Query to get the next available quiz for this topic
-  const { data: nextQuiz, isLoading: quizLoading } = useQuery({
+  const { data: nextQuizData, isLoading: quizLoading } = useQuery({
     queryKey: ['nextQuiz', topicId, slug],
     queryFn: async () => {
       if (!token) throw new Error('No token available');
@@ -134,6 +135,13 @@ export default function TopicPage() {
     // Enable only when we have the slug (either directly or from the topic)
     enabled: !!token && (!!slug || (!!topic?.slug)),
   });
+
+  // Effect to set the nextQuiz state from nextQuizData when it loads
+  useEffect(() => {
+    if (nextQuizData) {
+      setNextQuiz(nextQuizData);
+    }
+  }, [nextQuizData]);
 
   // Check if the current topic's level is locked
   const isLocked = (() => {
@@ -198,23 +206,35 @@ export default function TopicPage() {
 
   // Handle starting a quiz
   const handleStartQuiz = async () => {
-    if (isLocked && !canAccessAdmin) {
-      const uncompletedLevel = learningPath?.find((level: Level, index: number) => {
-        if (index === 0) return false;
-        return !level.topics.every((topic: Topic) => {
-          const requiredProblems = topic.problems.filter((p: Problem) => p.required);
-          if (requiredProblems.length === 0) return true;
-          const completedRequired = requiredProblems.filter((p: Problem) => p.completed).length;
-          return completedRequired === requiredProblems.length;
-        });
+    if (!topic?.id || !token) {
+      toast({
+        title: "Authentication Required",
+        description: "Please sign in to access quizzes.",
+        variant: "destructive",
       });
+      return;
+    }
 
-      if (uncompletedLevel) {
-        setWarningMessage(`You must complete Level ${uncompletedLevel.name} before continuing.`);
-        setShowWarning(true);
-        setTimeout(() => setShowWarning(false), 5000);
-        return;
+    // If quizzes are still loading, wait
+    if (quizLoading) {
+      return;
+    }
+
+    try {
+      // Fetch quizzes for this topic if not already loaded
+      if (!nextQuiz) {
+        const quizzes = await api.getQuizzesByTopic(topic.id, token);
+        if (quizzes && quizzes.length > 0) {
+          setNextQuiz(quizzes[0]); // Use the first quiz
+        }
       }
+    } catch (error) {
+      console.error("Error loading quizzes:", error);
+      toast({
+        title: "Error",
+        description: "Failed to load quizzes for this topic.",
+        variant: "destructive",
+      });
     }
 
     if (!nextQuiz) {
@@ -226,7 +246,14 @@ export default function TopicPage() {
       return;
     }
 
-    navigate(`/quizzes/${nextQuiz.id}`);
+    // Update to use the new standardized assessment route
+    navigate(`/assessment/quiz/${nextQuiz.id}`, {
+      state: {
+        topicId: topic.id,
+        topicName: topic.name,
+        topicSlug: topic.slug,
+      }
+    });
   };
 
   // Process content to remove duplicate title and description if present
@@ -291,7 +318,13 @@ export default function TopicPage() {
           <div className="ml-auto flex items-center gap-2">
             {nextQuiz && (
               <Button 
-                onClick={() => navigate(`/quizzes/${nextQuiz.id}`)}
+                onClick={() => navigate(`/assessment/quiz/${nextQuiz.id}`, {
+                  state: {
+                    topicId: topic.id,
+                    topicName: topic.name,
+                    topicSlug: topic.slug,
+                  }
+                })}
                 size="sm"
                 variant="ghost"
                 className="border border-border/60 text-foreground hover:bg-secondary/30 hover:text-foreground transition-colors"

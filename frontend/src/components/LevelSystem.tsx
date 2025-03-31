@@ -4,11 +4,27 @@ import { useEffect, useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { Button } from "./ui/button";
-import type { Topic, Problem, Level } from "@/hooks/useLearningPath";
+import type { Topic, Problem } from "@/hooks/useLearningPath";
 import { api } from "@/lib/api";
 import { useAuth } from "@/features/auth/AuthContext";
 import { cn } from "@/lib/utils";
 import { Lock, Check, ChevronRight, Award, Star, FileText, History, GraduationCap } from "lucide-react";
+import { toast } from "@/components/ui/use-toast";
+
+// Define the Level interface with tests property
+interface Level {
+  id: string;
+  name: string;
+  order: number;
+  description?: string;
+  topics: Topic[];
+  tests?: {
+    id: string;
+    name: string;
+    description?: string;
+    levelId: string;
+  }[];
+}
 
 function ProgressBar({ progress = 0, dimmed = false }: { progress?: number, dimmed?: boolean }) {
   return (
@@ -34,6 +50,7 @@ function ProgressBar({ progress = 0, dimmed = false }: { progress?: number, dimm
 export function LevelSystem() {
   const [isVisible, setIsVisible] = useState(false);
   const [activeButtonIndex, setActiveButtonIndex] = useState<number | null>(null);
+  const [isLoadingTest, setIsLoadingTest] = useState(false);
   const buttonRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const navigate = useNavigate();
   const { token } = useAuth();
@@ -42,11 +59,26 @@ export function LevelSystem() {
     queryKey: ['learningPath'],
     queryFn: async () => {
       if (!token) throw new Error('No token available');
-      return api.get('/learning/levels', token);
+      
+      // Fetch levels - the response now includes tests directly
+      const levelsData = await api.get('/learning/levels', token);
+      
+      // No need for secondary fetch, data should be complete
+      if (!Array.isArray(levelsData)) {
+        console.error("Expected levelsData to be an array, got:", levelsData);
+        return []; // Return empty array if data format is unexpected
+      }
+
+      // Optionally, log to confirm tests are present
+      levelsData.forEach(level => {
+        console.log(`Level: ${level.name}, Tests:`, level.tests?.length || 0);
+      });
+      
+      return levelsData;
     },
     enabled: !!token,
-    staleTime: 1000 * 60,
-    gcTime: 1000 * 60 * 30,
+    staleTime: 1000 * 60, // 1 minute stale time
+    gcTime: 1000 * 60 * 30, // 30 minutes cache time
   });
 
   useEffect(() => {
@@ -153,6 +185,72 @@ export function LevelSystem() {
       navigate(`/topic/${topic.slug}`);
     } else {
       navigate(`/topics/${topic.id}`);
+    }
+  };
+
+  const handleTestHistory = (level: Level, e: React.MouseEvent) => {
+    e.stopPropagation(); // Prevent the flip animation
+    
+    const isCompleted = isLevelCompleted(level);
+    const isDimmed = shouldDimLevel(levels?.findIndex(l => l.id === level.id) || 0);
+    
+    // Prevent viewing history for locked levels
+    if (isDimmed && !isCompleted) {
+      toast({
+        title: "Level locked",
+        description: `Complete previous levels before viewing test history for ${level.name}.`,
+        variant: "destructive"
+      });
+      return;
+    }
+    
+    console.log("Navigating to test history for level:", level.id);
+    navigate(`/tests/history/${level.id}`, {
+      state: { 
+        levelId: level.id,
+        levelName: level.name
+      }
+    });
+  };
+
+  const handleStartNextTest = async (levelId: string, levelName: string, e: React.MouseEvent) => {
+    e.stopPropagation(); // Prevent flip
+    if (!token || isLoadingTest) return;
+
+    // Check for locked level (copied from existing logic)
+    const isCompleted = isLevelCompleted(levels?.find(l => l.id === levelId) || {} as Level);
+    const isDimmed = shouldDimLevel(levels?.findIndex(l => l.id === levelId) || 0);
+    if (isDimmed && !isCompleted) {
+      toast({
+        title: "Level locked",
+        description: `Complete previous levels before accessing tests for ${levelName}.`,
+        variant: "destructive"
+      });
+      return;
+    }
+
+    setIsLoadingTest(true);
+    try {
+      const nextTestId = await api.getNextTestForLevel(levelId, token);
+      if (nextTestId) {
+        console.log(`Navigating to next test: ${nextTestId} for level ${levelId}`);
+        navigate(`/assessment/test/${nextTestId}`, { state: { levelId, levelName } });
+      } else {
+        toast({
+          title: "No Tests Available",
+          description: `No tests found for ${levelName}, or an error occurred.`, // More informative message
+          variant: "default"
+        });
+      }
+    } catch (error) { // Catch potential errors from the API call itself
+      console.error("Error fetching next test:", error);
+      toast({
+        title: "Error",
+        description: "Could not determine the next test. Please try again.",
+        variant: "destructive"
+      });
+    } finally {
+      setIsLoadingTest(false);
     }
   };
 
@@ -431,19 +529,19 @@ export function LevelSystem() {
                       ref={el => buttonRefs.current[`level-${level.id}`] = el}
                     >
                       <div className={cn(
-                        "absolute inset-0 w-full h-full rotate-button cursor-pointer overflow-visible"
-                        + (isButtonActive ? " active" : "")
+                        "absolute inset-0 w-full h-full rotate-button cursor-pointer overflow-visible",
+                        activeButtonIndex === index ? "active" : ""
                       )}>
                         {/* Front side - Graduation Cap icon */}
                         <div 
                           className={cn(
                             "absolute inset-0 flex flex-col items-center justify-center backface-hidden rounded-lg",
                             "bg-white dark:bg-card shadow-sm dark:shadow-[0_0_2px_rgba(159,159,255,0.15)]" +
-                            (!isButtonActive ? " hover:scale-[1.01] transition-transform duration-300" : ""),
+                            (activeButtonIndex !== index ? " hover:scale-[1.01] transition-transform duration-300" : ""),
                             isDimmed && !isComplete && "ring-2 ring-primary/40 dark:ring-primary/30" // Highlight if this unlocks next level
                           )}
                           style={{
-                            boxShadow: isButtonActive 
+                            boxShadow: activeButtonIndex === index
                               ? '0 2px 4px rgba(0,0,0,0.04)' // Reset to default if flipped
                               : '0 2px 4px rgba(0,0,0,0.04)',
                             overflow: 'visible', // Changed from 'hidden' to 'visible' to allow badge to show
@@ -451,7 +549,7 @@ export function LevelSystem() {
                           }}
                           onMouseEnter={(e) => {
                             // Only apply hover effect if not flipped
-                            if (!isButtonActive) {
+                            if (activeButtonIndex !== index) {
                               const target = e.currentTarget;
                               const isDarkMode = document.documentElement.classList.contains('dark');
                               
@@ -474,7 +572,7 @@ export function LevelSystem() {
                           }}
                           onMouseLeave={(e) => {
                             // Only reset if not flipped
-                            if (!isButtonActive) {
+                            if (activeButtonIndex !== index) {
                               const target = e.currentTarget;
                               target.style.boxShadow = '0 2px 4px rgba(0,0,0,0.04)';
                             }
@@ -501,17 +599,35 @@ export function LevelSystem() {
                           "bg-white dark:bg-card shadow-sm dark:shadow-[0_0_2px_rgba(159,159,255,0.15)]"
                         )}
                         style={{
-                          boxShadow: isButtonActive 
+                          boxShadow: activeButtonIndex === index
                             ? (!document.documentElement.classList.contains('dark') ? '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)' : '0 2px 4px rgba(0,0,0,0.04)') 
                             : '0 2px 4px rgba(0,0,0,0.04)',
                           overflow: 'hidden' // Ensure content doesn't break rounded corners
                         }}>
                           {/* Take Exam */}
                           <button 
-                            className="flex flex-col items-center justify-center p-2 h-1/2 text-xs font-medium transition-colors bg-primary/5 hover:bg-primary/10 text-foreground dark:text-foreground"
+                            className={cn(
+                              "relative flex flex-col items-center justify-center p-2 h-1/2 text-xs font-medium transition-colors",
+                              isDimmed && !isComplete 
+                                ? "bg-gray-100 dark:bg-gray-800/40 text-muted-foreground cursor-not-allowed"
+                                : "bg-primary/5 hover:bg-primary/10 text-foreground dark:text-foreground"
+                            )}
+                            onClick={(e) => handleStartNextTest(level.id, level.name, e)}
+                            disabled={(isDimmed && !isComplete) || isLoadingTest}
                           >
-                            <FileText className="h-4 w-4 mb-1" />
-                            Take Exam
+                            {isLoadingTest ? (
+                              <div className="absolute inset-0 flex items-center justify-center">
+                                <div className="animate-spin rounded-full h-4 w-4 border-2 border-current border-t-transparent" />
+                              </div>
+                            ) : (
+                              <>
+                                <FileText className={cn(
+                                  "h-4 w-4 mb-1",
+                                  isDimmed && !isComplete ? "text-muted-foreground" : ""
+                                )} />
+                                Take Exam
+                              </>
+                            )}
                           </button>
                           
                           {/* Divider */}
@@ -519,9 +635,19 @@ export function LevelSystem() {
                           
                           {/* See History */}
                           <button 
-                            className="flex flex-col items-center justify-center p-2 h-1/2 text-xs font-medium transition-colors hover:bg-muted text-muted-foreground hover:text-foreground"
+                            className={cn(
+                              "flex flex-col items-center justify-center p-2 h-1/2 text-xs font-medium transition-colors",
+                              isDimmed && !isComplete 
+                                ? "bg-gray-100 dark:bg-gray-800/40 text-muted-foreground cursor-not-allowed"
+                                : "hover:bg-muted text-muted-foreground hover:text-foreground"
+                            )}
+                            onClick={(e) => handleTestHistory(level, e)}
+                            disabled={isDimmed && !isComplete}
                           >
-                            <History className="h-4 w-4 mb-1" />
+                            <History className={cn(
+                              "h-4 w-4 mb-1",
+                              isDimmed && !isComplete ? "text-muted-foreground/50" : ""
+                            )} />
                             See History
                           </button>
                         </div>

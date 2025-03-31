@@ -264,6 +264,14 @@ export function AssessmentOverview({
             skipIntro: true 
           }
         });
+      } else if (type === 'test') {
+        // Same pattern for tests
+        navigate(`/tests/${id}/take`, {
+          state: {
+            taskId: taskId,
+            skipIntro: true
+          }
+        });
       }
     }
   };

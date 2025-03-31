@@ -67,7 +67,7 @@ export function AssessmentIntro({
                 <ListChecks className="h-6 w-6 text-amber-600 flex-shrink-0" />
                 <div>
                   <h3 className="font-semibold text-lg">Complete {questionsCount} tasks</h3>
-                  <p className="text-muted-foreground">{questionsCount} {type === 'test' ? 'coding challenges' : 'questions'}</p>
+                  <p className="text-muted-foreground">{questionsCount} questions</p>
                 </div>
               </div>
               
