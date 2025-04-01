@@ -31,8 +31,8 @@ interface RunTestsResponse {
 
 interface UseTestRunnerResult {
   testResults: TestResult[];
-  runTests: (code: string, testCases: TestCase[], problemId: string, language: string) => Promise<TestResult[]>;
-  runQuickTests: (code: string, problemId: string, language: string) => Promise<TestResult[]>;
+  runTests: (code: string, testCases: TestCase[], problemId: string, language: string) => Promise<void>;
+  runQuickTests: (code: string, problemId: string, language: string) => Promise<void>;
   runCustomTest: (code: string, input: any[], functionName: string, language: string) => Promise<TestResult>;
 }
 
@@ -44,9 +44,8 @@ export function useTestRunner(): UseTestRunnerResult {
   const [testResults, setTestResults] = useState<TestResult[]>([]);
 
   // This calls the execute endpoint which creates a submission
-  const runTests = useCallback(async (code: string, testCases: TestCase[], problemId: string, language: string): Promise<TestResult[]> => {
+  const runTests = useCallback(async (code: string, testCases: TestCase[], problemId: string, language: string) => {
     setTestResults([]);
-    let results: TestResult[] = [];
 
     try {
       // Get the auth token from localStorage
@@ -71,8 +70,7 @@ export function useTestRunner(): UseTestRunnerResult {
       
       // Process the results
       if (data && data.results && Array.isArray(data.results)) {
-        results = data.results;
-        setTestResults(results);
+        setTestResults(data.results);
       } else {
         throw new Error('Invalid response format from server');
       }
@@ -80,7 +78,7 @@ export function useTestRunner(): UseTestRunnerResult {
       console.error('Error running tests:', error);
       
       // Provide empty results to avoid UI issues
-      results = [{
+      setTestResults([{
         passed: false,
         input: [],
         expected: "Error",
@@ -88,17 +86,13 @@ export function useTestRunner(): UseTestRunnerResult {
         runtime: 0,
         memory: 0,
         error: error instanceof Error ? error.message : 'Unknown error'
-      }];
-      setTestResults(results);
+      }]);
     }
-
-    return results;
   }, []);
 
   // This calls the new run-tests endpoint which doesn't create a submission
-  const runQuickTests = useCallback(async (code: string, problemId: string, language: string): Promise<TestResult[]> => {
+  const runQuickTests = useCallback(async (code: string, problemId: string, language: string) => {
     setTestResults([]);
-    let results: TestResult[] = [];
 
     try {
       // Get the auth token from localStorage
@@ -123,8 +117,7 @@ export function useTestRunner(): UseTestRunnerResult {
       
       // Process the results
       if (data && data.results && Array.isArray(data.results)) {
-        results = data.results;
-        setTestResults(results);
+        setTestResults(data.results);
       } else {
         throw new Error('Invalid response format from server');
       }
@@ -132,7 +125,7 @@ export function useTestRunner(): UseTestRunnerResult {
       console.error('Error running quick tests:', error);
       
       // Provide empty results to avoid UI issues
-      results = [{
+      setTestResults([{
         passed: false,
         input: [],
         expected: "Error",
@@ -140,11 +133,8 @@ export function useTestRunner(): UseTestRunnerResult {
         runtime: 0,
         memory: 0,
         error: error instanceof Error ? error.message : 'Unknown error'
-      }];
-      setTestResults(results);
+      }]);
     }
-
-    return results;
   }, []);
 
   const runCustomTest = useCallback(async (

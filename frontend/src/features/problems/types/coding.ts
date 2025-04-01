@@ -2,26 +2,23 @@
  * Input/expected test case pair
  */
 export interface TestCase {
+  id?: string;
+  functionName?: string;
   input: any[];
   expected: any;
-  functionName?: string;
+  isHidden?: boolean;
 }
 
 /**
  * Result of a test case execution
  */
 export interface TestResult {
-  passed: boolean;
   input: any[];
-  expected: any;
   output: any;
-  runtime: number;
-  memory: number;
+  expected: any;
+  passed: boolean;
+  runtime?: number;
   error?: string;
-  compilationOutput?: string;
-  statusDescription?: string;
-  statusId?: number;
-  exitCode?: number;
 }
 
 /**
