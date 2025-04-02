@@ -13,7 +13,16 @@ import { useAdmin } from "@/features/admin/AdminContext";
 import { api } from "@/lib/api";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
-import { Problem, Topic, Level } from "@/hooks/useLearningPath";
+import { Topic, Level } from "@/hooks/useLearningPath";
+import { PlusCircle, Trash } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
+
+// Define Collection interface within this file
+interface Collection {
+  id: string;
+  name: string;
+  description: string | null;
+}
 
 // Add global type declaration to fix TypeScript error
 declare global {
@@ -40,6 +49,14 @@ interface ProblemCache {
 type ProblemDifficulty = 'EASY_IIII' | 'EASY_III' | 'EASY_II' | 'EASY_I' | 'MEDIUM' | 'HARD';
 type ProblemType = 'INFO' | 'CODING';
 
+// Add TestCase interface near the top with other types
+type TestCase = {
+  input: string;
+  expected: string;
+  isHidden: boolean;
+};
+
+// Update NewProblem type to use TestCase[] instead of string
 type NewProblem = {
   name: string;
   content: string;
@@ -48,9 +65,15 @@ type NewProblem = {
   reqOrder: number;
   problemType: ProblemType;
   codeTemplate: string;
-  testCases: string;
+  testCases: TestCase[]; // Changed from string to TestCase[]
   estimatedTime?: number;
+  topicId: string;
   collectionIds: string[];
+  slug?: string;
+  language: string;
+  functionName: string;
+  timeLimit: number;
+  memoryLimit?: number;
 };
 
 interface DragData {
@@ -66,6 +89,39 @@ interface TopicWithLevel extends Topic {
   levelName: string;
   levelOrder: number;
 }
+
+// Update the Problem type to include collectionIds
+type Problem = {
+  id: string;
+  name: string;
+  slug?: string;
+  difficulty: ProblemDifficulty;
+  required: boolean;
+  reqOrder?: number;
+  content?: string;
+  problemType: ProblemType;
+  codeTemplate?: string;
+  testCases: TestCase[] | string; // Allow both string and TestCase[] for compatibility
+  functionName?: string;
+  language?: string;
+  timeLimit?: number;
+  memoryLimit?: number;
+  topic?: Topic;
+  collectionIds?: string[]; // Add this property
+  estimatedTime?: number; // Add this property too for completeness
+};
+
+// Add a function to handle parsing testCases from string to TestCase[]
+const parseTestCases = (testCases: string | TestCase[] | undefined): TestCase[] => {
+  if (!testCases) return [];
+  if (Array.isArray(testCases)) return testCases;
+  try {
+    return JSON.parse(testCases);
+  } catch (e) {
+    console.error("Failed to parse test cases:", e);
+    return [];
+  }
+};
 
 /**
  * Displays a badge for a problem collection with appropriate styling
@@ -152,17 +208,24 @@ export function ProblemCollectionAdmin() {
   // Collection problems cache
   const collectionProblemsCache = useRef<{[collectionId: string]: {problems: Problem[], timestamp: number}}>({});
 
-  const [newProblem, setNewProblem] = useState<NewProblem>({ 
-    name: "", 
-    content: "", 
+  // Update the initialization of newProblem state to use TestCase array
+  const [newProblem, setNewProblem] = useState<NewProblem>({
+    name: "",
+    content: "",
     difficulty: "EASY_I",
     required: false,
     reqOrder: 1,
     problemType: "INFO",
     codeTemplate: "",
-    testCases: "",
+    testCases: [{ input: '', expected: '', isHidden: false }], // Initialize with empty test case
     estimatedTime: undefined,
-    collectionIds: []
+    topicId: "",
+    collectionIds: [],
+    slug: "",
+    language: "javascript",
+    functionName: "",
+    timeLimit: 5000,
+    memoryLimit: undefined
   });
 
   // Function to handle drag start
@@ -651,6 +714,7 @@ export function ProblemCollectionAdmin() {
     }
   };
 
+  // Update the handleAddProblem to stringify testCases
   const handleAddProblem = async () => {
     try {
       // Make sure the selected collection is included in collectionIds
@@ -658,21 +722,36 @@ export function ProblemCollectionAdmin() {
         newProblem.collectionIds.push(selectedCollection);
       }
       
-      // Create problem with necessary data
+      // Create base problem data (fields shared by all types)
       const problemData = {
         name: newProblem.name,
-        content: newProblem.content,
         difficulty: newProblem.difficulty,
         required: newProblem.required,
         reqOrder: newProblem.reqOrder,
         problemType: newProblem.problemType,
+        topicId: newProblem.topicId,
         collectionIds: newProblem.collectionIds,
-        ...(newProblem.problemType === 'CODING' ? {
-          codeTemplate: newProblem.codeTemplate,
-          testCases: newProblem.testCases
-        } : {}),
-        ...(newProblem.estimatedTime ? { estimatedTime: newProblem.estimatedTime } : {})
+        slug: newProblem.slug,
+        estimatedTime: newProblem.estimatedTime,
+        content: newProblem.content || ""
       };
+      
+      // For CODING problems, include coding specific fields
+      if (newProblem.problemType === 'CODING') {
+        Object.assign(problemData, {
+          codeTemplate: newProblem.codeTemplate,
+          testCases: JSON.stringify(newProblem.testCases),
+          language: newProblem.language,
+          functionName: newProblem.functionName,
+          timeLimit: Number(newProblem.timeLimit),
+          memoryLimit: newProblem.memoryLimit ? Number(newProblem.memoryLimit) : undefined
+        });
+      } 
+      // For INFO problems, the content is already included above.
+      // We might add other INFO-specific fields here later if needed.
+      else if (newProblem.problemType === 'INFO') {
+        // Currently no INFO-specific fields other than content
+      }
       
       await api.post("/problems", problemData, token);
       setIsAddingProblem(false);
@@ -686,9 +765,15 @@ export function ProblemCollectionAdmin() {
         reqOrder: 1,
         problemType: "INFO",
         codeTemplate: "",
-        testCases: "",
+        testCases: [{ input: '', expected: '', isHidden: false }],
         estimatedTime: undefined,
-        collectionIds: []
+        topicId: "",
+        collectionIds: [],
+        slug: "",
+        language: "javascript",
+        functionName: "",
+        timeLimit: 5000,
+        memoryLimit: undefined
       });
       
       toast.success("Problem added to collection successfully");
@@ -738,12 +823,20 @@ export function ProblemCollectionAdmin() {
     }));
   };
   
+  // Update handleProblemTypeChange to reset testCases properly
   const handleProblemTypeChange = (value: string) => {
     setNewProblem(prev => ({
       ...prev,
       problemType: value as ProblemType,
       // Reset coding-specific fields when switching to INFO type
-      ...(value === 'INFO' ? { codeTemplate: '', testCases: '' } : {})
+      ...(value === 'INFO' ? {
+        codeTemplate: '',
+        testCases: [{ input: '', expected: '', isHidden: false }],
+        language: "javascript",
+        functionName: "",
+        timeLimit: 5000,
+        memoryLimit: undefined
+      } : {})
     }));
   };
 
@@ -796,168 +889,63 @@ export function ProblemCollectionAdmin() {
       ...prev,
       problemType: value as ProblemType,
       // Reset coding-specific fields when switching to INFO type
-      ...(value === 'INFO' ? { codeTemplate: '', testCases: '' } : {})
+      ...(value === 'INFO' ? { codeTemplate: '', testCases: [] } : {})
     } : null);
   };
 
   const handleEditProblem = async () => {
     if (!selectedProblem) return;
+
     try {
-      // Get current topic ID (if any)
-      const currentTopicId = selectedProblem.topic?.id;
-      
-      // Check if we're changing the topic
-      if (selectedTopicId !== currentTopicId) {
-        if (selectedTopicId) {
-          // Moving to a new topic
-          console.log(`Moving problem from ${currentTopicId || 'no topic'} to topic ${selectedTopicId}`);
-          
-          // Get the max reqOrder of the target topic's problems
-          let maxReqOrder = 0;
-          if (selectedTopicId) {
-            const topic = topics.find(t => t.id === selectedTopicId);
-            if (topic && topic.problems && topic.problems.length > 0) {
-              maxReqOrder = Math.max(...topic.problems.map(p => p.reqOrder || 0));
-            }
-          }
-          
-          // First update the problem without the topic
-          const updatedProblem = {
-            name: selectedProblem.name,
-            content: selectedProblem.content || "",
-            difficulty: selectedProblem.difficulty,
-            required: selectedProblem.required,
-            reqOrder: selectedProblem.reqOrder || 1,
-            problemType: selectedProblem.problemType,
-            ...(selectedProblem.problemType === 'CODING' ? {
-              codeTemplate: selectedProblem.codeTemplate,
-              testCases: selectedProblem.testCases
-            } : {}),
-            ...(selectedProblem.estimatedTime ? { estimatedTime: selectedProblem.estimatedTime } : {}),
-            collectionIds: selectedProblem.collectionIds || [],
-            // Don't set topic here as we'll use the API to add it to the topic
-          };
-          
-          // If problem is being moved from one topic to another
-          if (selectedTopicId) {
-            // First remove from current topic if it has one
-            if (selectedProblem.topic) {
-              await api.delete(`/learning/topics/problems/${selectedProblem.id}`, token);
-            }
-            
-            // Then add the problem to the new topic
-            await api.post(`/learning/topics/${selectedTopicId}/problems/${selectedProblem.id}`, {}, token);
-            console.log(`Problem updated: ${selectedProblem.id}`);
-            toast.success("Problem updated and moved to new topic");
-          } else {
-            // If problem is being removed from a topic
-            if (selectedProblem.topic) {
-              // First try the dedicated endpoint for removing a problem from its topic
-              try {
-                await api.delete(`/learning/topics/problems/${selectedProblem.id}`, token);
-                console.log("Problem removed from topic using delete endpoint");
-              } catch (topicRemoveError) {
-                console.error("Failed to remove problem from topic using delete endpoint:", topicRemoveError);
-                
-                // Fallback: Try the problem-specific endpoint for removing a topic
-                try {
-                  await api.put(`/problems/${selectedProblem.id}/remove-topic`, {}, token);
-                  console.log("Problem removed from topic using remove-topic endpoint");
-                } catch (fallbackError) {
-                  console.error("Failed to remove problem from topic using fallback endpoint:", fallbackError);
-                  
-                  // Final fallback: Update the problem directly with topicId: null
-                  const problemWithoutTopic = {
-                    name: selectedProblem.name,
-                    content: selectedProblem.content || "",
-                    difficulty: selectedProblem.difficulty,
-                    required: selectedProblem.required,
-                    reqOrder: selectedProblem.reqOrder || 1,
-                    problemType: selectedProblem.problemType,
-                    ...(selectedProblem.problemType === 'CODING' ? {
-                      codeTemplate: selectedProblem.codeTemplate,
-                      testCases: selectedProblem.testCases
-                    } : {}),
-                    ...(selectedProblem.estimatedTime ? { estimatedTime: selectedProblem.estimatedTime } : {}),
-                    collectionIds: selectedProblem.collectionIds || [],
-                    topicId: null
-                  };
-                  await api.put(`/problems/${selectedProblem.id}`, problemWithoutTopic, token);
-                  console.log("Problem removed from topic using direct update with null topicId");
-                }
-              }
-            }
-            
-            await api.put(`/problems/${selectedProblem.id}`, updatedProblem, token);
-            console.log(`Problem updated: ${selectedProblem.id}`);
-            toast.success("Problem updated and removed from topic");
-          }
-        } else {
-          // Moving to no topic (null)
-          console.log(`Removing problem from topic ${currentTopicId}`);
-          
-          // Set a unique temporary reqOrder
-          const tempReqOrder = Date.now();
-          
-          // Update the problem to remove its topic association
-          const updatedProblem = {
-            name: selectedProblem.name,
-            content: selectedProblem.content || "",
-            difficulty: selectedProblem.difficulty,
-            required: selectedProblem.required,
-            reqOrder: tempReqOrder,
-            problemType: selectedProblem.problemType,
-            ...(selectedProblem.problemType === 'CODING' ? {
-              codeTemplate: selectedProblem.codeTemplate,
-              testCases: selectedProblem.testCases
-            } : {}),
-            ...(selectedProblem.estimatedTime ? { estimatedTime: selectedProblem.estimatedTime } : {}),
-            collectionIds: selectedProblem.collectionIds || [],
-            topic: null,
-            topicId: null
-          };
-          
-          await api.put(`/problems/${selectedProblem.id}`, updatedProblem, token);
-          console.log(`Problem updated: ${selectedProblem.id}`);
-          toast.success("Problem updated and removed from topic");
-        }
-      } else {
-        // Not changing topic, just update the problem
-        // Create the updatedProblem object here since it doesn't exist in this scope
-        const updatedProblem = {
-          name: selectedProblem.name,
-          content: selectedProblem.content || "",
-          difficulty: selectedProblem.difficulty,
-          required: selectedProblem.required,
-          reqOrder: selectedProblem.reqOrder || 1,
-          problemType: selectedProblem.problemType,
-          ...(selectedProblem.problemType === 'CODING' ? {
-            codeTemplate: selectedProblem.codeTemplate,
-            testCases: selectedProblem.testCases
-          } : {}),
-          ...(selectedProblem.estimatedTime ? { estimatedTime: selectedProblem.estimatedTime } : {}),
-          collectionIds: selectedProblem.collectionIds || [],
-        };
-        
-        await api.put(`/problems/${selectedProblem.id}`, updatedProblem, token);
-        console.log(`Problem updated: ${selectedProblem.id}`);
-        toast.success("Problem updated successfully");
+      // Prepare the problem data
+      const problemData = {
+        id: selectedProblem.id,
+        name: selectedProblem.name,
+        difficulty: selectedProblem.difficulty,
+        required: selectedProblem.required,
+        reqOrder: selectedProblem.reqOrder,
+        problemType: selectedProblem.problemType,
+        content: selectedProblem.content || "",
+        // Add topic ID if present
+        ...(selectedProblem.topic ? { topicId: selectedProblem.topic.id } : {})
+      };
+
+      // For CODING problems, include coding fields
+      if (selectedProblem.problemType === 'CODING') {
+        Object.assign(problemData, {
+          codeTemplate: selectedProblem.codeTemplate,
+          testCases: JSON.stringify(
+            typeof selectedProblem.testCases === 'string'
+              ? parseTestCases(selectedProblem.testCases)
+              : selectedProblem.testCases
+          ),
+          functionName: selectedProblem.functionName,
+          language: selectedProblem.language,
+          timeLimit: selectedProblem.timeLimit ? Number(selectedProblem.timeLimit) : undefined,
+          memoryLimit: selectedProblem.memoryLimit ? Number(selectedProblem.memoryLimit) : undefined
+        });
       }
-      
+      // For INFO problems, the content is already included above.
+      else if (selectedProblem.problemType === 'INFO') {
+        // Currently no INFO-specific fields other than content
+      }
+
+      await api.put(`/problems/${selectedProblem.id}`, problemData, token);
+      console.log(`Problem updated: ${selectedProblem.id}`);
+      toast.success('Problem updated successfully');
       setIsEditingProblem(false);
       setSelectedProblem(null);
-      setSelectedTopicId(null);
       
-      // Refresh the current collection to show the updated problem
+      // Refresh collections to reflect the changes
       if (selectedCollection) {
         await refreshCollectionProblems(selectedCollection);
       }
     } catch (err) {
-      console.error("Error updating problem:", err);
+      console.error('Error updating problem:', err);
       if (err instanceof Error) {
         toast.error(`Failed to update problem: ${err.message}`);
       } else {
-        toast.error("Failed to update problem");
+        toast.error('Failed to update problem');
       }
     }
   };
@@ -1317,26 +1305,162 @@ export function ProblemCollectionAdmin() {
             {newProblem.problemType === 'CODING' && (
               <>
                 <div className="grid gap-2">
+                  <Label htmlFor="language">Programming Language</Label>
+                  <Select 
+                    name="language" 
+                    value={newProblem.language}
+                    onValueChange={(value: string) => setNewProblem(prev => ({ ...prev, language: value }))}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select language" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="javascript">JavaScript</SelectItem>
+                      <SelectItem value="python">Python</SelectItem>
+                      <SelectItem value="java">Java</SelectItem>
+                      <SelectItem value="cpp">C++</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                
+                <div className="grid gap-2">
+                  <Label htmlFor="functionName">Function Name</Label>
+                  <Input
+                    id="functionName"
+                    name="functionName"
+                    value={newProblem.functionName}
+                    onChange={handleProblemChange}
+                    placeholder="solution"
+                  />
+                </div>
+                
+                <div className="grid gap-2">
+                  <Label htmlFor="timeLimit">Time Limit (ms)</Label>
+                  <Input
+                    id="timeLimit"
+                    name="timeLimit"
+                    type="number"
+                    value={newProblem.timeLimit}
+                    onChange={handleProblemChange}
+                    placeholder="5000"
+                  />
+                </div>
+                
+                <div className="grid gap-2">
+                  <Label htmlFor="memoryLimit">Memory Limit (MB, optional)</Label>
+                  <Input
+                    id="memoryLimit"
+                    name="memoryLimit"
+                    type="number"
+                    value={newProblem.memoryLimit || ''}
+                    onChange={handleProblemChange}
+                    placeholder="256"
+                  />
+                </div>
+                
+                <div className="grid gap-2">
                   <Label htmlFor="codeTemplate">Code Template</Label>
                   <Textarea
                     id="codeTemplate"
                     name="codeTemplate"
                     value={newProblem.codeTemplate}
                     onChange={handleProblemChange}
-                    className="min-h-[100px] font-mono"
+                    className="min-h-[150px] max-h-[300px] overflow-y-auto font-mono"
                     placeholder="function solution() {\n  // Write your code here\n}"
                   />
                 </div>
+                
                 <div className="grid gap-2">
-                  <Label htmlFor="testCases">Test Cases (JSON)</Label>
-                  <Textarea
-                    id="testCases"
-                    name="testCases"
-                    value={newProblem.testCases}
-                    onChange={handleProblemChange}
-                    className="min-h-[100px] font-mono"
-                    placeholder='[{\n  "input": [],\n  "expected": "Hello, World!"\n}]'
-                  />
+                  <Label>Test Cases</Label>
+                  <div className="space-y-4 border rounded-md p-4">
+                    {newProblem.testCases.map((testCase, index) => (
+                      <div key={index} className="pb-4 border-b last:border-b-0 last:pb-0 space-y-3">
+                        <div className="flex items-center justify-between">
+                          <h4 className="text-sm font-medium">Test Case {index + 1}</h4>
+                          {newProblem.testCases.length > 1 && (
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => {
+                                const newTestCases = [...newProblem.testCases];
+                                newTestCases.splice(index, 1);
+                                setNewProblem(prev => ({ ...prev, testCases: newTestCases }));
+                              }}
+                            >
+                              <Trash className="h-4 w-4" />
+                            </Button>
+                          )}
+                        </div>
+                        
+                        <div className="grid grid-cols-2 gap-4">
+                          <div className="space-y-2">
+                            <Label htmlFor={`test-input-${index}`} className="text-xs">
+                              Input <span className="text-destructive">*</span>
+                            </Label>
+                            <Textarea
+                              id={`test-input-${index}`}
+                              value={testCase.input}
+                              onChange={(e) => {
+                                const newTestCases = [...newProblem.testCases];
+                                newTestCases[index].input = e.target.value;
+                                setNewProblem(prev => ({ ...prev, testCases: newTestCases }));
+                              }}
+                              placeholder="Test input"
+                              className="font-mono text-sm"
+                              required
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label htmlFor={`test-output-${index}`} className="text-xs">
+                              Expected Output <span className="text-destructive">*</span>
+                            </Label>
+                            <Textarea
+                              id={`test-output-${index}`}
+                              value={testCase.expected}
+                              onChange={(e) => {
+                                const newTestCases = [...newProblem.testCases];
+                                newTestCases[index].expected = e.target.value;
+                                setNewProblem(prev => ({ ...prev, testCases: newTestCases }));
+                              }}
+                              placeholder="Expected output"
+                              className="font-mono text-sm"
+                              required
+                            />
+                          </div>
+                        </div>
+                        
+                        <div className="flex items-center gap-2">
+                          <Checkbox
+                            id={`test-hidden-${index}`}
+                            checked={testCase.isHidden}
+                            onCheckedChange={(checked) => {
+                              const newTestCases = [...newProblem.testCases];
+                              newTestCases[index].isHidden = !!checked;
+                              setNewProblem(prev => ({ ...prev, testCases: newTestCases }));
+                            }}
+                          />
+                          <Label htmlFor={`test-hidden-${index}`} className="text-sm">
+                            Hidden test case (not shown to user)
+                          </Label>
+                        </div>
+                      </div>
+                    ))}
+                    
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setNewProblem(prev => ({ 
+                        ...prev, 
+                        testCases: [...prev.testCases, { input: '', expected: '', isHidden: false }] 
+                      }))}
+                      className="w-full"
+                    >
+                      <PlusCircle className="h-4 w-4 mr-2" />
+                      Add Test Case
+                    </Button>
+                  </div>
                 </div>
               </>
             )}
@@ -1465,20 +1589,116 @@ export function ProblemCollectionAdmin() {
                     name="codeTemplate"
                     value={selectedProblem?.codeTemplate || ""}
                     onChange={handleEditProblemChange}
-                    className="min-h-[100px] font-mono"
+                    className="min-h-[150px] max-h-[300px] overflow-y-auto font-mono"
                     placeholder="function solution() {\n  // Write your code here\n}"
                   />
                 </div>
                 <div className="grid gap-2">
-                  <Label htmlFor="edit-problem-testCases">Test Cases (JSON)</Label>
-                  <Textarea
-                    id="edit-problem-testCases"
-                    name="testCases"
-                    value={selectedProblem?.testCases || ""}
-                    onChange={handleEditProblemChange}
-                    className="min-h-[100px] font-mono"
-                    placeholder='[{\n  "input": [],\n  "expected": "Hello, World!"\n}]'
-                  />
+                  <Label>Test Cases</Label>
+                  <div className="space-y-4 border rounded-md p-4">
+                    {parseTestCases(selectedProblem?.testCases).map((testCase, index) => (
+                      <div key={index} className="pb-4 border-b last:border-b-0 last:pb-0 space-y-3">
+                        <div className="flex items-center justify-between">
+                          <h4 className="text-sm font-medium">Test Case {index + 1}</h4>
+                          {parseTestCases(selectedProblem?.testCases).length > 1 && (
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => {
+                                const newTestCases = [...parseTestCases(selectedProblem?.testCases)];
+                                newTestCases.splice(index, 1);
+                                setSelectedProblem(prev => prev ? ({
+                                  ...prev,
+                                  testCases: newTestCases
+                                }) : null);
+                              }}
+                            >
+                              <Trash className="h-4 w-4" />
+                            </Button>
+                          )}
+                        </div>
+                        
+                        <div className="grid grid-cols-2 gap-4">
+                          <div className="space-y-2">
+                            <Label htmlFor={`edit-test-input-${index}`} className="text-xs">
+                              Input <span className="text-destructive">*</span>
+                            </Label>
+                            <Textarea
+                              id={`edit-test-input-${index}`}
+                              value={testCase.input}
+                              onChange={(e) => {
+                                const newTestCases = [...parseTestCases(selectedProblem?.testCases)];
+                                newTestCases[index].input = e.target.value;
+                                setSelectedProblem(prev => prev ? ({
+                                  ...prev,
+                                  testCases: newTestCases
+                                }) : null);
+                              }}
+                              placeholder="Test input"
+                              className="font-mono text-sm"
+                              required
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label htmlFor={`edit-test-output-${index}`} className="text-xs">
+                              Expected Output <span className="text-destructive">*</span>
+                            </Label>
+                            <Textarea
+                              id={`edit-test-output-${index}`}
+                              value={testCase.expected}
+                              onChange={(e) => {
+                                const newTestCases = [...parseTestCases(selectedProblem?.testCases)];
+                                newTestCases[index].expected = e.target.value;
+                                setSelectedProblem(prev => prev ? ({
+                                  ...prev,
+                                  testCases: newTestCases
+                                }) : null);
+                              }}
+                              placeholder="Expected output"
+                              className="font-mono text-sm"
+                              required
+                            />
+                          </div>
+                        </div>
+                        
+                        <div className="flex items-center gap-2">
+                          <Checkbox
+                            id={`edit-test-hidden-${index}`}
+                            checked={testCase.isHidden}
+                            onCheckedChange={(checked) => {
+                              const newTestCases = [...parseTestCases(selectedProblem?.testCases)];
+                              newTestCases[index].isHidden = !!checked;
+                              setSelectedProblem(prev => prev ? ({
+                                ...prev,
+                                testCases: newTestCases
+                              }) : null);
+                            }}
+                          />
+                          <Label htmlFor={`edit-test-hidden-${index}`} className="text-sm">
+                            Hidden test case (not shown to user)
+                          </Label>
+                        </div>
+                      </div>
+                    ))}
+                    
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setSelectedProblem(prev => prev ? ({
+                        ...prev,
+                        testCases: [
+                          ...parseTestCases(prev.testCases),
+                          { input: '', expected: '', isHidden: false }
+                        ]
+                      }) : null)}
+                      className="w-full"
+                    >
+                      <PlusCircle className="h-4 w-4 mr-2" />
+                      Add Test Case
+                    </Button>
+                  </div>
                 </div>
               </>
             )}

@@ -6,7 +6,7 @@ import { ProblemTimer } from './timer/ProblemTimer';
 import { useProfile } from '@/features/profile/ProfileContext';
 import { useAuth } from '@/features/auth/AuthContext';
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
-import codeladderSvgLogo from '@/features/landingpage/images/CodeLadder.svg';
+import { useLogoSrc } from '@/features/landingpage/hooks/useLogoSrc';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { BorderlessThemeToggle } from "../shared/BorderlessThemeToggle";
 
@@ -52,6 +52,7 @@ export function ProblemHeader({
 }: ProblemHeaderProps) {
   const { profile } = useProfile();
   const { user } = useAuth();
+  const logoSrc = useLogoSrc('single');
 
   // Check if it's a coding problem to show the timer
   const isCodingProblem = problemType === 'CODING';
@@ -64,7 +65,7 @@ export function ProblemHeader({
       {/* Left section - Logo and Timer */}
       <div className="flex items-center gap-3 w-1/4">
         <Link to="/dashboard" className="flex items-center">
-          <img src={codeladderSvgLogo} alt="CodeLadder Logo" className="h-8 w-auto" />
+          <img src={logoSrc} alt="CodeLadder Logo" className="h-12 w-auto" />
         </Link>
         {isCodingProblem && <ProblemTimer className="ml-3" />}
       </div>

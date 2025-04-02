@@ -548,7 +548,10 @@ export function QuizAdmin() {
   
   // Handle editing an existing problem
   const handleEditProblem = (problem: McProblem | CodeProblem) => {
-    setSelectedProblem(problem);
+    // Create a deep copy of the problem to avoid modifying the original reference
+    const problemCopy = JSON.parse(JSON.stringify(problem));
+    
+    setSelectedProblem(problemCopy);
     setIsProblemEditMode(true);
     setProblemType(problem.questionType);
     
@@ -561,7 +564,7 @@ export function QuizAdmin() {
     // Set type-specific fields
     if (problem.questionType === 'MULTIPLE_CHOICE') {
       const mcProblem = problem as McProblem;
-      setMcOptions(mcProblem.options);
+      setMcOptions([...mcProblem.options]); // Create a new array to avoid reference issues
       setMcExplanation(mcProblem.explanation || '');
       setShuffleOptions(mcProblem.shuffleOptions !== false); // default to true if not specified
     } else {
@@ -571,7 +574,7 @@ export function QuizAdmin() {
       setFunctionName(codeProblem.functionName || '');
       setTimeLimit(codeProblem.timeLimit || 5000);
       setMemoryLimit(codeProblem.memoryLimit);
-      setTestCases(codeProblem.testCases);
+      setTestCases([...codeProblem.testCases]); // Create a new array to avoid reference issues
     }
     
     setShowProblemDialog(true);
@@ -613,18 +616,21 @@ export function QuizAdmin() {
         points: problemPoints,
         difficulty: problemDifficulty,
         orderNum: problemOrderNum,
-        options: mcOptions.filter(opt => opt.text.trim()),
+        options: mcOptions.filter(opt => opt.text.trim()).map(opt => ({...opt})), // Create copies
         explanation: mcExplanation || undefined,
         shuffleOptions: shuffleOptions
       };
       
       // Add/update problem in quiz problems array
-      if (isProblemEditMode && selectedProblem) {
+      if (isProblemEditMode && selectedProblem?.id) {
+        // Use ID comparison for updating
         setQuizProblems(prevProblems => 
-          prevProblems.map(p => p.id === selectedProblem.id ? mcProblem : p)
+          prevProblems.map(p => p.id === selectedProblem.id ? mcProblem : {...p})
         );
       } else {
-        setQuizProblems(prevProblems => [...prevProblems, mcProblem]);
+        // Generate a temporary ID for new problems
+        const tempId = `temp_${Date.now()}`;
+        setQuizProblems(prevProblems => [...prevProblems.map(p => ({...p})), {...mcProblem, id: mcProblem.id || tempId}]);
       }
       
     } else {
@@ -653,16 +659,19 @@ export function QuizAdmin() {
         functionName: functionName || undefined,
         timeLimit: timeLimit,
         memoryLimit: memoryLimit,
-        testCases: validTestCases
+        testCases: validTestCases.map(tc => ({...tc})) // Create copies
       };
       
       // Add/update problem in quiz problems array
-      if (isProblemEditMode && selectedProblem) {
+      if (isProblemEditMode && selectedProblem?.id) {
+        // Use ID comparison for updating
         setQuizProblems(prevProblems => 
-          prevProblems.map(p => p.id === selectedProblem.id ? codeProblem : p)
+          prevProblems.map(p => p.id === selectedProblem.id ? codeProblem : {...p})
         );
       } else {
-        setQuizProblems(prevProblems => [...prevProblems, codeProblem]);
+        // Generate a temporary ID for new problems
+        const tempId = `temp_${Date.now()}`;
+        setQuizProblems(prevProblems => [...prevProblems.map(p => ({...p})), {...codeProblem, id: codeProblem.id || tempId}]);
       }
     }
     
@@ -672,9 +681,17 @@ export function QuizAdmin() {
   
   // Remove a problem from the quiz
   const handleRemoveProblem = (problem: McProblem | CodeProblem) => {
-    setQuizProblems(prevProblems => 
-      prevProblems.filter(p => p !== problem)
-    );
+    // Use ID comparison if the problem has an ID, otherwise fall back to reference comparison
+    if (problem.id) {
+      setQuizProblems(prevProblems => 
+        prevProblems.filter(p => p.id !== problem.id)
+      );
+    } else {
+      // For problems that don't have IDs yet (newly added), use reference comparison
+      setQuizProblems(prevProblems => 
+        prevProblems.filter(p => p !== problem)
+      );
+    }
     toast.success("Problem removed");
   };
 

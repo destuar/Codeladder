@@ -1,9 +1,8 @@
-import express from 'express';
+import { Prisma, Role, ProblemType, ProgressStatus } from '@prisma/client';
+import express, { RequestHandler } from 'express';
 import { prisma } from '../lib/prisma';
 import { authenticateToken } from '../middleware/auth';
 import { authorizeRoles } from '../middleware/authorize';
-import { Prisma, Role, ProblemType, ProgressStatus } from '@prisma/client';
-import type { RequestHandler } from 'express-serve-static-core';
 import { calculateNextReviewDate } from '../lib/spacedRepetition';
 
 // Define the request body types
@@ -20,6 +19,10 @@ interface CreateProblemBody {
   topicId?: string;
   estimatedTime?: string | number;
   slug?: string;
+  language?: string;
+  functionName?: string;
+  timeLimit?: number;
+  memoryLimit?: number;
 }
 
 interface UpdateProblemBody {
@@ -34,6 +37,10 @@ interface UpdateProblemBody {
   testCases?: string;
   estimatedTime?: string | number;
   slug?: string;
+  language?: string;
+  functionName?: string;
+  timeLimit?: number;
+  memoryLimit?: number;
 }
 
 const router = express.Router();
@@ -59,7 +66,9 @@ router.get('/:problemId', authenticateToken, (async (req, res) => {
           where: { userId },
           select: { status: true }
         },
-        topic: true, // Include the topic to get related problems
+        topic: {
+          include: { level: true }
+        },
         collections: {
           select: {
             collection: {
@@ -67,6 +76,13 @@ router.get('/:problemId', authenticateToken, (async (req, res) => {
                 id: true,
                 name: true
               }
+            }
+          }
+        },
+        codeProblem: {
+          include: {
+            testCases: {
+              orderBy: { orderNum: 'asc' } // Optional: Order test cases
             }
           }
         }
@@ -77,8 +93,10 @@ router.get('/:problemId', authenticateToken, (async (req, res) => {
       return res.status(404).json({ error: 'Problem not found' });
     }
 
-    // Extract collection IDs for the frontend
-    const collectionIds = problem.collections.map(pc => pc.collection.id);
+    // Get collection IDs from problem's collections
+    const collectionIds = problem.collections 
+      ? problem.collections.map((pc: any) => pc.collectionId || (pc.collection && pc.collection.id))
+      : [];
 
     // Find next and previous problems if this problem belongs to a topic
     let nextProblemId = null;
@@ -103,7 +121,7 @@ router.get('/:problemId', authenticateToken, (async (req, res) => {
       });
 
       // Find the current problem's index in the ordered list
-      const currentIndex = topicProblems.findIndex(p => p.id === problemId);
+      const currentIndex = topicProblems.findIndex((p: { id: string }) => p.id === problemId);
       
       if (currentIndex !== -1) {
         // Get previous problem if not the first
@@ -123,7 +141,11 @@ router.get('/:problemId', authenticateToken, (async (req, res) => {
     // Transform the response to include isCompleted, navigation IDs, and collections
     const response = {
       ...problem,
-      isCompleted: problem.completedBy.length > 0 || problem.progress.some(p => p.status === 'COMPLETED'),
+      // Remove legacy fields if they were included implicitly
+      codeTemplate: undefined,
+      testCases: undefined,
+      // Keep necessary fields
+      isCompleted: problem.completedBy.length > 0 || problem.progress.some((p: { status: ProgressStatus }) => p.status === 'COMPLETED'),
       nextProblemId,
       prevProblemId,
       nextProblemSlug,
@@ -165,59 +187,31 @@ router.get('/', authenticateToken, (async (req, res) => {
 
     const problems = await prisma.problem.findMany({
       where,
-      select: {
-        id: true,
-        name: true,
-        content: true,
-        description: true,
-        difficulty: true,
-        required: true,
-        reqOrder: true,
-        problemType: true,
-        codeTemplate: true,
-        testCases: true,
-        estimatedTime: true,
-        createdAt: true,
-        updatedAt: true,
-        topic: true,
-        topicId: true,
-        completedBy: {
-          where: { id: userId },
-          select: { id: true }
+      include: {
+        topic: {
+          include: { level: true }
         },
-        progress: {
-          where: { userId },
-          select: { status: true }
-        },
-        collections: {
-          select: {
-            collection: {
-              select: {
-                id: true,
-                name: true
-              }
-            }
-          }
-        }
+        collections: true,
+        codeProblem: true
       },
-      orderBy: [
-        {
-          problemType: 'desc'
-        },
-        { name: 'asc' }
-      ]
+      orderBy: { createdAt: "desc" },
     });
 
     // Transform the response to include completion status and collection IDs
-    const transformedProblems = problems.map(problem => {
-      const collectionIds = problem.collections.map(pc => pc.collection.id);
+    const transformedProblems = problems.map((problem: any) => {
+      const collectionIds = problem.collections?.map((pc: any) => 
+        pc.collectionId || (pc.collection && pc.collection.id)
+      ).filter(Boolean) || [];
+      
       return {
         ...problem,
-        completed: problem.completedBy.length > 0 || problem.progress.some(p => p.status === 'COMPLETED'),
+        completed: problem.completedBy?.length > 0 || problem.progress?.some((p: { status: ProgressStatus }) => p.status === 'COMPLETED'),
         collectionIds,
         completedBy: undefined,
         progress: undefined,
-        collections: undefined // Remove raw collections data
+        collections: undefined, // Remove raw collections data
+        codeTemplate: undefined, // Remove legacy fields
+        testCases: undefined
       };
     });
 
@@ -243,7 +237,11 @@ router.post('/', authenticateToken, authorizeRoles([Role.ADMIN, Role.DEVELOPER])
       testCases,
       topicId,
       estimatedTime,
-      slug
+      slug,
+      language = 'javascript',
+      functionName,
+      timeLimit,
+      memoryLimit
     } = req.body as CreateProblemBody;
 
     console.log('Creating problem with data:', {
@@ -258,7 +256,11 @@ router.post('/', authenticateToken, authorizeRoles([Role.ADMIN, Role.DEVELOPER])
       testCases: testCases ? 'Provided' : undefined,
       topicId,
       estimatedTime,
-      slug: slug ? 'Provided' : undefined
+      slug: slug ? 'Provided' : undefined,
+      language: problemType === 'CODING' ? language : undefined,
+      functionName: problemType === 'CODING' ? functionName : undefined,
+      timeLimit: problemType === 'CODING' ? timeLimit : undefined,
+      memoryLimit: problemType === 'CODING' ? memoryLimit : undefined
     });
 
     // Only validate topic if topicId is provided
@@ -296,61 +298,94 @@ router.post('/', authenticateToken, authorizeRoles([Role.ADMIN, Role.DEVELOPER])
       return res.status(400).json({ error: 'Estimated time must be a valid number' });
     }
 
+    // Parse testCases if it's a string
+    let parsedTestCases = testCases;
+    if (typeof testCases === 'string') {
+      try {
+        parsedTestCases = JSON.parse(testCases);
+      } catch (e) {
+        console.error('Error parsing testCases:', e);
+        return res.status(400).json({ error: 'Invalid testCases JSON format' });
+      }
+    }
+
     // Use a transaction for the entire create process
     const prismaAny = prisma as any;
     
-    const newProblem = await prisma.$transaction(async (tx) => {
-      // Create the problem first (without collections)
+    const newProblem = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+      // Prepare data for related problem types (CodeProblem)
+      let codeProblemCreateData: Prisma.CodeProblemCreateNestedOneWithoutProblemInput | undefined;
+
+      // If problem type is CODING, prepare CodeProblem create data
+      if (problemType === 'CODING') {
+        // Parse testCases
+        let parsedTestCases: Record<string, any>[] = [];
+        try {
+          if (testCases) parsedTestCases = JSON.parse(testCases as string);
+        } catch (e) {
+          // Handle invalid JSON
+          console.error("Invalid testCases JSON:", e);
+          return res.status(400).json({ error: "Invalid testCases JSON" });
+        }
+        
+        // Create code problem with testCases data
+        codeProblemCreateData = {
+          create: {
+            codeTemplate: codeTemplate || '',
+            language: language || 'javascript',
+            functionName: functionName || 'solution',
+            timeLimit: timeLimit ? Number(timeLimit) : 5000,
+            memoryLimit: memoryLimit ? Number(memoryLimit) : null,
+            testCases: {
+              create: parsedTestCases.map((testCase) => ({
+                input: testCase.input,
+                expectedOutput: testCase.expected,
+                isHidden: testCase.isHidden || false
+              }))
+            }
+          }
+        };
+      }
+      
+      // Create the base Problem record
       const problem = await tx.problem.create({
         data: {
           name,
-          content,
           difficulty,
           required,
           reqOrder,
-          problemType,
-          codeTemplate,
-          testCases: testCases ? JSON.parse(testCases) : undefined,
+          problemType, // Set the correct type
           estimatedTime: parsedEstimatedTime,
+          content: content,
           ...(topicId && {
             topic: {
               connect: { id: topicId }
             }
           }),
-          ...(slug && { slug })
-        }
+          ...(slug && { slug }),
+          // Conditionally include create data for related models
+          ...(codeProblemCreateData && { codeProblem: codeProblemCreateData }),
+        },
+         // Include the created CodeProblem relation if it was created
+         // to get its generated ID for Test Case creation
+         include: {
+            codeProblem: problemType === 'CODING' // Only include if type is CODING
+         }
       });
-
-      // Then associate with collections if collectionIds is provided
-      if (collectionIds.length > 0) {
-        const collectionConnections = collectionIds.map(collectionId => ({
-          problemId: problem.id,
-          collectionId
-        }));
-        
-        // Validate that all collections exist
-        for (const { collectionId } of collectionConnections) {
-          const collectionExists = await tx.collection.findUnique({
-            where: { id: collectionId },
-            select: { id: true }
-          });
-          
-          if (!collectionExists) {
-            console.error(`Collection ID ${collectionId} does not exist`);
-            throw new Error(`Collection with ID ${collectionId} does not exist`);
-          }
-        }
-        
-        // Create the associations
-        await tx.problemToCollection.createMany({
-          data: collectionConnections,
-          skipDuplicates: true
-        });
-        
-        console.log(`Created ${collectionConnections.length} collection associations for new problem`);
+      
+      // Associate with collections if collectionIds is provided
+      if (collectionIds && collectionIds.length > 0) {
+        await Promise.all(collectionIds.map((collectionId: string) => 
+          prisma.problemToCollection.create({
+            data: {
+              problem: { connect: { id: problem.id } },
+              collection: { connect: { id: collectionId } }
+            }
+          })
+        ));
       }
       
-      // Return the problem with collections
+      // Return the problem with collections and code/info problem details
       return await tx.problem.findUnique({
         where: { id: problem.id },
         include: {
@@ -358,7 +393,12 @@ router.post('/', authenticateToken, authorizeRoles([Role.ADMIN, Role.DEVELOPER])
             include: {
               collection: true
             }
-          }
+          },
+          codeProblem: {
+            include: {
+              testCases: true
+            }
+          },
         }
       });
     });
@@ -368,39 +408,52 @@ router.post('/', authenticateToken, authorizeRoles([Role.ADMIN, Role.DEVELOPER])
     }
     
     // Transform the response to include collection IDs for frontend
+    // Use any type to work around TypeScript inference issues
+    const newProblemResult = newProblem as any;
     const responseData = {
-      ...newProblem,
-      collectionIds: newProblem.collections.map((pc: any) => pc.collection.id),
+      ...newProblemResult,
+      collectionIds: newProblemResult.collections?.map((pc: any) => 
+        pc.collectionId || (pc.collection && pc.collection.id)
+      ).filter(Boolean) || [],
       collections: undefined // Remove raw collections from response
     };
 
     res.status(201).json(responseData);
   } catch (error) {
-    console.error('Detailed error creating problem:', error);
-    res.status(500).json({ 
-      error: 'Failed to create problem', 
-      details: error instanceof Error ? error.message : 'Unknown error',
-      stack: process.env.NODE_ENV !== 'production' ? (error as Error).stack : undefined
-    });
+    console.error('Error creating problem:', error);
+    res.status(500).json({ error: 'Failed to create problem' });
   }
 }) as RequestHandler);
 
 // Update a problem (admin only)
 router.put('/:problemId', authenticateToken, authorizeRoles([Role.ADMIN, Role.DEVELOPER]), (async (req, res) => {
+  const { problemId } = req.params;
+  const {
+    name,
+    content,
+    difficulty,
+    required,
+    reqOrder,
+    problemType, // Type might be updated
+    collectionIds,
+    codeTemplate,
+    testCases,
+    estimatedTime,
+    language,
+    functionName,
+    timeLimit,
+    memoryLimit
+  } = req.body as UpdateProblemBody;
+
   try {
-    const { problemId } = req.params;
-    const { 
-      name, 
-      content, 
-      difficulty, 
-      required = false,
-      reqOrder,
-      problemType,
-      collectionIds, // Collection IDs for relationships
-      codeTemplate,
-      testCases,
-      estimatedTime
-    } = req.body as UpdateProblemBody;
+    // Fetch the current problem state, INCLUDING the codeProblem relation
+    const currentProblem = await prisma.problem.findUniqueOrThrow({
+      where: { id: problemId },
+      include: { 
+        collections: true,
+        codeProblem: true
+      } 
+    });
 
     console.log('Updating problem with ID:', problemId);
     console.log('Request body:', {
@@ -413,24 +466,12 @@ router.put('/:problemId', authenticateToken, authorizeRoles([Role.ADMIN, Role.DE
       collectionIds,
       codeTemplate: codeTemplate ? 'Provided' : undefined,
       testCases: testCases ? 'Provided' : undefined,
-      estimatedTime
+      estimatedTime,
+      language: problemType === 'CODING' ? language : undefined,
+      functionName: problemType === 'CODING' ? functionName : undefined,
+      timeLimit: problemType === 'CODING' ? timeLimit : undefined,
+      memoryLimit: problemType === 'CODING' ? memoryLimit : undefined
     });
-
-    // Get the current problem to check its topic
-    const currentProblem = await prisma.problem.findUnique({
-      where: { id: problemId },
-      include: {
-        collections: {
-          include: {
-            collection: true
-          }
-        }
-      }
-    });
-
-    if (!currentProblem) {
-      return res.status(404).json({ error: 'Problem not found' });
-    }
 
     // Check for duplicate order number if reqOrder is provided and different from current
     if (reqOrder && reqOrder !== currentProblem.reqOrder) {
@@ -468,109 +509,275 @@ router.put('/:problemId', authenticateToken, authorizeRoles([Role.ADMIN, Role.DE
     }
 
     // Use a transaction to ensure problem and collections are updated atomically
-    const prismaAny = prisma as any;
+    const prismaAny = prisma as any; // Keep type casting for transaction context if needed
     
-    const updatedProblem = await prisma.$transaction(async (tx) => {
-      // 1. Update the problem
+    const updatedProblem = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+      let finalCodeProblemId: string | null = null;
+      let existingCodeProblem: any = null;
+
+      // Determine the effective problem type (use new if provided, else keep current)
+      const effectiveProblemType = problemType ?? currentProblem.problemType;
+
+      // --- Handle Type-Specific Relations ---
+
+      // Handle CodeProblem logic if the effective type is CODING
+      if (effectiveProblemType === 'CODING') {
+        existingCodeProblem = await tx.codeProblem.findUnique({ where: { problemId: problemId }});
+        
+        if (existingCodeProblem) {
+          // Update existing CodeProblem - handle different ID fields with type casting
+          const codeProblemObj = existingCodeProblem as any;
+          const codeProblemId = codeProblemObj.questionId || codeProblemObj.id || codeProblemObj.problemId;
+          finalCodeProblemId = codeProblemId;
+          
+          // Create where clause safely
+          const whereClause: any = {};
+          if (codeProblemObj.questionId) whereClause.questionId = codeProblemObj.questionId;
+          if (codeProblemObj.id) whereClause.id = codeProblemObj.id;
+          if (codeProblemObj.problemId) whereClause.problemId = codeProblemObj.problemId;
+          
+          await tx.codeProblem.update({
+            where: whereClause,
+            data: {
+              ...(codeTemplate !== undefined && { codeTemplate }),
+              ...(language !== undefined && { language }),
+              ...(functionName !== undefined && { functionName }),
+              ...(timeLimit !== undefined && { timeLimit: parseInt(timeLimit.toString()) }),
+              ...(memoryLimit !== undefined && { memoryLimit: memoryLimit ? parseInt(memoryLimit.toString()) : null })
+            }
+          });
+          
+          // For test case deletion
+          if (finalCodeProblemId) {
+            await tx.testCase.deleteMany({ 
+              where: { 
+                codeProblemId: finalCodeProblemId 
+              } 
+            });
+            
+            // Create new test cases if provided
+            if (parsedTestCases && Array.isArray(parsedTestCases) && parsedTestCases.length > 0) {
+              const testCaseData = parsedTestCases.map((tc: any, index: number) => ({
+                codeProblemId: finalCodeProblemId!, 
+                input: JSON.stringify(tc.input ?? ''),
+                expectedOutput: JSON.stringify(tc.expectedOutput ?? ''),
+                isHidden: tc.isHidden || false,
+                orderNum: tc.orderNum || index + 1
+              }));
+              await tx.testCase.createMany({ data: testCaseData });
+            }
+          }
+        } else {
+          // Create new CodeProblem
+          const newCodeProblem = await tx.codeProblem.create({
+            data: {
+              problem: { connect: { id: problemId } },
+              codeTemplate: codeTemplate ?? null,
+              language: language ?? 'javascript',
+              functionName: functionName ?? null,
+              timeLimit: timeLimit ? parseInt(timeLimit.toString()) : 5000,
+              memoryLimit: memoryLimit ? parseInt(memoryLimit.toString()) : null,
+              testCases: {
+                create: Array.isArray(parsedTestCases) ? parsedTestCases.map((tc: any, index: number) => ({
+                  input: JSON.stringify(tc.input ?? ''),
+                  expectedOutput: JSON.stringify(tc.expectedOutput ?? ''),
+                  isHidden: tc.isHidden || false,
+                  orderNum: tc.orderNum || index + 1
+                })) : []
+              }
+            }
+          });
+          
+          // Access ID safely with type casting
+          const newCodeProblemObj = newCodeProblem as any;
+          finalCodeProblemId = newCodeProblemObj.questionId || newCodeProblemObj.id || newCodeProblemObj.problemId;
+        }
+      } else if (effectiveProblemType === 'INFO') {
+        // Handle InfoProblem logic if the effective type is INFO
+        // If type changed TO INFO, delete any existing CodeProblem
+        if (currentProblem.codeProblem) {
+          // Type cast for safe property access
+          const codeProblemObj = currentProblem.codeProblem as any;
+          const whereClause: any = {};
+          
+          // Delete test cases first (use a safe codeProblemId access)
+          const codeProblemId = codeProblemObj.questionId || codeProblemObj.id || codeProblemObj.problemId;
+          if (codeProblemId) {
+            await tx.testCase.deleteMany({ where: { codeProblemId }});
+          }
+          
+          // Build a safe where clause for deletion
+          if (codeProblemObj.questionId) whereClause.questionId = codeProblemObj.questionId;
+          if (codeProblemObj.id) whereClause.id = codeProblemObj.id;
+          if (codeProblemObj.problemId) whereClause.problemId = codeProblemObj.problemId;
+          
+          // Delete the code problem
+          await tx.codeProblem.delete({ where: whereClause });
+        }
+      } else {
+         // If type is neither CODING nor INFO (e.g., STANDALONE_INFO or type removed)
+         // Delete both related records if they exist
+         if (currentProblem.codeProblem) {
+             // Type cast for safe property access
+             const codeProblemObj = currentProblem.codeProblem as any;
+             const whereClause: any = {};
+             
+             // Delete test cases first (use a safe codeProblemId access)
+             const codeProblemId = codeProblemObj.questionId || codeProblemObj.id || codeProblemObj.problemId;
+             if (codeProblemId) {
+               await tx.testCase.deleteMany({ where: { codeProblemId }});
+             }
+             
+             // Build a safe where clause for deletion
+             if (codeProblemObj.questionId) whereClause.questionId = codeProblemObj.questionId;
+             if (codeProblemObj.id) whereClause.id = codeProblemObj.id;
+             if (codeProblemObj.problemId) whereClause.problemId = codeProblemObj.problemId;
+             
+             // Delete the code problem
+             await tx.codeProblem.delete({ where: whereClause });
+         }
+      }
+      // --- End of Type-Specific Relations Handling ---
+
+      // --- Prepare Problem Update Data ---
+      const problemUpdateData: Prisma.ProblemUpdateInput = {
+        ...(name !== undefined && { name }),
+        ...(difficulty !== undefined && { difficulty }),
+        ...(required !== undefined && { required }),
+        ...(reqOrder !== undefined && { reqOrder }),
+        ...(problemType !== undefined && { problemType: effectiveProblemType }), // Use effective type
+        ...(estimatedTime !== undefined && { estimatedTime: parsedEstimatedTime }),
+        ...(req.body.slug !== undefined && { slug: req.body.slug }),
+        ...(content !== undefined && { content: content }),
+      };
+
+      // --- Handle Connections/Disconnections for Relations ---
+      if (effectiveProblemType === 'CODING' && finalCodeProblemId) {
+        // Safe-build the connection clause based on available properties
+        const connectClause: any = {};
+        
+        // Type cast existingCodeProblem for safe property access 
+        const codeProblemObj = existingCodeProblem as any;
+        
+        if (codeProblemObj?.questionId) {
+          connectClause.questionId = finalCodeProblemId;
+        } else if (codeProblemObj?.id) {
+          connectClause.id = finalCodeProblemId;
+        } else if (codeProblemObj?.problemId) {
+          connectClause.problemId = finalCodeProblemId;
+        } else {
+          // Default if no identifying property found
+          connectClause.questionId = finalCodeProblemId;
+        }
+        
+        problemUpdateData.codeProblem = { connect: connectClause };
+      } else { 
+        // Disconnect codeProblem if type is neither or related record wasn't created/found
+        if (currentProblem.codeProblem) problemUpdateData.codeProblem = { disconnect: true };
+      }
+       
+      // Perform the actual Problem update
       const problem = await tx.problem.update({
         where: { id: problemId },
-        data: {
-          name,
-          content,
-          difficulty,
-          required,
-          reqOrder,
-          ...(problemType && { problemType: problemType }),
-          ...(codeTemplate !== undefined && { codeTemplate }),
-          ...(testCases !== undefined && { testCases: parsedTestCases }),
-          ...(estimatedTime !== undefined && { estimatedTime: parsedEstimatedTime }),
-          ...(req.body.slug !== undefined && { slug: req.body.slug })
-        },
-        include: {
+        data: problemUpdateData,
+        include: { // Include necessary relations for the response/collection logic
           collections: {
             include: {
               collection: true
             }
-          }
+          },
+          codeProblem: { // Include the potentially updated/connected codeProblem
+            include: {
+              testCases: true
+            }
+          },
         }
       });
       
       console.log(`Problem updated successfully. ID: ${problem.id}`);
-      
-      // 2. Update collections if collectionIds is explicitly provided
+
+      // 2. Update collection relationships if collectionIds is provided
       if (collectionIds !== undefined) {
-        console.log(`Updating collections for problem ${problemId}. Collection IDs:`, collectionIds);
+        // Get current collection IDs for comparisons
+        const currentCollectionIds = problem.collections.map((pc: { collectionId: string }) => pc.collectionId);
         
-        // Remove existing collection associations
-        const deleteResult = await tx.problemToCollection.deleteMany({
-          where: { problemId }
-        });
+        // Find collections to add and remove
+        const collectionsToAdd = collectionIds.filter(id => !currentCollectionIds.includes(id));
+        const collectionsToRemove = currentCollectionIds.filter((id: string) => !collectionIds.includes(id));
         
-        console.log(`Deleted ${deleteResult.count} existing collection associations`);
+        console.log(`Collections to add: ${collectionsToAdd.length}, to remove: ${collectionsToRemove.length}`);
         
-        // Create new associations if there are any collections
-        if (collectionIds.length > 0) {
-          const collectionConnections = collectionIds.map(collectionId => ({
-            problemId,
-            collectionId
-          }));
-          
-          // Validate that all collections exist
-          for (const { collectionId } of collectionConnections) {
-            const collectionExists = await tx.collection.findUnique({
+        // Remove old relationships
+        if (collectionsToRemove.length > 0) {
+          await tx.problemToCollection.deleteMany({
+            where: {
+              problemId,
+              collectionId: {
+                in: collectionsToRemove
+              }
+            }
+          });
+          console.log(`Removed ${collectionsToRemove.length} collection relationships`);
+        }
+        
+        // Add new relationships
+        if (collectionsToAdd.length > 0) {
+          // Check that all collections exist first
+          for (const collectionId of collectionsToAdd) {
+            const exists = await tx.collection.findUnique({
               where: { id: collectionId },
               select: { id: true }
             });
             
-            if (!collectionExists) {
-              console.error(`Collection ID ${collectionId} does not exist`);
-              throw new Error(`Collection with ID ${collectionId} does not exist`);
+            if (!exists) {
+              throw new Error(`Collection ID ${collectionId} does not exist`);
             }
           }
           
-          // Create the associations
+          // Create the new relationships
           await tx.problemToCollection.createMany({
-            data: collectionConnections,
+            data: collectionsToAdd.map(collectionId => ({
+              problemId,
+              collectionId
+            })),
             skipDuplicates: true
           });
-          
-          console.log(`Created ${collectionConnections.length} new collection associations`);
+          console.log(`Added ${collectionsToAdd.length} new collection relationships`);
         }
+        
+        // Get the updated problem with collections
+        return await tx.problem.findUnique({
+          where: { id: problem.id },
+          include: {
+            collections: {
+              include: {
+                collection: true
+              }
+            },
+            codeProblem: {
+              include: {
+                testCases: true
+              }
+            },
+          }
+        });
       }
       
-      // Always return the problem with updated collections
-      return await tx.problem.findUnique({
-        where: { id: problemId },
-        include: {
-          collections: {
-            include: {
-              collection: true
-            }
-          }
-        }
-      });
+      // If no collection updates needed, return the problem with collections
+      return problem;
     });
     
-    if (!updatedProblem) {
-      throw new Error(`Failed to retrieve updated problem`);
-    }
-    
-    // Transform the response to include collection IDs for frontend
+    // Transform collections for the response
     const responseData = {
       ...updatedProblem,
-      collectionIds: updatedProblem.collections.map((pc: any) => pc.collection.id),
-      collections: undefined // Remove raw collections from response
+      collectionIds: updatedProblem?.collections.map((pc: { collection: { id: string } }) => pc.collection.id) || [],
+      collections: undefined // Remove collections from the response
     };
     
     res.json(responseData);
   } catch (error) {
-    console.error('Detailed error updating problem:', error);
-    // Send a more helpful error message
-    res.status(500).json({ 
-      error: 'Failed to update problem', 
-      details: error instanceof Error ? error.message : 'Unknown error',
-      stack: process.env.NODE_ENV !== 'production' ? (error as Error).stack : undefined
-    });
+    console.error('Error updating problem:', error);
+    res.status(500).json({ error: 'Failed to update problem' });
   }
 }) as RequestHandler);
 
@@ -649,7 +856,7 @@ router.post('/:problemId/complete', authenticateToken, (async (req, res) => {
     }
 
     // Check if problem is already completed
-    const isCompleted = problem.completedBy.length > 0 || problem.progress.some(p => p.status === 'COMPLETED');
+    const isCompleted = problem.completedBy.length > 0 || problem.progress.some((p: { status: ProgressStatus }) => p.status === 'COMPLETED');
     
     // Get existing progress with reviews
     const existingProgress = await prisma.progress.findUnique({
@@ -712,7 +919,7 @@ router.post('/:problemId/complete', authenticateToken, (async (req, res) => {
     if (isCompleted && !forceComplete) {
       // CHANGED: Update progress record instead of deleting it to preserve ReviewHistory
       try {
-        result = await prisma.$transaction(async (tx) => {
+        result = await prisma.$transaction(async (tx: any) => {
           let progressToUpdate = existingProgress;
           
           // If we don't have existing progress but have progress records (from old schema)
@@ -764,7 +971,7 @@ router.post('/:problemId/complete', authenticateToken, (async (req, res) => {
     } else {
       // Mark as completed (either newly or forced)
       try {
-        result = await prisma.$transaction(async (tx) => {
+        result = await prisma.$transaction(async (tx: any) => {
           // First, get any existing progress to preserve review data if needed
           const currentProgress = preserveReviewData ? await tx.progress.findFirst({
             where: {
@@ -960,71 +1167,48 @@ router.get('/admin/dashboard', authenticateToken, authorizeRoles([Role.ADMIN, Ro
     // Include detailed information needed for the dashboard
     const problems = await prisma.problem.findMany({
       where,
-      select: {
-        id: true,
-        name: true,
-        content: true,
-        description: true,
-        difficulty: true,
-        required: true,
-        reqOrder: true,
-        problemType: true,
-        codeTemplate: true,
-        testCases: true,
-        estimatedTime: true,
-        createdAt: true,
-        updatedAt: true,
-        topic: true,
-        topicId: true,
-        completedBy: {
-          where: { id: userId },
-          select: { id: true }
-        },
-        progress: {
-          where: { userId },
-          select: { status: true }
-        },
-        collections: {
-          select: {
-            collection: {
-              select: {
-                id: true,
-                name: true,
-                description: true
-              }
-            }
-          }
-        }
+      include: {
+        topic: { select: { id: true, name: true, level: true } },
+        codeProblem: true,
+        collections: true
       },
-      orderBy: [{ name: 'asc' }]
+      orderBy: { createdAt: "desc" },
     });
 
     // Transform the response for the frontend
-    const transformedProblems = problems.map(problem => {
-      // Extract collection details
-      const collections = problem.collections.map(pc => pc.collection);
-      const collectionIds = collections.map(c => c.id);
+    const transformedProblems = problems.map((problem: any) => {
+      // Extract collection details safely
+      const collections = problem.collections?.map((pc: any) => {
+        if (pc.collection) return pc.collection;
+        return pc; // Return the original object if collection property doesn't exist
+      }).filter(Boolean) || [];
+      
+      const collectionIds = collections
+        .map((c: any) => c.id)
+        .filter(Boolean);
       
       // Format the response
       return {
         ...problem,
-        completed: problem.completedBy.length > 0 || problem.progress.some(p => p.status === 'COMPLETED'),
+        completed: problem.completedBy?.length > 0 || problem.progress?.some((p: any) => p.status === 'COMPLETED'),
         collectionIds,
         collections, // Include full collection objects for the admin dashboard
         completedBy: undefined,
-        progress: undefined
+        progress: undefined,
+        codeTemplate: undefined,
+        testCases: undefined
       };
     });
 
     // If we're filtering by collection
     if (collection && collection !== 'no-collection') {
-      const filteredProblems = transformedProblems.filter(problem => 
+      const filteredProblems = transformedProblems.filter((problem: any) => 
         problem.collectionIds.includes(collection as string)
       );
       
       // Further filter by topic status if requested
       if (withTopics === 'false') {
-        return res.json(filteredProblems.filter(p => !p.topic));
+        return res.json(filteredProblems.filter((p: any) => !p.topic));
       }
       
       return res.json(filteredProblems);
@@ -1032,12 +1216,12 @@ router.get('/admin/dashboard', authenticateToken, authorizeRoles([Role.ADMIN, Ro
     // If we're getting "no collection" problems
     else if (collection === 'no-collection') {
       const problemsWithoutCollections = transformedProblems.filter(
-        problem => !problem.collectionIds.length
+        (problem: any) => !problem.collectionIds.length
       );
       
       // Further filter by topic status if requested
       if (withTopics === 'false') {
-        return res.json(problemsWithoutCollections.filter(p => !p.topic));
+        return res.json(problemsWithoutCollections.filter((p: any) => !p.topic));
       }
       
       return res.json(problemsWithoutCollections);
@@ -1072,7 +1256,9 @@ router.get('/slug/:slug', authenticateToken, (async (req, res) => {
           where: { userId },
           select: { status: true }
         },
-        topic: true,
+        topic: {
+          include: { level: true }
+        },
         collections: {
           select: {
             collection: {
@@ -1082,6 +1268,9 @@ router.get('/slug/:slug', authenticateToken, (async (req, res) => {
               }
             }
           }
+        },
+        codeProblem: {
+          include: { testCases: true }
         }
       }
     });
@@ -1090,8 +1279,10 @@ router.get('/slug/:slug', authenticateToken, (async (req, res) => {
       return res.status(404).json({ error: 'Problem not found' });
     }
 
-    // Extract collection IDs for the frontend
-    const collectionIds = problem.collections.map(pc => pc.collection.id);
+    // Get collection IDs from problem's collections
+    const collectionIds = problem.collections 
+      ? problem.collections.map((pc: any) => pc.collectionId || (pc.collection && pc.collection.id))
+      : [];
 
     // Find next and previous problems if this problem belongs to a topic
     let nextProblemId = null;
@@ -1116,7 +1307,7 @@ router.get('/slug/:slug', authenticateToken, (async (req, res) => {
       });
 
       // Find the current problem's index in the ordered list
-      const currentIndex = topicProblems.findIndex(p => p.id === problem.id);
+      const currentIndex = topicProblems.findIndex((p: { id: string }) => p.id === problem.id);
       
       if (currentIndex !== -1) {
         // Get previous problem if not the first
@@ -1136,7 +1327,11 @@ router.get('/slug/:slug', authenticateToken, (async (req, res) => {
     // Transform the response to include isCompleted, navigation IDs, and collections
     const response = {
       ...problem,
-      isCompleted: problem.completedBy.length > 0 || problem.progress.some(p => p.status === 'COMPLETED'),
+      // Remove legacy fields if they were included implicitly
+      codeTemplate: undefined,
+      testCases: undefined,
+      // Keep necessary fields
+      isCompleted: problem.completedBy.length > 0 || problem.progress.some((p: { status: ProgressStatus }) => p.status === 'COMPLETED'),
       nextProblemId,
       prevProblemId,
       nextProblemSlug,

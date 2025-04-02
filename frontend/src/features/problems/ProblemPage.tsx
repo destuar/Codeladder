@@ -12,6 +12,8 @@ import { useSpacedRepetition } from '@/features/spaced-repetition/hooks/useSpace
 import { Problem, ProblemType } from './types';
 import { isToday } from 'date-fns';
 import { logProblemReviewState, logWorkflowStep } from './utils/debug';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 
 // Custom hook to only use spaced repetition when needed
 function useConditionalSpacedRepetition(enabled: boolean) {
@@ -215,9 +217,6 @@ const ProblemPage: React.FC = () => {
     }
   }, [problem]);
 
-  // Convert estimatedTime to number if it's a string
-  const estimatedTimeNum = problem?.estimatedTime ? parseInt(problem.estimatedTime.toString()) : undefined;
-
   // In review mode, we want to start with the problem marked as not completed
   // regardless of its actual completion status, but show as completed if the user
   // clicked the Mark Complete button in review mode
@@ -301,31 +300,58 @@ const ProblemPage: React.FC = () => {
     );
   }
 
-  if (problem.problemType === 'INFO' || problem.problemType === 'STANDALONE_INFO') {
-    return (
-      <div className="min-h-[calc(100vh-4rem)] flex flex-col">
-        <div className="flex-1">
-          <InfoProblem 
-            content={problem.content || ''}
-            isCompleted={effectiveIsCompleted}
-            nextProblemId={problem.nextProblemId}
-            nextProblemSlug={problem.nextProblemSlug}
-            prevProblemId={problem.prevProblemId}
-            prevProblemSlug={problem.prevProblemSlug}
-            estimatedTime={estimatedTimeNum}
-            isStandalone={problem.problemType === 'STANDALONE_INFO'}
-            problemId={problem.id}
-            isReviewMode={isReviewMode}
-            onCompleted={handleProblemCompleted}
-            problemType={problem.problemType}
-            onNavigate={navigateToOtherProblem}
-            sourceContext={sourceContext}
-          />
-        </div>
+  // Determine estimated time as number
+  const estimatedTimeNum = problem.estimatedTime ? Number(problem.estimatedTime) : undefined;
 
-        {/* Show review controls when appropriate */}
+  // Conditional Rendering based on Problem Type
+  return (
+    <div className="min-h-[calc(100vh-4rem)] flex flex-col">
+      <ErrorBoundary>
+        <div className="flex-1">
+          {(problem.problemType === 'INFO' || problem.problemType === 'STANDALONE_INFO') && (
+            <InfoProblem 
+              content={problem.content || ''} 
+              isCompleted={effectiveIsCompleted}
+              nextProblemId={problem.nextProblemId}
+              nextProblemSlug={problem.nextProblemSlug}
+              prevProblemId={problem.prevProblemId}
+              prevProblemSlug={problem.prevProblemSlug}
+              estimatedTime={estimatedTimeNum}
+              isStandalone={problem.problemType === 'STANDALONE_INFO'}
+              problemId={problem.id}
+              isReviewMode={isReviewMode}
+              onCompleted={handleProblemCompleted}
+              problemType={problem.problemType}
+              onNavigate={navigateToOtherProblem}
+              sourceContext={sourceContext}
+            />
+          )}
+
+          {problem.problemType === 'CODING' && (
+            <CodingProblem 
+              title={problem.name}
+              content={problem.content || ''}
+              codeTemplate={problem.codeProblem?.codeTemplate || problem.codeTemplate}
+              testCases={problem.codeProblem?.testCases ? JSON.stringify(problem.codeProblem.testCases) : problem.testCases?.toString()}
+              difficulty={problem.difficulty}
+              nextProblemId={problem.nextProblemId}
+              nextProblemSlug={problem.nextProblemSlug}
+              prevProblemId={problem.prevProblemId}
+              prevProblemSlug={problem.prevProblemSlug}
+              onNavigate={navigateToOtherProblem}
+              estimatedTime={estimatedTimeNum}
+              isCompleted={effectiveIsCompleted}
+              problemId={problem.id}
+              isReviewMode={isReviewMode}
+              onCompleted={handleProblemCompleted}
+              sourceContext={sourceContext}
+            />
+          )}
+        </div>
+        
+        {/* Review Controls */}
         {shouldShowReviewControls && (
-          <div className="mt-auto">
+          <div className="mt-auto border-t pt-4 px-4 md:px-6 pb-4">
             <ReviewControls 
               problem={problem}
               hasJustCompleted={hasJustCompleted}
@@ -336,49 +362,6 @@ const ProblemPage: React.FC = () => {
             />
           </div>
         )}
-      </div>
-    );
-  }
-
-  return (
-    <div className="min-h-[calc(100vh-4rem)] flex flex-col">
-      <ErrorBoundary>
-        <>
-          <div className="flex-1">
-            <CodingProblem 
-              title={problem.name}
-              content={problem.content || ''}
-              codeTemplate={problem.codeTemplate}
-              testCases={problem.testCases}
-              difficulty={problem.difficulty}
-              nextProblemId={problem.nextProblemId}
-              nextProblemSlug={problem.nextProblemSlug}
-              prevProblemId={problem.prevProblemId}
-              prevProblemSlug={problem.prevProblemSlug}
-              onNavigate={navigateToOtherProblem}
-              estimatedTime={problem.estimatedTime ? Number(problem.estimatedTime) : undefined}
-              isCompleted={effectiveIsCompleted}
-              problemId={problem.id}
-              isReviewMode={isReviewMode}
-              onCompleted={handleProblemCompleted}
-              sourceContext={sourceContext}
-            />
-          </div>
-          
-          {/* Show review controls when appropriate */}
-          {shouldShowReviewControls && (
-            <div className="mt-auto">
-              <ReviewControls 
-                problem={problem}
-                hasJustCompleted={hasJustCompleted}
-                referrer={referrer}
-                onReviewSubmit={handleSubmitReview}
-                scheduledDate={scheduledDate}
-                isEarlyReview={isEarlyReview}
-              />
-            </div>
-          )}
-        </>
       </ErrorBoundary>
     </div>
   );

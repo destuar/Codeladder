@@ -96,19 +96,23 @@ model Collection {
 model Problem {
   id            String                @id @default(cuid())
   name          String
-  slug          String?   @unique  // URL-friendly unique identifier
+  slug          String?               @unique
   description   String?               @db.Text
   difficulty    Difficulty
   required      Boolean               @default(false)
-  reqOrder      Int? // Order number for required problems
-  content       String?               @db.Text // Problem content/description
+  reqOrder      Int?
+  content       String?               @db.Text // Content field (for all problem types)
   solution      String?               @db.Text // Solution or hints
-  problemType   ProblemType           @default(INFO) // Type of problem (Info, Coding, or Standalone Info)
-  codeTemplate  String?               @db.Text // Starting code template for coding problems
-  testCases     Json? // Test cases for coding problems
+  problemType   ProblemType           @default(INFO)
+  codeTemplate  String?               @db.Text // Legacy code template (for backward compatibility)
+  testCases     Json? // Legacy test cases (for backward compatibility)
   estimatedTime Int? // Estimated time to complete the problem (in minutes)
   topic         Topic?                @relation(fields: [topicId], references: [id]) // Make topic optional for standalone info
   topicId       String? // Make topicId optional for standalone info
+  
+  // Updated relation to CodeProblem
+  codeProblem     CodeProblem? @relation("ProblemToCodeProblem")
+  
   completedBy   User[]                @relation("UserCompletedProblems")
   progress      Progress[]
   collections   ProblemToCollection[] // Relation to collections
@@ -255,7 +259,7 @@ model QuizQuestion {
 
   // Type-specific question details
   mcProblem   McProblem?
-  codeProblem CodeProblem?
+  codeProblem CodeProblem? @relation("QuizQuestionToCodeProblem")
 
   // Responses to this question
   responses QuizResponse[]
@@ -297,13 +301,18 @@ model McOption {
 }
 
 model CodeProblem {
-  questionId   String       @id @map("question_id")
-  question     QuizQuestion @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  questionId   String       @id @default(cuid()) @map("question_id")
+  quizQuestionId String?      @unique @map("quiz_question_id")
+  quizQuestion   QuizQuestion? @relation("QuizQuestionToCodeProblem", fields: [quizQuestionId], references: [id], onDelete: SetNull)
   codeTemplate String?      @map("code_template") @db.Text
   functionName String?      @map("function_name")
   language     String       @default("javascript")
-  timeLimit    Int          @default(5000) @map("time_limit") // Execution time limit in ms
-  memoryLimit  Int?         @map("memory_limit") // Memory limit in MB if applicable
+  timeLimit    Int          @default(5000) @map("time_limit")
+  memoryLimit  Int?         @map("memory_limit")
+
+  // Relation to the Problem model
+  problem      Problem?     @relation("ProblemToCodeProblem", fields: [problemId], references: [id], onDelete: SetNull)
+  problemId    String?      @unique @map("problem_id")
 
   // Test cases for this problem
   testCases TestCase[]
