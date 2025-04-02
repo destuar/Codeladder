@@ -98,16 +98,26 @@ type ProblemFormData = {
 };
 
 // More specific type for the edit form data
-type EditProblemData = Omit<Problem, 'topic'> & { // Exclude topic from edit form data
-  topicId: string | null; // Store topic ID separately
-  codeProblem?: { // Make codeProblem optional initially
-    language: string;
-    codeTemplate: string | null;
-    functionName: string | null;
-    timeLimit: number;
-    memoryLimit: number | null;
-    testCases: TestCase[];
-  } | null;
+type EditProblemData = {
+  id: string;
+  name: string;
+  difficulty: ProblemDifficulty;
+  required: boolean;
+  problemType: ProblemType;
+  slug?: string;
+  content?: string; // Content is now a direct field for all problem types
+  estimatedTime?: number;
+  collectionIds: string[];
+  reqOrder?: number;
+  topicId?: string | null;
+  codeProblem?: {
+    codeTemplate?: string;
+    testCases?: TestCase[];
+    language?: string;
+    functionName?: string;
+    timeLimit?: number;
+    memoryLimit?: number;
+  };
 };
 
 // Add cache system for the admin dashboard
@@ -528,21 +538,49 @@ export function LearningPathAdmin() {
   }, []);
 
   const handleEditProblemSelectChange = useCallback((name: keyof EditProblemData | keyof NonNullable<EditProblemData['codeProblem']>, value: any) => {
-    setEditProblemData(prev => {
+    setEditProblemData((prev) => {
       if (!prev) return null;
-      // Handle nested codeProblem fields
-      if (name === 'language' || name === 'timeLimit' || name === 'memoryLimit') {
+
+      // Special handling for problemType changes
+      if (name === 'problemType') {
+        // When switching to INFO, save content and reset coding fields
+        if (value === 'INFO') {
+          const content = prev.content || '';
+          return {
+            ...prev,
+            problemType: value,
+            content, // Keep the content
+            codeProblem: undefined // Set to undefined instead of null
+          };
+        } 
+        // When switching to CODING, initialize codeProblem
+        else if (value === 'CODING') {
+          return {
+            ...prev,
+            problemType: value,
+            // Initialize codeProblem with defaults
+            codeProblem: {
+              codeTemplate: '',
+              testCases: [{ input: '', expected: '', isHidden: false }],
+              language: 'javascript',
+              functionName: 'solution',
+              timeLimit: 5000,
+              memoryLimit: undefined
+            }
+          };
+        }
+        return {
+          ...prev,
+          [name]: value
+        };
+      }
+
+      // Handle codeProblem fields
+      if (name in (prev.codeProblem || {}) && prev.codeProblem) {
         return {
           ...prev,
           codeProblem: {
-            ...(prev.codeProblem || { // Initialize codeProblem if null
-              language: 'javascript',
-              codeTemplate: null,
-              functionName: null,
-              timeLimit: 5000,
-              memoryLimit: null,
-              testCases: [],
-            }),
+            ...prev.codeProblem,
             [name]: value,
           },
         };
@@ -556,35 +594,46 @@ export function LearningPathAdmin() {
     const { name, value } = e.target;
     setEditProblemData(prev => {
       if (!prev) return null;
+      
+      // If codeProblem is undefined, initialize it first
+      const currentCodeProblem = prev.codeProblem || {
+        codeTemplate: '',
+        testCases: [{ input: '', expected: '', isHidden: false }],
+        language: 'javascript',
+        functionName: 'solution',
+        timeLimit: 5000,
+        memoryLimit: undefined
+      };
+      
       return {
         ...prev,
         codeProblem: {
-          ...(prev.codeProblem || { // Initialize codeProblem if null
-            language: 'javascript',
-            codeTemplate: null,
-            functionName: null,
-            timeLimit: 5000,
-            memoryLimit: null,
-            testCases: [],
-          }),
+          ...currentCodeProblem,
           [name]: value,
         },
       };
     });
   }, []);
 
-  const handleEditTestCaseChange = useCallback((index: number, field: keyof TestCase, value: string | boolean) => {
+  const handleEditTestCaseChange = useCallback((index: number, field: string, value: string | boolean) => {
     setEditProblemData(prev => {
       if (!prev || !prev.codeProblem) return prev;
-      const newTestCases = [...prev.codeProblem.testCases];
-      if (newTestCases[index]) {
-        (newTestCases[index] as any)[field] = value;
+      
+      // Create a copy of testCases, ensuring it's defined
+      const testCases = prev.codeProblem.testCases ? [...prev.codeProblem.testCases] : [];
+      
+      // If index exists, update the field
+      if (testCases[index]) {
+        const updatedTestCase = { ...testCases[index] } as any;
+        updatedTestCase[field] = value;
+        testCases[index] = updatedTestCase;
       }
+      
       return { 
         ...prev, 
         codeProblem: { 
           ...prev.codeProblem, 
-          testCases: newTestCases 
+          testCases: testCases 
         } 
       };
     });
@@ -593,12 +642,16 @@ export function LearningPathAdmin() {
   const handleAddEditTestCase = useCallback(() => {
     setEditProblemData(prev => {
       if (!prev || !prev.codeProblem) return prev;
+      
+      // Create a copy of testCases, ensuring it's defined
+      const testCases = prev.codeProblem.testCases ? [...prev.codeProblem.testCases] : [];
+      
       return {
         ...prev,
         codeProblem: {
           ...prev.codeProblem,
           testCases: [
-            ...prev.codeProblem.testCases,
+            ...testCases,
             { input: '', expected: '', isHidden: false }
           ]
         }
@@ -608,15 +661,23 @@ export function LearningPathAdmin() {
 
   const handleRemoveEditTestCase = useCallback((index: number) => {
     setEditProblemData(prev => {
-      if (!prev || !prev.codeProblem || prev.codeProblem.testCases.length <= 1) return prev;
-      const newTestCases = prev.codeProblem.testCases.filter((_, i) => i !== index);
+      if (!prev || !prev.codeProblem) return prev;
+      
+      // Create a copy of testCases, ensuring it's defined
+      const testCases = prev.codeProblem.testCases ? [...prev.codeProblem.testCases] : [];
+      
+      // Only remove if there's more than one test case
+      if (testCases.length <= 1) return prev;
+      
       return {
         ...prev,
-        codeProblem: { ...prev.codeProblem, testCases: newTestCases }
+        codeProblem: { 
+          ...prev.codeProblem, 
+          testCases: testCases.filter((_, i) => i !== index) 
+        }
       };
     });
   }, []);
-  // ***
 
   const handleEditProblem = async () => {
     // *** MODIFIED to use editProblemData ***
@@ -630,56 +691,51 @@ export function LearningPathAdmin() {
       
       const problemPayload: any = {
         name: editProblemData.name,
-        content: editProblemData.content || "", // Ensure content is string
         difficulty: editProblemData.difficulty,
         required: editProblemData.required,
         problemType: editProblemData.problemType,
         slug: editProblemData.slug || "",
         estimatedTime: editProblemData.estimatedTime || null,
         collectionIds: editProblemData.collectionIds || [],
-        // Conditionally include coding fields
-        ...(editProblemData.problemType === 'CODING' && editProblemData.codeProblem ? {
-          codeTemplate: editProblemData.codeProblem.codeTemplate,
-          // Ensure testCases is stringified, handle potential null/empty case
-          testCases: JSON.stringify(editProblemData.codeProblem.testCases || []),
-          language: editProblemData.codeProblem.language,
-          functionName: editProblemData.codeProblem.functionName,
-          timeLimit: editProblemData.codeProblem.timeLimit,
-          memoryLimit: editProblemData.codeProblem.memoryLimit,
-        } : {
-          // Explicitly null out coding fields if type is not CODING
-          codeTemplate: null,
-          testCases: null,
-          language: null,
-          functionName: null,
-          timeLimit: null,
-          memoryLimit: null,
-        })
+        content: editProblemData.content || "", // Always include content
       };
+
+      // For CODING problems, include coding fields
+      if (editProblemData.problemType === 'CODING' && editProblemData.codeProblem) {
+        // Add codeProblem fields
+        problemPayload.codeTemplate = editProblemData.codeProblem.codeTemplate;
+        problemPayload.testCases = JSON.stringify(editProblemData.codeProblem.testCases || []);
+        problemPayload.language = editProblemData.codeProblem.language;
+        problemPayload.functionName = editProblemData.codeProblem.functionName;
+        problemPayload.timeLimit = editProblemData.codeProblem.timeLimit;
+        problemPayload.memoryLimit = editProblemData.codeProblem.memoryLimit;
+      }
 
       // Handle topic change separately (if logic is needed)
       const currentTopicId = selectedProblem?.topic?.id || null; // Get original topic ID from selectedProblem
       const newTopicId = editProblemData.topicId;
 
       if (newTopicId !== currentTopicId) {
-          // If topic changed, update the base problem first without topic info
-          await api.put(`/problems/${editProblemData.id}`, problemPayload, token);
-          
-          // Now handle the topic change
-          if (newTopicId === null) {
-              // Moved to "no topic"
-              await api.put(`/problems/${editProblemData.id}/remove-topic`, {}, token);
-              toast.success("Problem updated and removed from topic");
-          } else {
-              // Moved to a different topic
-              await api.post(`/learning/topics/${newTopicId}/problems/${editProblemData.id}`, {}, token);
-              toast.success("Problem updated and moved to new topic");
-          }
+        // If topic changed, update the base problem first without topic info
+        await api.put(`/problems/${editProblemData.id}`, problemPayload, token);
+        
+        // Now handle the topic change
+        if (newTopicId === null) {
+          // Moved to "no topic"
+          await api.put(`/problems/${editProblemData.id}/remove-topic`, {}, token);
+          toast.success("Problem updated and removed from topic");
+        } else {
+          // Moved to a different topic
+          await api.post(`/learning/topics/${newTopicId}/problems/${editProblemData.id}`, {}, token);
+          toast.success("Problem updated and moved to new topic");
+        }
       } else {
-          // Topic didn't change, just update problem with potentially new reqOrder
+        // Topic didn't change, just update problem with potentially new reqOrder
+        if (editProblemData.reqOrder) {
           problemPayload.reqOrder = editProblemData.reqOrder;
-          await api.put(`/problems/${editProblemData.id}`, problemPayload, token);
-          toast.success("Problem updated successfully");
+        }
+        await api.put(`/problems/${editProblemData.id}`, problemPayload, token);
+        toast.success("Problem updated successfully");
       }
 
       setIsEditingProblem(false);
@@ -763,8 +819,31 @@ export function LearningPathAdmin() {
   const handleEditProblemChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     if (!selectedProblem) return;
     const { name, value } = e.target;
-    const updatedValue = name === 'reqOrder' ? (value === '' ? 1 : Math.max(1, parseInt(value) || 1)) : value;
-    setSelectedProblem(prev => prev ? updateProblem(prev, { [name]: updatedValue }) : null);
+    
+    // If it's the content field, update it directly on the problem
+    if (name === 'content') {
+      setSelectedProblem(prev => {
+        if (!prev) return null;
+        return {
+          ...prev,
+          content: value
+        };
+      });
+      return;
+    }
+    
+    // Handle other fields
+    setSelectedProblem(prev => {
+      if (!prev) return null;
+      return {
+        ...prev,
+        [name]: name === 'required' 
+          ? value === 'true' 
+          : name === 'estimatedTime' || name === 'reqOrder'
+            ? value === '' ? undefined : parseInt(value) 
+            : value
+      };
+    });
   };
 
   // Add helper function to add problems to a specific collection
@@ -1057,17 +1136,16 @@ export function LearningPathAdmin() {
           // Explicitly handle codeProblem structure
           codeProblem: problemDetails.codeProblem ? {
             language: problemDetails.codeProblem.language || 'javascript',
-            codeTemplate: problemDetails.codeProblem.codeTemplate || null,
-            functionName: problemDetails.codeProblem.functionName || null,
+            codeTemplate: problemDetails.codeProblem.codeTemplate || '',
+            functionName: problemDetails.codeProblem.functionName || '',
             timeLimit: problemDetails.codeProblem.timeLimit || 5000,
-            memoryLimit: problemDetails.codeProblem.memoryLimit || null,
+            memoryLimit: problemDetails.codeProblem.memoryLimit,
             testCases: (Array.isArray(problemDetails.codeProblem.testCases) ? problemDetails.codeProblem.testCases : []).map((tc: any) => ({ 
               input: tc.input || '', 
               expected: tc.expectedOutput || '', // Map backend field name
-              isHidden: tc.isHidden || false, 
-              id: tc.id // Keep ID if available
+              isHidden: tc.isHidden || false
             })),
-          } : null, // Set to null if no codeProblem exists
+          } : undefined, // Use undefined instead of null
         });
         setSelectedProblem(problemDetails); // Keep original selection for comparison if needed
         setIsEditingProblem(true);
@@ -1076,10 +1154,19 @@ export function LearningPathAdmin() {
         console.error("Error fetching problem details:", err);
         toast.error("Could not fetch latest problem details");
         // Fallback: Initialize with data passed in (might be stale)
-        setEditProblemData({ 
-            ...problem, 
+        setEditProblemData({
+            id: problem.id,
+            name: problem.name || '',
+            difficulty: problem.difficulty,
+            required: problem.required || false,
+            problemType: problem.problemType,
+            slug: problem.slug,
+            content: problem.content,
+            estimatedTime: problem.estimatedTime,
+            collectionIds: problem.collectionIds || [],
+            reqOrder: problem.reqOrder,
             topicId: problem.topic?.id || null,
-            codeProblem: null // Assume no code problem on error?
+            codeProblem: undefined // Use undefined instead of null
         });
         setSelectedProblem(problem);
         setIsEditingProblem(true);
@@ -2066,7 +2153,7 @@ export function LearningPathAdmin() {
             
             {/* Code Tab */}  
             <TabsContent value="code" className="mt-4">
-              {editProblemData?.problemType === 'CODING' && editProblemData.codeProblem ? (
+              {editProblemData?.problemType === 'CODING' && editProblemData?.codeProblem ? (
                 <div className="grid gap-4 py-4">
                   {/* Copied & Adapted Code Fields - BIND to editProblemData.codeProblem */}
                   <div className="grid gap-2">
@@ -2133,56 +2220,60 @@ export function LearningPathAdmin() {
                        />
                      </div>
                   </div>
-                  {/* Test Cases Section */}
+                  {/* Test Cases Section - Complete replacement */}
                   <div className="grid gap-2">
                     <Label>Test Cases</Label>
                     <div className="space-y-4 border rounded-md p-4 max-h-[400px] overflow-y-auto">
-                      {editProblemData.codeProblem.testCases.map((testCase, index) => (
-                        <div key={index} className="pb-4 border-b last:border-b-0 last:pb-0 space-y-3">
-                          <div className="flex items-center justify-between">
-                            <h4 className="text-sm font-medium">Test Case {index + 1}</h4>
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => handleRemoveEditTestCase(index)}
-                              disabled={editProblemData.codeProblem!.testCases.length <= 1}
-                            >
-                              <Trash className="h-4 w-4" />
-                            </Button>
-                          </div>
-                          <div className="grid grid-cols-2 gap-4">
-                            <div className="space-y-2">
-                              <Label htmlFor={`edit-test-input-${index}`} className="text-xs">Input</Label>
-                              <Textarea
-                                id={`edit-test-input-${index}`}
-                                value={testCase.input}
-                                onChange={(e) => handleEditTestCaseChange(index, 'input', e.target.value)}
-                                placeholder="Test input"
-                                className="font-mono text-sm"
-                              />
+                      {editProblemData.codeProblem.testCases && editProblemData.codeProblem.testCases.length > 0 ? (
+                        editProblemData.codeProblem.testCases.map((testCase, index) => (
+                          <div key={index} className="pb-4 border-b last:border-b-0 last:pb-0 space-y-3">
+                            <div className="flex items-center justify-between">
+                              <h4 className="text-sm font-medium">Test Case {index + 1}</h4>
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleRemoveEditTestCase(index)}
+                                disabled={(editProblemData.codeProblem?.testCases?.length || 0) <= 1}
+                              >
+                                <Trash className="h-4 w-4" />
+                              </Button>
                             </div>
-                            <div className="space-y-2">
-                              <Label htmlFor={`edit-test-output-${index}`} className="text-xs">Expected Output</Label>
-                              <Textarea
-                                id={`edit-test-output-${index}`}
-                                value={(testCase as any).expected} // Adjust field name if needed
-                                onChange={(e) => handleEditTestCaseChange(index, 'expected', e.target.value)}
-                                placeholder="Expected output"
-                                className="font-mono text-sm"
+                            <div className="grid grid-cols-2 gap-4">
+                              <div className="space-y-2">
+                                <Label htmlFor={`edit-test-input-${index}`} className="text-xs">Input</Label>
+                                <Textarea
+                                  id={`edit-test-input-${index}`}
+                                  value={testCase.input}
+                                  onChange={(e) => handleEditTestCaseChange(index, 'input', e.target.value)}
+                                  placeholder="Test input"
+                                  className="font-mono text-sm"
+                                />
+                              </div>
+                              <div className="space-y-2">
+                                <Label htmlFor={`edit-test-output-${index}`} className="text-xs">Expected Output</Label>
+                                <Textarea
+                                  id={`edit-test-output-${index}`}
+                                  value={(testCase as any).expected} // Adjust field name if needed
+                                  onChange={(e) => handleEditTestCaseChange(index, 'expected', e.target.value)}
+                                  placeholder="Expected output"
+                                  className="font-mono text-sm"
+                                />
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <Checkbox
+                                id={`edit-test-hidden-${index}`}
+                                checked={testCase.isHidden}
+                                onCheckedChange={(checked) => handleEditTestCaseChange(index, 'isHidden', !!checked)}
                               />
+                              <Label htmlFor={`edit-test-hidden-${index}`} className="text-sm">Hidden</Label>
                             </div>
                           </div>
-                          <div className="flex items-center gap-2">
-                            <Checkbox
-                              id={`edit-test-hidden-${index}`}
-                              checked={testCase.isHidden}
-                              onCheckedChange={(checked) => handleEditTestCaseChange(index, 'isHidden', !!checked)}
-                            />
-                            <Label htmlFor={`edit-test-hidden-${index}`} className="text-sm">Hidden</Label>
-                          </div>
-                        </div>
-                      ))}
+                        ))
+                      ) : (
+                        <p className="text-center text-muted-foreground py-2">No test cases defined yet</p>
+                      )}
                       <Button
                         type="button"
                         variant="outline"
@@ -2195,7 +2286,7 @@ export function LearningPathAdmin() {
                       </Button>
                     </div>
                   </div>
-                  {/* End Test Cases */} 
+                  {/* End Test Cases */}
                 </div>
               ) : (
                 <p className="text-muted-foreground text-center py-4">Select 'CODING' type in General Info to edit code details.</p>

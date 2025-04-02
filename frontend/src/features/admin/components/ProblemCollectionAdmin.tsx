@@ -722,10 +722,9 @@ export function ProblemCollectionAdmin() {
         newProblem.collectionIds.push(selectedCollection);
       }
       
-      // Create problem with necessary data
+      // Create base problem data (fields shared by all types)
       const problemData = {
         name: newProblem.name,
-        content: newProblem.content,
         difficulty: newProblem.difficulty,
         required: newProblem.required,
         reqOrder: newProblem.reqOrder,
@@ -733,16 +732,26 @@ export function ProblemCollectionAdmin() {
         topicId: newProblem.topicId,
         collectionIds: newProblem.collectionIds,
         slug: newProblem.slug,
-        ...(newProblem.problemType === 'CODING' ? {
+        estimatedTime: newProblem.estimatedTime,
+        content: newProblem.content || ""
+      };
+      
+      // For CODING problems, include coding specific fields
+      if (newProblem.problemType === 'CODING') {
+        Object.assign(problemData, {
           codeTemplate: newProblem.codeTemplate,
           testCases: JSON.stringify(newProblem.testCases),
           language: newProblem.language,
           functionName: newProblem.functionName,
           timeLimit: Number(newProblem.timeLimit),
           memoryLimit: newProblem.memoryLimit ? Number(newProblem.memoryLimit) : undefined
-        } : {}),
-        ...(newProblem.estimatedTime ? { estimatedTime: newProblem.estimatedTime } : {})
-      };
+        });
+      } 
+      // For INFO problems, the content is already included above.
+      // We might add other INFO-specific fields here later if needed.
+      else if (newProblem.problemType === 'INFO') {
+        // Currently no INFO-specific fields other than content
+      }
       
       await api.post("/problems", problemData, token);
       setIsAddingProblem(false);
@@ -886,49 +895,57 @@ export function ProblemCollectionAdmin() {
 
   const handleEditProblem = async () => {
     if (!selectedProblem) return;
+
     try {
-      // Create problem with necessary data
+      // Prepare the problem data
       const problemData = {
         id: selectedProblem.id,
         name: selectedProblem.name,
-        content: selectedProblem.content,
         difficulty: selectedProblem.difficulty,
         required: selectedProblem.required,
         reqOrder: selectedProblem.reqOrder,
         problemType: selectedProblem.problemType,
-        ...(selectedProblem.problemType === 'CODING' ? {
+        content: selectedProblem.content || "",
+        // Add topic ID if present
+        ...(selectedProblem.topic ? { topicId: selectedProblem.topic.id } : {})
+      };
+
+      // For CODING problems, include coding fields
+      if (selectedProblem.problemType === 'CODING') {
+        Object.assign(problemData, {
           codeTemplate: selectedProblem.codeTemplate,
           testCases: JSON.stringify(
-            typeof selectedProblem.testCases === 'string' 
-              ? parseTestCases(selectedProblem.testCases) 
+            typeof selectedProblem.testCases === 'string'
+              ? parseTestCases(selectedProblem.testCases)
               : selectedProblem.testCases
           ),
           functionName: selectedProblem.functionName,
           language: selectedProblem.language,
           timeLimit: selectedProblem.timeLimit ? Number(selectedProblem.timeLimit) : undefined,
           memoryLimit: selectedProblem.memoryLimit ? Number(selectedProblem.memoryLimit) : undefined
-        } : {}),
-        ...(selectedProblem.topic ? { topicId: selectedProblem.topic.id } : {})
-      };
-      
+        });
+      }
+      // For INFO problems, the content is already included above.
+      else if (selectedProblem.problemType === 'INFO') {
+        // Currently no INFO-specific fields other than content
+      }
+
       await api.put(`/problems/${selectedProblem.id}`, problemData, token);
       console.log(`Problem updated: ${selectedProblem.id}`);
-      toast.success("Problem updated successfully");
-      
+      toast.success('Problem updated successfully');
       setIsEditingProblem(false);
       setSelectedProblem(null);
-      setSelectedTopicId(null);
       
-      // Refresh the current collection to show the updated problem
+      // Refresh collections to reflect the changes
       if (selectedCollection) {
         await refreshCollectionProblems(selectedCollection);
       }
     } catch (err) {
-      console.error("Error updating problem:", err);
+      console.error('Error updating problem:', err);
       if (err instanceof Error) {
         toast.error(`Failed to update problem: ${err.message}`);
       } else {
-        toast.error("Failed to update problem");
+        toast.error('Failed to update problem');
       }
     }
   };

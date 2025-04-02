@@ -101,7 +101,7 @@ model Problem {
   difficulty    Difficulty
   required      Boolean               @default(false)
   reqOrder      Int?
-  content       String?               @db.Text // Legacy content field (for backward compatibility)
+  content       String?               @db.Text // Content field (for all problem types)
   solution      String?               @db.Text // Solution or hints
   problemType   ProblemType           @default(INFO)
   codeTemplate  String?               @db.Text // Legacy code template (for backward compatibility)
@@ -112,9 +112,6 @@ model Problem {
   
   // Updated relation to CodeProblem
   codeProblem     CodeProblem? @relation("ProblemToCodeProblem")
-  
-  // Relation to info problem
-  infoProblem     InfoProblem?
   
   completedBy   User[]                @relation("UserCompletedProblems")
   progress      Progress[]
@@ -458,17 +455,4 @@ enum SubmissionStatus {
 enum AssessmentType {
   QUIZ
   TEST
-}
-
-// New model for info problems
-model InfoProblem {
-  id          String   @id @default(cuid())
-  problem     Problem  @relation(fields: [problemId], references: [id], onDelete: Cascade)
-  problemId   String   @unique @map("problem_id")
-  content     String   @db.Text
-  
-  createdAt   DateTime @default(now()) @map("created_at")
-  updatedAt   DateTime @updatedAt @map("updated_at")
-
-  @@map("info_problems")
 }
