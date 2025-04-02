@@ -7,6 +7,7 @@
 
 import { Router, Request, Response } from 'express';
 import { executeCode, executeCustomTest, runTests } from '../controllers/codeExecutionController';
+import { testJudge0Connection } from '../api/code/test';
 import { authenticateToken } from '../middleware/auth';
 import rateLimit from 'express-rate-limit';
 
@@ -30,8 +31,31 @@ const runTestsLimiter = rateLimit({
   legacyHeaders: false,
 });
 
+// Health check rate limiter
+const healthCheckLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1 minute window
+  max: 5, // 5 requests per minute
+  message: 'Too many health check requests, please try again later',
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
 // Authentication required for all code execution routes
 router.use(authenticateToken);
+
+// Judge0 health check endpoint
+router.get('/health', healthCheckLimiter, async (req: Request, res: Response) => {
+  try {
+    await testJudge0Connection(req, res);
+  } catch (error) {
+    console.error('Error in Judge0 health check route:', error);
+    if (!res.headersSent) {
+      res.status(500).json({
+        error: error instanceof Error ? error.message : 'Unknown error during Judge0 health check'
+      });
+    }
+  }
+});
 
 // Code execution routes
 router.post('/execute', executionLimiter, async (req: Request, res: Response) => {

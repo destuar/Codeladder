@@ -149,3 +149,6 @@ dist
 
 # Private files
 private/
+# Testing files
+testing/
+
