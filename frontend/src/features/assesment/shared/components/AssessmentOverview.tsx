@@ -11,7 +11,7 @@ import { BorderlessThemeToggle } from "@/features/problems/components/shared/Bor
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { useProfile } from '@/features/profile/ProfileContext';
 import { useAuth } from '@/features/auth/AuthContext';
-import codeladderSvgLogo from '@/features/landingpage/images/CodeLadder.svg';
+import { useLogoSrc } from '@/features/landingpage/hooks/useLogoSrc';
 import { useAssessmentTimer } from '../hooks/useAssessmentTimer';
 import {
   AlertDialog,
@@ -70,6 +70,7 @@ function AssessmentOverviewHeader({
   const { profile } = useProfile();
   const { user } = useAuth();
   const [showExitDialog, setShowExitDialog] = useState(false);
+  const logoSrc = useLogoSrc('single');
   
   // Normalize the type to proper case
   const displayType = type?.toUpperCase() === 'QUIZ' ? 'Quiz' : 
@@ -104,7 +105,7 @@ function AssessmentOverviewHeader({
         <div className="flex items-center gap-2 pl-3">
           {/* CodeLadder logo */}
           <div className="mr-2">
-            <img src={codeladderSvgLogo} alt="CodeLadder Logo" className="h-8 w-auto" />
+            <img src={logoSrc} alt="CodeLadder Logo" className="h-12 w-auto" />
           </div>
 
           {/* Exit button */}

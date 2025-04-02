@@ -27,24 +27,50 @@ export interface Problem {
   id: string;
   name: string;
   slug?: string;
+  description?: string;
   difficulty: Difficulty;
-  problemType?: ProblemType;
-  completed?: boolean;
-  required?: boolean;
+  required: boolean;
   reqOrder?: number;
-  collection?: string[];
-  collectionIds?: string[];
-  topic?: Topic;
   content?: string;
+  solution?: string;
+  problemType: ProblemType;
   codeTemplate?: string;
-  testCases?: string;
+  testCases?: TestCase[];
+  estimatedTime?: number;
+  topic?: Topic;
+  topicId?: string;
+  codeProblem?: CodeProblemType;
+  collections?: { collection: Collection }[];
+  collectionIds?: string[];
+  createdAt?: string;
+  updatedAt?: string;
+  progress?: Progress;
+  isCompleted?: boolean;
   nextProblemId?: string;
   nextProblemSlug?: string;
   prevProblemId?: string;
   prevProblemSlug?: string;
-  isCompleted?: boolean;
-  estimatedTime?: string | number;
+}
+
+/**
+ * Collection type for problem categorization
+ */
+export interface Collection {
+  id: string;
+  name: string;
+  slug?: string;
+  description?: string;
+}
+
+/**
+ * Progress type for tracking user progress on problems
+ */
+export interface Progress {
+  id?: string;
+  status?: string;
   reviewLevel?: number;
+  reviewScheduledAt?: string;
+  lastReviewedAt?: string;
 }
 
 /**
@@ -147,4 +173,20 @@ export interface ResizablePanelProps {
   children: React.ReactNode;
   onResize?: (width: number) => void;
   className?: string;
+}
+
+// New interfaces for the nested problem types
+export interface CodeProblemType {
+  questionId?: string;
+  codeTemplate: string | null;
+  language: string;
+  functionName: string | null;
+  timeLimit: number | null;
+  memoryLimit: number | null;
+  testCases?: TestCase[];
+}
+
+export interface InfoProblemType {
+  questionId?: string;
+  content: string;
 } 

@@ -6,7 +6,7 @@ import { ProblemTimer } from '../coding/timer/ProblemTimer';
 import { useProfile } from '@/features/profile/ProfileContext';
 import { useAuth } from '@/features/auth/AuthContext';
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
-import codeladderSvgLogo from '@/features/landingpage/images/CodeLadder.svg';
+import { useLogoSrc } from '@/features/landingpage/hooks/useLogoSrc';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { BorderlessThemeToggle } from "../shared/BorderlessThemeToggle";
 
@@ -47,6 +47,7 @@ export function InfoHeader({
 }: InfoHeaderProps) {
   const { profile } = useProfile();
   const { user } = useAuth();
+  const logoSrc = useLogoSrc('single');
 
   // Display the source context name with the problem title
   const displayTitle = sourceContext ? sourceContext.name : title;
@@ -56,7 +57,7 @@ export function InfoHeader({
       {/* Left section - Logo and Timer */}
       <div className="flex items-center gap-3">
         <Link to="/dashboard" className="flex items-center">
-          <img src={codeladderSvgLogo} alt="CodeLadder Logo" className="h-8 w-auto" />
+          <img src={logoSrc} alt="CodeLadder Logo" className="h-12 w-auto" />
         </Link>
         <ProblemTimer className="ml-3" />
       </div>

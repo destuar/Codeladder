@@ -3,6 +3,7 @@ import { useAuth } from '@/features/auth/AuthContext';
 import { api } from '@/lib/api';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
+import { useLocation } from 'react-router-dom';
 // Import shared types
 import { 
   AssessmentQuestion as QuizQuestion,
@@ -56,6 +57,7 @@ export type { QuizQuestion };
 export function useQuiz(quizId?: string) {
   const { token } = useAuth();
   const queryClient = useQueryClient();
+  const location = useLocation();
   
   // Store quiz state in sessionStorage instead of creating db attempt immediately
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
@@ -66,6 +68,7 @@ export function useQuiz(quizId?: string) {
   const [attemptId, setAttemptId] = useState<string | null>(null);
   const hasInitialized = useRef<boolean>(false);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
+  const initialTaskIdRef = useRef<string | null>(location.state?.taskId || null);
 
   // Save attempt ID to sessionStorage
   useEffect(() => {
@@ -250,6 +253,41 @@ export function useQuiz(quizId?: string) {
     },
     enabled: !!token && !!quizId
   });
+
+  // Check if we have a taskId in location state and update the currentQuestionIndex
+  // This needs to run after the quiz data has been loaded
+  useEffect(() => {
+    if (quiz?.questions && initialTaskIdRef.current && !hasInitialized.current) {
+      const taskId = initialTaskIdRef.current;
+      const questionIndex = quiz.questions.findIndex((q: QuizQuestion) => q.id === taskId);
+      
+      if (questionIndex !== -1) {
+        console.log(`Setting initial question index to ${questionIndex} based on taskId ${taskId}`);
+        setCurrentQuestionIndex(questionIndex);
+        
+        // Update the stored quiz state with the new index
+        if (quizId) {
+          const savedQuiz = sessionStorage.getItem(`quiz_${quizId}`);
+          if (savedQuiz) {
+            try {
+              const quizData = JSON.parse(savedQuiz);
+              quizData.currentQuestionIndex = questionIndex;
+              quizData.lastUpdated = new Date().toISOString();
+              sessionStorage.setItem(`quiz_${quizId}`, JSON.stringify(quizData));
+            } catch (e) {
+              console.error('Error updating current question index in sessionStorage:', e);
+            }
+          }
+        }
+      } else {
+        console.warn(`Could not find question with ID ${taskId} in quiz questions`);
+      }
+      
+      // Clear the taskId ref so we don't process it again
+      initialTaskIdRef.current = null;
+      hasInitialized.current = true;
+    }
+  }, [quiz, quizId]);
 
   // Check if quiz content has changed and reset session if needed
   useEffect(() => {
@@ -558,8 +596,23 @@ export function useQuiz(quizId?: string) {
   const goToQuestion = useCallback((index: number) => {
     if (quiz && index >= 0 && index < quiz.questions.length) {
       setCurrentQuestionIndex(index);
+      
+      // Update sessionStorage with new current question index
+      if (quizId) {
+        const savedQuiz = sessionStorage.getItem(`quiz_${quizId}`);
+        if (savedQuiz) {
+          try {
+            const quizData = JSON.parse(savedQuiz);
+            quizData.currentQuestionIndex = index;
+            quizData.lastUpdated = new Date().toISOString();
+            sessionStorage.setItem(`quiz_${quizId}`, JSON.stringify(quizData));
+          } catch (e) {
+            console.error('Error updating current question index in sessionStorage:', e);
+          }
+        }
+      }
     }
-  }, [quiz]);
+  }, [quiz, quizId]);
 
   // Save answer locally
   const saveAnswer = useCallback((questionId: string, answer: any) => {

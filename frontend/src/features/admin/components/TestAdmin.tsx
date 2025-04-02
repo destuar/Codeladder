@@ -17,6 +17,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 // Import the accordion components - comment out if they don't exist in your project
 // import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 
@@ -953,141 +954,96 @@ export function TestAdmin() {
               </CardHeader>
               
               <CardContent className="px-2 pt-2 pb-4">
-                {isLoading ? (
-                  <div className="flex flex-col items-center justify-center h-64">
-                    <Loader2 className="h-8 w-8 animate-spin" />
-                    <p className="mt-2 text-sm text-muted-foreground">Loading levels...</p>
-                  </div>
-                ) : fetchErrors.levels ? (
-                  <div className="flex flex-col items-center justify-center h-64">
-                    <Alert variant="destructive" className="w-full max-w-md">
-                      <AlertCircle className="h-4 w-4" />
-                      <AlertTitle>Error</AlertTitle>
-                      <AlertDescription>{fetchErrors.levels}</AlertDescription>
-                    </Alert>
-                  </div>
-                ) : levels.length === 0 ? (
-                  <div className="text-center py-8">
-                    <p className="text-muted-foreground">No levels found. Create some levels first.</p>
-                  </div>
-                ) : (
-                  <div className="space-y-4">
-                    {levels.map((level) => (
-                      <Card key={level.id} className="border rounded-lg overflow-hidden">
-                        <CardHeader className="px-4 py-3 cursor-pointer bg-secondary/10 hover:bg-secondary/20 flex flex-row items-center justify-between">
-                          <div className="flex items-center">
-                            <LevelIcon className="h-5 w-5 mr-2 text-muted-foreground" />
-                            <CardTitle className="text-lg">{level.name}</CardTitle>
-                            <Badge variant="outline" className="ml-2">
-                              {testsByLevel[level.id]?.length || 0} Tests
-                            </Badge>
-                          </div>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => handleCreateTest(level)}
-                          >
-                            <Plus className="h-4 w-4 mr-1" />
-                            Add Test
-                          </Button>
-                        </CardHeader>
-                        
-                        <CardContent className="pt-4 pb-2">
-                          {/* Error state for this level */}
-                          {fetchErrors[level.id] && (
-                            <Alert variant="destructive" className="mb-4">
-                              <AlertCircle className="h-4 w-4" />
-                              <AlertTitle>Error</AlertTitle>
-                              <AlertDescription>{fetchErrors[level.id]}</AlertDescription>
-                            </Alert>
-                          )}
-
-                          {/* Tests for this level */}
-                          <div>
-                            {/* Loading state */}
-                            {isLoading ? (
-                              <div className="flex justify-center py-4">
-                                <Loader2 className="h-6 w-6 animate-spin" />
-                              </div>
-                            ) : (testsByLevel[level.id]?.length || 0) === 0 ? (
-                              /* Empty state */
-                              <div className="py-2 text-center">
-                                <FileQuestion className="h-12 w-12 mx-auto text-muted-foreground mb-2" />
-                                <p className="text-sm text-muted-foreground">No tests yet for this level.</p>
-                                <Button
-                                  variant="outline"
-                                  size="sm"
-                                  className="mt-2"
-                                  onClick={() => handleCreateTest(level)}
-                                >
-                                  <Plus className="h-4 w-4 mr-1" />
-                                  Create Test
-                                </Button>
-                              </div>
-                            ) : (
-                              /* Test list */
-                              <div className="space-y-2 py-2">
-                                {testsByLevel[level.id]?.map((test) => (
-                                  <Card key={test.id} className="relative overflow-hidden">
-                                    {/* Test item */}
-                                    <div className="p-3 flex items-center justify-between">
-                                      {/* Test info */}
-                                      <div className="flex-1 min-w-0 mr-4">
-                                        <div className="flex items-center">
-                                          <ClipboardCheck className="h-4 w-4 mr-2 text-neutral-500 dark:text-neutral-400" />
-                                          <h4 className="font-medium truncate">{test.name}</h4>
-                                        </div>
-                                        
-                                        <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
-                                          <div className="flex items-center">
-                                            <Award className="h-3.5 w-3.5 mr-1" />
-                                            <span>Pass: {test.passingScore}%</span>
-                                          </div>
-                                          
-                                          {test.estimatedTime && (
-                                            <div className="flex items-center">
-                                              <Clock className="h-3.5 w-3.5 mr-1" />
-                                              <span>{formatTime(test.estimatedTime)}</span>
-                                            </div>
-                                          )}
-                                          
-                                          <div className="flex items-center">
-                                            <MessageSquare className="h-3.5 w-3.5 mr-1" />
-                                            <span>
-                                              {test._count?.questions || 0} {(test._count?.questions || 0) === 1 ? 'Question' : 'Questions'}
-                                            </span>
-                                          </div>
-                                        </div>
-                                      </div>
-                                      
-                                      {/* Action buttons */}
-                                      <div className="flex items-center gap-1">
-                                        <Button
-                                          variant="ghost"
-                                          size="icon"
-                                          onClick={() => handleEditTest(test)}
-                                        >
-                                          <Pencil className="h-4 w-4" />
-                                        </Button>
-                                        <Button
-                                          variant="ghost"
-                                          size="icon"
-                                          onClick={() => handleDeleteClick(test)}
-                                        >
-                                          <Trash className="h-4 w-4" />
-                                        </Button>
-                                      </div>
-                                    </div>
-                                  </Card>
-                                ))}
-                              </div>
-                            )}
-                          </div>
-                        </CardContent>
-                      </Card>
-                    ))}
-                  </div>
+                {/* Error state for this level */}
+                {fetchErrors[level.id] && (
+                  <Alert variant="destructive" className="mb-4">
+                    <AlertCircle className="h-4 w-4" />
+                    <AlertTitle>Error</AlertTitle>
+                    <AlertDescription>{fetchErrors[level.id]}</AlertDescription>
+                  </Alert>
                 )}
+
+                {/* Tests for this level */}
+                <div>
+                  {/* Loading state */}
+                  {isLoading ? (
+                    <div className="flex justify-center py-4">
+                      <Loader2 className="h-6 w-6 animate-spin" />
+                    </div>
+                  ) : (testsByLevel[level.id]?.length || 0) === 0 ? (
+                    /* Empty state */
+                    <div className="py-2 text-center">
+                      <FileQuestion className="h-12 w-12 mx-auto text-muted-foreground mb-2" />
+                      <p className="text-sm text-muted-foreground">No tests yet for this level.</p>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="mt-2"
+                        onClick={() => handleCreateTest(level)}
+                      >
+                        <Plus className="h-4 w-4 mr-1" />
+                        Create Test
+                      </Button>
+                    </div>
+                  ) : (
+                    /* Test list */
+                    <div className="space-y-2 py-2">
+                      {testsByLevel[level.id]?.map((test) => (
+                        <Card key={test.id} className="relative overflow-hidden">
+                          {/* Test item */}
+                          <div className="p-3 flex items-center justify-between">
+                            {/* Test info */}
+                            <div className="flex-1 min-w-0 mr-4">
+                              <div className="flex items-center">
+                                <ClipboardCheck className="h-4 w-4 mr-2 text-neutral-500 dark:text-neutral-400" />
+                                <h4 className="font-medium truncate">{test.name}</h4>
+                              </div>
+                              
+                              <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
+                                <div className="flex items-center">
+                                  <Award className="h-3.5 w-3.5 mr-1" />
+                                  <span>Pass: {test.passingScore}%</span>
+                                </div>
+                                
+                                {test.estimatedTime && (
+                                  <div className="flex items-center">
+                                    <Clock className="h-3.5 w-3.5 mr-1" />
+                                    <span>{formatTime(test.estimatedTime)}</span>
+                                  </div>
+                                )}
+                                
+                                <div className="flex items-center">
+                                  <MessageSquare className="h-3.5 w-3.5 mr-1" />
+                                  <span>
+                                    {test._count?.questions || 0} {(test._count?.questions || 0) === 1 ? 'Question' : 'Questions'}
+                                  </span>
+                                </div>
+                              </div>
+                            </div>
+                            
+                            {/* Action buttons */}
+                            <div className="flex items-center gap-1">
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => handleEditTest(test)}
+                              >
+                                <Pencil className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => handleDeleteClick(test)}
+                              >
+                                <Trash className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          </div>
+                        </Card>
+                      ))}
+                    </div>
+                  )}
+                </div>
               </CardContent>
             </Card>
           ))}
@@ -1291,80 +1247,77 @@ export function TestAdmin() {
             </DialogDescription>
           </DialogHeader>
           
-          <div className="space-y-4">
-            {/* Question Type Selector */}
-            <div>
-              <Label htmlFor="question-type">Question Type</Label>
-              <Select 
-                value={problemType} 
-                onValueChange={(value) => setProblemType(value as 'MULTIPLE_CHOICE' | 'CODE')}
-                disabled={isProblemEditMode} // Can't change type when editing
-              >
-                <SelectTrigger id="question-type">
-                  <SelectValue placeholder="Select question type" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="MULTIPLE_CHOICE">Multiple Choice</SelectItem>
-                  <SelectItem value="CODE">Code Problem</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            
-            {/* Common fields for both question types */}
-            <div>
-              <Label htmlFor="question-text">Question Text</Label>
-              <Textarea
-                id="question-text"
-                value={problemText}
-                onChange={(e) => setProblemText(e.target.value)}
-                placeholder="Enter the question text here..."
-                className="min-h-[100px]"
-              />
-            </div>
-            
-            <div className="grid grid-cols-3 gap-4">
+          {/* *** ADDED Tabs Structure *** */}
+          <Tabs 
+            value={problemType.toLowerCase().replace('_', '-')} 
+            onValueChange={(val) => {
+              if (val === 'multiple-choice') setProblemType('MULTIPLE_CHOICE');
+              else if (val === 'code') setProblemType('CODE');
+            }}
+            className="w-full mt-4" // Added mt-4
+          >
+            <TabsList className="grid w-full grid-cols-2">
+              <TabsTrigger value="multiple-choice" disabled={isProblemEditMode}>Multiple Choice</TabsTrigger>
+              <TabsTrigger value="code" disabled={isProblemEditMode}>Code Problem</TabsTrigger>
+            </TabsList>
+
+            {/* Common fields remain outside tabs but within a div below */}
+            <div className="mt-4 space-y-4">
               <div>
-                <Label htmlFor="points">Points</Label>
-                <Input
-                  id="points"
-                  type="number"
-                  min={1}
-                  value={problemPoints}
-                  onChange={(e) => setProblemPoints(Number(e.target.value))}
+                <Label htmlFor="question-text">Question Text</Label>
+                <Textarea
+                  id="question-text"
+                  value={problemText}
+                  onChange={(e) => setProblemText(e.target.value)}
+                  placeholder="Enter the question text here..."
+                  className="min-h-[100px]"
                 />
               </div>
-              <div>
-                <Label htmlFor="difficulty">Difficulty</Label>
-                <Select 
-                  value={problemDifficulty} 
-                  onValueChange={(value) => setProblemDifficulty(value)}
-                >
-                  <SelectTrigger id="difficulty">
-                    <SelectValue placeholder="Select difficulty" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="EASY">Easy</SelectItem>
-                    <SelectItem value="MEDIUM">Medium</SelectItem>
-                    <SelectItem value="HARD">Hard</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div>
-                <Label htmlFor="order-num">Order (Optional)</Label>
-                <Input
-                  id="order-num"
-                  type="number"
-                  min={1}
-                  value={problemOrderNum === null ? '' : problemOrderNum || ''}
-                  onChange={(e) => setProblemOrderNum(e.target.value ? Number(e.target.value) : undefined)}
-                  placeholder="Auto"
-                />
+              <div className="grid grid-cols-3 gap-4">
+                 {/* Points, Difficulty, Order */}
+                 <div>
+                  <Label htmlFor="points">Points</Label>
+                  <Input
+                    id="points"
+                    type="number"
+                    min={1}
+                    value={problemPoints}
+                    onChange={(e) => setProblemPoints(Number(e.target.value))}
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="difficulty">Difficulty</Label>
+                  <Select 
+                    value={problemDifficulty} 
+                    onValueChange={(value) => setProblemDifficulty(value)}
+                  >
+                    <SelectTrigger id="difficulty">
+                      <SelectValue placeholder="Select difficulty" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="EASY">Easy</SelectItem>
+                      <SelectItem value="MEDIUM">Medium</SelectItem>
+                      <SelectItem value="HARD">Hard</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label htmlFor="order-num">Order (Optional)</Label>
+                  <Input
+                    id="order-num"
+                    type="number"
+                    min={1}
+                    value={problemOrderNum === null ? '' : problemOrderNum || ''}
+                    onChange={(e) => setProblemOrderNum(e.target.value ? Number(e.target.value) : undefined)}
+                    placeholder="Auto"
+                  />
+                </div>
               </div>
             </div>
             
-            {/* Multiple Choice specific fields */}
-            {problemType === 'MULTIPLE_CHOICE' && (
-              <div className="space-y-4">
+            {/* *** Multiple Choice Tab Content *** */}
+            <TabsContent value="multiple-choice" className="mt-4 space-y-4">
+              {/* MC specific fields */}
                 <div>
                   <div className="flex justify-between items-center mb-2">
                     <Label>Answer Options</Label>
@@ -1377,7 +1330,6 @@ export function TestAdmin() {
                       <Plus className="h-4 w-4 mr-1" /> Add Option
                     </Button>
                   </div>
-                  
                   <div className="space-y-2 max-h-[300px] overflow-y-auto p-1">
                     {mcOptions.map((option, index) => (
                       <div key={index} className="flex items-start gap-2 border rounded-md p-2">
@@ -1435,7 +1387,6 @@ export function TestAdmin() {
                     ))}
                   </div>
                 </div>
-                
                 <div>
                   <Label htmlFor="explanation">Global Explanation (Optional)</Label>
                   <Textarea
@@ -1445,7 +1396,6 @@ export function TestAdmin() {
                     placeholder="Enter an explanation for the correct answer"
                   />
                 </div>
-                
                 <div className="flex items-center space-x-2">
                   <Checkbox
                     id="shuffle-options"
@@ -1456,12 +1406,11 @@ export function TestAdmin() {
                     Shuffle answer options for each student
                   </Label>
                 </div>
-              </div>
-            )}
-            
-            {/* Code problem specific fields */}
-            {problemType === 'CODE' && (
-              <div className="space-y-4">
+             </TabsContent>
+
+            {/* *** Code Tab Content *** */}
+            <TabsContent value="code" className="mt-4 space-y-4">
+              {/* Code problem specific fields */}
                 <div>
                   <Label htmlFor="language">Programming Language</Label>
                   <Select 
@@ -1480,7 +1429,6 @@ export function TestAdmin() {
                     </SelectContent>
                   </Select>
                 </div>
-                
                 <div>
                   <Label htmlFor="code-template">Code Template (Optional)</Label>
                   <Textarea
@@ -1491,7 +1439,6 @@ export function TestAdmin() {
                     className="min-h-[120px] font-mono text-sm"
                   />
                 </div>
-                
                 <div>
                   <Label htmlFor="function-name">Function Name (Optional)</Label>
                   <Input
@@ -1501,8 +1448,8 @@ export function TestAdmin() {
                     placeholder="e.g., calculateSum"
                   />
                 </div>
-                
                 <div className="grid grid-cols-2 gap-4">
+                   {/* Time/Memory Limits */} 
                   <div>
                     <Label htmlFor="time-limit">Time Limit (ms)</Label>
                     <Input
@@ -1525,7 +1472,6 @@ export function TestAdmin() {
                     />
                   </div>
                 </div>
-                
                 <div>
                   <div className="flex justify-between items-center mb-2">
                     <Label>Test Cases</Label>
@@ -1538,7 +1484,6 @@ export function TestAdmin() {
                       <Plus className="h-4 w-4 mr-1" /> Add Test Case
                     </Button>
                   </div>
-                  
                   <div className="space-y-3 max-h-[300px] overflow-y-auto p-1">
                     {codeTestCases.map((testCase, index) => (
                       <div key={index} className="border rounded-md p-3 space-y-2">
@@ -1608,15 +1553,14 @@ export function TestAdmin() {
                     ))}
                   </div>
                 </div>
-              </div>
-            )}
-          </div>
+            </TabsContent>
+            {/* *** End Tabs Content *** */}
+          </Tabs> 
+          {/* *** End Tabs Wrapper *** */}
           
           <DialogFooter>
-            <Button variant="outline" onClick={handleCloseProblemDialog}>
-              Cancel
-            </Button>
-            <Button onClick={handleSaveProblem}>
+             <Button variant="outline" onClick={handleCloseProblemDialog}>Cancel</Button>
+             <Button onClick={handleSaveProblem}>
               {isProblemEditMode ? 'Update Question' : 'Add Question'}
             </Button>
           </DialogFooter>
