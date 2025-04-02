@@ -14,22 +14,36 @@ import { Request } from 'express';
 const JUDGE0_TIMEOUT = Number(env.JUDGE0_TIMEOUT) || 10000;
 
 // Define the Judge0 API URL and auth token
-const JUDGE0_API = env.JUDGE0_API_URL || 'http://localhost:2358';
+const JUDGE0_API = env.JUDGE0_API_URL || 'https://judge0-ce.p.rapidapi.com';
 const JUDGE0_AUTH_TOKEN = env.JUDGE0_AUTH_TOKEN;
+const JUDGE0_HOST = env.JUDGE0_HOST || 'judge0-ce.p.rapidapi.com';
 
-// Language ID mapping for Judge0
-// Reference: https://github.com/judge0/judge0/blob/master/docs/api/resources/languages/id.md
+// Language ID mapping for Judge0 CE
+// Based on current available languages from Judge0 CE API
 const LANGUAGE_IDS: Record<string, number> = {
-  'javascript': 63,
-  'python': 71,
-  'python3': 71,
-  'java': 62,
-  'cpp': 54,
-  'c': 50,
-  'go': 60,
-  'rust': 73,
-  'ruby': 72,
-  'typescript': 74
+  'javascript': 102,  // JavaScript (Node.js 22.08.0)
+  'python': 109,      // Python (3.13.2)
+  'python3': 109,     // Python (3.13.2)
+  'java': 91,         // Java (JDK 17.0.6)
+  'cpp': 105,         // C++ (GCC 14.1.0)
+  'c': 103,           // C (GCC 14.1.0)
+  'go': 107,          // Go (1.23.5)
+  'rust': 108,        // Rust (1.85.0)
+  'ruby': 72,         // Ruby (2.7.0)
+  'typescript': 101,  // TypeScript (5.6.2)
+  'c#': 51,           // C# (Mono 6.6.0.161)
+  'cs': 51            // C# alias
+};
+
+// Backup mapping for Judge0 Extra CE (if needed)
+const EXTRA_LANGUAGE_IDS: Record<string, number> = {
+  'python': 28,    // Python 3.10 (PyPy 7.3.12)
+  'python3': 28,   // Python 3.10 (PyPy 7.3.12)
+  'java': 4,       // Java (OpenJDK 14.0.1)
+  'cpp': 2,        // C++ (Clang 10.0.1)
+  'c': 1,          // C (Clang 10.0.1)
+  'c#': 29,        // C# (.NET Core SDK 7.0.400)
+  'cs': 29         // C# alias
 };
 
 // Submission request interface
@@ -132,7 +146,8 @@ export async function submitCode(
       {
         headers: {
           'Content-Type': 'application/json',
-          ...(JUDGE0_AUTH_TOKEN && { 'X-Auth-Token': JUDGE0_AUTH_TOKEN }),
+          'X-RapidAPI-Key': JUDGE0_AUTH_TOKEN,
+          'X-RapidAPI-Host': JUDGE0_HOST
         },
         timeout: JUDGE0_TIMEOUT,
       }
@@ -175,7 +190,8 @@ async function getSubmissionResult(token: string): Promise<ProcessedResult> {
         {
           headers: {
             'Content-Type': 'application/json',
-            ...(JUDGE0_AUTH_TOKEN && { 'X-Auth-Token': JUDGE0_AUTH_TOKEN }),
+            'X-RapidAPI-Key': JUDGE0_AUTH_TOKEN,
+            'X-RapidAPI-Host': JUDGE0_HOST
           },
           params: {
             base64_encoded: 'true',

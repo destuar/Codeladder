@@ -16,9 +16,14 @@ const envSchema = z.object({
   AWS_REGION: z.string().optional(),
   S3_BUCKET: z.string().optional(),
   // Judge0 configuration
-  JUDGE0_API_URL: z.string().default('http://localhost:2358'),
+  JUDGE0_API_URL: z.string().default('https://judge0-ce.p.rapidapi.com'),
   JUDGE0_AUTH_TOKEN: z.string().optional(),
+  JUDGE0_HOST: z.string().default('judge0-ce.p.rapidapi.com'),
   JUDGE0_TIMEOUT: z.string().default('10000'),
+  // Judge0 Extra configuration (backup)
+  JUDGE0_EXTRA_API_URL: z.string().default('https://judge0-extra-ce.p.rapidapi.com').optional(),
+  JUDGE0_EXTRA_AUTH_TOKEN: z.string().optional(),
+  JUDGE0_EXTRA_HOST: z.string().default('judge0-extra-ce.p.rapidapi.com').optional(),
 });
 
 const env = envSchema.parse(process.env);
