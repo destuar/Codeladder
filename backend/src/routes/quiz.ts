@@ -1101,7 +1101,8 @@ router.put('/:id', authenticateToken, authorizeRoles([Role.ADMIN, Role.DEVELOPER
       passingScore, 
       estimatedTime, 
       orderNum,
-      assessmentType // We don't allow changing this, but we check it for consistency
+      assessmentType, // We don't allow changing this, but we check it for consistency
+      problems = [] // Extract problems array from request
     } = req.body;
 
     // Validate inputs
@@ -1179,15 +1180,306 @@ router.put('/:id', authenticateToken, authorizeRoles([Role.ADMIN, Role.DEVELOPER
       updateData.levelId = levelId;
     }
 
-    // Update the assessment
-    const updatedAssessment = await prisma.quiz.update({
-      where: { id },
-      data: updateData
+    // Use a transaction to ensure all operations succeed or fail together
+    const result = await prisma.$transaction(async (prisma) => {
+      // Update the assessment
+      const updatedAssessment = await prisma.quiz.update({
+        where: { id },
+        data: updateData
+      });
+
+      // If problems array is provided, handle updating problems
+      if (Array.isArray(problems) && problems.length > 0) {
+        // Get existing questions to determine which to update/delete
+        const existingQuestions = await prisma.quizQuestion.findMany({
+          where: { quizId: id },
+          include: {
+            mcProblem: {
+              include: {
+                options: true
+              }
+            },
+            codeProblem: {
+              include: {
+                testCases: true
+              }
+            }
+          }
+        });
+
+        // Track existing question IDs
+        const existingQuestionIds = existingQuestions.map(q => q.id);
+        
+        // Track problem IDs we're keeping in this update
+        const providedProblemIds = problems
+          .filter((p: any) => p.id)
+          .map((p: any) => p.id);
+        
+        // Delete questions that aren't in the updated list
+        const questionsToDelete = existingQuestionIds.filter(
+          id => !providedProblemIds.includes(id)
+        );
+        
+        if (questionsToDelete.length > 0) {
+          console.log(`Deleting ${questionsToDelete.length} questions that were removed`);
+          await prisma.quizQuestion.deleteMany({
+            where: {
+              id: { in: questionsToDelete }
+            }
+          });
+        }
+
+        // Process each problem in the provided array
+        for (let i = 0; i < problems.length; i++) {
+          const problem = problems[i];
+          const orderNum = problem.orderNum || i + 1;
+          
+          if (problem.id) {
+            // This is an existing problem - update it
+            const existingQuestion = existingQuestions.find(q => q.id === problem.id);
+            
+            if (!existingQuestion) {
+              console.warn(`Question with ID ${problem.id} not found, skipping update`);
+              continue;
+            }
+            
+            // Update the base question
+            await prisma.quizQuestion.update({
+              where: { id: problem.id },
+              data: {
+                questionText: problem.questionText,
+                points: problem.points || 1,
+                orderNum,
+                difficulty: problem.difficulty || 'MEDIUM'
+              }
+            });
+            
+            // Handle specific problem types
+            if (problem.questionType === 'MULTIPLE_CHOICE' && existingQuestion.mcProblem) {
+              // Update MC problem
+              await prisma.mcProblem.update({
+                where: { questionId: problem.id },
+                data: {
+                  explanation: problem.explanation || null,
+                  shuffleOptions: problem.shuffleOptions !== false
+                }
+              });
+              
+              // Handle options - more complex as we need to add/update/delete
+              if (Array.isArray(problem.options)) {
+                const mcProblemId = existingQuestion.mcProblem.questionId;
+                const existingOptions = existingQuestion.mcProblem.options;
+                const existingOptionIds = existingOptions.map(o => o.id);
+                
+                // Find option IDs that are in the request
+                const updatedOptionIds = problem.options
+                  .filter((o: any) => o.id)
+                  .map((o: any) => o.id);
+                
+                // Delete options that aren't in the updated list
+                const optionsToDelete = existingOptionIds.filter(
+                  id => !updatedOptionIds.includes(id)
+                );
+                
+                if (optionsToDelete.length > 0) {
+                  await prisma.mcOption.deleteMany({
+                    where: {
+                      id: { in: optionsToDelete }
+                    }
+                  });
+                }
+                
+                // Add or update each option
+                for (let j = 0; j < problem.options.length; j++) {
+                  const option = problem.options[j];
+                  
+                  if (option.id) {
+                    // Update existing option
+                    await prisma.mcOption.update({
+                      where: { id: option.id },
+                      data: {
+                        optionText: option.text,
+                        isCorrect: option.isCorrect === true,
+                        explanation: option.explanation || null,
+                        orderNum: option.orderNum || j + 1
+                      }
+                    });
+                  } else {
+                    // Create new option
+                    await prisma.mcOption.create({
+                      data: {
+                        questionId: mcProblemId,
+                        optionText: option.text,
+                        isCorrect: option.isCorrect === true,
+                        explanation: option.explanation || null,
+                        orderNum: option.orderNum || j + 1
+                      }
+                    });
+                  }
+                }
+              }
+            } else if (problem.questionType === 'CODE' && existingQuestion.codeProblem) {
+              // Update code problem
+              await prisma.codeProblem.update({
+                where: { questionId: problem.id },
+                data: {
+                  language: problem.language || 'javascript',
+                  codeTemplate: problem.codeTemplate || null,
+                  functionName: problem.functionName || null,
+                  timeLimit: problem.timeLimit || 5000,
+                  memoryLimit: problem.memoryLimit || null
+                }
+              });
+              
+              // Handle test cases - similar to options
+              if (Array.isArray(problem.testCases)) {
+                const codeProblemId = existingQuestion.codeProblem.questionId;
+                const existingTestCases = existingQuestion.codeProblem.testCases;
+                const existingTestCaseIds = existingTestCases.map(tc => tc.id);
+                
+                // Find test case IDs that are in the request
+                const updatedTestCaseIds = problem.testCases
+                  .filter((tc: any) => tc.id)
+                  .map((tc: any) => tc.id);
+                
+                // Delete test cases that aren't in the updated list
+                const testCasesToDelete = existingTestCaseIds.filter(
+                  id => !updatedTestCaseIds.includes(id)
+                );
+                
+                if (testCasesToDelete.length > 0) {
+                  await prisma.testCase.deleteMany({
+                    where: {
+                      id: { in: testCasesToDelete }
+                    }
+                  });
+                }
+                
+                // Add or update each test case
+                for (let j = 0; j < problem.testCases.length; j++) {
+                  const testCase = problem.testCases[j];
+                  
+                  if (testCase.id) {
+                    // Update existing test case
+                    await prisma.testCase.update({
+                      where: { id: testCase.id },
+                      data: {
+                        input: testCase.input || '',
+                        expectedOutput: testCase.expectedOutput || '',
+                        isHidden: testCase.isHidden === true,
+                        orderNum: testCase.orderNum || j + 1
+                      }
+                    });
+                  } else {
+                    // Create new test case
+                    await prisma.testCase.create({
+                      data: {
+                        codeProblemId,
+                        input: testCase.input || '',
+                        expectedOutput: testCase.expectedOutput || '',
+                        isHidden: testCase.isHidden === true,
+                        orderNum: testCase.orderNum || j + 1
+                      }
+                    });
+                  }
+                }
+              }
+            }
+          } else {
+            // This is a new problem - create it
+            if (problem.questionType === 'MULTIPLE_CHOICE') {
+              // Create MC question with options
+              const question = await prisma.quizQuestion.create({
+                data: {
+                  quizId: id,
+                  questionText: problem.questionText,
+                  questionType: 'MULTIPLE_CHOICE',
+                  points: problem.points || 1,
+                  orderNum,
+                  difficulty: problem.difficulty || 'MEDIUM',
+                  mcProblem: {
+                    create: {
+                      explanation: problem.explanation || null,
+                      shuffleOptions: problem.shuffleOptions !== false
+                    }
+                  }
+                },
+                include: {
+                  mcProblem: true
+                }
+              });
+              
+              // Create options
+              if (Array.isArray(problem.options) && question.mcProblem) {
+                const mcProblemId = question.mcProblem.questionId;
+                
+                for (let j = 0; j < problem.options.length; j++) {
+                  const option = problem.options[j];
+                  await prisma.mcOption.create({
+                    data: {
+                      questionId: mcProblemId,
+                      optionText: option.text,
+                      isCorrect: option.isCorrect === true,
+                      explanation: option.explanation || null,
+                      orderNum: option.orderNum || j + 1
+                    }
+                  });
+                }
+              }
+            } else if (problem.questionType === 'CODE') {
+              // Create CODE question with test cases
+              const question = await prisma.quizQuestion.create({
+                data: {
+                  quizId: id,
+                  questionText: problem.questionText,
+                  questionType: 'CODE',
+                  points: problem.points || 1,
+                  orderNum,
+                  difficulty: problem.difficulty || 'MEDIUM',
+                  codeProblem: {
+                    create: {
+                      language: problem.language || 'javascript',
+                      codeTemplate: problem.codeTemplate || null,
+                      functionName: problem.functionName || null,
+                      timeLimit: problem.timeLimit || 5000,
+                      memoryLimit: problem.memoryLimit || null
+                    }
+                  }
+                },
+                include: {
+                  codeProblem: true
+                }
+              });
+              
+              // Create test cases
+              if (Array.isArray(problem.testCases) && question.codeProblem) {
+                const codeProblemId = question.codeProblem.questionId;
+                
+                for (let j = 0; j < problem.testCases.length; j++) {
+                  const testCase = problem.testCases[j];
+                  await prisma.testCase.create({
+                    data: {
+                      codeProblemId,
+                      input: testCase.input || '',
+                      expectedOutput: testCase.expectedOutput || '',
+                      isHidden: testCase.isHidden === true,
+                      orderNum: testCase.orderNum || j + 1
+                    }
+                  });
+                }
+              }
+            }
+          }
+        }
+      }
+      
+      return updatedAssessment;
     });
 
-    res.json(updatedAssessment);
+    console.log(`Updated ${isQuiz ? 'quiz' : 'test'} with ID ${id} and processed problems`);
+    res.json(result);
   } catch (error) {
-    console.error('Error updating quiz/test:', error);
+    console.error('Error updating quiz/test with problems:', error);
     res.status(500).json({ 
       error: 'Failed to update quiz/test',
       details: error instanceof Error ? error.message : 'Unknown error'
@@ -1926,7 +2218,8 @@ router.post('/', authenticateToken, authorizeRoles([Role.ADMIN, Role.DEVELOPER])
       passingScore, 
       estimatedTime, 
       orderNum,
-      assessmentType = 'QUIZ' // Default to QUIZ for backward compatibility
+      assessmentType = 'QUIZ', // Default to QUIZ for backward compatibility
+      problems = [] // Extract problems array from request
     } = req.body;
 
     // Validate basic inputs
@@ -1978,23 +2271,129 @@ router.post('/', authenticateToken, authorizeRoles([Role.ADMIN, Role.DEVELOPER])
       }
     }
 
-    // Create the quiz or test
-    const newAssessment = await prisma.quiz.create({
-      data: {
-        name,
-        description,
-        topicId, // Will be null for tests
-        levelId, // Will be null for quizzes
-        passingScore: passingScore ? parseInt(passingScore) : 70,
-        estimatedTime: estimatedTime ? parseInt(estimatedTime) : null,
-        orderNum: orderNum ? parseInt(orderNum) : null,
-        assessmentType, // Save the assessment type
+    // Create the quiz or test using a transaction to ensure all operations succeed or fail together
+    const result = await prisma.$transaction(async (prisma) => {
+      // Create the quiz/test first
+      const newAssessment = await prisma.quiz.create({
+        data: {
+          name,
+          description,
+          topicId, // Will be null for tests
+          levelId, // Will be null for quizzes
+          passingScore: passingScore ? parseInt(passingScore.toString()) : 70,
+          estimatedTime: estimatedTime ? parseInt(estimatedTime.toString()) : null,
+          orderNum: orderNum ? parseInt(orderNum.toString()) : null,
+          assessmentType, // Save the assessment type
+        }
+      });
+
+      // Create problems if any are provided
+      const createdProblems = [];
+      if (Array.isArray(problems) && problems.length > 0) {
+        for (let i = 0; i < problems.length; i++) {
+          const problem = problems[i];
+          const orderNum = problem.orderNum || i + 1;
+          
+          if (problem.questionType === 'MULTIPLE_CHOICE') {
+            // Create MC question with options
+            const question = await prisma.quizQuestion.create({
+              data: {
+                quizId: newAssessment.id,
+                questionText: problem.questionText,
+                questionType: 'MULTIPLE_CHOICE',
+                points: problem.points || 1,
+                orderNum,
+                difficulty: problem.difficulty || 'MEDIUM',
+                mcProblem: {
+                  create: {
+                    explanation: problem.explanation || null,
+                    shuffleOptions: problem.shuffleOptions !== false
+                  }
+                }
+              },
+              include: {
+                mcProblem: true
+              }
+            });
+            
+            // Create options
+            if (Array.isArray(problem.options) && question.mcProblem) {
+              const mcProblemId = question.mcProblem.questionId;
+              
+              for (let j = 0; j < problem.options.length; j++) {
+                const option = problem.options[j];
+                await prisma.mcOption.create({
+                  data: {
+                    questionId: mcProblemId,
+                    optionText: option.text,
+                    isCorrect: option.isCorrect === true,
+                    explanation: option.explanation || null,
+                    orderNum: option.orderNum || j + 1
+                  }
+                });
+              }
+            }
+            
+            createdProblems.push(question);
+          } else if (problem.questionType === 'CODE') {
+            // Create CODE question with test cases
+            const question = await prisma.quizQuestion.create({
+              data: {
+                quizId: newAssessment.id,
+                questionText: problem.questionText,
+                questionType: 'CODE',
+                points: problem.points || 1,
+                orderNum,
+                difficulty: problem.difficulty || 'MEDIUM',
+                codeProblem: {
+                  create: {
+                    language: problem.language || 'javascript',
+                    codeTemplate: problem.codeTemplate || null,
+                    functionName: problem.functionName || null,
+                    timeLimit: problem.timeLimit || 5000,
+                    memoryLimit: problem.memoryLimit || null
+                  }
+                }
+              },
+              include: {
+                codeProblem: true
+              }
+            });
+            
+            // Create test cases
+            if (Array.isArray(problem.testCases) && question.codeProblem) {
+              const codeProblemId = question.codeProblem.questionId;
+              
+              for (let j = 0; j < problem.testCases.length; j++) {
+                const testCase = problem.testCases[j];
+                await prisma.testCase.create({
+                  data: {
+                    codeProblemId,
+                    input: testCase.input || '',
+                    expectedOutput: testCase.expectedOutput || '',
+                    isHidden: testCase.isHidden === true,
+                    orderNum: testCase.orderNum || j + 1
+                  }
+                });
+              }
+            }
+            
+            createdProblems.push(question);
+          }
+        }
       }
+      
+      // Return the assessment with count of created problems
+      return {
+        assessment: newAssessment,
+        problemCount: createdProblems.length
+      };
     });
 
-    res.status(201).json(newAssessment);
+    console.log(`Created ${assessmentType} with ${result.problemCount} problems`);
+    res.status(201).json(result.assessment);
   } catch (error) {
-    console.error('Error creating quiz/test:', error);
+    console.error('Error creating quiz/test with problems:', error);
     res.status(500).json({ 
       error: 'Failed to create quiz/test',
       details: error instanceof Error ? error.message : 'Unknown error'

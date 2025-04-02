@@ -96,19 +96,27 @@ model Collection {
 model Problem {
   id            String                @id @default(cuid())
   name          String
-  slug          String?   @unique  // URL-friendly unique identifier
+  slug          String?               @unique
   description   String?               @db.Text
   difficulty    Difficulty
   required      Boolean               @default(false)
-  reqOrder      Int? // Order number for required problems
-  content       String?               @db.Text // Problem content/description
+  reqOrder      Int?
+  content       String?               @db.Text // Legacy content field (for backward compatibility)
   solution      String?               @db.Text // Solution or hints
-  problemType   ProblemType           @default(INFO) // Type of problem (Info, Coding, or Standalone Info)
-  codeTemplate  String?               @db.Text // Starting code template for coding problems
-  testCases     Json? // Test cases for coding problems
+  problemType   ProblemType           @default(INFO)
+  codeTemplate  String?               @db.Text // Legacy code template (for backward compatibility)
+  testCases     Json? // Legacy test cases (for backward compatibility)
   estimatedTime Int? // Estimated time to complete the problem (in minutes)
   topic         Topic?                @relation(fields: [topicId], references: [id]) // Make topic optional for standalone info
   topicId       String? // Make topicId optional for standalone info
+  
+  // Reference to a code problem (if this is a CODE type problem)
+  codeProblem     CodeProblem? @relation(fields: [codeProblemId], references: [questionId])
+  codeProblemId   String?      @unique @map("code_problem_id")
+  
+  // Relation to info problem
+  infoProblem     InfoProblem?
+  
   completedBy   User[]                @relation("UserCompletedProblems")
   progress      Progress[]
   collections   ProblemToCollection[] // Relation to collections
@@ -302,8 +310,11 @@ model CodeProblem {
   codeTemplate String?      @map("code_template") @db.Text
   functionName String?      @map("function_name")
   language     String       @default("javascript")
-  timeLimit    Int          @default(5000) @map("time_limit") // Execution time limit in ms
-  memoryLimit  Int?         @map("memory_limit") // Memory limit in MB if applicable
+  timeLimit    Int          @default(5000) @map("time_limit")
+  memoryLimit  Int?         @map("memory_limit")
+
+  // Problem using this code problem setup
+  problem      Problem?
 
   // Test cases for this problem
   testCases TestCase[]
@@ -446,4 +457,17 @@ enum SubmissionStatus {
 enum AssessmentType {
   QUIZ
   TEST
+}
+
+// New model for info problems
+model InfoProblem {
+  id          String   @id @default(cuid())
+  problem     Problem  @relation(fields: [problemId], references: [id], onDelete: Cascade)
+  problemId   String   @unique @map("problem_id")
+  content     String   @db.Text
+  
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@map("info_problems")
 }
