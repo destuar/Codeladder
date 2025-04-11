@@ -15,7 +15,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { useState } from "react";
+import { useState, useEffect, useMemo } from "react";
 
 interface TestCaseTabProps {
   testCases: TestCaseType[];
@@ -32,6 +32,47 @@ export function TestCaseTab({
   const [customInput, setCustomInput] = useState('');
   const [customExpected, setCustomExpected] = useState('');
 
+  // Process the current test case to ensure it has the right structure
+  const currentTestCase = useMemo(() => {
+    if (selectedTestCase === null || !testCases[selectedTestCase]) {
+      return null;
+    }
+
+    const testCase = testCases[selectedTestCase];
+    
+    // Create a normalized version of the test case with proper array inputs
+    return {
+      ...testCase,
+      input: (() => {
+        // If input is undefined, return empty array
+        if (!testCase.input) {
+          return [];
+        }
+        
+        // If input is already an array, use it
+        if (Array.isArray(testCase.input)) {
+          return testCase.input;
+        }
+        
+        // If input is a string that looks like JSON, try to parse it
+        if (typeof testCase.input === 'string') {
+          try {
+            // Try to parse the string as JSON
+            const parsed = JSON.parse(testCase.input);
+            // If parsed result is an array, use it, otherwise wrap in array
+            return Array.isArray(parsed) ? parsed : [parsed];
+          } catch (e) {
+            // If parsing fails, treat the string as a single input
+            return [testCase.input];
+          }
+        }
+        
+        // Default: wrap in array
+        return [testCase.input];
+      })()
+    };
+  }, [testCases, selectedTestCase]);
+
   // Handle adding custom test case
   const handleAddTestCase = () => {
     // This would typically call a backend API or update state
@@ -47,7 +88,7 @@ export function TestCaseTab({
       {/* Test case tabs */}
       <div className="p-2 flex items-center gap-2 flex-shrink-0 bg-background">
         <div className="flex gap-2 py-1 px-4">
-          {testCases.map((_, index) => (
+          {testCases.map((testCase, index) => (
             <button
               key={index}
               className={cn(
@@ -59,6 +100,7 @@ export function TestCaseTab({
               onClick={() => setSelectedTestCase(index)}
             >
               Case {index + 1}
+              {testCase.isHidden && <span className="ml-1 text-xs opacity-60">(hidden)</span>}
             </button>
           ))}
           <Dialog open={isAddingTestCase} onOpenChange={setIsAddingTestCase}>
@@ -115,59 +157,91 @@ export function TestCaseTab({
       
       {/* Test case content */}
       <ScrollArea className="flex-1" type="hover">
-        {selectedTestCase !== null && selectedTestCase < testCases.length ? (
+        {currentTestCase && !currentTestCase.isHidden ? (
           <div className="p-4 pb-8 space-y-4">
-            {/* Display test case input parameters */}
-            {testCases[selectedTestCase].input && Array.isArray(testCases[selectedTestCase].input) && (
+            {/* Input section */}
+            {currentTestCase.input && (
               <div>
                 <h3 className="text-sm font-medium mb-2">Input</h3>
-                <div className="space-y-1 mb-3">
-                  <div className="text-xs text-muted-foreground font-mono">
-                    {/* Try to determine parameter name from functionName, or default to "input" */}
-                    {(() => {
-                      if (testCases[selectedTestCase].input.length === 1) {
-                        return "nums";
-                      } else if (testCases[selectedTestCase].input.length === 2) {
-                        return "nums"; // First parameter
-                      }
-                      return "input";
-                    })()}
-                    {" ="}
-                  </div>
-                  <div className="bg-muted/50 border rounded-md p-3">
-                    <pre className="text-sm whitespace-pre-wrap break-all">
+                
+                {/* Display first parameter */}
+                {currentTestCase.input.length >= 1 && (
+                  <div className="space-y-1 mb-3">
+                    <div className="text-xs text-muted-foreground font-mono">
+                      {/* Try to determine parameter name */}
                       {(() => {
-                        // For demo purposes, assume first array element is nums
-                        if (testCases[selectedTestCase].input.length >= 1) {
-                          return JSON.stringify(testCases[selectedTestCase].input[0], null, 2);
+                        if (currentTestCase.functionName) {
+                          return `${currentTestCase.functionName} param 1`;
+                        } else {
+                          return "input";
                         }
-                        return JSON.stringify(testCases[selectedTestCase].input, null, 2);
                       })()}
-                    </pre>
+                      {" ="}
+                    </div>
+                    <div className="bg-muted/50 border rounded-md p-3">
+                      <pre className="text-sm whitespace-pre-wrap break-all">
+                        {JSON.stringify(currentTestCase.input[0], null, 2)}
+                      </pre>
+                    </div>
                   </div>
-                </div>
-              </div>
-            )}
-            
-            {/* Second parameter (if exists) */}
-            {testCases[selectedTestCase].input && Array.isArray(testCases[selectedTestCase].input) && testCases[selectedTestCase].input.length >= 2 && (
-              <div>
-                <div className="text-xs text-muted-foreground font-mono mb-2">target =</div>
-                <div className="bg-muted/50 border rounded-md p-3">
-                  <pre className="text-sm whitespace-pre-wrap break-all">{JSON.stringify(testCases[selectedTestCase].input[1], null, 2)}</pre>
-                </div>
+                )}
+                
+                {/* Display second parameter (if exists) */}
+                {currentTestCase.input.length >= 2 && (
+                  <div className="space-y-1 mb-3">
+                    <div className="text-xs text-muted-foreground font-mono">
+                      {(() => {
+                        if (currentTestCase.functionName) {
+                          return `${currentTestCase.functionName} param 2`;
+                        } else {
+                          return "target";
+                        }
+                      })()}
+                      {" ="}
+                    </div>
+                    <div className="bg-muted/50 border rounded-md p-3">
+                      <pre className="text-sm whitespace-pre-wrap break-all">
+                        {JSON.stringify(currentTestCase.input[1], null, 2)}
+                      </pre>
+                    </div>
+                  </div>
+                )}
+                
+                {/* Additional parameters if they exist */}
+                {currentTestCase.input.length >= 3 && 
+                  currentTestCase.input.slice(2).map((param, idx) => (
+                    <div key={idx} className="space-y-1 mb-3">
+                      <div className="text-xs text-muted-foreground font-mono">
+                        {`param ${idx + 3} =`}
+                      </div>
+                      <div className="bg-muted/50 border rounded-md p-3">
+                        <pre className="text-sm whitespace-pre-wrap break-all">
+                          {JSON.stringify(param, null, 2)}
+                        </pre>
+                      </div>
+                    </div>
+                  ))
+                }
               </div>
             )}
             
             {/* Expected output */}
-            {testCases[selectedTestCase]?.expected !== undefined && (
+            {currentTestCase?.expected !== undefined && (
               <div>
                 <h3 className="text-sm font-medium mb-2">Expected</h3>
                 <div className="bg-muted/50 border rounded-md p-3">
-                  <pre className="text-sm whitespace-pre-wrap break-all">{JSON.stringify(testCases[selectedTestCase].expected, null, 2)}</pre>
+                  <pre className="text-sm whitespace-pre-wrap break-all">
+                    {JSON.stringify(currentTestCase.expected, null, 2)}
+                  </pre>
                 </div>
               </div>
             )}
+          </div>
+        ) : currentTestCase && currentTestCase.isHidden ? (
+          <div className="p-4 flex items-center justify-center h-full">
+            <div className="text-center text-muted-foreground">
+              <p>This is a hidden test case. Details are not shown to avoid giving away the solution.</p>
+            </div>
           </div>
         ) : (
           <div className="p-4 flex items-center justify-center h-full">

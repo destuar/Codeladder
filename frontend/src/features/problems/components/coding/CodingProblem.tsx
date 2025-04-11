@@ -81,10 +81,32 @@ export default function CodingProblem({
     try {
       // Check if testCasesString is already an object
       if (testCasesString && typeof testCasesString === 'object') {
+        console.log("TestCases is already an object:", testCasesString);
         return testCasesString;
       }
       // Otherwise try to parse it as JSON
-      return JSON.parse(testCasesString || '[]');
+      const parsed = JSON.parse(testCasesString || '[]');
+      console.log("TestCases parsed from JSON:", parsed);
+      
+      // Format validation and conversion
+      if (Array.isArray(parsed)) {
+        // Make sure each test case has an input property as an array
+        const formatted = parsed.map(tc => {
+          // If input is not an array, make it an array
+          if (tc.input && !Array.isArray(tc.input)) {
+            console.log("Converting non-array input to array:", tc.input);
+            return {
+              ...tc,
+              input: [tc.input]
+            };
+          }
+          return tc;
+        });
+        console.log("Formatted test cases:", formatted);
+        return formatted;
+      }
+      
+      return parsed;
     } catch (e) {
       console.error('Error parsing test cases:', e);
       return [];
@@ -253,7 +275,6 @@ export default function CodingProblem({
                 problemId={problemId}
                 onRunComplete={() => {}}
                 language={selectedLanguage}
-                onLanguageChange={handleLanguageChange}
                 isRunning={isRunning}
                 setIsRunning={setIsRunning}
               />
