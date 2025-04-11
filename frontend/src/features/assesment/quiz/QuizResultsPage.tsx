@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { QuizLayout } from '@/components/layouts/QuizLayout';
 import { api } from '@/lib/api';
 import { useToast } from '@/components/ui/use-toast';
@@ -21,6 +21,7 @@ import {
 import { MultipleChoiceQuestion, CodeQuestion } from '../shared/components';
 import { QuizQuestion } from './hooks/useQuiz';
 import { CircleCheck, CircleX } from 'lucide-react';
+import { useQueryClient } from '@tanstack/react-query';
 
 type ResultQuestion = {
   id: string;
@@ -85,8 +86,10 @@ type QuizResult = {
 export function QuizResultsPage() {
   const { attemptId } = useParams<{ attemptId: string }>();
   const navigate = useNavigate();
+  const location = useLocation();
   const { toast } = useToast();
   const { token } = useAuth();
+  const queryClient = useQueryClient();
   const [result, setResult] = useState<QuizResult | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -139,8 +142,8 @@ export function QuizResultsPage() {
           else {
             console.log(`Fetching quiz details for ID: ${response.quizId}`);
             try {
-              // Try to fetch the quiz details separately
-              const quizDetails = await api.getQuizForAttempt(response.quizId, token);
+              // Try to fetch the quiz details separately using the new function
+              const quizDetails = await api.getAssessmentStructure(response.quizId, token, 'QUIZ');
               if (quizDetails) {
                 response.quiz = {
                   id: quizDetails.id,
@@ -272,6 +275,20 @@ export function QuizResultsPage() {
         
         // Use the processed response with defaults applied
         setResult(defaultQuizResult);
+        setError(null);
+
+        // Prefetch dashboard data after successfully loading results
+        console.log("Prefetching learning path data...");
+        await queryClient.prefetchQuery({
+          queryKey: ['learningPath'],
+          queryFn: async () => {
+            if (!token) throw new Error('No token available for prefetch');
+            return api.get('/learning/levels', token);
+          },
+          staleTime: 1000 * 30 // Consider data fresh for 30 seconds after prefetch
+        });
+        console.log("Learning path data prefetch initiated.");
+
       } catch (err) {
         console.error('Failed to fetch quiz results:', err);
         setError('Failed to load quiz results. Please try again later.');
@@ -286,7 +303,7 @@ export function QuizResultsPage() {
     }
     
     fetchResults();
-  }, [attemptId, toast, token]);
+  }, [attemptId, toast, token, queryClient]);
   
   const toggleQuestion = (questionId: string) => {
     setExpandedQuestions(prev => ({
@@ -368,15 +385,43 @@ export function QuizResultsPage() {
       navigate(`/assessment/quiz/${result.quizId}`);
     }
   };
+
+  const handleReturnToDashboard = () => {
+    // Check if we have location state that indicates we came from quiz history
+    const fromHistory = location.search?.includes('fromHistory=true') || 
+                        new URLSearchParams(location.search).get('from') === 'history';
+    
+    if (fromHistory) {
+      // If we have topicId in the query params, navigate to that specific history
+      const topicId = new URLSearchParams(location.search).get('topicId');
+      
+      if (topicId) {
+        navigate(`/quizzes/history/${topicId}`);
+      } else {
+        // If no topicId, go to topics page
+        navigate('/topics');
+      }
+    } else {
+      // Default behavior - return to dashboard
+      navigate('/dashboard');
+    }
+  };
   
   return (
     <QuizLayout>
       <div className="py-6 container max-w-6xl">
         <div className="flex items-center justify-between mb-6">
           <h1 className="text-2xl font-bold">Quiz Results</h1>
-          <Button variant="outline" onClick={() => navigate('/dashboard')}>
-            <ArrowLeft className="h-4 w-4 mr-2" />
-            Back to Dashboard
+          <Button 
+            onClick={handleReturnToDashboard}
+            variant="outline"
+            className="flex items-center gap-2"
+          >
+            <ArrowLeft className="w-4 h-4" />
+            {location.search?.includes('fromHistory=true') || 
+             new URLSearchParams(location.search).get('from') === 'history' 
+              ? 'Return to Quiz History' 
+              : 'Return to Dashboard'}
           </Button>
         </div>
         
@@ -510,15 +555,6 @@ export function QuizResultsPage() {
               </CardContent>
             </Card>
           ))}
-        </div>
-        
-        <div className="flex gap-4 mt-8 justify-center">
-          <Button variant="outline" onClick={() => navigate('/topics')}>
-            Back to Topics
-          </Button>
-          <Button variant="default" onClick={handleRetakeQuiz}>
-            Retake Quiz
-          </Button>
         </div>
       </div>
     </QuizLayout>

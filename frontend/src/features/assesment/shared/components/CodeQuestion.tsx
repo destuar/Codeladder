@@ -12,9 +12,13 @@ import { TestRunner } from '@/features/problems/components/coding/test-runner/Te
 import { Resizable } from "re-resizable";
 import { SupportedLanguage } from '@/features/problems/types/coding';
 import { Button } from "@/components/ui/button";
+import { ResizablePanel } from '@/features/problems/components/coding/ResizablePanel';
 
 // Constants for code editor layout
 const MIN_EDITOR_HEIGHT = 200; // px
+const DEFAULT_DESC_WIDTH = 40; // Percentage
+const MIN_DESC_WIDTH = 200; // Pixels
+const MAX_DESC_WIDTH = 800; // Pixels
 
 interface CodeQuestionProps {
   question: AssessmentQuestion;
@@ -133,37 +137,44 @@ export function CodeQuestion({
     <div className="h-full flex flex-col flex-1 overflow-hidden">
       {/* Main content area */}
       <div className="flex h-full overflow-hidden">
-        {/* Left panel - Question description */}
-        <div className="w-2/5 border-r h-full overflow-auto">
-          <ScrollArea className="h-full" type="hover">
-            <div className="p-4 space-y-4">
-              <div className="space-y-2">
-                <h2 className="text-xl font-semibold">{question.questionText}</h2>
-                <div className="flex items-center gap-2">
-                  <Badge variant="outline" className="font-medium">
-                    {question.difficulty || "MEDIUM"}
-                  </Badge>
+        {/* Left panel - Question description (Now Resizable) */}
+        <ResizablePanel
+          defaultWidth={window.innerWidth * (DEFAULT_DESC_WIDTH / 100)} // Start at 40% of window width
+          minWidth={MIN_DESC_WIDTH}
+          maxWidth={MAX_DESC_WIDTH}
+          className="h-full" // Ensure panel takes full height
+        >
+          <div className="h-full overflow-auto"> 
+            <ScrollArea className="h-full" type="hover">
+              <div className="p-4 space-y-4">
+                <div className="space-y-2">
+                  <h2 className="text-xl font-semibold">{question.questionText}</h2>
+                  <div className="flex items-center gap-2">
+                    <Badge variant="outline" className="font-medium">
+                      {question.difficulty || "MEDIUM"}
+                    </Badge>
+                  </div>
                 </div>
-              </div>
-              
-              <div className="max-w-full overflow-hidden">
-                {isMarkdown(question.questionText) ? (
-                  <div className="prose dark:prose-invert max-w-full overflow-hidden">
-                    <Markdown 
-                      content={question.questionText}
+                
+                <div className="max-w-full overflow-hidden">
+                  {isMarkdown(question.questionText) ? (
+                    <div className="prose dark:prose-invert max-w-full overflow-hidden">
+                      <Markdown 
+                        content={question.questionText}
+                        className="max-w-full [&_pre]:!whitespace-pre-wrap [&_pre]:!break-words [&_code]:!whitespace-pre-wrap [&_code]:!break-words [&_pre]:!max-w-full [&_pre]:!overflow-x-auto"
+                      />
+                    </div>
+                  ) : (
+                    <HtmlContent 
+                      content={question.questionText} 
                       className="max-w-full [&_pre]:!whitespace-pre-wrap [&_pre]:!break-words [&_code]:!whitespace-pre-wrap [&_code]:!break-words [&_pre]:!max-w-full [&_pre]:!overflow-x-auto"
                     />
-                  </div>
-                ) : (
-                  <HtmlContent 
-                    content={question.questionText} 
-                    className="max-w-full [&_pre]:!whitespace-pre-wrap [&_pre]:!break-words [&_code]:!whitespace-pre-wrap [&_code]:!break-words [&_pre]:!max-w-full [&_pre]:!overflow-x-auto"
-                  />
-                )}
+                  )}
+                </div>
               </div>
-            </div>
-          </ScrollArea>
-        </div>
+            </ScrollArea>
+          </div>
+        </ResizablePanel>
 
         {/* Right panel - Code Editor and Test Runner */}
         <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
@@ -213,7 +224,6 @@ export function CodeQuestion({
               problemId={question.id}
               onRunComplete={handleRunComplete}
               language={selectedLanguage}
-              onLanguageChange={handleLanguageChange}
               isRunning={isRunning}
               setIsRunning={setIsRunning}
             />

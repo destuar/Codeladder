@@ -1067,21 +1067,100 @@ router.get('/topic/:topicId/all', authenticateToken, (async (req, res) => {
 router.get('/:id', authenticateToken, (async (req, res) => {
   try {
     const { id } = req.params;
+    const includeDetails = req.query.details === 'true';
+    const assessmentType = (req.query.assessmentType as string)?.toUpperCase() || undefined;
     
-    const quiz = await prisma.quiz.findUnique({
+    console.log(`Fetching quiz ${id} with detailed=${includeDetails}, type=${assessmentType || 'any'}`);
+    
+    let query: any = {
       where: { id },
       include: {
         _count: {
           select: { questions: true }
         }
       }
-    });
+    };
+    
+    // If assessmentType is provided, add it to the query
+    if (assessmentType) {
+      query.where.assessmentType = assessmentType;
+    }
+    
+    // If details are requested, include question data
+    if (includeDetails) {
+      query.include = {
+        ...query.include,
+        topic: {
+          select: {
+            id: true,
+            name: true,
+            slug: true
+          }
+        },
+        level: {
+          select: {
+            id: true,
+            name: true,
+            order: true
+          }
+        },
+        questions: {
+          orderBy: { orderNum: 'asc' },
+          include: {
+            mcProblem: {
+              include: {
+                options: {
+                  orderBy: { orderNum: 'asc' },
+                  select: {
+                    id: true,
+                    questionId: true,
+                    optionText: true,
+                    // In a details request, we can include correct answers
+                    isCorrect: true,
+                    explanation: true,
+                    orderNum: true
+                  }
+                }
+              }
+            },
+            codeProblem: {
+              include: {
+                testCases: {
+                  orderBy: { orderNum: 'asc' }
+                }
+              }
+            }
+          }
+        }
+      };
+    }
+
+    const quiz = await prisma.quiz.findUnique(query);
 
     if (!quiz) {
       return res.status(404).json({ error: 'Quiz not found' });
     }
+    
+    // Transform data for the frontend
+    const quizAny = quiz as any; // Force type assertion
+    const transformedQuiz: any = {
+      ...quiz,
+      title: quiz.name,
+    };
+    
+    // Add these fields only if we have the data
+    if (includeDetails) {
+      if (quizAny.topic) {
+        transformedQuiz.topicName = quizAny.topic.name;
+        transformedQuiz.topicSlug = quizAny.topic.slug;
+      }
+      
+      if (quizAny.level) {
+        transformedQuiz.levelName = quizAny.level.name;
+      }
+    }
 
-    res.json(quiz);
+    res.json(transformedQuiz);
   } catch (error) {
     console.error('Error fetching quiz:', error);
     res.status(500).json({ 
@@ -1718,7 +1797,7 @@ router.get('/topic/slug/:slug/next', authenticateToken, (async (req, res) => {
     
     console.log(`User has completed ${completedAttempts.length} quiz attempts for this topic`);
     
-    // Create a set of quiz IDs that have been completed
+    // Create a set of completed quiz IDs
     const completedQuizIds = new Set(completedAttempts.map(attempt => attempt.quizId));
     
     // 3. Find the first quiz that hasn't been completed
@@ -3179,6 +3258,86 @@ router.get('/level/:levelId/next-test', authenticateToken, (async (req, res) => 
       error: 'Failed to determine next test',
       details: error instanceof Error ? error.message : 'Unknown error',
       nextAssessmentId: null
+    });
+  }
+}) as RequestHandler);
+
+/**
+ * @route GET /api/quizzes/topic/slug/:slug/next-quiz
+ * @desc Get the ID of the next recommended quiz for the user within a topic (using slug).
+ *       Prioritizes unpassed quizzes, then randomly selects from passed ones if necessary.
+ * @access Private
+ */
+router.get('/topic/slug/:slug/next-quiz', authenticateToken, (async (req, res) => {
+  try {
+    const { slug } = req.params;
+    const userId = req.user?.id;
+
+    if (!userId) {
+      return res.status(401).json({ error: 'User not authenticated' });
+    }
+
+    // 1. Validate Topic exists
+    const topic = await prisma.topic.findUnique({ where: { slug } });
+    if (!topic) {
+      return res.status(404).json({ error: `Topic not found with slug: ${slug}` });
+    }
+
+    // 2. Get all Quiz IDs for this topic
+    const allQuizzes = await prisma.quiz.findMany({
+      where: { topicId: topic.id, assessmentType: 'QUIZ' }, // Ensure only quizzes
+      select: { id: true },
+    });
+
+    const allQuizIds = allQuizzes.map(q => q.id);
+    if (allQuizIds.length === 0) {
+      return res.json({ nextAssessmentId: null, message: 'No quizzes found for this topic.' });
+    }
+
+    // 3. Get IDs of quizzes passed by the user within this topic
+    const passedAttempts = await prisma.quizAttempt.findMany({
+      where: {
+        userId,
+        quizId: { in: allQuizIds },
+        passed: true, // Only consider attempts marked as passed
+        completedAt: { not: null },
+      },
+      select: { quizId: true },
+      distinct: ['quizId'], // Only need one passing attempt per quiz
+    });
+    const passedQuizIds = new Set(passedAttempts.map(a => a.quizId));
+
+    // 4. Filter into unpassed and passed
+    const unpassedIds = allQuizIds.filter(id => !passedQuizIds.has(id));
+    const passedIds = allQuizIds.filter(id => passedQuizIds.has(id)); // For fallback
+
+    let selectedId: string | null = null;
+
+    // 5. Select ID
+    if (unpassedIds.length > 0) {
+      // Randomly select from unpassed quizzes
+      const randomIndex = Math.floor(Math.random() * unpassedIds.length);
+      selectedId = unpassedIds[randomIndex];
+      console.log(`Selected unpassed quiz ID: ${selectedId} for user ${userId}, topic ${slug}`);
+    } else if (passedIds.length > 0) {
+      // All quizzes are passed, randomly select from the passed ones for practice
+      const randomIndex = Math.floor(Math.random() * passedIds.length);
+      selectedId = passedIds[randomIndex];
+      console.log(`All quizzes passed. Selected passed quiz ID for practice: ${selectedId} for user ${userId}, topic ${slug}`);
+    } else {
+      // Should not happen if allQuizIds.length > 0, but handle defensively
+       console.log(`No quizzes available (unpassed or passed) for user ${userId}, topic ${slug}`);
+       return res.json({ nextAssessmentId: null, message: 'No quizzes available for this topic.' });
+    }
+
+    // 6. Return the selected ID
+    res.json({ nextAssessmentId: selectedId });
+
+  } catch (error) {
+    console.error('Error fetching next quiz by topic slug:', error);
+    res.status(500).json({
+      error: 'Failed to fetch next quiz',
+      details: error instanceof Error ? error.message : 'Unknown error'
     });
   }
 }) as RequestHandler);

@@ -1,0 +1,245 @@
+# Task: Level Unlock Logic & Dashboard Refresh
+
+**Goal:** Change level unlock to use cascading logic based on passing exams, and ensure the dashboard updates immediately without showing stale data.
+
+**Unlock Logic:** Passing an exam in Level N-1 unlocks Level N *and* all preceding levels (0 to N-1).
+
+**Dashboard Refresh:** When returning to the dashboard after an exam, it should show the correct unlock status immediately (using a loading indicator if necessary) instead of displaying stale data.
+
+**Sub-Tasks:**
+
+- [x] Backend: Fetch User's Passing Exam Status per Level (`GET /learning/levels`)
+  - [x] Modify Prisma query to include related `QuizAttempt` data for `TEST` type quizzes for the current user.
+  - [x] Determine if *at least one* exam in the level was passed by the user (`passed: true`).
+  - [x] Add `hasPassedExam: boolean` to the level object in the API response.
+- [x] Frontend: Update Level Interface
+  - [x] Add `hasPassedExam?: boolean` to the `Level` interface definition(s) (e.g., in `LevelSystem.tsx`, `useLearningPath.ts`).
+- [x] Frontend: Update Cascading Locking Logic (`LevelSystem.tsx`)
+  - [x] Modify `shouldDimLevel` function.
+  - [x] Find the highest level index `maxPassedIndex` where `hasPassedExam` is true.
+  - [x] A level at `currentIndex` should be dimmed if `currentIndex > maxPassedIndex + 1`.
+- [x] Frontend: Update Cascading Locking Logic (`TopicPage.tsx`)
+  - [x] Modify `isLocked` calculation.
+  - [x] Find the `levelIndex` of the current topic.
+  - [x] Find the highest level index `maxPassedIndex` where `hasPassedExam` is true in the `learningPath` data.
+  - [x] A topic in a level at `levelIndex` should be locked if `levelIndex > maxPassedIndex + 1`.
+- [x] Frontend: Invalidate `learningPath` query on successful Exam/Test submission (`useQuiz.ts`, `useTest.ts`)
+- [x] Frontend: Prefetch `learningPath` query on Exam/Test results pages (`QuizResultsPage.tsx`, `TestResultsPage.tsx`)
+- [x] Frontend: Remove `placeholderData: keepPreviousData` from `useQuery` in `LevelSystem.tsx` to ensure loading state shows instead of stale data.
+- [x] Frontend: Remove background refetch overlay/dimming UI from `LevelSystem.tsx`.
+- [x] Review & Test: Verify cascading unlock functionality and immediate dashboard update (shows loading spinner instead of stale locked state).
+
+# Quiz Results Page Issue Fix
+
+## Problem
+When clicking "View Results" in quiz history or exam history, the app shows "Assessment Not Found QUIZ not found" error.
+
+## Root Causes
+1. URLs in the history pages navigate to `/assessment/results/:attemptId?type=quiz` or `/assessment/results/:attemptId?type=test`
+2. This route does not exist in the router configuration
+3. The API functions to fetch quiz/test data for completed attempts have issues handling the `assessmentType` parameter
+
+## Implemented Fixes
+
+1. **Added AssessmentResultsRouter component** 
+   - Created new component in `frontend/src/features/assesment/shared/AssessmentResultsRouter.tsx`
+   - It reads the query parameter `type` to determine if it's a quiz or test
+   - Redirects to the appropriate results page based on the type
+
+2. **Added missing route in App.tsx**
+   - Added route for `/assessment/results/:attemptId` that uses the new AssessmentResultsRouter component
+
+3. **Enhanced API client functions**
+   - Updated `getQuizForAttempt` method to first try fetching the attempt data directly
+   - Updated `getQuizResults` method to fetch quiz details when they're missing
+
+4. **Enhanced backend endpoint**
+   - Updated backend GET `/quizzes/:id` endpoint to include detailed quiz information when needed
+   - Added support for including topic and level information
+
+## How It Works
+When a user clicks "View Results":
+1. The app navigates to `/assessment/results/:attemptId?type=quiz` or `type=test`
+2. The AssessmentResultsRouter component loads and redirects to the appropriate results page
+3. The enhanced API functions fetch the required data with proper error handling
+
+## Benefits
+- Fixed the "Assessment Not Found" error
+- Improved error handling for quiz/test results viewing
+- Added a more consistent routing structure for assessment results 
+
+# Results Page UI/UX Improvements
+
+## Goal
+Ensure consistent UI/UX between Quiz and Test Results pages, especially when viewed from history.
+
+## Implemented Changes
+
+- **QuizResultsPage.tsx:**
+  - [x] Conditionally hide "Back to Topics" and "Retake Quiz" buttons when viewing from history (`fromHistory=true` or `from=history` query param).
+
+- **TestResultsPage.tsx:**
+  - [x] Match overall layout and styling of `QuizResultsPage.tsx`.
+  - [x] Add consistent header with title and conditional "Return to Test History" / "Return to Dashboard" button.
+  - [x] Implement the 3-card summary layout (Score with Trophy, Time with Clock, Date with Award).
+  - [x] Apply consistent styling to individual question cards (header, correct/incorrect icons, content).
+  - [x] Add helper functions `getScoreGrade` and `getScoreColor` for consistency.
+  - [x] Conditionally hide "Return to Level" and "Retake Test" buttons when viewing from history. 
+
+# Assessment Exit Navigation Fix
+
+## Problem
+- Exiting a test incorrectly redirected the user to `/methodology` instead of `/dashboard`.
+- Exiting a quiz incorrectly redirected the user to `/dashboard` instead of the relevant topic page.
+
+## Root Causes
+1.  **Ghost Query Refetch:** A stale React Query entry for `['topic', null, 'methodology']` was being refetched upon returning to `/dashboard`, triggering navigation.
+2.  **Incorrect Exit Logic:** 
+    - The `handleExit` function in `AssessmentOverview.tsx` had a hardcoded fallback to `methodology`.
+    - The `handleExitAssessment` function in `AssessmentEntryPage.tsx` was overriding the specific logic and sending all exits to `/dashboard` or `location.state.from`.
+3.  **Missing Prop Linkage:** The `onExit` prop was not correctly defined and passed from `AssessmentEntryPage` to `AssessmentOverview`.
+
+## Implemented Fixes
+
+- **`frontend/src/features/topics/TopicPage.tsx`:**
+  - [x] Updated the `useQuery` hook for topics:
+    - Added `&& window.location.pathname.includes('/topic/')` to the `enabled` condition to prevent refetches when not on a topic page.
+    - Set appropriate `staleTime` (5m) and `gcTime` (10m).
+
+- **`frontend/src/features/assesment/shared/components/AssessmentOverview.tsx`:**
+  - [x] Added `onExit?: () => void` prop to `AssessmentOverviewProps` interface.
+  - [x] Updated the internal `handleExit` function to correctly route based on `type` (tests -> dashboard, quizzes -> topic if slug exists, else dashboard). (Note: This internal function is less critical now due to the parent handler being passed).
+
+- **`frontend/src/features/assesment/shared/AssessmentEntryPage.tsx`:**
+  - [x] Replaced the `handleExitAssessment` function with logic that correctly routes based on `isTest` vs `isQuiz` and the availability of `topic.slug`.
+  - [x] Ensured `handleExitAssessment` is passed as the `onExit` prop to the `AssessmentOverview` component.
+
+## Outcome
+- The redirect to `/methodology` after exiting a test is resolved.
+- Exiting a test now correctly navigates to `/dashboard`.
+- Exiting a quiz now correctly navigates to the relevant `/topic/:slug` page, falling back to `/dashboard` only if the slug is unavailable. 
+
+# Navbar Visibility Fix for Review Mode
+
+## Problem
+The main navigation bar (`Navigation.tsx`) was incorrectly displayed at the top of the page when a user was actively reviewing a spaced repetition problem (e.g., on the `/problem/:slug/review` route), even though it should be hidden in focus modes like problem solving or quizzes.
+
+## Root Cause
+The conditional logic within the `MainLayout` component defined in `frontend/src/App.tsx` used to determine whether to hide the navigation (`shouldHideNavigation` variable) did not include a check for the specific `/problem/:slug/review` route pattern.
+
+## Implemented Fixes
+- **`frontend/src/App.tsx`:**
+  - [x] Modified the `MainLayout` component's logic:
+    - Added a new variable `isProblemReviewPage` to check if `location.pathname` matches `/problem/:slug/review`.
+    - Updated the `shouldHideNavigation` condition to include `isProblemReviewPage`.
+  - [x] Added `pt-16` class to the `<main>` element conditionally (`!shouldHideNavigation`) to account for the fixed navbar height and prevent content overlap when the navbar *is* shown.
+
+## Outcome
+- The main navigation bar is now correctly hidden when a user is on the dedicated problem review page (`/problem/:slug/review`).
+- Content layout is preserved correctly whether the navbar is shown or hidden.
+
+# Memory Timeline Graph Fix
+
+## Problem
+In the "Memory Strengthening Journey" popup accessed via the lightbulb icon in the review dashboard, the "Memory Improvement Timeline" graph showed a flat line. All review points were plotted at the same vertical level, failing to represent the actual change in the problem's `reviewLevel` over time.
+
+## Root Cause
+1.  **Backend Data Correctness:** The backend correctly stores historical review data, including `levelBefore` and `levelAfter` in the `ReviewHistory` table.
+2.  **Frontend Data Mismatch:** The frontend component (`frontend/src/features/spaced-repetition/components/MemoryProgressionJourney.tsx`) expected a `reviewLevel` property within the `reviewHistory` array entries.
+3.  **Frontend Plotting Error:** The graph plotting logic used the non-existent `entry.reviewLevel` property to calculate the y-position, resulting in an incorrect (likely default or zero) value being used for all points.
+
+## Implemented Fixes
+- **`frontend/src/features/spaced-repetition/components/MemoryProgressionJourney.tsx`:**
+  - [x] Updated the `ReviewHistoryEntry` interface to use `levelBefore: number` and `levelAfter: number` instead of `reviewLevel: number`.
+  - [x] Modified the graph plotting logic to calculate the y-position (`bottomPercentage`) using `entry.levelAfter`.
+  - [x] Updated the tooltip content for each point to display `Level: {entry.levelAfter} (was {entry.levelBefore})` for better clarity.
+
+## Outcome
+- The "Memory Improvement Timeline" graph now accurately plots the user's memory level (`levelAfter`) for the problem after each historical review.
+- The graph correctly visualizes the progression (or regression) of memory strength over time.
+- The tooltip provides clear information about the level transition for each review point. 
+
+# Quiz/Test Resizable Panel & Navigation Improvements
+
+## Problem
+1. In quizzes and tests, the vertical divider between the problem description and code editor was not resizable, unlike in regular code problems.
+2. When clicking "Back" while viewing a quiz/test question, it would exit the entire assessment rather than return to the assessment overview page.
+
+## Root Causes
+1. **Missing Resizable Panel:** The `CodeQuestion.tsx` component used in quizzes/tests had a static width division (`w-2/5`) for the description panel, with no resizing mechanism.
+2. **Incorrect Navigation Logic:** The `handleExit` function in `AssessmentPage.tsx` was directing users to topic pages or dashboard instead of the assessment overview.
+
+## Implemented Fixes
+
+- **`frontend/src/features/assesment/shared/components/CodeQuestion.tsx`:**
+  - [x] Imported `ResizablePanel` from coding components.
+  - [x] Replaced the static width div (`w-2/5 border-r`) with a `ResizablePanel` component.
+  - [x] Added appropriate sizing constants (`DEFAULT_DESC_WIDTH`, `MIN_DESC_WIDTH`, `MAX_DESC_WIDTH`).
+  - [x] Fixed a related linter error by removing an incorrect prop (`onLanguageChange`) from the `TestRunner` component.
+
+- **`frontend/src/features/assesment/shared/components/AssessmentPage.tsx`:**
+  - [x] Modified the `handleExit` function to redirect users to the assessment overview page (`/assessment/{type}/{id}`) for both quizzes and tests.
+  - [x] Only falls back to topic page or dashboard as a last resort if the assessment ID is unavailable.
+
+## Outcome
+- The divider between problem description and code editor is now resizable in quizzes/tests, providing a consistent experience with regular code problems.
+- Clicking "Back" while viewing a question now takes users back to the assessment overview page rather than exiting the entire assessment, improving navigation flow. 
+
+# Assessment API Call Refactoring
+
+## Problem
+1. Loading the assessment entry page (`AssessmentEntryPage`) caused benign 404 errors in the console because the shared `api.getQuizForAttempt` function first tried fetching attempt details (`/quizzes/attempts/:id`) using the Quiz/Test ID before falling back to fetch the structure (`/quizzes/:id/attempt`).
+2. Attempting to fix the 404s by *only* using the fallback path (`/quizzes/:id/attempt`) revealed that endpoint sometimes returned 200 OK but without the necessary `questions` array, breaking the assessment loading.
+3. An unrelated bug caused API URLs to be constructed with a double prefix (e.g., `/api/api/...`).
+4. After renaming `api.getQuizForAttempt` to `api.getAssessmentStructure`, leftover calls to the old function name caused "is not a function" errors.
+
+## Root Causes
+1. **Conflated API Function:** The `api.getQuizForAttempt` function served two purposes: fetching attempt details and fetching initial assessment structure, leading to incorrect initial calls on the entry page.
+2. **Backend Endpoint Unreliability:** The `GET /api/quizzes/:id/attempt` endpoint wasn't consistently returning the full assessment structure (including questions).
+3. **Faulty URL Construction:** The base `request` function in `api.ts` incorrectly prepended `/api/` even if the endpoint already contained it.
+4. **Incomplete Refactoring:** Calls to the old function name were missed during the initial refactoring.
+
+## Implemented Fixes
+
+- **`frontend/src/lib/api.ts`:**
+  - [x] Refactored the base `request` function to correctly join the base URL (`/api`) and the endpoint path, preventing the `/api/api/` duplication.
+  - [x] Renamed the ambiguous `getQuizForAttempt` function to `getAssessmentStructure`.
+  - [x] Removed the initial attempt to fetch `/quizzes/attempts/:id` from `getAssessmentStructure`, making it directly call `/quizzes/:id/attempt` to fetch the structure.
+  - [x] Added enhanced error logging to `getAssessmentStructure`.
+  - [x] Created a new, specific function `getAttemptDetails` that *only* calls `GET /quizzes/attempts/:id`.
+
+- **`frontend/src/features/assesment/shared/AssessmentEntryPage.tsx`:**
+  - [x] Updated the `useQuery` hook to call the new `api.getAssessmentStructure` function.
+
+- **`frontend/src/features/assesment/quiz/hooks/useQuiz.ts`:**
+  - [x] Updated the `useQuery` hook to call `api.getAssessmentStructure`.
+
+- **`frontend/src/features/assesment/test/hooks/useTest.ts`:**
+  - [x] Updated the `useQuery` hook to call `api.getAssessmentStructure`.
+
+- **`frontend/src/features/assesment/quiz/QuizResultsPage.tsx`:**
+  - [x] Updated the fallback logic for fetching missing quiz details to call `api.getAssessmentStructure`.
+
+## Outcome
+- The benign 404 errors when loading the assessment entry page are eliminated.
+- The API client functions (`api.ts`) now have clearer, single responsibilities.
+- The "api.getQuizForAttempt is not a function" error is resolved.
+- Potential backend flakiness is now isolated to the `GET /quizzes/:id/attempt` endpoint when called by `getAssessmentStructure`. This makes debugging easier if the "Assessment Not Found" issue (due to missing questions in the response) reappears. 
+
+# Remove "No Tests Available" Popup
+
+## Problem
+When clicking the "Take Exam" button on a level within the `LevelSystem` component that had no associated tests, a disruptive toast notification ("No Tests Available") would appear.
+
+## Root Cause
+The `handleStartNextTest` function in `frontend/src/components/LevelSystem.tsx` contained logic to display a `toast` notification within the `else` block that executed when the `api.getNextTestForLevel` call returned no `nextAssessmentId`.
+
+## Implemented Fixes
+
+- **`frontend/src/components/LevelSystem.tsx`:**
+  - [x] Removed the `toast({...})` call from the `else` block within the `handleStartNextTest` function.
+  - [x] Added a `console.log` statement in its place for internal debugging purposes.
+
+## Outcome
+- The user-facing "No Tests Available" popup no longer appears when attempting to start an exam on a level with no tests, providing a cleaner user experience.
+- The button click now effectively does nothing visible to the user in this scenario (though visual feedback like disabling the button could be added later). 

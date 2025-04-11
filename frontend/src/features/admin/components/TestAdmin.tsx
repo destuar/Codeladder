@@ -6,7 +6,7 @@ import { useNavigate } from 'react-router-dom';
 
 // UI Components
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -940,7 +940,7 @@ export function TestAdmin() {
             <Card key={level.id}>
               <CardHeader className="px-4 py-3">
                 <div className="flex justify-between items-center">
-                  <CardTitle className="text-xl">Test Management</CardTitle>
+                  <CardTitle className="text-xl">{level.name} Tests</CardTitle>
                   <Button
                     variant="outline"
                     size="sm"
@@ -1566,6 +1566,101 @@ export function TestAdmin() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Section to display and manage tests for the selected level */}
+      {selectedLevel && (
+        <Card className="mt-6 flex-1">
+          <CardHeader>
+            <CardTitle className="text-xl">
+              {selectedLevel ? `${selectedLevel.name} Tests` : 'Select a Level to Manage Tests'}
+            </CardTitle>
+            <CardDescription>
+              Manage tests for the selected level: {selectedLevel.name}. Add new tests or edit existing ones.
+            </CardDescription>
+          </CardHeader>
+          {/* Tests for this level */}
+          <div>
+            {/* Loading state */}
+            {isLoading ? (
+              <div className="flex justify-center py-4">
+                <Loader2 className="h-6 w-6 animate-spin" />
+              </div>
+            ) : (testsByLevel[selectedLevel.id]?.length || 0) === 0 ? (
+              /* Empty state */
+              <div className="py-2 text-center">
+                <FileQuestion className="h-12 w-12 mx-auto text-muted-foreground mb-2" />
+                <p className="text-sm text-muted-foreground">No tests yet for this level.</p>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="mt-2"
+                  onClick={() => handleCreateTest(selectedLevel)}
+                >
+                  <Plus className="h-4 w-4 mr-1" />
+                  Create Test
+                </Button>
+              </div>
+            ) : (
+              /* Test list */
+              <div className="space-y-2 py-2">
+                {testsByLevel[selectedLevel.id]?.map((test) => (
+                  <Card key={test.id} className="relative overflow-hidden">
+                    {/* Test item */}
+                    <div className="p-3 flex items-center justify-between">
+                      {/* Test info */}
+                      <div className="flex-1 min-w-0 mr-4">
+                        <div className="flex items-center">
+                          <ClipboardCheck className="h-4 w-4 mr-2 text-neutral-500 dark:text-neutral-400" />
+                          <h4 className="font-medium truncate">{test.name}</h4>
+                        </div>
+                        
+                        <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
+                          <div className="flex items-center">
+                            <Award className="h-3.5 w-3.5 mr-1" />
+                            <span>Pass: {test.passingScore}%</span>
+                          </div>
+                          
+                          {test.estimatedTime && (
+                            <div className="flex items-center">
+                              <Clock className="h-3.5 w-3.5 mr-1" />
+                              <span>{formatTime(test.estimatedTime)}</span>
+                            </div>
+                          )}
+                          
+                          <div className="flex items-center">
+                            <MessageSquare className="h-3.5 w-3.5 mr-1" />
+                            <span>
+                              {test._count?.questions || 0} {(test._count?.questions || 0) === 1 ? 'Question' : 'Questions'}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                      
+                      {/* Action buttons */}
+                      <div className="flex items-center gap-1">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => handleEditTest(test)}
+                        >
+                          <Pencil className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => handleDeleteClick(test)}
+                        >
+                          <Trash className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </div>
+                  </Card>
+                ))}
+              </div>
+            )}
+          </div>
+        </Card>
+      )}
     </div>
   );
 }

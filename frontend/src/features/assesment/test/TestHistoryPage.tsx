@@ -38,13 +38,15 @@ import {
   Medal,
   Star,
   Activity,
-  Award
+  Award,
+  RotateCcw
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { format } from 'date-fns';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { AlertCircle } from "lucide-react";
+import { cn } from '@/lib/utils';
 
 type TestAttempt = {
   id: string;
@@ -243,327 +245,152 @@ export function TestHistoryPage() {
             </h1>
           </div>
         </div>
-        
-        <Tabs defaultValue="all" className="mb-8" onValueChange={setActiveTab}>
-          <TabsList>
-            <TabsTrigger value="all">All Tests</TabsTrigger>
-            <TabsTrigger value="completed">Completed</TabsTrigger>
-            <TabsTrigger value="best">Best Scores</TabsTrigger>
-          </TabsList>
-          
-          <TabsContent value="all" className="mt-4">
-            {tests.length === 0 ? (
-              <Card>
-                <CardContent className="pt-6 pb-6 flex flex-col items-center justify-center text-center">
-                  <div className="bg-blue-50 p-4 rounded-full mb-3">
-                    <History className="h-8 w-8 text-blue-500" />
-                  </div>
-                  <h3 className="text-lg font-medium mb-1">No Test Attempts Yet</h3>
-                  <p className="text-muted-foreground mb-4">You haven't attempted any tests for this level yet.</p>
-                  <Button onClick={() => navigate(`/levels/${levelId}`)}>
-                    View Available Tests
-                  </Button>
-                </CardContent>
-              </Card>
-            ) : (
-              <div className="space-y-6">
-                {tests.map((test) => {
-                  const testAttempts = attemptsByTest[test.id] || [];
-                  const bestAttempt = getBestAttempt(testAttempts);
-                  const sortedAttempts = [...testAttempts].sort(
-                    (a, b) => new Date(b.startedAt).getTime() - new Date(a.startedAt).getTime()
-                  );
-                  
-                  return (
-                    <Card key={test.id} className="overflow-hidden">
-                      <CardHeader className="bg-gray-50">
-                        <div className="flex justify-between items-center">
-                          <div>
-                            <CardTitle>{test.name}</CardTitle>
-                            <CardDescription>{test.description}</CardDescription>
-                          </div>
-                          <div className="text-right">
-                            <div className="text-sm text-muted-foreground mb-1">
-                              Passing score: {test.passingScore}%
-                            </div>
-                            {bestAttempt && (
-                              <Badge className={bestAttempt.passed ? "bg-green-100 text-green-800" : "bg-orange-100 text-orange-800"}>
-                                Best score: {bestAttempt.score}%
-                              </Badge>
-                            )}
-                          </div>
+
+        <div className="mt-4">
+          {tests.length === 0 ? (
+            <Card>
+              <CardContent className="pt-6 pb-6 flex flex-col items-center justify-center text-center">
+                <div className="bg-blue-50 p-4 rounded-full mb-3">
+                  <History className="h-8 w-8 text-blue-500" />
+                </div>
+                <p className="text-muted-foreground">No test attempts recorded for this level yet.</p>
+              </CardContent>
+            </Card>
+          ) : (
+            <div className="space-y-6">
+              {tests.map((test) => {
+                const testAttempts = attemptsByTest[test.id] || [];
+                const bestAttempt = getBestAttempt(testAttempts);
+
+                return (
+                  <Card key={test.id} className="overflow-hidden">
+                    <CardHeader className="bg-muted/50 p-4 border-b">
+                      <div className="grid grid-cols-1 sm:grid-cols-[1fr_auto] gap-2 sm:gap-4 items-start">
+                        <div>
+                          <CardTitle className="text-xl flex items-center mb-1 sm:mb-0">
+                            <FileText className="h-5 w-5 mr-2 text-primary" />
+                            {test.name}
+                            <Button 
+                              variant="ghost"
+                              className="ml-2 px-1.5 py-0.5 h-auto text-xs rounded-md hover:bg-accent hover:text-accent-foreground"
+                              onClick={() => navigate(`/assessment/test/${test.id}`)}
+                              title={`Retake ${test.name}`}
+                            >
+                              <RotateCcw className="h-3.5 w-3.5 mr-1" />
+                              Retake
+                            </Button>
+                          </CardTitle>
+                          {test.description && (
+                            <CardDescription className="mt-1">{test.description}</CardDescription>
+                          )}
                         </div>
-                      </CardHeader>
-                      <CardContent className="pt-6">
-                        <h3 className="text-sm font-medium mb-3 flex items-center">
-                          <Clock className="h-4 w-4 mr-1 text-muted-foreground" />
-                          Attempt History
-                        </h3>
-                        
-                        <div className="overflow-x-auto">
-                          <Table>
-                            <TableHeader>
-                              <TableRow>
-                                <TableHead>Date</TableHead>
-                                <TableHead>Score</TableHead>
-                                <TableHead>Status</TableHead>
-                                <TableHead>Actions</TableHead>
-                              </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                              {sortedAttempts.map((attempt: TestAttempt) => (
-                                <TableRow key={attempt.id}>
-                                  <TableCell>
-                                    {attempt.completedAt ? 
-                                      formatDate(attempt.completedAt) : 
-                                      <span className="text-muted-foreground">(In progress)</span>
-                                    }
-                                  </TableCell>
-                                  <TableCell>
-                                    {attempt.score !== null ? 
-                                      `${attempt.score}%` : 
-                                      <span className="text-muted-foreground">-</span>
-                                    }
-                                  </TableCell>
-                                  <TableCell>
-                                    {attempt.completedAt ? (
-                                      attempt.passed ? (
-                                        <div className="flex items-center text-green-600">
-                                          <CheckCircle className="h-4 w-4 mr-1" />
-                                          Passed
-                                        </div>
-                                      ) : (
-                                        <div className="flex items-center text-amber-600">
-                                          <XCircle className="h-4 w-4 mr-1" />
-                                          Failed
-                                        </div>
-                                      )
-                                    ) : (
-                                      <span className="text-muted-foreground">Incomplete</span>
-                                    )}
-                                  </TableCell>
-                                  <TableCell>
-                                    <div className="flex gap-2">
-                                      {attempt.completedAt && (
-                                        <Button 
-                                          variant="outline" 
-                                          size="sm"
-                                          onClick={() => navigate(`/quizzes/attempts/${attempt.id}/results`)}
-                                        >
-                                          View Results
-                                        </Button>
-                                      )}
-                                      <Button 
-                                        variant="default" 
-                                        size="sm"
-                                        onClick={() => navigate(`/assessment/quiz/${test.id}`)}
-                                      >
-                                        <RefreshCw className="h-4 w-4 mr-2" />
-                                        Retry Test
-                                      </Button>
-                                    </div>
-                                  </TableCell>
-                                </TableRow>
-                              ))}
-                            </TableBody>
-                          </Table>
+                        <div className="flex flex-col sm:items-end space-y-1 sm:space-y-0 flex-shrink-0">
+                          {bestAttempt?.passed !== null && (
+                            <Badge
+                              variant={bestAttempt?.passed ? 'default' : 'destructive'}
+                              className={cn(
+                                "flex items-center px-2.5 py-1 text-xs font-medium",
+                                bestAttempt?.passed && "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400 border-green-200 dark:border-green-700/50"
+                              )}
+                            >
+                              {bestAttempt?.passed ? (
+                                <>
+                                  <Check className="h-3.5 w-3.5 mr-1" /> Highest: {bestAttempt?.score}% (Passed)
+                                </>
+                              ) : (
+                                <>
+                                  <X className="h-3.5 w-3.5 mr-1" /> Highest: {bestAttempt?.score}% (Failed)
+                                </>
+                              )}
+                            </Badge>
+                          )}
+                          <span className="text-sm text-muted-foreground">
+                            Passing Score: {test.passingScore}%
+                          </span>
                         </div>
-                      </CardContent>
-                      <CardFooter className="bg-gray-50 border-t flex justify-end py-3">
-                        {!bestAttempt && (
-                          <Button 
-                            variant="default" 
-                            onClick={() => navigate(`/assessment/quiz/${test.id}`)}
-                          >
-                            Take Test
-                          </Button>
-                        )}
-                      </CardFooter>
-                    </Card>
-                  );
-                })}
-              </div>
-            )}
-          </TabsContent>
-          
-          <TabsContent value="completed" className="mt-4">
-            {tests.filter((test) => {
-              const testAttempts = attemptsByTest[test.id] || [];
-              return testAttempts.some((a: TestAttempt) => a.completedAt);
-            }).length === 0 ? (
-              <Card>
-                <CardContent className="pt-6 pb-6 flex flex-col items-center justify-center text-center">
-                  <div className="bg-blue-50 p-4 rounded-full mb-3">
-                    <CheckCircle className="h-8 w-8 text-blue-500" />
-                  </div>
-                  <h3 className="text-lg font-medium mb-1">No Completed Tests</h3>
-                  <p className="text-muted-foreground mb-4">You haven't completed any tests for this level yet.</p>
-                  <Button onClick={() => navigate(`/levels/${levelId}`)}>
-                    View Available Tests
-                  </Button>
-                </CardContent>
-              </Card>
-            ) : (
-              <div className="space-y-6">
-                {tests
-                  .filter((test) => {
-                    const testAttempts = attemptsByTest[test.id] || [];
-                    return testAttempts.some((a: TestAttempt) => a.completedAt);
-                  })
-                  .map((test) => {
-                    const completedAttempts = (attemptsByTest[test.id] || [])
-                      .filter((a: TestAttempt) => a.completedAt)
-                      .sort((a: TestAttempt, b: TestAttempt) => 
-                        new Date(b.completedAt!).getTime() - new Date(a.completedAt!).getTime()
-                      );
-                    
-                    return (
-                      <Card key={test.id}>
-                        <CardHeader>
-                          <CardTitle>{test.name}</CardTitle>
-                        </CardHeader>
-                        <CardContent>
-                          <Table>
-                            <TableHeader>
-                              <TableRow>
-                                <TableHead>Date</TableHead>
-                                <TableHead>Score</TableHead>
-                                <TableHead>Status</TableHead>
-                                <TableHead>Actions</TableHead>
-                              </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                              {completedAttempts.map((attempt: TestAttempt) => (
-                                <TableRow key={attempt.id}>
-                                  <TableCell>{formatDate(attempt.completedAt!)}</TableCell>
-                                  <TableCell>{attempt.score}%</TableCell>
-                                  <TableCell>
-                                    {attempt.passed ? (
-                                      <div className="flex items-center text-green-600">
-                                        <CheckCircle className="h-4 w-4 mr-1" />
-                                        Passed
-                                      </div>
-                                    ) : (
-                                      <div className="flex items-center text-amber-600">
-                                        <XCircle className="h-4 w-4 mr-1" />
-                                        Failed
-                                      </div>
-                                    )}
-                                  </TableCell>
-                                  <TableCell>
-                                    <div className="flex gap-2">
-                                      <Button 
-                                        variant="outline" 
-                                        size="sm"
-                                        onClick={() => navigate(`/quizzes/attempts/${attempt.id}/results`)}
-                                      >
-                                        View Results
-                                      </Button>
-                                      <Button 
-                                        variant="default" 
-                                        size="sm"
-                                        onClick={() => navigate(`/assessment/quiz/${test.id}`)}
-                                      >
-                                        <RefreshCw className="h-4 w-4 mr-2" />
-                                        Retry Test
-                                      </Button>
-                                    </div>
-                                  </TableCell>
-                                </TableRow>
-                              ))}
-                            </TableBody>
-                          </Table>
-                        </CardContent>
-                      </Card>
-                    );
-                  })}
-              </div>
-            )}
-          </TabsContent>
-          
-          <TabsContent value="best" className="mt-4">
-            {tests.filter((test) => {
-              const testAttempts = attemptsByTest[test.id] || [];
-              return testAttempts.some((a: TestAttempt) => a.completedAt);
-            }).length === 0 ? (
-              <Card>
-                <CardContent className="pt-6 pb-6 flex flex-col items-center justify-center text-center">
-                  <div className="bg-blue-50 p-4 rounded-full mb-3">
-                    <Trophy className="h-8 w-8 text-blue-500" />
-                  </div>
-                  <h3 className="text-lg font-medium mb-1">No Best Scores Yet</h3>
-                  <p className="text-muted-foreground mb-4">Complete some tests to see your best scores here.</p>
-                  <Button onClick={() => navigate(`/levels/${levelId}`)}>
-                    View Available Tests
-                  </Button>
-                </CardContent>
-              </Card>
-            ) : (
-              <Card>
-                <CardHeader>
-                  <CardTitle>Best Scores</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Test</TableHead>
-                        <TableHead>Best Score</TableHead>
-                        <TableHead>Date</TableHead>
-                        <TableHead>Actions</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {tests
-                        .filter((test) => {
-                          const testAttempts = attemptsByTest[test.id] || [];
-                          return testAttempts.some((a: TestAttempt) => a.completedAt);
-                        })
-                        .map((test) => {
-                          const testAttempts = (attemptsByTest[test.id] || [])
-                            .filter((a: TestAttempt) => a.completedAt);
-                          const bestAttempt = getBestAttempt(testAttempts);
-                          
-                          if (!bestAttempt) return null;
-                          
-                          return (
-                            <TableRow key={test.id}>
-                              <TableCell className="font-medium">{test.name}</TableCell>
-                              <TableCell>
-                                <div className={bestAttempt.passed ? "text-green-600" : "text-amber-600"}>
-                                  {bestAttempt.score}%
-                                </div>
-                              </TableCell>
-                              <TableCell>{formatDate(bestAttempt.completedAt || bestAttempt.startedAt)}</TableCell>
-                              <TableCell>
-                                <div className="flex gap-2">
-                                  <Button 
-                                    variant="outline" 
-                                    size="sm"
-                                    onClick={() => navigate(`/quizzes/attempts/${bestAttempt.id}/results`)}
-                                  >
-                                    View Results
-                                  </Button>
-                                  <Button 
-                                    variant="default" 
-                                    size="sm"
-                                    onClick={() => navigate(`/assessment/quiz/${test.id}`)}
-                                  >
-                                    <RefreshCw className="h-4 w-4 mr-2" />
-                                    Retry Test
-                                  </Button>
-                                </div>
-                              </TableCell>
+                      </div>
+                    </CardHeader>
+                    <CardContent className="p-0">
+                      {testAttempts.length === 0 ? (
+                        <p className="p-4 text-muted-foreground text-center">No attempts for this test.</p>
+                      ) : (
+                        <Table>
+                          <TableHeader>
+                            <TableRow>
+                              <TableHead>Status</TableHead>
+                              <TableHead>Score</TableHead>
+                              <TableHead>Started</TableHead>
+                              <TableHead>Completed</TableHead>
+                              <TableHead>Time Taken</TableHead>
+                              <TableHead className="text-right">Actions</TableHead>
                             </TableRow>
-                          );
-                        })}
-                    </TableBody>
-                  </Table>
-                </CardContent>
-              </Card>
-            )}
-          </TabsContent>
-        </Tabs>
+                          </TableHeader>
+                          <TableBody>
+                            {testAttempts.map((attempt: TestAttempt) => (
+                              <TableRow key={attempt.id}>
+                                <TableCell>
+                                  {attempt.completedAt ? (
+                                    attempt.passed ? (
+                                      <Badge
+                                        variant="default"
+                                        className="flex items-center w-fit bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400 border-green-200 dark:border-green-700/50"
+                                      >
+                                        <CheckCircle className="h-3 w-3 mr-1" /> Passed
+                                      </Badge>
+                                    ) : (
+                                      <Badge variant="destructive" className="flex items-center w-fit">
+                                        <XCircle className="h-3 w-3 mr-1" /> Failed
+                                      </Badge>
+                                    )
+                                  ) : (
+                                    <Badge variant="secondary" className="flex items-center w-fit">
+                                      <Activity className="h-3 w-3 mr-1" /> In Progress
+                                    </Badge>
+                                  )}
+                                </TableCell>
+                                <TableCell>
+                                  {attempt.score !== null ? `${attempt.score}%` : '-'}
+                                </TableCell>
+                                <TableCell>{formatDate(attempt.startedAt)}</TableCell>
+                                <TableCell>
+                                  {attempt.completedAt ? formatDate(attempt.completedAt) : 'In Progress'}
+                                </TableCell>
+                                <TableCell>
+                                  {attempt.completedAt
+                                    ? formatDuration(calculateTimeTaken(attempt.startedAt, attempt.completedAt))
+                                    : '-'}
+                                </TableCell>
+                                <TableCell className="text-right">
+                                  {attempt.completedAt ? (
+                                    <Button
+                                      variant="outline"
+                                      size="sm"
+                                      onClick={() => navigate(`/assessment/results/${attempt.id}?type=test&fromHistory=true&levelId=${levelId}`)}
+                                    >
+                                      View Results
+                                    </Button>
+                                  ) : (
+                                    <Button
+                                      variant="outline"
+                                      size="sm"
+                                      onClick={() => navigate(`/assessment/test/${attempt.quizId}?attemptId=${attempt.id}`)}
+                                    >
+                                      Continue Test
+                                    </Button>
+                                  )}
+                                </TableCell>
+                              </TableRow>
+                            ))}
+                          </TableBody>
+                        </Table>
+                      )}
+                    </CardContent>
+                  </Card>
+                );
+              })}
+            </div>
+          )}
+        </div>
       </div>
     </QuizLayout>
   );

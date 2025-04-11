@@ -2,7 +2,7 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { useEffect, useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "./ui/button";
 import type { Topic, Problem } from "@/hooks/useLearningPath";
 import { api } from "@/lib/api";
@@ -24,6 +24,7 @@ interface Level {
     description?: string;
     levelId: string;
   }[];
+  hasPassedExam?: boolean;
 }
 
 function ProgressBar({ progress = 0, dimmed = false }: { progress?: number, dimmed?: boolean }) {
@@ -55,7 +56,12 @@ export function LevelSystem() {
   const navigate = useNavigate();
   const { token } = useAuth();
 
-  const { data: levels, isLoading: loading, error } = useQuery<Level[]>({
+  const { 
+    data: levels, 
+    isLoading: loading, // Initial load indicator
+    isFetching, // Background refetch indicator
+    error 
+  } = useQuery<Level[]>({
     queryKey: ['learningPath'],
     queryFn: async () => {
       if (!token) throw new Error('No token available');
@@ -165,19 +171,22 @@ export function LevelSystem() {
     return levels.length - 1;
   };
 
-  // Check if a level should be dimmed
+  // Check if a level should be dimmed (locked) based on cascading unlock logic
   const shouldDimLevel = (currentIndex: number) => {
-    if (!levels) return false;
-    // First level is never dimmed
-    if (currentIndex === 0) return false;
+    if (!levels || levels.length === 0) return false;
     
-    // Check if all previous levels are completed
-    for (let i = 0; i < currentIndex; i++) {
-      if (!isLevelCompleted(levels[i])) {
-        return true;
+    // Find the index of the highest level where the user passed an exam
+    let maxPassedIndex = -1;
+    for (let i = levels.length - 1; i >= 0; i--) {
+      if (levels[i].hasPassedExam === true) {
+        maxPassedIndex = i;
+        break; // Found the highest index
       }
     }
-    return false;
+    
+    // A level at currentIndex is unlocked if its index is less than or equal to maxPassedIndex + 1
+    // Therefore, it should be dimmed if currentIndex > maxPassedIndex + 1
+    return currentIndex > maxPassedIndex + 1;
   };
 
   const handleTopicClick = (topic: Topic) => {
@@ -231,16 +240,16 @@ export function LevelSystem() {
 
     setIsLoadingTest(true);
     try {
-      const nextTestId = await api.getNextTestForLevel(levelId, token);
+      // Fetch the response object containing the ID
+      const response = await api.getNextTestForLevel(levelId, token);
+      // Extract the actual ID string
+      const nextTestId = response?.nextAssessmentId;
+
       if (nextTestId) {
-        console.log(`Navigating to next test: ${nextTestId} for level ${levelId}`);
+        console.log(`Navigating to next test ID: ${nextTestId} for level ${levelId}`);
         navigate(`/assessment/test/${nextTestId}`, { state: { levelId, levelName } });
       } else {
-        toast({
-          title: "No Tests Available",
-          description: `No tests found for ${levelName}, or an error occurred.`, // More informative message
-          variant: "default"
-        });
+        console.log(`No next test available for level ${levelId} (${levelName}).`);
       }
     } catch (error) { // Catch potential errors from the API call itself
       console.error("Error fetching next test:", error);
@@ -275,7 +284,11 @@ export function LevelSystem() {
     setActiveButtonIndex(prevIndex => prevIndex === index ? null : index);
   };
 
-  if (loading) {
+  // Determine if a background refetch is happening *after* the initial load
+  const isBackgroundRefetching = isFetching && Array.isArray(levels) && levels.length > 0;
+
+  // Show full loading state only on initial load OR during refetch when no placeholder data is used
+  if (loading && !levels) { 
     return (
       <div className="flex items-center justify-center p-8">
         <div className="animate-spin rounded-full h-8 w-8 border-2 border-primary border-t-transparent" />
@@ -294,10 +307,13 @@ export function LevelSystem() {
     );
   }
 
-  const currentLevelIndex = findCurrentLevelIndex();
+  // Safely calculate currentLevelIndex only if levels is an array
+  const currentLevelIndex = Array.isArray(levels) ? findCurrentLevelIndex() : 0;
 
   return (
-    <div className="space-y-6">
+    <div className={cn(
+      "space-y-6 transition-opacity duration-300 relative",
+    )}>
       <style>
         {`
           @keyframes slideIn {
@@ -345,6 +361,7 @@ export function LevelSystem() {
         {/* Level connectors - the vertical line connecting levels */}
         <div className="level-connector absolute left-[7.5rem] top-2 bottom-2"></div>
         
+        {/* Ensure levels is an array before mapping */} 
         {Array.isArray(levels) && levels.length > 0 ? (
           levels.map((level, index) => {
             const isDimmed = shouldDimLevel(index);
@@ -659,9 +676,12 @@ export function LevelSystem() {
             );
           })
         ) : (
-          <div className="text-center p-8 text-muted-foreground">
-            No levels found
-          </div>
+          // Show message if loading is finished but there are no levels
+          !loading && (
+            <div className="text-center text-muted-foreground py-8">
+              No learning path levels found.
+            </div>
+          )
         )}
       </div>
     </div>

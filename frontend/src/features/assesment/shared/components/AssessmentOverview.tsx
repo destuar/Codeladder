@@ -53,6 +53,7 @@ export interface AssessmentOverviewProps {
   type?: 'quiz' | 'test'; // extensible for future test type
   onStartTask?: (taskId: string) => void;
   onFinishAssessment?: () => void;
+  onExit?: () => void; // New prop for exiting the assessment
 }
 
 // Simple AssessmentOverviewHeader component
@@ -173,6 +174,7 @@ export function AssessmentOverview({
   type = 'quiz',
   onStartTask,
   onFinishAssessment,
+  onExit,
 }: AssessmentOverviewProps) {
   const navigate = useNavigate();
   const location = useLocation();
@@ -244,11 +246,21 @@ export function AssessmentOverview({
     return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
   };
   
-  // Handle exit navigation - assuming quiz/assessment ID is related to topic
+  // Handle exit navigation based on assessment type
   const handleExit = () => {
-    // Extract topic slug from the quiz ID or use state from location
-    const topicSlug = location.state?.topicSlug || 'methodology'; // Default to methodology if not available
-    navigate(`/topic/${topicSlug}`);
+    if (type === 'test') {
+      // For tests, go to dashboard
+      navigate('/dashboard');
+    } else {
+      // For quizzes, try to go to the relevant topic page if available
+      const topicSlug = location.state?.topicSlug;
+      if (topicSlug) {
+        navigate(`/topic/${topicSlug}`);
+      } else {
+        // Fallback to dashboard if no topic info
+        navigate('/dashboard');
+      }
+    }
   };
   
   // Handle starting a specific task
@@ -326,7 +338,7 @@ export function AssessmentOverview({
       <AssessmentOverviewHeader 
         title={title} 
         type={type}
-        onExit={handleExit} 
+        onExit={onExit || handleExit} 
         id={id}
       />
       

@@ -13,8 +13,9 @@ import { cn } from '@/lib/utils';
 interface ReviewHistoryEntry {
   date: string;
   wasSuccessful: boolean;
-  reviewLevel: number;
-  reviewOption?: 'easy' | 'difficult' | 'forgot';
+  levelBefore: number;
+  levelAfter: number;
+  reviewOption?: 'easy' | 'difficult' | 'forgot' | 'standard-review' | 'added-to-repetition';
 }
 
 interface MemoryProgressionJourneyProps {
@@ -213,13 +214,14 @@ export function MemoryProgressionJourney({
                     {/* Plot review history points */}
                     <div className="relative h-full">
                       {sortedHistory.map((entry, index) => {
-                        const nextEntry = sortedHistory[index + 1];
-                        const bottomPercentage = (entry.reviewLevel / 7) * 100;
+                        // Calculate Y position based on level AFTER the review
+                        const bottomPercentage = (entry.levelAfter / 7) * 100; // Use levelAfter
                         
                         // Calculate position for the line to the next point
                         const hasNextPoint = index < sortedHistory.length - 1;
+                        const nextEntry = sortedHistory[index + 1];
                         const nextBottomPercentage = hasNextPoint 
-                          ? (nextEntry.reviewLevel / 7) * 100 
+                          ? (nextEntry.levelAfter / 7) * 100 // Use levelAfter for next point too
                           : bottomPercentage;
                         
                         return (
@@ -227,7 +229,7 @@ export function MemoryProgressionJourney({
                             key={index}
                             className="absolute"
                             style={{ 
-                              bottom: `${bottomPercentage}%`,
+                              bottom: `${bottomPercentage}%`, // Position based on levelAfter
                               left: `${(index / (sortedHistory.length - 1 || 1)) * 100}%`
                             }}
                           >
@@ -276,7 +278,8 @@ export function MemoryProgressionJourney({
                                   </div>
                                   <div className="text-xs">
                                     <div>Date: {formatDate(entry.date)}</div>
-                                    <div>Level: {entry.reviewLevel}</div>
+                                    {/* UPDATED Tooltip: Show level achieved after review */}
+                                    <div>Level: {entry.levelAfter} (was {entry.levelBefore})</div>
                                     {entry.reviewOption && (
                                       <div>
                                         Option: {entry.reviewOption.charAt(0).toUpperCase() + entry.reviewOption.slice(1)}

@@ -243,15 +243,16 @@ export function useQuiz(quizId?: string) {
   }, [quizId]);
 
   // Fetch quiz data
-  const { data: quiz, isLoading: isQuizLoading, error: quizError } = useQuery({
+  const { data: quiz, isLoading, error } = useQuery<any, Error>({
     queryKey: ['quiz', quizId],
     queryFn: async () => {
-      if (!token || !quizId) {
-        throw new Error('Token or quiz ID is missing');
-      }
-      return api.getQuizForAttempt(quizId, token);
+      if (!token || !quizId) throw new Error('No token or quiz ID');
+      // Use the new function
+      return api.getAssessmentStructure(quizId, token, 'QUIZ');
     },
-    enabled: !!token && !!quizId
+    enabled: !!token && !!quizId,
+    staleTime: 1000 * 60 * 5, // 5 minutes
+    gcTime: 1000 * 60 * 10,
   });
 
   // Check if we have a taskId in location state and update the currentQuestionIndex
@@ -487,6 +488,8 @@ export function useQuiz(quizId?: string) {
       stopTimer();
       toast.success('Quiz submitted successfully!');
       queryClient.invalidateQueries({ queryKey: ['quizAttempt', attemptId] });
+      // Invalidate learning path to update dashboard unlock status
+      queryClient.invalidateQueries({ queryKey: ['learningPath'] });
     },
     onError: (error) => {
       toast.error('Failed to submit quiz');
@@ -948,9 +951,9 @@ export function useQuiz(quizId?: string) {
     attempt,
     currentQuestionIndex,
     currentQuestion: quiz?.questions?.[currentQuestionIndex],
-    isLoading: isQuizLoading || isAttemptLoading || startAttemptMutation.isPending,
+    isLoading,
     isSubmitting,
-    error: quizError,
+    error,
     progress: quiz ? ((Object.keys(answers).length / quiz.questions.length) * 100) : 0,
     answers,
     elapsedTime,

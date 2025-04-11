@@ -225,20 +225,16 @@ export function useTest(testId?: string) {
   }, [testId]);
 
   // Fetch test data
-  const { data: test, isLoading: isTestLoading, error: testError } = useQuery({
+  const { data: test, isLoading, error } = useQuery({
     queryKey: ['test', testId],
     queryFn: async () => {
-      if (!token || !testId) {
-        throw new Error('Token or test ID is missing');
-      }
-      console.log(`Fetching test data for test ID: ${testId}`);
-      // Pass TEST assessment type to ensure correct data fetching
-      return api.getQuizForAttempt(testId, token, 'TEST');
+      if (!token || !testId) throw new Error('No token or test ID');
+      // Use the new function
+      return api.getAssessmentStructure(testId, token, 'TEST');
     },
     enabled: !!token && !!testId,
-    // Add retry logic to handle potential failures
-    retry: 2,
-    retryDelay: 1000,
+    staleTime: 1000 * 60 * 5, // 5 minutes
+    gcTime: 1000 * 60 * 10,
   });
 
   // Check if test content has changed and reset session if needed
@@ -441,6 +437,8 @@ export function useTest(testId?: string) {
       stopTimer();
       toast.success('Test submitted successfully!');
       queryClient.invalidateQueries({ queryKey: ['testAttempt', attemptId] });
+      // Invalidate learning path to update dashboard unlock status
+      queryClient.invalidateQueries({ queryKey: ['learningPath'] });
     },
     onError: (error) => {
       toast.error('Failed to submit test');
@@ -880,9 +878,9 @@ export function useTest(testId?: string) {
     attempt,
     currentQuestionIndex,
     currentQuestion: test?.questions?.[currentQuestionIndex],
-    isLoading: isTestLoading || isAttemptLoading || startAttemptMutation.isPending,
+    isLoading,
     isSubmitting,
-    error: testError,
+    error,
     progress: test ? ((Object.keys(answers).length / test.questions.length) * 100) : 0,
     answers,
     elapsedTime,

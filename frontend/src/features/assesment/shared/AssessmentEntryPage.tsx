@@ -122,13 +122,16 @@ export function AssessmentEntryPage() {
   } = useQuery({
     queryKey: [assessmentType, assessmentId],
     queryFn: async () => {
-      if (!token || !assessmentId) throw new Error(`No token or ${assessmentType} ID available`);
-      
-      // Use the same API call for both quiz and test since backend handles both under /quizzes endpoint
-      return api.getQuizForAttempt(assessmentId, token);
+      if (!token || !assessmentId) throw new Error('No token or ID');
+      console.log(`Fetching ${assessmentType} structure for entry page: ${assessmentId}`);
+      // Use the new function to get initial structure
+      return api.getAssessmentStructure(assessmentId, token, assessmentType as 'QUIZ' | 'TEST');
     },
     enabled: !!token && !!assessmentId,
-    staleTime: 1000 * 60 * 5, // 5 minutes
+    staleTime: 1000 * 60 * 5, // Cache data for 5 minutes
+    gcTime: 1000 * 60 * 10, // Garbage collect after 10 minutes
+    retry: 1, // Retry once on failure
+    refetchOnWindowFocus: false, // Don't refetch just on focus
   });
   
   // Fetch topic data for quiz (only for quizzes, not tests)
@@ -189,6 +192,25 @@ export function AssessmentEntryPage() {
   // Handle proceeding from intro to assessment overview
   const handleProceedToOverview = () => {
     setShowIntro(false);
+  };
+  
+  // Handle exiting the assessment
+  const handleExitAssessment = () => {
+    if (isTest) {
+      // For tests, always go to dashboard
+      navigate('/dashboard', { replace: true });
+    } else if (isQuiz && topic?.slug) {
+      // For quizzes with topic slug, go to the topic page
+      navigate(`/topic/${topic.slug}`, { replace: true });
+    } else if (location.state?.from) {
+      // Use previous location if available
+      navigate(location.state.from, { replace: true });
+    } else {
+      // Fallback to dashboard
+      navigate('/dashboard', { replace: true });
+    }
+    
+    console.log(`Exiting ${isTest ? 'test' : 'quiz'}. Topic slug: ${topic?.slug || 'none'}`);
   };
   
   // Handle finishing and submitting the assessment
@@ -400,6 +422,7 @@ This will finalize your answers and end the session.`;
         type={isTest ? 'test' : 'quiz'}
         onStartTask={handleStartAssessment}
         onFinishAssessment={handleFinishAssessment}
+        onExit={handleExitAssessment}
       />
     </QuizLayout>
   );

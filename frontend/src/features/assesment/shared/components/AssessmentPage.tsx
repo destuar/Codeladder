@@ -13,6 +13,7 @@ import {
   AssessmentHeader 
 } from '.';
 import { useAssessmentTimer } from '../hooks/useAssessmentTimer';
+import { cn } from '@/lib/utils';
 
 export interface AssessmentPageProps {
   type: 'quiz' | 'test';
@@ -88,6 +89,8 @@ export function AssessmentPage({
         if (completionFlag === 'true') {
           console.log('Assessment was previously completed. Forcing complete reset.');
           forceReset();
+          // Clear submitted questions when forcing a reset
+          setSubmittedQuestions([]);
           return true;
         }
       }
@@ -101,6 +104,8 @@ export function AssessmentPage({
       if (!existingSession) {
         console.log('Initializing new assessment state in sessionStorage for:', id);
         startAttempt(id);
+        // Clear submitted questions when starting a new attempt
+        setSubmittedQuestions([]);
       }
     }
     
@@ -211,20 +216,9 @@ export function AssessmentPage({
             }
             return prev;
           });
-          
-          toast({
-            title: "Question Submitted",
-            description: "Your answer has been saved and the question marked as submitted.",
-            variant: "default",
-          });
         }
       } catch (e) {
         console.error('Error updating assessment progress:', e);
-        toast({
-          title: "Error",
-          description: "Failed to submit your answer.",
-          variant: "destructive",
-        });
       }
     }
   };
@@ -248,7 +242,7 @@ You have submitted ${submittedQuestions.length} out of ${assessment.questions.le
         sessionStorage.setItem(`${type}_${id}_completed`, 'true');
         
         if (result.attemptId) {
-          navigate(`/${type}s/attempts/${result.attemptId}/results`);
+          navigate(`/assessment/results/${result.attemptId}?type=${type}`);
           
           toast({
             title: `${type.charAt(0).toUpperCase() + type.slice(1)} Submitted`,
@@ -296,16 +290,20 @@ You have submitted ${submittedQuestions.length} out of ${assessment.questions.le
   };
 
   const handleExit = () => {
+    // Determine the correct back navigation path
+    let backPath = '/dashboard'; // Default to dashboard
+
+    // For both quizzes and tests, first try to navigate to the assessment overview page
     if (id) {
-      navigate(`/assessment/${type}/${id}`, { 
-        state: { 
-          skipIntro: true,
-          ...locationState
-        } 
-      });
-    } else {
-      navigate('/topics');
+      backPath = `/assessment/${type}/${id}`;
     }
+    // Only fall back to topic page for quizzes if topicSlug is available and explicitly needed
+    else if (type === 'quiz' && locationState?.topicSlug) {
+      backPath = `/topic/${locationState.topicSlug}`;
+    }
+
+    console.log(`Exiting assessment - Navigating to: ${backPath}`);
+    navigate(backPath);
   };
   
   if (isLoading) {
@@ -407,6 +405,8 @@ You have submitted ${submittedQuestions.length} out of ${assessment.questions.le
           onPrevious={handlePreviousQuestion}
           onNext={handleNextQuestion}
           onExit={handleExit}
+          onSubmit={handleSubmitAssessment}
+          isSubmitting={localIsSubmitting}
           title={
             type === 'quiz' 
               ? locationState?.topicName || assessment.topicName || assessment.title
@@ -428,11 +428,16 @@ You have submitted ${submittedQuestions.length} out of ${assessment.questions.le
                   
                   <div className="absolute bottom-6 right-6">
                     <Button 
-                      className="px-8 shadow-md hover:shadow-lg transition-all"
-                      disabled={!answers[currentQuestion.id]}
+                      className={cn(
+                        "px-8 shadow-md transition-all",
+                        submittedQuestions.includes(currentQuestion.id) 
+                          ? "bg-muted text-muted-foreground hover:bg-muted hover:text-muted-foreground" 
+                          : "hover:shadow-lg"
+                      )}
+                      disabled={!answers[currentQuestion.id] || submittedQuestions.includes(currentQuestion.id)}
                       onClick={submitQuestion}
                     >
-                      Submit Answer
+                      {submittedQuestions.includes(currentQuestion.id) ? "Submitted" : "Submit Answer"}
                     </Button>
                   </div>
                 </div>
