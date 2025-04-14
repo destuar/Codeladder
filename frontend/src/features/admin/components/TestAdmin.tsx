@@ -636,7 +636,7 @@ export function TestAdmin() {
             // Determine if this is a create or update
             if (problem.id) {
               // Update existing question
-              await api.updateQuizQuestion(problem.id, problem, token);
+              await api.updateTestQuestion(problem.id, problem, token);
               updatedCount++;
             } else {
               // Create new question

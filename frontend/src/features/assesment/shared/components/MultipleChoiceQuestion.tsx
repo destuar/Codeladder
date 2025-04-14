@@ -21,6 +21,19 @@ function MultipleChoiceQuestionComponent({
 
   const { options, shuffleOptions, explanation } = question.mcProblem;
   
+  // For debugging - log when the component renders with its props
+  React.useEffect(() => {
+    if (selectedOption) {
+      console.log(`MCQ for question ${question.id} rendering with selectedOption: ${selectedOption}`);
+      
+      // Verify the option exists in the available options
+      const optionExists = options.some(opt => opt.id === selectedOption);
+      if (!optionExists) {
+        console.warn(`Warning: Selected option ${selectedOption} not found in available options for question ${question.id}`);
+      }
+    }
+  }, [question.id, selectedOption, options]);
+  
   // If shuffleOptions is true and we're not in review mode, shuffle the options
   const displayOptions = React.useMemo(() => {
     if (!isReview && shuffleOptions) {
@@ -32,9 +45,13 @@ function MultipleChoiceQuestionComponent({
   // Use callback to prevent re-renders
   const handleOptionSelect = React.useCallback((optionId: string) => {
     if (!isReview) {
-      onSelectOption(optionId);
+      // Only trigger if this is actually a change to avoid unnecessary re-renders
+      if (optionId !== selectedOption) {
+        console.log(`MCQ: selecting option ${optionId} for question ${question.id}`);
+        onSelectOption(optionId);
+      }
     }
-  }, [isReview, onSelectOption]);
+  }, [isReview, onSelectOption, selectedOption, question.id]);
 
   return (
     <div className="flex items-start justify-center w-full h-full p-4">
@@ -52,7 +69,7 @@ function MultipleChoiceQuestionComponent({
                 key={option.id}
                 className={cn(
                   "flex items-center gap-4 p-4 rounded-md border cursor-pointer transition-all",
-                  isSelected && !isReview ? "border-primary bg-primary/5" : "border-muted hover:border-muted-foreground",
+                  isSelected && !isReview ? "border-primary bg-primary/5" : "border-muted hover:border-muted-foreground hover:bg-slate-50",
                   isCorrect ? "border-green-500 bg-green-50" : "",
                   isIncorrect ? "border-red-500 bg-red-50" : ""
                 )}

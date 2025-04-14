@@ -71,6 +71,7 @@ interface TestResult { // Represents the resolved data from useQuery
   responses: QuizAttemptResponse[];
   userId?: string;
   elapsedTime?: number;
+  totalQuestions?: number;
 }
 
 // Get score grade - matching quiz results page behavior
@@ -229,7 +230,7 @@ export function TestResultsPage() {
   }
   
   // Safely access properties with proper defaults
-  const totalQuestions = testResult?.responses?.length || 0;
+  const totalQuestions = testResult?.totalQuestions || testResult?.responses?.length || 0;
   const correctAnswers = testResult?.responses?.filter((r: QuizAttemptResponse) => r.isCorrect === true).length || 0;
   const incorrectAnswers = testResult?.responses?.filter((r: QuizAttemptResponse) => r.isCorrect === false).length || 0;
   const unansweredQuestions = totalQuestions - correctAnswers - incorrectAnswers;
@@ -250,6 +251,21 @@ export function TestResultsPage() {
   
   const passingScore = testResult?.passingScore ?? testResult?.quiz?.passingScore ?? 70;
   const passed = score >= passingScore;
+  
+  // Log the processed values for debugging
+  console.log('Processed test result values:', {
+    score,
+    formattedScore,
+    totalQuestions,
+    correctAnswers,
+    elapsedTime,
+    formattedTime,
+    dates: {
+      startTime: testResult?.startTime,
+      completedAt: testResult?.completedAt
+    },
+    passed
+  });
   
   return (
     <QuizLayout>
@@ -447,30 +463,6 @@ export function TestResultsPage() {
             );
           })}
         </div>
-        
-        {/* Action Buttons - only when not from history */}
-        {!(location.search?.includes('fromHistory=true') || 
-           new URLSearchParams(location.search).get('from') === 'history') && (
-          <div className="flex gap-4 mt-8 justify-center">
-            {testResult?.quiz?.levelId && (
-              <Button
-                onClick={() => navigate(`/levels/${testResult.quiz.levelId}`)}
-                variant="outline"
-              >
-                Return to Level
-              </Button>
-            )}
-            
-            {testResult?.quiz?.id && (
-              <Button
-                onClick={() => navigate(`/tests/${testResult.quiz.id}`)}
-                variant="default"
-              >
-                Retake Test
-              </Button>
-            )}
-          </div>
-        )}
       </div>
     </QuizLayout>
   );

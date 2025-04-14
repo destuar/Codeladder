@@ -182,6 +182,13 @@ router.get('/attempts/:id', authenticateToken, (async (req, res) => {
     const attempt = await prisma.quizAttempt.findUnique({
       where: { id },
       include: {
+        quiz: {
+          include: {
+            _count: { // Include the count of questions for this quiz
+              select: { questions: true }
+            }
+          }
+        },
         responses: {
           include: {
             question: true,
@@ -205,7 +212,22 @@ router.get('/attempts/:id', authenticateToken, (async (req, res) => {
       return res.status(403).json({ error: 'Not authorized to access this attempt' });
     }
     
-    res.json(attempt);
+    // Calculate elapsed time if completedAt exists
+    const elapsedTime = attempt.completedAt && attempt.startedAt
+      ? Math.round((new Date(attempt.completedAt).getTime() - new Date(attempt.startedAt).getTime()) / 1000)
+      : null;
+    
+    // Add total questions count and ensure consistent field naming for time values
+    const responseWithCount = {
+      ...attempt,
+      totalQuestions: attempt.quiz?._count?.questions ?? 0,
+      // Ensure both field name versions exist for compatibility
+      startedAt: attempt.startedAt,
+      startTime: attempt.startedAt, // Add alias for TestResultsPage
+      elapsedTime: elapsedTime
+    };
+    
+    res.json(responseWithCount);
   } catch (error) {
     console.error('Error fetching quiz attempt:', error);
     res.status(500).json({ 
@@ -561,7 +583,13 @@ router.get('/attempts/:id/results', authenticateToken, (async (req, res) => {
     const attempt = await prisma.quizAttempt.findUnique({
       where: { id: attemptId },
       include: {
-        quiz: true,
+        quiz: { // Include quiz details
+          include: {
+            _count: { // Include the count of questions for this quiz
+              select: { questions: true }
+            }
+          }
+        },
         responses: {
           include: {
             question: {
@@ -608,6 +636,8 @@ router.get('/attempts/:id/results', authenticateToken, (async (req, res) => {
     }
     
     // Transform data for the frontend
+    const totalQuestionsCount = attempt.quiz?._count?.questions ?? 0;
+    
     const results = {
       id: attempt.id,
       quizId: attempt.quizId,
@@ -620,6 +650,7 @@ router.get('/attempts/:id/results', authenticateToken, (async (req, res) => {
       timeSpent: attempt.completedAt && attempt.startedAt 
         ? Math.round((new Date(attempt.completedAt).getTime() - new Date(attempt.startedAt).getTime()) / 1000)
         : null,
+      totalQuestions: totalQuestionsCount, // Add the actual total question count
       questions: attempt.responses
         .map(response => ({
           response,

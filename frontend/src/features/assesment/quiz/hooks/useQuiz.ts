@@ -4,6 +4,7 @@ import { api } from '@/lib/api';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { useLocation } from 'react-router-dom';
+import { clearAssessmentSession, markAssessmentCompleted, isAssessmentCompleted } from '@/lib/sessionUtils';
 // Import shared types
 import { 
   AssessmentQuestion as QuizQuestion,
@@ -59,15 +60,12 @@ export function useQuiz(quizId?: string) {
   const queryClient = useQueryClient();
   const location = useLocation();
   
-  // Store quiz state in sessionStorage instead of creating db attempt immediately
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
   const [answers, setAnswers] = useState<Record<string, any>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [elapsedTime, setElapsedTime] = useState(0);
   const [startTime, setStartTime] = useState<Date>(new Date());
   const [attemptId, setAttemptId] = useState<string | null>(null);
   const hasInitialized = useRef<boolean>(false);
-  const timerRef = useRef<NodeJS.Timeout | null>(null);
   const initialTaskIdRef = useRef<string | null>(location.state?.taskId || null);
 
   // Save attempt ID to sessionStorage
@@ -81,8 +79,19 @@ export function useQuiz(quizId?: string) {
   // Load quiz state from sessionStorage on init
   useEffect(() => {
     if (!quizId) return;
+
+    // Check if this quiz was previously completed
+    if (isAssessmentCompleted(quizId, 'quiz')) {
+      console.log(`Quiz ${quizId} was previously completed. Clearing session.`);
+      clearAssessmentSession(quizId, 'quiz');
+      // Reset local state
+      setCurrentQuestionIndex(0);
+      setAnswers({});
+      setStartTime(new Date());
+      setAttemptId(null);
+      return; // Don't load old data
+    }
     
-    // Check sessionStorage for existing state
     const savedQuiz = sessionStorage.getItem(`quiz_${quizId}`);
     if (savedQuiz) {
       try {
@@ -102,21 +111,9 @@ export function useQuiz(quizId?: string) {
           sessionStorage.removeItem(`quiz_attempt_${quizId}`);
           sessionStorage.removeItem(`assessment_${quizId}`);
           
-          // Initialize new state
-          const newState = {
-            currentQuestionIndex: 0,
-            answers: {},
-            startTime: new Date().toISOString(),
-            elapsedTime: 0,
-            lastUpdated: new Date().toISOString()
-          };
-          
-          sessionStorage.setItem(`quiz_${quizId}`, JSON.stringify(newState));
-          
-          // Set state with fresh values
+          // Reset state
           setCurrentQuestionIndex(0);
           setAnswers({});
-          setElapsedTime(0);
           setStartTime(new Date());
           setAttemptId(null);
           
@@ -138,9 +135,6 @@ export function useQuiz(quizId?: string) {
           
           if (!isNaN(savedStartTime.getTime())) {
             setStartTime(savedStartTime);
-            // Calculate elapsed time since the saved start
-            const elapsed = Math.floor((Date.now() - savedStartTime.getTime()) / 1000);
-            setElapsedTime(quizData.elapsedTime ? quizData.elapsedTime + elapsed : elapsed);
           }
         }
         
@@ -175,7 +169,6 @@ export function useQuiz(quizId?: string) {
         currentQuestionIndex: 0,
         answers: {},
         startTime: new Date().toISOString(),
-        elapsedTime: 0,
         lastUpdated: new Date().toISOString()
       };
       
@@ -191,57 +184,14 @@ export function useQuiz(quizId?: string) {
       currentQuestionIndex,
       answers,
       startTime: startTime.toISOString(),
-      elapsedTime,
       attemptId,
       lastUpdated: new Date().toISOString()
     };
     
     console.log('Saving quiz state to session storage:', stateToSave);
     sessionStorage.setItem(`quiz_${quizId}`, JSON.stringify(stateToSave));
-  }, [quizId, currentQuestionIndex, answers, startTime, elapsedTime, attemptId]);
+  }, [quizId, currentQuestionIndex, answers, startTime, attemptId]);
   
-  // Timer effect with better cleanup
-  useEffect(() => {
-    // Clear any existing timer first
-    if (timerRef.current) {
-      clearInterval(timerRef.current);
-    }
-    
-    // Don't start a new timer - we're now handling timing in the QuizPage component
-    // to synchronize with the assessment overview timer
-    
-    /*
-    timerRef.current = setInterval(() => {
-      setElapsedTime(prev => {
-        const newTime = prev + 1;
-        // Save the updated time to sessionStorage
-        if (quizId) {
-          const savedQuiz = sessionStorage.getItem(`quiz_${quizId}`);
-          if (savedQuiz) {
-            try {
-              const quizData = JSON.parse(savedQuiz);
-              quizData.elapsedTime = newTime;
-              quizData.lastUpdated = new Date().toISOString();
-              sessionStorage.setItem(`quiz_${quizId}`, JSON.stringify(quizData));
-            } catch (e) {
-              console.error('Error updating elapsed time in sessionStorage:', e);
-            }
-          }
-        }
-        return newTime;
-      });
-    }, 1000);
-    */
-    
-    // Clean up timer on component unmount
-    return () => {
-      if (timerRef.current) {
-        clearInterval(timerRef.current);
-        timerRef.current = null;
-      }
-    };
-  }, [quizId]);
-
   // Fetch quiz data
   const { data: quiz, isLoading, error } = useQuery<any, Error>({
     queryKey: ['quiz', quizId],
@@ -346,7 +296,6 @@ export function useQuiz(quizId?: string) {
             // Reset state
             setCurrentQuestionIndex(0);
             setAnswers({});
-            setElapsedTime(0);
             setStartTime(new Date());
             setAttemptId(null);
           };
@@ -359,7 +308,6 @@ export function useQuiz(quizId?: string) {
             currentQuestionIndex: 0,
             answers: {},
             startTime: new Date().toISOString(),
-            elapsedTime: 0,
             contentVersionHash: currentHash,
             lastUpdated: new Date().toISOString()
           };
@@ -394,7 +342,7 @@ export function useQuiz(quizId?: string) {
     } catch (e) {
       console.error('Error checking quiz content version:', e);
     }
-  }, [quiz, quizId, setCurrentQuestionIndex, setAnswers, setElapsedTime, setStartTime, setAttemptId]);
+  }, [quiz, quizId, setCurrentQuestionIndex, setAnswers, setStartTime, setAttemptId]);
 
   // Get attempt data if we have an attemptId
   const { data: attempt, isLoading: isAttemptLoading } = useQuery({
@@ -427,9 +375,6 @@ export function useQuiz(quizId?: string) {
         sessionStorage.setItem(`quiz_attempt_${quizId}`, data.id);
         console.log(`Saved attempt ID ${data.id} to sessionStorage for quiz ${quizId}`);
       }
-      
-      // Start timer when attempt is created
-      startTimer();
     },
     onError: (error) => {
       toast.error('Failed to start quiz attempt');
@@ -437,151 +382,142 @@ export function useQuiz(quizId?: string) {
     },
   });
 
-  // Submit a question response
-  const submitResponseMutation = useMutation({
-    mutationFn: async ({ 
-      questionId, 
-      responseData 
-    }: { 
-      questionId: string; 
-      responseData: any 
-    }) => {
-      if (!token || !attemptId) throw new Error('No token or attempt ID available');
+  // Submit a single question (likely unused now, but keep for potential partial submissions)
+  const submitQuestionMutation = useMutation({
+    mutationFn: async ({ questionId, answer }: { questionId: string, answer: any }) => {
+      if (!token || !attemptId) throw new Error('No token or attempt ID');
+      // Prepare response data based on question type (assuming MC for simplicity here)
+      // You might need to fetch the question type if it's not readily available
+      const responseData = { type: 'MULTIPLE_CHOICE', selectedOptionId: answer }; // Example
+      // Use the correct API function: submitQuizResponse
       return api.submitQuizResponse(attemptId, questionId, responseData, token);
     },
     onSuccess: (data, variables) => {
-      // Don't invalidate queries immediately - this can cause a feedback loop
-      // Only update local state and defer invalidation
-      console.log('Answer saved successfully');
+      console.log(`Answer submitted for question ${variables.questionId}:`, data);
+      // Optionally update UI or state based on response
     },
-    onError: (error) => {
-      toast.error('Failed to save your answer');
-      console.error('Submit response error:', error);
-    },
-  });
-
-  // Complete a quiz attempt
-  const completeAttemptMutation = useMutation({
-    mutationFn: async () => {
-      if (!token || !attemptId) {
-        console.error('Missing required data:', { token: !!token, attemptId });
-        throw new Error('No token or attempt ID available');
-      }
-      
-      console.log(`Completing quiz attempt with ID: ${attemptId}`);
-      try {
-        const result = await api.completeQuizAttempt(attemptId, token);
-        console.log('Complete quiz attempt response:', result);
-        
-        // If the API didn't return an attemptId, add it
-        if (result && !result.attemptId) {
-          result.attemptId = attemptId;
-        }
-        
-        return result;
-      } catch (error) {
-        console.error('Error in completeQuizAttempt API call:', error);
-        throw error;
-      }
-    },
-    onSuccess: (data) => {
-      stopTimer();
-      toast.success('Quiz submitted successfully!');
-      queryClient.invalidateQueries({ queryKey: ['quizAttempt', attemptId] });
-      // Invalidate learning path to update dashboard unlock status
-      queryClient.invalidateQueries({ queryKey: ['learningPath'] });
-    },
-    onError: (error) => {
-      toast.error('Failed to submit quiz');
-      console.error('Complete attempt error:', error);
-    },
-    onSettled: () => {
-      setIsSubmitting(false);
+    onError: (error, variables) => {
+      console.error(`Error submitting answer for question ${variables.questionId}:`, error);
+      toast.error('Failed to submit answer');
     },
   });
 
-  // Start the quiz attempt (stored in sessionStorage only - no API call)
-  const startQuizAttempt = useCallback((id: string, forceNew = false) => {
-    // Check if this quiz was previously completed
-    const completedFlag = sessionStorage.getItem(`quiz_${id}_completed`);
-    if (completedFlag === 'true') {
-      console.log(`Quiz ${id} was previously completed. Starting fresh.`);
-      forceNew = true;
-      
-      // Clear the completion flag and any other data
-      sessionStorage.removeItem(`quiz_${id}_completed`);
-      sessionStorage.removeItem(`quiz_${id}`);
-      sessionStorage.removeItem(`quiz_attempt_${id}`);
-      sessionStorage.removeItem(`assessment_${id}`);
-      
-      // Find and clear any other items
-      Object.keys(sessionStorage).forEach(key => {
-        if (key.includes(id)) {
-          console.log(`Clearing additional quiz session data: ${key}`);
-          sessionStorage.removeItem(key);
-        }
-      });
-      
-      // Also invalidate any cached data for this quiz
-      queryClient.invalidateQueries({ queryKey: ['quiz', id] });
-      
-      // If we have an attemptId, invalidate that too
-      const savedAttemptId = sessionStorage.getItem(`quiz_attempt_${id}`);
-      if (savedAttemptId) {
-        queryClient.invalidateQueries({ queryKey: ['quizAttempt', savedAttemptId] });
-      }
+  // Submit the entire quiz (API call)
+  const submitQuiz = useCallback(async () => {
+    if (!quiz || !token || !quizId) {
+      return { success: false, message: 'Missing required data' };
     }
     
-    // If forceNew is true or no saved attempt exists, initialize a new sessionStorage entry
-    if (forceNew || !sessionStorage.getItem(`quiz_${id}`)) {
+    setIsSubmitting(true);
+    try {
+      const result = await api.submitCompleteQuiz(
+        quizId,
+        startTime.toISOString(),
+        answers,
+        token
+      );
+      
+      // Mark completed and clear session on success
+      markAssessmentCompleted(quizId, 'quiz');
+      clearAssessmentSession(quizId, 'quiz');
+      
+      return { 
+        success: true,
+        message: 'Quiz submitted successfully',
+        attemptId: result?.id // Return attemptId for navigation
+      };
+    } catch (error) {
+      console.error('Error submitting complete quiz:', error);
+      // Consider more specific error messages based on API response if available
+      return { 
+        success: false, 
+        message: error instanceof Error ? error.message : 'Unknown error submitting quiz'
+      };
+    } finally {
+      setIsSubmitting(false);
+    }
+  }, [quiz, quizId, token, answers, startTime, api, queryClient]);
+
+  // Start the quiz attempt (initializes state in sessionStorage)
+  const startQuizAttempt = useCallback((id: string) => {
+    if (!id) return;
+
+    // Check for completion *before* deciding to initialize or resume
+    if (isAssessmentCompleted(id, 'quiz')) {
+      console.log(`Quiz ${id} was completed. Clearing session before starting new attempt.`);
+      clearAssessmentSession(id, 'quiz');
+    }
+
+    const existingSession = sessionStorage.getItem(`quiz_${id}`);
+    const existingAttemptId = sessionStorage.getItem(`quiz_attempt_${id}`);
+    
+    if (!existingSession || !existingAttemptId) {
       console.log(`Initializing new quiz state in sessionStorage for: ${id}`);
       
-      // Reset state
+      // Reset state locally
       setCurrentQuestionIndex(0);
       setAnswers({});
-      setElapsedTime(0);
       const newStartTime = new Date();
       setStartTime(newStartTime);
+      setAttemptId(null); // Ensure attemptId is null initially
       
       // Initialize sessionStorage with fresh state
       const newState = {
         currentQuestionIndex: 0,
         answers: {},
         startTime: newStartTime.toISOString(),
-        elapsedTime: 0,
         lastUpdated: new Date().toISOString()
+        // attemptId will be set by the mutation
       };
-      
       sessionStorage.setItem(`quiz_${id}`, JSON.stringify(newState));
-      return;
+
+      // Call the API to create the attempt record
+      console.log(`Calling API to start quiz attempt for ID: ${id}`);
+      startAttemptMutation.mutate(id);
+
+    } else {
+      console.log(`Resuming existing quiz state from sessionStorage for: ${id}`);
+      // Ensure local state matches sessionStorage if resuming
+      // (Initial useEffect already handles loading, this is more of a safeguard)
+      try {
+        const sessionData = JSON.parse(existingSession);
+        setCurrentQuestionIndex(sessionData.currentQuestionIndex || 0);
+        setAnswers(sessionData.answers || {});
+        if (sessionData.startTime) setStartTime(new Date(sessionData.startTime));
+        setAttemptId(existingAttemptId || sessionData.attemptId || null);
+      } catch (e) {
+        console.error("Error synchronizing state with existing session:", e);
+        // If session is corrupted, clear and start fresh
+        clearAssessmentSession(id, 'quiz');
+        startQuizAttempt(id); // Re-call to initialize properly
+      }
     }
-    
-    // If we have saved state, it's already loaded by the useEffect
-    console.log(`Using existing quiz state from sessionStorage for: ${id}`);
-  }, [queryClient]);
+  }, [queryClient, startAttemptMutation]); // attemptId removed as dependency to avoid loops
 
-  // Format elapsed time
-  const formattedTime = useMemo(() => {
-    const minutes = Math.floor(elapsedTime / 60);
-    const seconds = elapsedTime % 60;
-    return `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
-  }, [elapsedTime]);
-
-  // Start quiz timer
-  const startTimer = useCallback(() => {
-    // We don't need to do anything here since we already have a timer effect
-    console.log('Timer is already running');
-  }, []);
-
-  // Stop quiz timer
-  const stopTimer = useCallback(() => {
-    // Clear the timer
-    if (timerRef.current) {
-      clearInterval(timerRef.current);
-      timerRef.current = null;
+  // Helper function to clear saved quiz data
+  const clearSavedQuiz = useCallback(() => {
+    if (quizId) {
+      clearAssessmentSession(quizId, 'quiz');
     }
-    console.log('Timer stopped');
-  }, []);
+  }, [quizId]);
+
+  // Force a complete reset to start fresh
+  const forceReset = useCallback(() => {
+    if (quizId) {
+      clearAssessmentSession(quizId, 'quiz');
+      // Reset local state
+      setCurrentQuestionIndex(0);
+      setAnswers({});
+      setStartTime(new Date());
+      setAttemptId(null);
+      // Invalidate queries
+      queryClient.invalidateQueries({ queryKey: ['quiz', quizId] });
+      if (attemptId) {
+        queryClient.invalidateQueries({ queryKey: ['quizAttempt', attemptId] });
+      }
+      console.log('Quiz state has been completely reset');
+    }
+  }, [quizId, attemptId, queryClient]);
 
   // Helper functions for navigation
   const nextQuestion = useCallback(() => {
@@ -648,299 +584,6 @@ export function useQuiz(quizId?: string) {
     console.log(`Answer selected for question ${questionId}:`, answer);
   }, [quizId]);
 
-  // Helper function to handle the actual submission with a valid attempt ID
-  const submitWithAttemptId = useCallback(async (attemptId: string) => {
-    // Prevent multiple submissions
-    if (isSubmitting) {
-      console.log('Quiz submission already in progress');
-      return { attemptId };
-    }
-
-    setIsSubmitting(true);
-    
-    try {
-      // First check if the attempt is already completed
-      if (attempt?.completedAt) {
-        console.log(`Attempt ${attemptId} has already been completed at ${attempt.completedAt}`);
-        
-        // Return success with the existing attempt
-        return {
-          attemptId,
-          result: {
-            success: true,
-            message: "Quiz was already completed",
-            alreadyCompleted: true
-          }
-        };
-      }
-      
-      // Check for unanswered questions
-      const unansweredCount = quiz ? 
-        quiz.questions.filter((q: QuizQuestion) => !answers[q.id]).length : 0;
-      
-      if (unansweredCount > 0) {
-        // Check if the quiz is completely empty (no answers at all)
-        const isCompletelyEmpty = Object.keys(answers).length === 0;
-        
-        const message = isCompletelyEmpty
-          ? `You haven't answered any questions. Are you sure you want to submit an empty quiz?`
-          : `You have ${unansweredCount} unanswered question${unansweredCount > 1 ? 's' : ''}. Are you sure you want to submit?`;
-        
-        const confirmed = window.confirm(message);
-        
-        if (!confirmed) {
-          setIsSubmitting(false);
-          return { attemptId };
-        }
-      }
-      
-      // First, submit all answers that have been saved locally
-      if (quiz && quiz.questions && token) {
-        console.log(`Submitting all answers before completing quiz attempt ${attemptId}`);
-        
-        // Create an array of promises for all answer submissions
-        const submissionPromises = Object.entries(answers).map(async ([questionId, answer]) => {
-          // Find the question to determine its type
-          const question = quiz.questions.find((q: QuizQuestion) => q.id === questionId);
-          if (!question) return null;
-          
-          // Prepare the response data based on question type
-          const responseData = question.questionType === 'MULTIPLE_CHOICE' 
-            ? { type: 'MULTIPLE_CHOICE', selectedOptionId: answer }
-            : { type: 'CODE', codeSubmission: answer };
-            
-          // Submit the response
-          try {
-            const response = await api.submitQuizResponse(attemptId, questionId, responseData, token);
-            console.log(`Answer for question ${questionId} saved:`, response);
-            return response;
-          } catch (error) {
-            // Handle different types of errors
-            if (error instanceof Error) {
-              // If attempt is already completed, we can ignore these errors
-              if (error.message.includes('already been completed')) {
-                console.warn(`Attempt ${attemptId} has already been completed. Skipping answer submission.`);
-                return { 
-                  questionId, 
-                  attemptId,
-                  submitted: false, 
-                  alreadyCompleted: true
-                };
-              } else if (error.message.includes('404')) {
-                console.warn(`Response submission endpoint returned 404 for question ${questionId}. Continuing with quiz completion.`);
-              } else {
-                console.error(`Error submitting answer for question ${questionId}:`, error);
-              }
-            } else {
-              console.error(`Unknown error submitting answer for question ${questionId}:`, error);
-            }
-            
-            // Return a basic object with the essential data so the submission can continue
-            return { 
-              questionId, 
-              attemptId,
-              submitted: false, 
-              error: error instanceof Error ? error.message : String(error)
-            };
-          }
-        });
-        
-        try {
-          // Wait for all submissions to complete, but don't let any failures stop the process
-          const results = await Promise.allSettled(submissionPromises);
-          console.log("All answer submissions complete:", results);
-          
-          // Check if all responses failed because the attempt is already completed
-          const allCompletedErrors = results.every(r => 
-            r.status === 'fulfilled' && 
-            r.value && 
-            (r.value.alreadyCompleted === true || 
-             (r.value.error && r.value.error.includes('already been completed')))
-          );
-          
-          if (allCompletedErrors) {
-            console.log('All responses failed because the attempt is already completed');
-            // Return the existing attempt ID so the user can navigate to results
-            return {
-              attemptId,
-              result: {
-                success: true,
-                message: "Quiz was already completed",
-                alreadyCompleted: true
-              }
-            };
-          }
-          
-          // Log any errors
-          results.forEach((result, index) => {
-            if (result.status === 'rejected') {
-              console.warn(`Answer submission ${index} failed:`, result.reason);
-            }
-          });
-        } catch (error) {
-          // This catch block will only trigger if Promise.allSettled itself fails
-          console.error("Fatal error in answer submissions:", error);
-        }
-      }
-      
-      // Then complete the quiz attempt
-      console.log('About to complete quiz attempt, attemptId:', attemptId);
-      try {
-        // Always update attemptId in state to ensure consistency
-        setAttemptId(attemptId);
-        
-        const result = await completeAttemptMutation.mutateAsync();
-        console.log('Quiz completion successful, result:', result);
-        
-        // Always return the attemptId at the root level
-        return { 
-          attemptId, 
-          result 
-        };
-      } catch (error) {
-        console.error("Error completing quiz attempt:", error);
-        
-        // If the attempt is already completed, treat it as success
-        if (error instanceof Error && error.message.includes('already been completed')) {
-          console.log('Attempt was already completed. Returning success response.');
-          return {
-            attemptId,
-            result: {
-              success: true,
-              alreadyCompleted: true
-            }
-          };
-        }
-        
-        // If the API isn't fully implemented, it might throw a 404 error
-        // In that case, still treat it as a successful submission
-        if (error instanceof Error && 
-            (error.message.includes('404') || error.message.includes('not found'))) {
-          console.warn('Quiz completion endpoint returned error, using fallback.');
-          // Return a valid result with the attemptId so the frontend can navigate to results
-          return { 
-            attemptId,
-            result: { success: true, fallback: true } 
-          };
-        }
-        
-        // Even for other errors, include the attemptId so navigation can continue
-        return { 
-          attemptId,
-          error: error instanceof Error ? error.message : String(error),
-          result: null 
-        };
-      }
-    } catch (error) {
-      console.error("Error submitting quiz:", error);
-      setIsSubmitting(false);
-      toast.error("Failed to submit quiz");
-      // Still return the attemptId even in case of error
-      return { 
-        attemptId,
-        error: error instanceof Error ? error.message : String(error),
-        result: null 
-      };
-    }
-  }, [isSubmitting, quiz, answers, token, api, setIsSubmitting, setAttemptId, completeAttemptMutation, attempt]);
-
-  // Submit the entire quiz
-  const submitQuiz = useCallback(async () => {
-    console.log('submitQuiz called with:', { quizId, token: !!token, answersCount: Object.keys(answers).length });
-    
-    if (!quiz || !token || !quizId) {
-      console.error('Missing required data for quiz submission:', { 
-        quiz: !!quiz, 
-        token: !!token, 
-        quizId: !!quizId 
-      });
-      return { success: false, message: 'Missing required data' };
-    }
-    
-    // Prevent multiple submissions
-    if (isSubmitting) {
-      console.log('Quiz submission already in progress');
-      return { success: false, message: 'Submission in progress' };
-    }
-    
-    setIsSubmitting(true);
-    console.log('Set isSubmitting to true');
-    
-    try {
-      // Check for unanswered questions
-      const unansweredCount = quiz ? 
-        quiz.questions.filter((q: QuizQuestion) => !answers[q.id]).length : 0;
-      
-      if (unansweredCount > 0) {
-        // Check if the quiz is completely empty (no answers at all)
-        const isCompletelyEmpty = Object.keys(answers).length === 0;
-        
-        const message = isCompletelyEmpty
-          ? `You haven't answered any questions. Are you sure you want to submit an empty quiz?`
-          : `You have ${unansweredCount} unanswered question${unansweredCount > 1 ? 's' : ''}. Are you sure you want to submit?`;
-        
-        console.log('Showing confirmation for unanswered questions:', { 
-          unansweredCount, 
-          isCompletelyEmpty,
-          message 
-        });
-        
-        const confirmed = window.confirm(message);
-        
-        if (!confirmed) {
-          console.log('User cancelled quiz submission');
-          setIsSubmitting(false);
-          return { success: false, message: 'Submission cancelled' };
-        }
-      }
-      
-      // Submit the entire quiz at once (create and complete attempt)
-      console.log('Making API call to submit complete quiz:', { 
-        quizId, 
-        startTime: startTime.toISOString(),
-        answers: Object.keys(answers).length
-      });
-      
-      const result = await api.submitCompleteQuiz(
-        quizId,
-        startTime.toISOString(),
-        answers,
-        token
-      );
-      
-      console.log('Quiz submission API result:', result);
-      
-      // Store the new attempt ID
-      if (result && result.id) {
-        console.log(`Setting attemptId to: ${result.id}`);
-        setAttemptId(result.id);
-      } else {
-        console.warn('API response missing attempt ID:', result);
-      }
-      
-      // Clear the saved quiz data from sessionStorage
-      console.log('Cleaning up session storage');
-      sessionStorage.removeItem(`quiz_${quizId}`);
-      sessionStorage.removeItem(`quiz_attempt_${quizId}`);
-      
-      console.log('Returning success response with attemptId:', result?.id);
-      return { 
-        success: true,
-        message: 'Quiz submitted successfully',
-        attemptId: result?.id
-      };
-    } catch (error) {
-      console.error('Error submitting quiz:', error);
-      return { 
-        success: false, 
-        message: error instanceof Error ? error.message : 'Unknown error'
-      };
-    } finally {
-      console.log('Setting isSubmitting back to false');
-      setIsSubmitting(false);
-    }
-  }, [quiz, quizId, token, answers, isSubmitting, startTime, api, setAttemptId]);
-
   // Mark that we've initialized after the first render
   useEffect(() => {
     hasInitialized.current = true;
@@ -956,8 +599,6 @@ export function useQuiz(quizId?: string) {
     error,
     progress: quiz ? ((Object.keys(answers).length / quiz.questions.length) * 100) : 0,
     answers,
-    elapsedTime,
-    formattedTime,
     nextQuestion,
     previousQuestion,
     goToQuestion,
@@ -965,69 +606,8 @@ export function useQuiz(quizId?: string) {
     submitQuiz,
     startQuizAttempt,
     // Helper to clear saved quiz data if needed
-    clearSavedQuiz: useCallback(() => {
-      if (quizId) {
-        console.log(`Thoroughly clearing all quiz data for: ${quizId}`);
-        // Clear direct quiz data
-        sessionStorage.removeItem(`quiz_${quizId}`);
-        sessionStorage.removeItem(`quiz_attempt_${quizId}`);
-        sessionStorage.removeItem(`assessment_${quizId}`);
-        sessionStorage.removeItem(`quiz_${quizId}_completed`);
-        
-        // Find and clear any other quiz-related items
-        Object.keys(sessionStorage).forEach(key => {
-          if (key.includes(quizId)) {
-            console.log(`Clearing additional quiz session data: ${key}`);
-            sessionStorage.removeItem(key);
-          }
-        });
-      }
-    }, [quizId]),
+    clearSavedQuiz,
     // Force a complete reset to start fresh
-    forceReset: useCallback(() => {
-      if (quizId) {
-        console.log(`Forcing complete reset of quiz ${quizId}`);
-        
-        // Clear all session storage
-        sessionStorage.removeItem(`quiz_${quizId}`);
-        sessionStorage.removeItem(`quiz_attempt_${quizId}`);
-        sessionStorage.removeItem(`assessment_${quizId}`);
-        sessionStorage.removeItem(`quiz_${quizId}_completed`);
-        
-        // Find and clear any other quiz-related items
-        Object.keys(sessionStorage).forEach(key => {
-          if (key.includes(quizId)) {
-            console.log(`Clearing additional quiz session data: ${key}`);
-            sessionStorage.removeItem(key);
-          }
-        });
-        
-        // Reset state
-        setCurrentQuestionIndex(0);
-        setAnswers({});
-        setElapsedTime(0);
-        setStartTime(new Date());
-        setAttemptId(null);
-        
-        // Force a new session to be created
-        const newState = {
-          currentQuestionIndex: 0,
-          answers: {},
-          startTime: new Date().toISOString(),
-          elapsedTime: 0,
-          lastUpdated: new Date().toISOString()
-        };
-        
-        sessionStorage.setItem(`quiz_${quizId}`, JSON.stringify(newState));
-        
-        // Invalidate queries to force re-fetch
-        queryClient.invalidateQueries({ queryKey: ['quiz', quizId] });
-        if (attemptId) {
-          queryClient.invalidateQueries({ queryKey: ['quizAttempt', attemptId] });
-        }
-        
-        console.log('Quiz state has been completely reset');
-      }
-    }, [quizId, attemptId, queryClient])
+    forceReset
   };
 }

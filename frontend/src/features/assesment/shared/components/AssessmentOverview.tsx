@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
-import { Clock, ArrowRight, Timer, CheckSquare, Code2, CheckCircle2, Circle, AlertTriangle, Tag, BookOpenCheck, XIcon, Send } from 'lucide-react';
+import { Clock, ArrowRight, Timer, CheckSquare, Code2, CheckCircle2, Circle, AlertTriangle, Tag, BookOpenCheck, XIcon, Send, HelpCircle } from 'lucide-react';
 import { Progress } from '@/components/ui/progress';
 import { cn } from '@/lib/utils';
 import { BorderlessThemeToggle } from "@/features/problems/components/shared/BorderlessThemeToggle";
@@ -29,6 +29,7 @@ import {
   TooltipProvider,
   TooltipTrigger
 } from "@/components/ui/tooltip";
+import { clearAssessmentSession } from '@/lib/sessionUtils';
 
 // Interface for task item in assessment
 export interface AssessmentTask {
@@ -53,24 +54,68 @@ export interface AssessmentOverviewProps {
   type?: 'quiz' | 'test'; // extensible for future test type
   onStartTask?: (taskId: string) => void;
   onFinishAssessment?: () => void;
-  onExit?: () => void; // New prop for exiting the assessment
+  onExit?: () => void; // This prop now triggers the dialog
+  // Add props for lifted dialog state
+  showExitDialog: boolean;
+  onToggleExitDialog: (open: boolean) => void;
+  onConfirmExit: () => void; // The actual exit/navigation logic
 }
 
+// Create a dedicated memoized component for the exit dialog
+const ExitConfirmationDialog = React.memo(({
+  open,
+  onOpenChange,
+  displayType,
+  onConfirm,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  displayType: string;
+  onConfirm: () => void;
+}) => {
+  return (
+    <AlertDialog open={open} onOpenChange={onOpenChange}>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Exit {displayType}?</AlertDialogTitle>
+          <AlertDialogDescription>
+            Are you sure you want to exit this {displayType.toLowerCase()}? You will lose any progress you may have made.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel>Cancel</AlertDialogCancel>
+          <AlertDialogAction 
+            onClick={onConfirm}
+            className="bg-red-600 text-white hover:bg-red-700"
+          >
+            Exit {displayType}
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+  );
+});
+
 // Simple AssessmentOverviewHeader component
-function AssessmentOverviewHeader({ 
+const AssessmentOverviewHeader = React.memo(({ 
   title, 
   type, 
-  onExit,
+  onExitClick,
+  onConfirmExit,
+  showExitDialog,
+  onToggleExitDialog,
   id
 }: { 
   title: string, 
   type?: string, 
-  onExit: () => void,
+  onExitClick: () => void,
+  onConfirmExit: () => void,
+  showExitDialog: boolean,
+  onToggleExitDialog: (open: boolean) => void,
   id?: string
-}) {
+}) => {
   const { profile } = useProfile();
   const { user } = useAuth();
-  const [showExitDialog, setShowExitDialog] = useState(false);
   const logoSrc = useLogoSrc('single');
   
   // Normalize the type to proper case
@@ -80,23 +125,13 @@ function AssessmentOverviewHeader({
   
   // Handle exit confirmation
   const handleExitConfirm = () => {
-    // Clear session storage for this assessment
-    if (id) {
-      sessionStorage.removeItem(`assessment_${id}`);
-      sessionStorage.removeItem(`quiz_${id}`);
-      sessionStorage.removeItem(`quiz_attempt_${id}`);
-      sessionStorage.removeItem(`quiz_${id}_completed`);
-      
-      // Remove any other related keys
-      Object.keys(sessionStorage).forEach(key => {
-        if (key.includes(id)) {
-          sessionStorage.removeItem(key);
-        }
-      });
+    // **Use the centralized cleanup function**
+    if (id && type) {
+      clearAssessmentSession(id, type as 'quiz' | 'test');
     }
     
-    // Call the original exit handler
-    onExit();
+    // Call the actual exit handler from parent
+    onConfirmExit();
   };
   
   return (
@@ -113,7 +148,7 @@ function AssessmentOverviewHeader({
           <Button
             variant="outline"
             size="sm"
-            onClick={() => setShowExitDialog(true)}
+            onClick={() => onToggleExitDialog(true)}
             className="gap-1 bg-red-50 hover:bg-red-100 text-red-600 border-red-200 dark:bg-red-950/30 dark:hover:bg-red-950/50 dark:border-red-800/50 dark:text-red-400"
           >
             <XIcon className="h-4 w-4 mr-1" />
@@ -139,29 +174,16 @@ function AssessmentOverviewHeader({
         </div>
       </div>
       
-      {/* Exit Confirmation Dialog */}
-      <AlertDialog open={showExitDialog} onOpenChange={setShowExitDialog}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Exit {displayType}?</AlertDialogTitle>
-            <AlertDialogDescription>
-              Are you sure you want to exit this {displayType.toLowerCase()}? You will lose any progress you may have made.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction 
-              onClick={handleExitConfirm}
-              className="bg-red-600 text-white hover:bg-red-700"
-            >
-              Exit {displayType}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      {/* Use the extracted dialog component */}
+      <ExitConfirmationDialog
+        open={showExitDialog}
+        onOpenChange={onToggleExitDialog}
+        displayType={displayType}
+        onConfirm={handleExitConfirm}
+      />
     </div>
   );
-}
+});
 
 export function AssessmentOverview({
   id,
@@ -175,6 +197,9 @@ export function AssessmentOverview({
   onStartTask,
   onFinishAssessment,
   onExit,
+  showExitDialog,
+  onToggleExitDialog,
+  onConfirmExit,
 }: AssessmentOverviewProps) {
   const navigate = useNavigate();
   const location = useLocation();
@@ -184,9 +209,6 @@ export function AssessmentOverview({
   const [localTasks, setLocalTasks] = useState<AssessmentTask[]>(tasks);
   const [localIsSubmitting, setLocalIsSubmitting] = useState<boolean>(false);
   const [showSubmitDialog, setShowSubmitDialog] = useState<boolean>(false);
-  
-  // Use the shared timer hook
-  const localRemainingTime = useAssessmentTimer(id, duration);
   
   // Load assessment state from sessionStorage on initial render
   useEffect(() => {
@@ -237,30 +259,14 @@ export function AssessmentOverview({
   
   // Format the remaining time as HH:MM:SS
   const formatRemainingTime = (seconds?: number): string => {
-    if (!seconds) return '--:--:--';
+    if (seconds === undefined) return '--:--:--';
+    if (seconds <= 0) return '00:00:00';
     
     const hours = Math.floor(seconds / 3600);
     const minutes = Math.floor((seconds % 3600) / 60);
     const secs = seconds % 60;
     
     return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
-  };
-  
-  // Handle exit navigation based on assessment type
-  const handleExit = () => {
-    if (type === 'test') {
-      // For tests, go to dashboard
-      navigate('/dashboard');
-    } else {
-      // For quizzes, try to go to the relevant topic page if available
-      const topicSlug = location.state?.topicSlug;
-      if (topicSlug) {
-        navigate(`/topic/${topicSlug}`);
-      } else {
-        // Fallback to dashboard if no topic info
-        navigate('/dashboard');
-      }
-    }
   };
   
   // Handle starting a specific task
@@ -323,13 +329,24 @@ export function AssessmentOverview({
   const progressPercentage = localTasks.length > 0 ? (localSubmittedCount / localTasks.length) * 100 : 0;
 
   // Get icon based on question type
-  const getTaskIcon = (taskType: string) => {
-    if (taskType.toLowerCase().includes('multiple choice')) {
+  const getTaskIcon = (taskType: string | undefined | null): React.ReactNode => {
+    // Add check for undefined or null taskType
+    if (!taskType) {
+      // Return a default icon or null if type is missing
+      console.warn('Task type is missing, returning default icon.');
+      return <HelpCircle className="h-4 w-4 text-muted-foreground" />;
+    }
+    
+    const lowerCaseType = taskType.toLowerCase();
+    
+    if (lowerCaseType.includes('multiple choice') || lowerCaseType.includes('mcq')) {
       return <CheckSquare className="h-4 w-4 text-amber-500" />;
-    } else if (taskType.toLowerCase().includes('code')) {
+    } else if (lowerCaseType.includes('code')) {
       return <Code2 className="h-4 w-4 text-indigo-500" />;
     }
-    return null;
+    // Default icon if type is unrecognized
+    console.warn(`Unrecognized task type: ${taskType}, returning default icon.`);
+    return <HelpCircle className="h-4 w-4 text-muted-foreground" />;
   };
 
   return (
@@ -338,7 +355,10 @@ export function AssessmentOverview({
       <AssessmentOverviewHeader 
         title={title} 
         type={type}
-        onExit={onExit || handleExit} 
+        onExitClick={onExit || (() => {})}
+        onConfirmExit={onConfirmExit}
+        showExitDialog={showExitDialog}
+        onToggleExitDialog={onToggleExitDialog}
         id={id}
       />
       
@@ -371,7 +391,9 @@ export function AssessmentOverview({
                     <span className="text-xs text-muted-foreground">Duration</span>
                     <div className="flex items-center mt-1">
                       <Timer className="h-3.5 w-3.5 text-muted-foreground mr-1" />
-                      <span className="font-medium text-sm">{duration} minutes</span>
+                      <span className="font-medium text-sm">
+                        {duration !== undefined ? `${duration} minutes` : 'Loading...'}
+                      </span>
                     </div>
                   </div>
                   
@@ -408,7 +430,7 @@ export function AssessmentOverview({
               </CardHeader>
               <CardContent className="text-center pt-0">
                 <div className="text-4xl font-mono font-bold tracking-wider pb-2 text-primary">
-                  {formatRemainingTime(localRemainingTime)}
+                  {formatRemainingTime(remainingTime)}
                 </div>
                 <div className="flex flex-col gap-2 mt-2">
                   <Button 

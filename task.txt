@@ -1,245 +1,271 @@
-# Task: Level Unlock Logic & Dashboard Refresh
+# Task: Allow Taking Exams on Locked Levels
 
-**Goal:** Change level unlock to use cascading logic based on passing exams, and ensure the dashboard updates immediately without showing stale data.
+**Goal:** Modify the learning dashboard (`LevelSystem.tsx`) to allow users to click 'Take Exam' on any level, even if it appears locked (dimmed). Passing the exam should still trigger the existing cascading unlock logic.
 
-**Unlock Logic:** Passing an exam in Level N-1 unlocks Level N *and* all preceding levels (0 to N-1).
+**Previous Behavior:** The 'Take Exam' and 'See History' buttons were disabled and prevented clicks on levels that were visually dimmed due to the cascading unlock logic.
 
-**Dashboard Refresh:** When returning to the dashboard after an exam, it should show the correct unlock status immediately (using a loading indicator if necessary) instead of displaying stale data.
+**New Behavior:** Users can click 'Take Exam' or 'See History' on any level card. The visual dimming still indicates the lock status based on previously passed exams, but interaction is no longer blocked.
 
-**Sub-Tasks:**
+**Specific Changes in `frontend/src/components/LevelSystem.tsx`:**
 
-- [x] Backend: Fetch User's Passing Exam Status per Level (`GET /learning/levels`)
-  - [x] Modify Prisma query to include related `QuizAttempt` data for `TEST` type quizzes for the current user.
-  - [x] Determine if *at least one* exam in the level was passed by the user (`passed: true`).
-  - [x] Add `hasPassedExam: boolean` to the level object in the API response.
-- [x] Frontend: Update Level Interface
-  - [x] Add `hasPassedExam?: boolean` to the `Level` interface definition(s) (e.g., in `LevelSystem.tsx`, `useLearningPath.ts`).
-- [x] Frontend: Update Cascading Locking Logic (`LevelSystem.tsx`)
-  - [x] Modify `shouldDimLevel` function.
-  - [x] Find the highest level index `maxPassedIndex` where `hasPassedExam` is true.
-  - [x] A level at `currentIndex` should be dimmed if `currentIndex > maxPassedIndex + 1`.
-- [x] Frontend: Update Cascading Locking Logic (`TopicPage.tsx`)
-  - [x] Modify `isLocked` calculation.
-  - [x] Find the `levelIndex` of the current topic.
-  - [x] Find the highest level index `maxPassedIndex` where `hasPassedExam` is true in the `learningPath` data.
-  - [x] A topic in a level at `levelIndex` should be locked if `levelIndex > maxPassedIndex + 1`.
-- [x] Frontend: Invalidate `learningPath` query on successful Exam/Test submission (`useQuiz.ts`, `useTest.ts`)
-- [x] Frontend: Prefetch `learningPath` query on Exam/Test results pages (`QuizResultsPage.tsx`, `TestResultsPage.tsx`)
-- [x] Frontend: Remove `placeholderData: keepPreviousData` from `useQuery` in `LevelSystem.tsx` to ensure loading state shows instead of stale data.
-- [x] Frontend: Remove background refetch overlay/dimming UI from `LevelSystem.tsx`.
-- [x] Review & Test: Verify cascading unlock functionality and immediate dashboard update (shows loading spinner instead of stale locked state).
+- Removed the `isDimmed && !isComplete` check within the `handleStartNextTest` function that previously prevented navigation to the exam.
+- Removed the `isDimmed && !isComplete` check within the `handleTestHistory` function that previously prevented navigation to the history page.
+- Removed the `(isDimmed && !isComplete)` condition from the `disabled` prop on the 'Take Exam' button component.
+- Removed the `(isDimmed && !isComplete)` condition from the `disabled` prop on the 'See History' button component.
+- Removed conditional CSS classes (`bg-gray-100`, `dark:bg-gray-800/40`, `text-muted-foreground`, `cursor-not-allowed`) from both buttons that visually indicated a disabled state when `isDimmed && !isComplete` was true.
 
-# Quiz Results Page Issue Fix
+# Task: Fix Assessment Timer Duration Display
 
-## Problem
-When clicking "View Results" in quiz history or exam history, the app shows "Assessment Not Found QUIZ not found" error.
+**Goal:** Ensure the timer displays the correct duration based on the assessment's `estimatedTime` value from the backend, and functions consistently across assessment pages.
 
-## Root Causes
-1. URLs in the history pages navigate to `/assessment/results/:attemptId?type=quiz` or `/assessment/results/:attemptId?type=test`
-2. This route does not exist in the router configuration
-3. The API functions to fetch quiz/test data for completed attempts have issues handling the `assessmentType` parameter
+**Initial Problem:** Assessment timers consistently displayed a 60-minute duration regardless of the actual `estimatedTime` value set for quizzes and tests in the database. Additionally, the timer would reset when navigating between questions, and the exit confirmation dialog would flicker every second due to timer updates.
 
-## Implemented Fixes
+**Root Causes Identified:**
 
-1. **Added AssessmentResultsRouter component** 
-   - Created new component in `frontend/src/features/assesment/shared/AssessmentResultsRouter.tsx`
-   - It reads the query parameter `type` to determine if it's a quiz or test
-   - Redirects to the appropriate results page based on the type
+1. **Field Name Mismatch:** The frontend components were looking for a `timeLimit` field in the assessment data while the backend was providing it as `estimatedTime`.
+2. **Component Re-rendering:** Timer updates every second caused the exit dialog component to re-render and briefly disappear/reappear.
+3. **Timer State Management:** The timer state wasn't properly maintained when navigating between assessment pages.
 
-2. **Added missing route in App.tsx**
-   - Added route for `/assessment/results/:attemptId` that uses the new AssessmentResultsRouter component
+**Specific Changes Implemented:**
 
-3. **Enhanced API client functions**
-   - Updated `getQuizForAttempt` method to first try fetching the attempt data directly
-   - Updated `getQuizResults` method to fetch quiz details when they're missing
+**Frontend (`frontend/src/features/assesment/shared/AssessmentEntryPage.tsx`):**
 
-4. **Enhanced backend endpoint**
-   - Updated backend GET `/quizzes/:id` endpoint to include detailed quiz information when needed
-   - Added support for including topic and level information
+1. **Fixed Field Name Reference:**
+   * Changed all references from `assessment.timeLimit` to `assessment.estimatedTime` when setting the `duration` prop for the `AssessmentIntro` and `AssessmentOverview` components.
+   * Updated the `initialRemainingTime` calculation to use `assessment.estimatedTime` instead of `assessment.timeLimit`.
+   * Added optional chaining (`assessment?.estimatedTime`) to prevent type errors.
 
-## How It Works
-When a user clicks "View Results":
-1. The app navigates to `/assessment/results/:attemptId?type=quiz` or `type=test`
-2. The AssessmentResultsRouter component loads and redirects to the appropriate results page
-3. The enhanced API functions fetch the required data with proper error handling
+2. **Improved Component Performance:**
+   * Applied memoization techniques using `useCallback` and `useMemo` to reduce unnecessary re-renders.
+   * Memoized the task formatting function (`formatAssessmentTasksCallback`) and the resulting formatted tasks array.
+   * Memoized callback handlers (`handleStartAssessment`, `handleProceedToOverview`, `handleExitAssessment`, `handleFinishAssessment`) with proper dependency arrays.
 
-## Benefits
-- Fixed the "Assessment Not Found" error
-- Improved error handling for quiz/test results viewing
-- Added a more consistent routing structure for assessment results 
+3. **Enhanced Dialog Stability:**
+   * Added state for the exit dialog (`showExitDialog`) and lifted it to the parent component to prevent re-rendering issues.
+   * Created separate functions for controlling dialog visibility (`handleToggleExitDialog`) and performing the actual exit logic (`performExitNavigation`).
 
-# Results Page UI/UX Improvements
+**Frontend (`frontend/src/features/assesment/shared/components/AssessmentPage.tsx`):**
 
-## Goal
-Ensure consistent UI/UX between Quiz and Test Results pages, especially when viewed from history.
+1. **Fixed Field Name Reference:**
+   * Updated the `useAssessmentTimer` hook initialization to use `assessment?.estimatedTime` instead of `assessment?.timeLimit`.
+   * Added proper state handling to ensure the timer continues from the same point when navigating between assessment views.
 
-## Implemented Changes
+2. **Improved Navigation Logic:**
+   * Modified the `handleExit` function to include `{ replace: true, state: { skipIntro: true } }` in the navigation call to ensure users return to the assessment overview rather than the intro when exiting from a question.
 
-- **QuizResultsPage.tsx:**
-  - [x] Conditionally hide "Back to Topics" and "Retake Quiz" buttons when viewing from history (`fromHistory=true` or `from=history` query param).
+**Frontend (`frontend/src/features/assesment/shared/components/AssessmentOverview.tsx`):**
 
-- **TestResultsPage.tsx:**
-  - [x] Match overall layout and styling of `QuizResultsPage.tsx`.
-  - [x] Add consistent header with title and conditional "Return to Test History" / "Return to Dashboard" button.
-  - [x] Implement the 3-card summary layout (Score with Trophy, Time with Clock, Date with Award).
-  - [x] Apply consistent styling to individual question cards (header, correct/incorrect icons, content).
-  - [x] Add helper functions `getScoreGrade` and `getScoreColor` for consistency.
-  - [x] Conditionally hide "Return to Level" and "Retake Test" buttons when viewing from history. 
+1. **Enhanced Component Stability:**
+   * Wrapped the `AssessmentOverviewHeader` component in `React.memo` to prevent unnecessary re-renders.
+   * Extracted the `AlertDialog` into a dedicated memoized component (`ExitConfirmationDialog`) for better isolation from re-renders.
+   * Removed a redundant `useAssessmentTimer` hook call within `AssessmentOverview` that was causing duplicate timer instances.
 
-# Assessment Exit Navigation Fix
+**Frontend (`frontend/src/features/assesment/shared/hooks/useAssessmentTimer.ts`):**
 
-## Problem
-- Exiting a test incorrectly redirected the user to `/methodology` instead of `/dashboard`.
-- Exiting a quiz incorrectly redirected the user to `/dashboard` instead of the relevant topic page.
+1. **Added Timer Pausing Capability:**
+   * Modified the `useAssessmentTimer` hook to accept a third parameter (`pauseTimer: boolean`) that stops the timer countdown when true.
+   * Implemented conditional timer initialization that skips setting up the interval when `pauseTimer` is true.
+   * Updated the effect's dependency array to include `pauseTimer` for proper re-execution when the pause state changes.
 
-## Root Causes
-1.  **Ghost Query Refetch:** A stale React Query entry for `['topic', null, 'methodology']` was being refetched upon returning to `/dashboard`, triggering navigation.
-2.  **Incorrect Exit Logic:** 
-    - The `handleExit` function in `AssessmentOverview.tsx` had a hardcoded fallback to `methodology`.
-    - The `handleExitAssessment` function in `AssessmentEntryPage.tsx` was overriding the specific logic and sending all exits to `/dashboard` or `location.state.from`.
-3.  **Missing Prop Linkage:** The `onExit` prop was not correctly defined and passed from `AssessmentEntryPage` to `AssessmentOverview`.
+**Outcome:** The assessment timer now correctly displays the duration based on the database's `estimatedTime` value. The timer remains consistent when navigating between questions, and the exit confirmation dialog remains stable without flickering. This provides a smoother and more accurate user experience across both quiz and test assessments.
 
-## Implemented Fixes
+# Task: Fix Quiz/Test Results Summary Page Display
 
-- **`frontend/src/features/topics/TopicPage.tsx`:**
-  - [x] Updated the `useQuery` hook for topics:
-    - Added `&& window.location.pathname.includes('/topic/')` to the `enabled` condition to prevent refetches when not on a topic page.
-    - Set appropriate `staleTime` (5m) and `gcTime` (10m).
+**Goal:** Ensure the summary page displayed after completing a quiz or test accurately shows the percentage score, the number of correct vs. total questions, and the time spent.
 
-- **`frontend/src/features/assesment/shared/components/AssessmentOverview.tsx`:**
-  - [x] Added `onExit?: () => void` prop to `AssessmentOverviewProps` interface.
-  - [x] Updated the internal `handleExit` function to correctly route based on `type` (tests -> dashboard, quizzes -> topic if slug exists, else dashboard). (Note: This internal function is less critical now due to the parent handler being passed).
+**Initial Problem:** The summary page consistently displayed "0%" score, "0 time spent", and an incorrect "X out of Y correct" count (e.g., "50 out of 1 correct" instead of "1 out of 2 correct" for a 50% score).
 
-- **`frontend/src/features/assesment/shared/AssessmentEntryPage.tsx`:**
-  - [x] Replaced the `handleExitAssessment` function with logic that correctly routes based on `isTest` vs `isQuiz` and the availability of `topic.slug`.
-  - [x] Ensured `handleExitAssessment` is passed as the `onExit` prop to the `AssessmentOverview` component.
+**Root Causes Identified:**
 
-## Outcome
-- The redirect to `/methodology` after exiting a test is resolved.
-- Exiting a test now correctly navigates to `/dashboard`.
-- Exiting a quiz now correctly navigates to the relevant `/topic/:slug` page, falling back to `/dashboard` only if the slug is unavailable. 
+1.  **Incorrect Frontend Mapping:** The frontend components (`QuizResultsPage.tsx` and initially `TestResultsPage.tsx`) were not correctly extracting or calculating values from the API response.
+2.  **Missing Backend Data:** The primary API endpoint (`GET /api/quizzes/attempts/:id`) did not originally return the *total* number of questions in the assessment, leading to incorrect denominator calculations on the frontend.
+3.  **Inconsistent Backend Field Names:** The backend used `startedAt` while the `TestResultsPage` expected `startTime`, causing issues with time calculation.
+4.  **Redundant Frontend Calculation:** `QuizResultsPage.tsx` was attempting to recalculate the percentage score when the backend already provided it.
 
-# Navbar Visibility Fix for Review Mode
+**Specific Changes Implemented:**
 
-## Problem
-The main navigation bar (`Navigation.tsx`) was incorrectly displayed at the top of the page when a user was actively reviewing a spaced repetition problem (e.g., on the `/problem/:slug/review` route), even though it should be hidden in focus modes like problem solving or quizzes.
+**Backend (`backend/src/routes/quiz.ts`):**
 
-## Root Cause
-The conditional logic within the `MainLayout` component defined in `frontend/src/App.tsx` used to determine whether to hide the navigation (`shouldHideNavigation` variable) did not include a check for the specific `/problem/:slug/review` route pattern.
+1.  **Modified `GET /api/quizzes/attempts/:id/results` Endpoint:**
+    *   Updated Prisma query to include `quiz: { include: { _count: { select: { questions: true } } } }`.
+    *   Added `totalQuestions: attempt.quiz?._count?.questions ?? 0` to the returned `results` object.
+2.  **Modified `GET /api/quizzes/attempts/:id` Endpoint:**
+    *   Updated Prisma query to include `quiz: { include: { _count: { select: { questions: true } } } }`.
+    *   Added `totalQuestions: attempt.quiz?._count?.questions ?? 0` to the returned JSON response (`responseWithCount`).
+    *   Added pre-calculation of `elapsedTime` based on `completedAt` and `startedAt`.
+    *   Added `startTime: attempt.startedAt` as an alias for consistency.
+    *   Included `elapsedTime` and `startTime` in the returned JSON response.
 
-## Implemented Fixes
-- **`frontend/src/App.tsx`:**
-  - [x] Modified the `MainLayout` component's logic:
-    - Added a new variable `isProblemReviewPage` to check if `location.pathname` matches `/problem/:slug/review`.
-    - Updated the `shouldHideNavigation` condition to include `isProblemReviewPage`.
-  - [x] Added `pt-16` class to the `<main>` element conditionally (`!shouldHideNavigation`) to account for the fixed navbar height and prevent content overlap when the navbar *is* shown.
+**Frontend (`frontend/src/features/assesment/quiz/QuizResultsPage.tsx`):**
 
-## Outcome
-- The main navigation bar is now correctly hidden when a user is on the dedicated problem review page (`/problem/:slug/review`).
-- Content layout is preserved correctly whether the navbar is shown or hidden.
+1.  **Updated `defaultQuizResult` Mapping:**
+    *   Corrected `percentageScore` to use `response.score ?? 0` directly.
+    *   Corrected `timeSpentInSeconds` mapping to check `response.timeSpent`, `response.timeTaken`, and added fallback `calculateTimeFromDates(response.startedAt, response.completedAt)`.
+    *   Ensured `totalQuestions` correctly uses `response.totalQuestions` (now provided by the backend).
+2.  **Added `calculateTimeFromDates` Helper Function:** Implemented this function to calculate duration from date strings.
+3.  **Fixed Score Display Text:** Modified the display logic to use `result.questions?.filter(q => q.correct).length || 0` for the count of correct answers and `result.totalQuestions || 0` for the total number of questions.
+4.  **Added Debug Logging:** Included `console.log` statements to show processed result values.
 
-# Memory Timeline Graph Fix
+**Frontend (`frontend/src/features/assesment/test/TestResultsPage.tsx`):**
 
-## Problem
-In the "Memory Strengthening Journey" popup accessed via the lightbulb icon in the review dashboard, the "Memory Improvement Timeline" graph showed a flat line. All review points were plotted at the same vertical level, failing to represent the actual change in the problem's `reviewLevel` over time.
+1.  **Updated `totalQuestions` Calculation:** Modified the variable assignment to prioritize `testResult?.totalQuestions` (now provided by the backend via the updated `/attempts/:id` endpoint) before falling back to `testResult?.responses?.length`.
+2.  **Added Debug Logging:** Included `console.log` statements similar to the quiz page.
 
-## Root Cause
-1.  **Backend Data Correctness:** The backend correctly stores historical review data, including `levelBefore` and `levelAfter` in the `ReviewHistory` table.
-2.  **Frontend Data Mismatch:** The frontend component (`frontend/src/features/spaced-repetition/components/MemoryProgressionJourney.tsx`) expected a `reviewLevel` property within the `reviewHistory` array entries.
-3.  **Frontend Plotting Error:** The graph plotting logic used the non-existent `entry.reviewLevel` property to calculate the y-position, resulting in an incorrect (likely default or zero) value being used for all points.
+**Outcome:** Both quiz and test summary pages now accurately display the percentage score, the correct vs. total question count, and the time spent.
 
-## Implemented Fixes
-- **`frontend/src/features/spaced-repetition/components/MemoryProgressionJourney.tsx`:**
-  - [x] Updated the `ReviewHistoryEntry` interface to use `levelBefore: number` and `levelAfter: number` instead of `reviewLevel: number`.
-  - [x] Modified the graph plotting logic to calculate the y-position (`bottomPercentage`) using `entry.levelAfter`.
-  - [x] Updated the tooltip content for each point to display `Level: {entry.levelAfter} (was {entry.levelBefore})` for better clarity.
+# Task: Fix Assessment Submitted Status Lost on Navigation
 
-## Outcome
-- The "Memory Improvement Timeline" graph now accurately plots the user's memory level (`levelAfter`) for the problem after each historical review.
-- The graph correctly visualizes the progression (or regression) of memory strength over time.
-- The tooltip provides clear information about the level transition for each review point. 
+**Goal:** Ensure that when a user submits an answer for an individual question (MCQ or Code) within a quiz or test, navigates away from the assessment page, and then returns, the question correctly displays both its 'Submitted' status and the previously selected answer.
 
-# Quiz/Test Resizable Panel & Navigation Improvements
+**Initial Problem:** After submitting a question, navigating away (e.g., back to the assessment overview) and then back into the question, the 'Submitted ✓' button state persisted, but the visual indication of the selected answer (e.g., the filled radio button for MCQ) was lost.
 
-## Problem
-1. In quizzes and tests, the vertical divider between the problem description and code editor was not resizable, unlike in regular code problems.
-2. When clicking "Back" while viewing a quiz/test question, it would exit the entire assessment rather than return to the assessment overview page.
+**Root Cause:** A state synchronization issue in `AssessmentPage.tsx`. When the page reloaded upon navigation, the `submittedQuestions` state array (tracking which questions were submitted) was correctly reloaded from `sessionStorage`. However, the `answers` prop (containing the actual selected answers, passed down from `useQuiz` or `useTest`) was sometimes stale or empty during the initial render cycles after navigating back. This led to the question component (`MultipleChoiceQuestion` or `CodeQuestion`) rendering without the selection, even though the `AssessmentPage` knew the question was submitted.
 
-## Root Causes
-1. **Missing Resizable Panel:** The `CodeQuestion.tsx` component used in quizzes/tests had a static width division (`w-2/5`) for the description panel, with no resizing mechanism.
-2. **Incorrect Navigation Logic:** The `handleExit` function in `AssessmentPage.tsx` was directing users to topic pages or dashboard instead of the assessment overview.
+**Specific Fixes:**
 
-## Implemented Fixes
+1.  **Refactored State Initialization in `AssessmentPage.tsx`:**
+    *   Modified `useEffect` hooks to prioritize loading `submittedQuestions` state directly from `sessionStorage` on mount using a helper function (`loadInitialSubmittedQuestions`).
+    *   Separated effects for different initialization phases (completion checks, attempt starting, `assessment_${id}` structure verification) to prevent race conditions.
+    *   Ensured the `assessment_${id}` structure creation/verification relies on the correctly loaded state and doesn't incorrectly overwrite `isSubmitted` flags.
 
-- **`frontend/src/features/assesment/shared/components/CodeQuestion.tsx`:**
-  - [x] Imported `ResizablePanel` from coding components.
-  - [x] Replaced the static width div (`w-2/5 border-r`) with a `ResizablePanel` component.
-  - [x] Added appropriate sizing constants (`DEFAULT_DESC_WIDTH`, `MIN_DESC_WIDTH`, `MAX_DESC_WIDTH`).
-  - [x] Fixed a related linter error by removing an incorrect prop (`onLanguageChange`) from the `TestRunner` component.
+2.  **Synchronized `useTest.ts` with `useQuiz.ts`:**
+    *   **Identified Discrepancy:** Found that `useTest.ts` had diverged from `useQuiz.ts` and was not correctly restoring the `answers` state object from `sessionStorage` upon re-initialization (like when navigating back).
+    *   **Replaced Logic:** Copied the entire working logic from `useQuiz.ts` into `useTest.ts`, meticulously renaming all quiz-specific identifiers (variables, types, storage keys like `quiz_` -> `test_`) to their test equivalents.
+    *   **Fixed Linter Error:** Corrected a minor linter error introduced during the copy by ensuring the `resetTestSession` helper function was defined before being used within its `useEffect` hook.
 
-- **`frontend/src/features/assesment/shared/components/AssessmentPage.tsx`:**
-  - [x] Modified the `handleExit` function to redirect users to the assessment overview page (`/assessment/{type}/{id}`) for both quizzes and tests.
-  - [x] Only falls back to topic page or dashboard as a last resort if the assessment ID is unavailable.
+**Outcome:** Both quizzes and tests now correctly restore and display the selected answer *and* the submitted status when navigating back to a previously answered question.
 
-## Outcome
-- The divider between problem description and code editor is now resizable in quizzes/tests, providing a consistent experience with regular code problems.
-- Clicking "Back" while viewing a question now takes users back to the assessment overview page rather than exiting the entire assessment, improving navigation flow. 
+# Task: Fix Test Question Update Failing (404 Error)
 
-# Assessment API Call Refactoring
+**Goal:** Allow administrators to successfully update questions within a Test via the Admin Dashboard.
 
-## Problem
-1. Loading the assessment entry page (`AssessmentEntryPage`) caused benign 404 errors in the console because the shared `api.getQuizForAttempt` function first tried fetching attempt details (`/quizzes/attempts/:id`) using the Quiz/Test ID before falling back to fetch the structure (`/quizzes/:id/attempt`).
-2. Attempting to fix the 404s by *only* using the fallback path (`/quizzes/:id/attempt`) revealed that endpoint sometimes returned 200 OK but without the necessary `questions` array, breaking the assessment loading.
-3. An unrelated bug caused API URLs to be constructed with a double prefix (e.g., `/api/api/...`).
-4. After renaming `api.getQuizForAttempt` to `api.getAssessmentStructure`, leftover calls to the old function name caused "is not a function" errors.
+**Initial Problem:** When attempting to save changes to a question belonging to a Test, the frontend sent a `PUT` request to `/api/quizzes/questions/:questionId`, resulting in a `404 Not Found` error from the backend.
 
-## Root Causes
-1. **Conflated API Function:** The `api.getQuizForAttempt` function served two purposes: fetching attempt details and fetching initial assessment structure, leading to incorrect initial calls on the entry page.
-2. **Backend Endpoint Unreliability:** The `GET /api/quizzes/:id/attempt` endpoint wasn't consistently returning the full assessment structure (including questions).
-3. **Faulty URL Construction:** The base `request` function in `api.ts` incorrectly prepended `/api/` even if the endpoint already contained it.
-4. **Incomplete Refactoring:** Calls to the old function name were missed during the initial refactoring.
+**Root Cause:** The frontend code in `TestAdmin.tsx` was incorrectly calling the `api.updateQuizQuestion` function, which is hardcoded to use the API endpoint specifically designed for *quiz* questions. The backend couldn't find the *test* question at that quiz-specific URL.
 
-## Implemented Fixes
+**Specific Fixes:**
 
-- **`frontend/src/lib/api.ts`:**
-  - [x] Refactored the base `request` function to correctly join the base URL (`/api`) and the endpoint path, preventing the `/api/api/` duplication.
-  - [x] Renamed the ambiguous `getQuizForAttempt` function to `getAssessmentStructure`.
-  - [x] Removed the initial attempt to fetch `/quizzes/attempts/:id` from `getAssessmentStructure`, making it directly call `/quizzes/:id/attempt` to fetch the structure.
-  - [x] Added enhanced error logging to `getAssessmentStructure`.
-  - [x] Created a new, specific function `getAttemptDetails` that *only* calls `GET /quizzes/attempts/:id`.
+1.  **Added `updateTestQuestion` to `api.ts`:**
+    *   Created a new function `updateTestQuestion` in the API client (`frontend/src/lib/api.ts`).
+    *   This new function sends `PUT` requests to the correct endpoint for test questions (assumed `/api/tests/questions/:questionId`).
+2.  **Updated `TestAdmin.tsx`:**
+    *   Modified the `handleSaveTest` function within `frontend/src/features/admin/components/TestAdmin.tsx`.
+    *   Changed the code to call the newly added `api.updateTestQuestion` function when updating an existing question, instead of the incorrect `api.updateQuizQuestion`.
 
-- **`frontend/src/features/assesment/shared/AssessmentEntryPage.tsx`:**
-  - [x] Updated the `useQuery` hook to call the new `api.getAssessmentStructure` function.
+**Outcome:** Updating existing questions within a Test from the Admin Dashboard now sends the request to the correct backend endpoint and succeeds.
 
-- **`frontend/src/features/assesment/quiz/hooks/useQuiz.ts`:**
-  - [x] Updated the `useQuery` hook to call `api.getAssessmentStructure`.
+# Task: Suppress Harmless Console Warning on Test Deletion
 
-- **`frontend/src/features/assesment/test/hooks/useTest.ts`:**
-  - [x] Updated the `useQuery` hook to call `api.getAssessmentStructure`.
+**Goal:** Prevent a benign console warning about JSON parsing when deleting a test from the Admin Dashboard.
 
-- **`frontend/src/features/assesment/quiz/QuizResultsPage.tsx`:**
-  - [x] Updated the fallback logic for fetching missing quiz details to call `api.getAssessmentStructure`.
+**Initial Problem:** Successfully deleting a Test triggered a console warning: `SyntaxError: Unexpected end of JSON input`, even though the delete operation worked correctly.
 
-## Outcome
-- The benign 404 errors when loading the assessment entry page are eliminated.
-- The API client functions (`api.ts`) now have clearer, single responsibilities.
-- The "api.getQuizForAttempt is not a function" error is resolved.
-- Potential backend flakiness is now isolated to the `GET /quizzes/:id/attempt` endpoint when called by `getAssessmentStructure`. This makes debugging easier if the "Assessment Not Found" issue (due to missing questions in the response) reappears. 
+**Root Cause:** The backend correctly responds to a successful `DELETE` request with an HTTP `204 No Content` status, which has an empty body. The generic `request` function in the frontend API client (`frontend/src/lib/api.ts`) was unconditionally attempting to parse *all* response bodies as JSON, leading to an error when trying to parse the intentionally empty body of the `204` response.
 
-# Remove "No Tests Available" Popup
+**Specific Fix:**
 
-## Problem
-When clicking the "Take Exam" button on a level within the `LevelSystem` component that had no associated tests, a disruptive toast notification ("No Tests Available") would appear.
+1.  **Modified `request` function in `api.ts`:**
+    *   Added a check within the `request` function to specifically look for `response.status === 204`.
+    *   If the status is `204`, the function now skips the `response.json()` call, preventing the parsing error on the empty body.
 
-## Root Cause
-The `handleStartNextTest` function in `frontend/src/components/LevelSystem.tsx` contained logic to display a `toast` notification within the `else` block that executed when the `api.getNextTestForLevel` call returned no `nextAssessmentId`.
+**Outcome:** Deleting tests no longer produces the harmless JSON parsing warning in the console.
 
-## Implemented Fixes
+# Task: Remove Action Buttons from Test Results Page
 
-- **`frontend/src/components/LevelSystem.tsx`:**
-  - [x] Removed the `toast({...})` call from the `else` block within the `handleStartNextTest` function.
-  - [x] Added a `console.log` statement in its place for internal debugging purposes.
+**Goal:** Remove the "Return to Level" and "Retake Test" buttons from the bottom of the test results page.
 
-## Outcome
-- The user-facing "No Tests Available" popup no longer appears when attempting to start an exam on a level with no tests, providing a cleaner user experience.
-- The button click now effectively does nothing visible to the user in this scenario (though visual feedback like disabling the button could be added later). 
+**Request:** User explicitly asked to remove these buttons.
+
+**Specific Fix:**
+
+1.  **Commented out JSX in `TestResultsPage.tsx`:**
+    *   Located the `div` containing the "Return to Level" and "Retake Test" buttons near the end of `frontend/src/features/assesment/test/TestResultsPage.tsx`.
+    *   Commented out this entire block of JSX code.
+
+**Outcome:** The specified buttons are no longer displayed on the test results page.
+
+# Task: Stabilize Assessment Timer and Session State
+
+**Goal:** Ensure the quiz/test timer initializes correctly with the fetched `estimatedTime`, persists accurately across navigation between assessment pages (overview, MCQ, code), and that assessment state (answers, submitted status) is reliably loaded and cleared.
+
+**Initial Problem:**
+1.  **Incorrect Initial Timer:** On first load of an assessment page (especially after navigating from overview to a question), the timer often briefly showed the default 60 minutes or reset to the full `estimatedTime` instead of continuing the countdown from its previous state.
+2.  **State Inconsistency:** Occasionally, previously submitted answers or the 'Submitted' status from a *prior* attempt on the *same* quiz/test would incorrectly persist into a new attempt.
+
+**Root Causes Identified:**
+
+1.  **Timer Initialization Race Condition:** The `useAssessmentTimer` hook was initializing based on the `initialDuration` prop *before* confirming if a valid time already existed in `sessionStorage` for the current attempt. This happened because the hook ran immediately on mount, potentially before the parent component (`AssessmentPage`) had finished loading the `assessment` data containing the correct `estimatedTime` or before `sessionStorage` could be reliably read and prioritized.
+2.  **Conflicting State Management:** The `AssessmentPage` component contained logic within a `useEffect` hook that attempted to read and sometimes write the `remainingTime` field within the `assessment_{id}` session storage item. This conflicted with `useAssessmentTimer`, which should have been the sole owner of that field.
+3.  **Incomplete/Inconsistent Session Cleanup:** The logic for clearing `sessionStorage` upon completion, explicit exit, or starting a new attempt after a prior completion was fragmented across different components and hooks (`AssessmentEntryPage`, `useQuiz`, `useTest`, `AssessmentOverviewHeader`), leading to scenarios where old state wasn't fully purged.
+
+**Specific Changes Implemented:**
+
+**Frontend (`frontend/src/lib/sessionUtils.ts`):**
+1.  **Created Centralized Utilities:**
+    *   `clearAssessmentSession(assessmentId, type)`: Thoroughly removes all known session keys related to a specific assessment ID and type.
+    *   `markAssessmentCompleted(assessmentId, type)`: Sets a specific flag (`${type}_${assessmentId}_completed`) in session storage.
+    *   `isAssessmentCompleted(assessmentId, type)`: Checks for the existence of the completion flag.
+
+**Frontend (`frontend/src/features/assesment/shared/hooks/useAssessmentTimer.ts`):**
+1.  **Stricter Initialization:**
+    *   Modified the initialization `useEffect` to *always* prioritize `loadTimeFromStorage()`. If a stored time is found, it's used, and further initialization logic within that effect run is skipped.
+    *   Initialization using `initialDuration` only occurs if *no* stored time exists *and* a valid (`> 0`) `initialDuration` is provided.
+    *   Removed the fallback to a default 60 minutes if `initialDuration` wasn't ready; the hook now waits.
+    *   Ensured the interval only starts if `remainingTime` has been successfully set (is not `undefined`).
+    *   Improved logging for debugging initialization steps.
+
+**Frontend (`frontend/src/features/assesment/shared/components/AssessmentPage.tsx`):**
+1.  **Delayed Timer Initialization:**
+    *   Added an `isReady` state variable, set to true only after the `assessment` data (containing `estimatedTime`) finishes loading (`isLoading` is false).
+    *   The `useAssessmentTimer` hook is now passed `isReady ? id : undefined` for its `assessmentId` parameter, ensuring it only starts processing when the necessary data is available.
+2.  **Removed Conflicting Logic:**
+    *   Deleted all code within the `useEffect` hook responsible for initializing/verifying the `assessment_{id}` session structure that attempted to read or write the `remainingTime` field. This responsibility is now solely with `useAssessmentTimer`.
+    *   Ensured the effect still correctly syncs task structures and submitted counts.
+
+**Frontend (`frontend/src/features/assesment/shared/AssessmentEntryPage.tsx`):**
+1.  **Integrated Session Utilities:**
+    *   The initial `useEffect` now uses `isAssessmentCompleted` to check for prior completion and calls `clearAssessmentSession` if true *before* attempting to load any resumable state.
+    *   The `performExitNavigation` function (called on confirmed exit) now uses `clearAssessmentSession`.
+    *   The `handleFinishAssessment` function (called on confirmed submission) now correctly uses `markAssessmentCompleted` and `clearAssessmentSession` upon successful API submission.
+
+**Frontend (`frontend/src/features/assesment/quiz/hooks/useQuiz.ts` & `frontend/src/features/assesment/test/hooks/useTest.ts`):**
+1.  **Integrated Session Utilities:**
+    *   Refactored initialization (`useEffect`), submission (`submitQuiz`/`submitTest`), attempt starting (`startQuizAttempt`/`startTestAttempt`), and reset logic (`clearSavedQuiz`/`clearSavedTest`, `forceReset`) to consistently use `isAssessmentCompleted`, `markAssessmentCompleted`, and `clearAssessmentSession`.
+    *   Removed redundant manual session key removal logic.
+    *   Fixed linter error in `useQuiz` by using the correct `api.submitQuizResponse` function.
+
+**Frontend (`frontend/src/features/assesment/shared/components/AssessmentOverview.tsx`):**
+1.  **Integrated Session Utilities:**
+    *   Updated the `AssessmentOverviewHeader`'s `handleExitConfirm` function to use `clearAssessmentSession`.
+    *   Corrected import path for `clearAssessmentSession`.
+2.  **Improved Display:**
+    *   Updated `formatRemainingTime` to handle `undefined` and `<= 0` cases gracefully.
+    *   Added a 'Loading...' state for the duration display when `duration` prop is initially undefined.
+
+**Frontend (`frontend/src/features/assesment/shared/components/AssessmentIntro.tsx`):**
+1.  **Improved Display:**
+    *   Updated `formatDuration` to handle `undefined`, `null`, and `<= 0` cases gracefully.
+
+**Outcome:** The assessment timer now reliably initializes with the correct time fetched from the backend, persists its state correctly during navigation between overview and question pages, and avoids resetting inappropriately. Furthermore, the session state for quizzes and tests is managed more robustly, preventing issues with stale data from previous attempts interfering with new ones.
+
+# Task: Prevent Quiz Title Flicker on Intro Page
+
+**Goal:** Ensure the quiz introduction page displays the *Topic Name* (e.g., "Methodology") directly as the title, instead of briefly showing the *Quiz Name* (e.g., "Quiz #4") and then switching.
+
+**Initial Problem:** The quiz intro page title would flicker. It initially displayed the quiz name fetched with the main assessment data, then updated to the topic name once the separate topic data fetch completed.
+
+**Root Cause:** The `AssessmentEntryPage.tsx` component rendered the `AssessmentIntro.tsx` subcomponent using fallback data (`assessment.title`) while still waiting for the `useQuery` hook fetching the related `topic` data (which contained the correct `topic.name`) to resolve.
+
+**Specific Changes Implemented:**
+
+**Frontend (`frontend/src/features/assesment/shared/AssessmentEntryPage.tsx`):**
+
+1.  **Added Loading State Check:**
+    *   Inside the `if (showIntro)` block, added a condition `if (isQuiz && topicLoading)`. This checks if the assessment is a quiz and if the `useQuery` fetching the topic data is still in its loading state.
+2.  **Implemented Skeleton Loader:**
+    *   When the above condition is true (quiz intro, topic loading), the component now returns a `Skeleton` loading UI placeholder instead of rendering `AssessmentIntro` immediately.
+3.  **Delayed Rendering & Updated Title Prop:**
+    *   Ensured that `AssessmentIntro` is only rendered for quizzes *after* the `topicLoading` state is false.
+    *   Modified the `title` prop passed to `AssessmentIntro` for quizzes to prioritize the now-loaded topic name: `title={isQuiz ? (topic?.name || 'Quiz Topic') : ...}`. The fallback to `assessment.title` for quizzes was removed, as the loading check guarantees `topic.name` is available (or a default is used).
+
+**Outcome:** The quiz introduction page now displays a loading indicator if the topic data isn't immediately available, and then renders directly with the correct topic name as the title, eliminating the distracting flicker.

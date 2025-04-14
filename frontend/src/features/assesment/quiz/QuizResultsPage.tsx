@@ -95,6 +95,20 @@ export function QuizResultsPage() {
   const [error, setError] = useState<string | null>(null);
   const [expandedQuestions, setExpandedQuestions] = useState<Record<string, boolean>>({});
   
+  // Helper function to calculate time difference in seconds between two date strings
+  const calculateTimeFromDates = (startDate?: string, endDate?: string): number | null => {
+    if (!startDate || !endDate) return null;
+    
+    try {
+      const start = new Date(startDate).getTime();
+      const end = new Date(endDate).getTime();
+      return Math.round((end - start) / 1000);
+    } catch (e) {
+      console.error('Error calculating time from dates:', e);
+      return null;
+    }
+  };
+  
   useEffect(() => {
     async function fetchResults() {
       if (!attemptId || !token) return;
@@ -260,12 +274,11 @@ export function QuizResultsPage() {
           score: response.score || 0,
           totalQuestions: response.totalQuestions || 
                           (response.questions ? response.questions.length : 0),
-          percentageScore: response.percentageScore || 
-                           response.percentage || 
-                           (response.score && response.totalQuestions ? 
-                             (response.score / response.totalQuestions) * 100 : 0),
+          percentageScore: response.score ?? 0,
           timeSpentInSeconds: response.timeSpentInSeconds || 
+                              response.timeSpent || 
                               response.timeTaken || 
+                              calculateTimeFromDates(response.startedAt, response.completedAt) ||
                               0,
           createdAt: response.createdAt || 
                      response.completedAt || 
@@ -276,6 +289,20 @@ export function QuizResultsPage() {
         // Use the processed response with defaults applied
         setResult(defaultQuizResult);
         setError(null);
+        
+        // Log the processed values for debugging
+        console.log('Processed quiz result values:', {
+          score: defaultQuizResult.score,
+          percentageScore: defaultQuizResult.percentageScore,
+          timeSpent: defaultQuizResult.timeSpentInSeconds,
+          timeFormatted: formatTime(defaultQuizResult.timeSpentInSeconds),
+          dates: {
+            startedAt: response.startedAt,
+            completedAt: response.completedAt,
+            calculatedDuration: response.startedAt && response.completedAt ? 
+              calculateTimeFromDates(response.startedAt, response.completedAt) : 'N/A'
+          }
+        });
 
         // Prefetch dashboard data after successfully loading results
         console.log("Prefetching learning path data...");
@@ -444,7 +471,7 @@ export function QuizResultsPage() {
                       {getScoreGrade(result.percentageScore || 0)}
                     </div>
                     <div className="text-sm mt-2">
-                      {result.score || 0} out of {result.totalQuestions || 0} correct
+                      {result.questions?.filter(q => q.correct).length || 0} out of {result.totalQuestions || 0} correct
                     </div>
                   </div>
                 </CardContent>

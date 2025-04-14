@@ -200,19 +200,6 @@ export function LevelSystem() {
   const handleTestHistory = (level: Level, e: React.MouseEvent) => {
     e.stopPropagation(); // Prevent the flip animation
     
-    const isCompleted = isLevelCompleted(level);
-    const isDimmed = shouldDimLevel(levels?.findIndex(l => l.id === level.id) || 0);
-    
-    // Prevent viewing history for locked levels
-    if (isDimmed && !isCompleted) {
-      toast({
-        title: "Level locked",
-        description: `Complete previous levels before viewing test history for ${level.name}.`,
-        variant: "destructive"
-      });
-      return;
-    }
-    
     console.log("Navigating to test history for level:", level.id);
     navigate(`/tests/history/${level.id}`, {
       state: { 
@@ -225,18 +212,6 @@ export function LevelSystem() {
   const handleStartNextTest = async (levelId: string, levelName: string, e: React.MouseEvent) => {
     e.stopPropagation(); // Prevent flip
     if (!token || isLoadingTest) return;
-
-    // Check for locked level (copied from existing logic)
-    const isCompleted = isLevelCompleted(levels?.find(l => l.id === levelId) || {} as Level);
-    const isDimmed = shouldDimLevel(levels?.findIndex(l => l.id === levelId) || 0);
-    if (isDimmed && !isCompleted) {
-      toast({
-        title: "Level locked",
-        description: `Complete previous levels before accessing tests for ${levelName}.`,
-        variant: "destructive"
-      });
-      return;
-    }
 
     setIsLoadingTest(true);
     try {
@@ -625,12 +600,10 @@ export function LevelSystem() {
                           <button 
                             className={cn(
                               "relative flex flex-col items-center justify-center p-2 h-1/2 text-xs font-medium transition-colors",
-                              isDimmed && !isComplete 
-                                ? "bg-gray-100 dark:bg-gray-800/40 text-muted-foreground cursor-not-allowed"
-                                : "bg-primary/5 hover:bg-primary/10 text-foreground dark:text-foreground"
+                              "bg-primary/5 hover:bg-primary/10 text-foreground dark:text-foreground"
                             )}
                             onClick={(e) => handleStartNextTest(level.id, level.name, e)}
-                            disabled={(isDimmed && !isComplete) || isLoadingTest}
+                            disabled={isLoadingTest}
                           >
                             {isLoadingTest ? (
                               <div className="absolute inset-0 flex items-center justify-center">
@@ -639,8 +612,7 @@ export function LevelSystem() {
                             ) : (
                               <>
                                 <FileText className={cn(
-                                  "h-4 w-4 mb-1",
-                                  isDimmed && !isComplete ? "text-muted-foreground" : ""
+                                  "h-4 w-4 mb-1"
                                 )} />
                                 Take Exam
                               </>
@@ -654,16 +626,13 @@ export function LevelSystem() {
                           <button 
                             className={cn(
                               "flex flex-col items-center justify-center p-2 h-1/2 text-xs font-medium transition-colors",
-                              isDimmed && !isComplete 
-                                ? "bg-gray-100 dark:bg-gray-800/40 text-muted-foreground cursor-not-allowed"
-                                : "hover:bg-muted text-muted-foreground hover:text-foreground"
+                              "hover:bg-muted text-muted-foreground hover:text-foreground"
                             )}
                             onClick={(e) => handleTestHistory(level, e)}
-                            disabled={isDimmed && !isComplete}
+                            disabled={false}
                           >
                             <History className={cn(
-                              "h-4 w-4 mb-1",
-                              isDimmed && !isComplete ? "text-muted-foreground/50" : ""
+                              "h-4 w-4 mb-1"
                             )} />
                             See History
                           </button>

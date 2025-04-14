@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useToast } from '@/components/ui/use-toast';
 import { QuizLayout } from '@/components/layouts/QuizLayout';
@@ -14,6 +14,27 @@ import {
 } from '.';
 import { useAssessmentTimer } from '../hooks/useAssessmentTimer';
 import { cn } from '@/lib/utils';
+
+// Helper function to load submitted questions from session storage
+const loadInitialSubmittedQuestions = (assessmentId: string, type: 'quiz' | 'test'): string[] => {
+  const assessmentData = sessionStorage.getItem(`assessment_${assessmentId}`);
+  if (assessmentData) {
+    try {
+      const data = JSON.parse(assessmentData);
+      if (data.tasks?.length > 0) {
+        const submitted = data.tasks
+          .filter((task: { isSubmitted?: boolean }) => task.isSubmitted)
+          .map((task: { id: string }) => task.id);
+        console.log('Loaded initial submitted questions from sessionStorage:', submitted);
+        return submitted;
+      }
+    } catch (e) {
+      console.error('Error loading initial submitted questions:', e);
+    }
+  }
+  console.log('No initial submitted questions found in sessionStorage.');
+  return [];
+};
 
 export interface AssessmentPageProps {
   type: 'quiz' | 'test';
@@ -60,10 +81,31 @@ export function AssessmentPage({
   const { toast } = useToast();
   
   const [localIsSubmitting, setLocalIsSubmitting] = useState(false);
-  const [submittedQuestions, setSubmittedQuestions] = useState<string[]>([]);
+  const [isReady, setIsReady] = useState(false); // New state to track if assessment data is loaded
   
-  // Use the shared timer hook
-  const remainingTime = useAssessmentTimer(id, assessment?.timeLimit);
+  // Initialize submittedQuestions state using the helper function
+  const [submittedQuestions, setSubmittedQuestions] = useState<string[]>(() => {
+    if (!id) return [];
+    return loadInitialSubmittedQuestions(id, type);
+  });
+  
+  // Log assessment loading status
+  useEffect(() => {
+    if (!isLoading && assessment) {
+      console.log('Assessment data loaded. Estimated time:', assessment.estimatedTime);
+      setIsReady(true); // Mark as ready when data is loaded
+    } else if (isLoading) {
+      console.log('Assessment data is loading...');
+      setIsReady(false); // Mark as not ready while loading
+    }
+  }, [isLoading, assessment]);
+  
+  // Use the shared timer hook - ONLY when assessment data is ready
+  const remainingTime = useAssessmentTimer(
+    isReady ? id : undefined, // Pass id only when ready
+    assessment?.estimatedTime,
+    isLoading // Pause timer while loading initially
+  );
   
   // Calculate navigation state
   const isFirstQuestion = currentQuestionIndex === 0;
@@ -77,88 +119,148 @@ export function AssessmentPage({
     }
   }, [id, type, location.state, navigate]);
   
-  // Initialize assessment state and track submission
+  // Effect to handle initialization, completion checks, and starting attempt
   useEffect(() => {
     if (!id) return;
-    
+
+    // 1. Check for previously completed attempt and reset if necessary
     const checkForCompletedAttempt = () => {
       const attemptId = sessionStorage.getItem(`${type}_attempt_${id}`);
       if (attemptId) {
         const completionFlag = sessionStorage.getItem(`${type}_${id}_completed`);
-        
         if (completionFlag === 'true') {
           console.log('Assessment was previously completed. Forcing complete reset.');
           forceReset();
-          // Clear submitted questions when forcing a reset
+          // Clear submitted questions state when forcing a reset
           setSubmittedQuestions([]);
-          return true;
+          return true; // Indicates a reset happened
         }
       }
-      return false;
+      return false; // No reset needed
     };
-    
+
     const wasReset = checkForCompletedAttempt();
-    
+
+    // 2. If not reset, ensure an attempt is started/session exists
     if (!wasReset) {
       const existingSession = sessionStorage.getItem(`${type}_${id}`);
       if (!existingSession) {
         console.log('Initializing new assessment state in sessionStorage for:', id);
         startAttempt(id);
-        // Clear submitted questions when starting a new attempt
+        // Ensure submitted questions are cleared if starting totally fresh
         setSubmittedQuestions([]);
+      } else {
+        // If session exists, ensure submittedQuestions state is synced with storage
+        // This handles cases where the page might reload without full re-initialization
+        const loadedIds = loadInitialSubmittedQuestions(id, type);
+        // Only update state if the loaded IDs differ from current state
+        setSubmittedQuestions(currentIds => {
+          if (JSON.stringify(currentIds) !== JSON.stringify(loadedIds)) {
+            console.log('Re-syncing submittedQuestions state with sessionStorage');
+            return loadedIds;
+          }
+          return currentIds;
+        });
       }
     }
-    
-    // Load submitted questions
-    const loadSubmittedQuestions = () => {
-      const assessmentData = sessionStorage.getItem(`assessment_${id}`);
-      if (assessmentData) {
-        try {
-          const data = JSON.parse(assessmentData);
-          if (data.tasks?.length > 0) {
-            const submitted = data.tasks
-              .filter((task: { isSubmitted?: boolean }) => task.isSubmitted)
-              .map((task: { id: string }) => task.id);
-            setSubmittedQuestions(submitted);
-          }
-        } catch (e) {
-          console.error('Error loading submitted questions:', e);
+
+    // Dependencies: id, type, startAttempt, forceReset
+    // Avoid adding `assessment` or `answers` here to prevent unnecessary re-runs
+    // that might interfere with initialization.
+  }, [id, type, startAttempt, forceReset]);
+  
+  // Effect to initialize or verify the assessment data structure in sessionStorage
+  useEffect(() => {
+    if (id && assessment?.questions) {
+      const storageKey = `assessment_${id}`;
+      const assessmentData = sessionStorage.getItem(storageKey);
+      let data: any = null;
+
+      try {
+        if (assessmentData) {
+          data = JSON.parse(assessmentData);
         }
+      } catch (e) {
+        console.error('Error parsing assessment data:', e);
+        data = null; 
       }
-    };
-    
-    loadSubmittedQuestions();
-    
-    // Update assessment progress
-    const updateAssessmentProgress = () => {
-      if (!assessment?.questions) return;
+
+      // Initialize or re-sync task structure if needed
+      const needsInitialization = !data || !Array.isArray(data.tasks) || data.tasks.length !== assessment.questions.length;
       
-      const assessmentData = sessionStorage.getItem(`assessment_${id}`);
-      if (assessmentData) {
-        try {
-          const data = JSON.parse(assessmentData);
-          if (data.tasks?.length > 0) {
-            const updatedTasks = data.tasks.map((task: { id: string; isSubmitted?: boolean }) => ({ ...task }));
-            
-            data.tasks = updatedTasks;
-            data.submittedCount = updatedTasks.filter((t: { isSubmitted?: boolean }) => t.isSubmitted).length;
+      if (needsInitialization) {
+        console.log('Initializing/Re-syncing assessment TASKS structure in sessionStorage');
+        const currentSubmittedIds = loadInitialSubmittedQuestions(id, type); 
+
+        const newData = {
+          id,
+          type,
+          tasks: assessment.questions.map((q: any) => ({
+            id: q.id,
+            isSubmitted: currentSubmittedIds.includes(q.id),
+            questionType: q.questionType
+          })),
+          submittedCount: currentSubmittedIds.length,
+          lastUpdated: new Date().toISOString()
+        };
+        sessionStorage.setItem(storageKey, JSON.stringify(newData));
+      } 
+      // ELSE: If data exists, just ensure submittedCount and task statuses are synced
+      else if (data && Array.isArray(data.tasks)) {
+         const currentSubmittedIds = loadInitialSubmittedQuestions(id, type); 
+         let needsUpdate = false;
+
+         // Check if submitted count needs update
+         if (data.submittedCount !== currentSubmittedIds.length) {
+           console.warn('SessionStorage submittedCount mismatch. Recalculating.');
+           data.submittedCount = currentSubmittedIds.length;
+           needsUpdate = true;
+         }
+         
+         // Resync task submitted status
+         let tasksUpdated = false;
+         data.tasks.forEach((task: any) => {
+           const shouldBeSubmitted = currentSubmittedIds.includes(task.id);
+           if (task.isSubmitted !== shouldBeSubmitted) {
+              task.isSubmitted = shouldBeSubmitted;
+              tasksUpdated = true;
+           }
+         });
+         if (tasksUpdated) {
+            console.log('Resyncing task submitted status.');
+            needsUpdate = true;
+         }
+         
+         // If any updates occurred, save back to sessionStorage
+         if (needsUpdate) {
             data.lastUpdated = new Date().toISOString();
-            
-            sessionStorage.setItem(`assessment_${id}`, JSON.stringify(data));
-          }
-        } catch (e) {
-          console.error('Error updating assessment progress:', e);
-        }
+            // Make sure not to accidentally remove remainingTime if it existed
+            const currentData = JSON.parse(sessionStorage.getItem(storageKey) || '{}');
+            const updatedData = { ...currentData, ...data }; // Merge updates, preserving existing fields like remainingTime
+            sessionStorage.setItem(storageKey, JSON.stringify(updatedData));
+            console.log('Updated assessment task/count data in sessionStorage.');
+         }
       }
-    };
-    
-    if (assessment?.questions && Object.keys(answers).length > 0) {
-      updateAssessmentProgress();
     }
-  }, [id, type, startAttempt, assessment, answers, forceReset]);
+  }, [id, type, assessment?.questions]);
   
   // Get current question
   const currentQuestion = assessment?.questions?.[currentQuestionIndex];
+  
+  // Add effect to ensure selection is displayed when navigating between questions
+  useEffect(() => {
+    if (currentQuestion && answers[currentQuestion.id]) {
+      // Log the current state when navigating to a question
+      console.log(`Navigated to question ${currentQuestion.id}:`,
+        {
+          hasAnswer: !!answers[currentQuestion.id],
+          answerValue: answers[currentQuestion.id],
+          // Read directly from state which should be correctly initialized
+          isSubmitted: submittedQuestions.includes(currentQuestion.id)
+        }
+      );
+    }
+  }, [currentQuestionIndex, currentQuestion, answers, submittedQuestions]);
   
   // Enable keyboard navigation
   useEffect(() => {
@@ -189,39 +291,72 @@ export function AssessmentPage({
   }, [assessment, currentQuestionIndex, goToQuestion, currentQuestion, saveAnswer]);
   
   // Handle submitting a question
-  const submitQuestion = () => {
+  const submitQuestion = useCallback(() => {
     if (!currentQuestion || !id) return;
-    
-    const assessmentData = sessionStorage.getItem(`assessment_${id}`);
+
+    // Ensure the answer is saved in the main quiz state first
+    // This part seems okay, relying on the parent hook's save mechanism
+    const quizStorageKey = `${type}_${id}`;
+    const quizState = sessionStorage.getItem(quizStorageKey);
+    if (quizState) {
+      try {
+        const parsedState = JSON.parse(quizState);
+        if (parsedState.answers && currentQuestion.id && answers[currentQuestion.id]) {
+          if (!parsedState.answers[currentQuestion.id] ||
+              parsedState.answers[currentQuestion.id] !== answers[currentQuestion.id]) {
+            console.log(`Synchronizing answer in sessionStorage for question ${currentQuestion.id}`);
+            parsedState.answers[currentQuestion.id] = answers[currentQuestion.id];
+            parsedState.lastUpdated = new Date().toISOString();
+            sessionStorage.setItem(quizStorageKey, JSON.stringify(parsedState));
+          }
+        }
+      } catch (e) {
+        console.error('Error updating quiz answers in sessionStorage:', e);
+      }
+    }
+
+    // Update the assessment data in sessionStorage to mark as submitted
+    const assessmentStorageKey = `assessment_${id}`;
+    const assessmentData = sessionStorage.getItem(assessmentStorageKey);
+    let currentSubmittedCount = 0;
     if (assessmentData) {
       try {
         const data = JSON.parse(assessmentData);
+        let needsUpdate = false;
         if (data.tasks?.length > 0) {
           const updatedTasks = data.tasks.map((task: { id: string; isSubmitted?: boolean }) => {
-            if (task.id === currentQuestion.id) {
+            if (task.id === currentQuestion.id && !task.isSubmitted) {
+              needsUpdate = true;
               return { ...task, isSubmitted: true };
             }
             return task;
           });
-          
-          data.tasks = updatedTasks;
-          data.submittedCount = updatedTasks.filter((t: { isSubmitted?: boolean }) => t.isSubmitted).length;
-          data.lastUpdated = new Date().toISOString();
-          
-          sessionStorage.setItem(`assessment_${id}`, JSON.stringify(data));
-          
-          setSubmittedQuestions(prev => {
-            if (!prev.includes(currentQuestion.id)) {
-              return [...prev, currentQuestion.id];
-            }
-            return prev;
-          });
+
+          if (needsUpdate) {
+             data.tasks = updatedTasks;
+             currentSubmittedCount = updatedTasks.filter((t: { isSubmitted?: boolean }) => t.isSubmitted).length;
+             data.submittedCount = currentSubmittedCount;
+             data.lastUpdated = new Date().toISOString();
+             sessionStorage.setItem(assessmentStorageKey, JSON.stringify(data));
+             console.log(`Marked question ${currentQuestion.id} as submitted in sessionStorage.`);
+
+             // Update the state *after* successfully updating sessionStorage
+             setSubmittedQuestions(prev => {
+               if (!prev.includes(currentQuestion.id)) {
+                 return [...prev, currentQuestion.id];
+               }
+               return prev;
+             });
+          } else {
+             // If already submitted, just ensure count is correct
+             currentSubmittedCount = data.tasks.filter((t: { isSubmitted?: boolean }) => t.isSubmitted).length;
+          }
         }
       } catch (e) {
         console.error('Error updating assessment progress:', e);
       }
     }
-  };
+  }, [currentQuestion, id, type, answers /* Add answers dependency */]);
   
   // Handle submitting the entire assessment
   const handleSubmitAssessment = async () => {
@@ -296,14 +431,27 @@ You have submitted ${submittedQuestions.length} out of ${assessment.questions.le
     // For both quizzes and tests, first try to navigate to the assessment overview page
     if (id) {
       backPath = `/assessment/${type}/${id}`;
+      console.log(`Exiting assessment - Navigating to: ${backPath}`);
+      // Pass skipIntro state to ensure the overview is shown
+      navigate(backPath, { 
+        replace: true, 
+        state: { skipIntro: true } 
+      });
+      return; // Exit the function after navigating
     }
+    
     // Only fall back to topic page for quizzes if topicSlug is available and explicitly needed
+    // AND if we didn\'t already navigate above
     else if (type === 'quiz' && locationState?.topicSlug) {
       backPath = `/topic/${locationState.topicSlug}`;
     }
+    // If no specific back path determined, default to dashboard
+    else {
+      backPath = '/dashboard'; 
+    }
 
-    console.log(`Exiting assessment - Navigating to: ${backPath}`);
-    navigate(backPath);
+    console.log(`Exiting assessment (fallback) - Navigating to: ${backPath}`);
+    navigate(backPath, { replace: true });
   };
   
   if (isLoading) {
@@ -423,21 +571,70 @@ You have submitted ${submittedQuestions.length} out of ${assessment.questions.le
                   <MultipleChoiceQuestion
                     question={currentQuestion}
                     selectedOption={answers[currentQuestion.id] || ''}
-                    onSelectOption={(optionId) => saveAnswer(currentQuestion.id, optionId)}
+                    onSelectOption={(optionId) => {
+                      console.log(`AssessmentPage: saving answer ${optionId} for question ${currentQuestion.id}`);
+
+                      // First save the answer
+                      saveAnswer(currentQuestion.id, optionId);
+
+                      // When a different answer is selected, REMOVE the question from submittedQuestions state
+                      // AND update sessionStorage to reflect it's no longer submitted.
+                      if (submittedQuestions.includes(currentQuestion.id)) {
+                        console.log(`Answer changed for submitted question ${currentQuestion.id}. Resetting submitted status.`);
+                        setSubmittedQuestions(prev => prev.filter(qid => qid !== currentQuestion.id));
+
+                        // Also update the assessment data in sessionStorage
+                        if (id) {
+                          const assessmentStorageKey = `assessment_${id}`;
+                          const assessmentData = sessionStorage.getItem(assessmentStorageKey);
+                          if (assessmentData) {
+                            try {
+                              const data = JSON.parse(assessmentData);
+                              let needsUpdate = false;
+                              if (data.tasks?.length > 0) {
+                                const updatedTasks = data.tasks.map((task: { id: string; isSubmitted?: boolean }) => {
+                                  if (task.id === currentQuestion.id && task.isSubmitted) {
+                                    needsUpdate = true;
+                                    return { ...task, isSubmitted: false };
+                                  }
+                                  return task;
+                                });
+
+                                if (needsUpdate) {
+                                  data.tasks = updatedTasks;
+                                  data.submittedCount = updatedTasks.filter((t: { isSubmitted?: boolean }) => t.isSubmitted).length;
+                                  data.lastUpdated = new Date().toISOString();
+                                  sessionStorage.setItem(assessmentStorageKey, JSON.stringify(data));
+                                }
+                              }
+                            } catch (e) {
+                              console.error('Error updating assessment progress:', e);
+                            }
+                          }
+                        }
+                      }
+                    }}
                   />
                   
-                  <div className="absolute bottom-6 right-6">
+                  <div className="absolute bottom-6 right-6 flex flex-col items-end">
+                    {submittedQuestions.includes(currentQuestion.id) && (
+                      <div className="text-sm text-muted-foreground mb-2 italic">
+                        {answers[currentQuestion.id] 
+                          ? "You can still change your answer by selecting a different option" 
+                          : "Please select an answer"}
+                      </div>
+                    )}
                     <Button 
                       className={cn(
                         "px-8 shadow-md transition-all",
                         submittedQuestions.includes(currentQuestion.id) 
-                          ? "bg-muted text-muted-foreground hover:bg-muted hover:text-muted-foreground" 
+                          ? "bg-muted text-muted-foreground hover:bg-primary/90" 
                           : "hover:shadow-lg"
                       )}
-                      disabled={!answers[currentQuestion.id] || submittedQuestions.includes(currentQuestion.id)}
+                      disabled={!answers[currentQuestion.id]}
                       onClick={submitQuestion}
                     >
-                      {submittedQuestions.includes(currentQuestion.id) ? "Submitted" : "Submit Answer"}
+                      {submittedQuestions.includes(currentQuestion.id) ? "Submitted ✓" : "Submit Answer"}
                     </Button>
                   </div>
                 </div>

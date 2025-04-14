@@ -146,16 +146,23 @@ async function request(endpoint: string, options: RequestOptions = {}) {
     });
     console.log(`Received response from ${url}, status: ${response.status}`);
 
-    let data;
-    try {
-      data = await response.json();
-      console.log(`Successfully parsed JSON response from ${url}`);
-    } catch (e) {
-      console.warn(`Response from ${url} is not JSON:`, e);
-      // Don't try to read response.text() after response.json() failed
-      // as the body stream can only be read once
-      console.log(`Response status: ${response.status}, text: [Cannot read body again]`);
-      data = null;
+    let data: any = null; // Initialize data to null
+    
+    // Check for 204 No Content before trying to parse JSON
+    if (response.status !== 204) { 
+      try {
+        data = await response.json();
+        console.log(`Successfully parsed JSON response from ${url}`);
+      } catch (e) {
+        console.warn(`Response from ${url} is not JSON (Status: ${response.status}):`, e);
+        // Don't try to read response.text() after response.json() failed
+        // as the body stream can only be read once
+        console.log(`Response status: ${response.status}, text: [Cannot read body again]`);
+        // Keep data as null or handle non-JSON responses if necessary
+        data = null; 
+      }
+    } else {
+      console.log(`Received 204 No Content from ${url}, skipping JSON parse.`);
     }
 
     // Add response debugging
@@ -463,6 +470,12 @@ export const api = {
 
   async updateQuizQuestion(questionId: string, data: any, token: string) {
     return this.put(`/quizzes/questions/${questionId}`, data, token);
+  },
+
+  // Add a new function specifically for updating Test questions
+  async updateTestQuestion(questionId: string, data: any, token: string) {
+    // Assuming the endpoint follows a similar pattern for tests
+    return this.put(`/tests/questions/${questionId}`, data, token);
   },
 
   async deleteQuizQuestion(questionId: string, token: string) {
