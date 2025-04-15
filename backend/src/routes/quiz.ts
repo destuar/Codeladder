@@ -184,14 +184,36 @@ router.get('/attempts/:id', authenticateToken, (async (req, res) => {
       include: {
         quiz: {
           include: {
+            level: true, // Include level for context
             _count: { // Include the count of questions for this quiz
               select: { questions: true }
             }
           }
         },
         responses: {
+          orderBy: {
+            // Attempt to order responses based on question order number
+            // This requires including question order in the query
+            question: {
+              orderNum: 'asc'
+            }
+          },
           include: {
-            question: true,
+            // Expand question include to get mcProblem/codeProblem details
+            question: {
+              include: {
+                mcProblem: {
+                  include: {
+                    options: true // Need options for display
+                  }
+                },
+                codeProblem: {
+                  include: {
+                    testCases: true // Might need test cases for code review
+                  }
+                }
+              }
+            },
             mcResponse: true,
             codeResponse: {
               include: {
@@ -2159,7 +2181,7 @@ router.post('/', authenticateToken, authorizeRoles([Role.ADMIN, Role.DEVELOPER])
           const orderNum = problem.orderNum || i + 1;
           
           if (problem.questionType === 'MULTIPLE_CHOICE') {
-            // Create MC question with options
+            // Create MC question with options using nested writes
             const question = await prisma.quizQuestion.create({
               data: {
                 quizId: newAssessment.id,
@@ -2168,35 +2190,31 @@ router.post('/', authenticateToken, authorizeRoles([Role.ADMIN, Role.DEVELOPER])
                 points: problem.points || 1,
                 orderNum,
                 difficulty: problem.difficulty || 'MEDIUM',
-                mcProblem: {
+                mcProblem: { // Nested create for McProblem
                   create: {
                     explanation: problem.explanation || null,
-                    shuffleOptions: problem.shuffleOptions !== false
+                    shuffleOptions: problem.shuffleOptions !== false,
+                    options: { // Nested create for McOptions
+                      create: Array.isArray(problem.options) ? problem.options.map((option: any, index: number) => ({
+                        optionText: option.text,
+                        isCorrect: option.isCorrect === true,
+                        explanation: option.explanation || null, // Optional explanation per option
+                        orderNum: option.orderNum || index + 1
+                      })) : [] // Handle case where options might not be an array
+                    }
                   }
                 }
               },
+              // Include nested data if needed downstream, otherwise remove include
+              // For now, let's keep it to see the structure after creation
               include: {
-                mcProblem: true
+                mcProblem: {
+                  include: {
+                    options: true
+                  }
+                }
               }
             });
-            
-            // Create options
-            if (Array.isArray(problem.options) && question.mcProblem) {
-              const mcProblemId = question.mcProblem.questionId;
-              
-              for (let j = 0; j < problem.options.length; j++) {
-                const option = problem.options[j];
-                await prisma.mcOption.create({
-                  data: {
-                    questionId: mcProblemId,
-                    optionText: option.text,
-                    isCorrect: option.isCorrect === true,
-                    explanation: option.explanation || null,
-                    orderNum: option.orderNum || j + 1
-                  }
-                });
-              }
-            }
             
             createdProblems.push(question);
           } else if (problem.questionType === 'CODE') {

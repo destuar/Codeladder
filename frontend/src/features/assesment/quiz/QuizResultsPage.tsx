@@ -16,11 +16,14 @@ import {
   AlertCircle, 
   Bookmark,
   ArrowLeft,
-  RefreshCw
+  RefreshCw,
+  CircleCheck,
+  CircleX,
+  Badge,
+  CheckCircle2
 } from 'lucide-react';
 import { MultipleChoiceQuestion, CodeQuestion } from '../shared/components';
 import { QuizQuestion } from './hooks/useQuiz';
-import { CircleCheck, CircleX } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
 
 type ResultQuestion = {
@@ -74,6 +77,7 @@ type QuizResult = {
     id: string;
     title: string;
     description: string;
+    passingScore?: number;
   };
   score: number;
   totalQuestions: number;
@@ -148,7 +152,8 @@ export function QuizResultsPage() {
             response.quiz = {
               id: response.quizId,
               title: response.quizTitle,
-              description: response.quizDescription || ''
+              description: response.quizDescription || '',
+              passingScore: response.quizPassingScore
             };
             console.log('Created quiz object from response properties:', response.quiz);
           }
@@ -162,7 +167,8 @@ export function QuizResultsPage() {
                 response.quiz = {
                   id: quizDetails.id,
                   title: quizDetails.title || 'Quiz Results',
-                  description: quizDetails.description || ''
+                  description: quizDetails.description || '',
+                  passingScore: quizDetails.passingScore
                 };
                 console.log('Successfully fetched quiz details:', response.quiz);
               } else {
@@ -174,7 +180,8 @@ export function QuizResultsPage() {
               response.quiz = {
                 id: response.quizId || 'unknown',
                 title: response.title || 'Quiz Results',
-                description: response.description || ''
+                description: response.description || '',
+                passingScore: 70
               };
               console.log('Created default quiz object:', response.quiz);
             }
@@ -184,7 +191,8 @@ export function QuizResultsPage() {
           response.quiz = {
             id: 'unknown',
             title: 'Quiz Results',
-            description: ''
+            description: '',
+            passingScore: 70
           };
         }
         
@@ -269,7 +277,8 @@ export function QuizResultsPage() {
           quiz: response.quiz || {
             id: 'unknown',
             title: 'Quiz Results',
-            description: ''
+            description: '',
+            passingScore: 70
           },
           score: response.score || 0,
           totalQuestions: response.totalQuestions || 
@@ -354,12 +363,9 @@ export function QuizResultsPage() {
     return 'Needs Improvement';
   };
   
-  // Get score color
-  const getScoreColor = (score: number) => {
-    if (score >= 90) return 'text-green-500';
-    if (score >= 75) return 'text-emerald-500';
-    if (score >= 60) return 'text-amber-500';
-    return 'text-red-500';
+  // Get score color - **MODIFIED** based on passing score
+  const getScoreColor = (score: number, passingScore: number) => {
+    return score >= passingScore ? 'text-green-500' : 'text-red-500';
   };
   
   // Handle errors
@@ -434,6 +440,27 @@ export function QuizResultsPage() {
     }
   };
   
+  // --- Calculations --- 
+  const score = result.percentageScore ?? 0; // Use percentageScore from result
+  const formattedScore = score.toFixed(0);
+  // Assume passing score is available on result.quiz or default to 70
+  const passingScore = result.quiz?.passingScore ?? 70; 
+  const passed = score >= passingScore;
+  
+  // Calculate total possible points and earned points from result.questions
+  let totalPointsPossible = 0;
+  let totalPointsEarned = 0;
+  result.questions?.forEach(question => {
+    const questionPoints = question.points || 1; // Default to 1 point if missing
+    totalPointsPossible += questionPoints;
+    // Use response.score if available (might not be directly on question), check correctness
+    totalPointsEarned += question.correct ? questionPoints : 0;
+    // If a more direct 'earned points' field exists on the question object, use that instead.
+    // Example: totalPointsEarned += question.pointsEarned ?? (question.correct ? questionPoints : 0);
+  });
+
+  const formattedTime = formatTime(result.timeSpentInSeconds);
+  
   return (
     <QuizLayout>
       <div className="py-6 container max-w-6xl">
@@ -452,136 +479,144 @@ export function QuizResultsPage() {
           </Button>
         </div>
         
-        {/* Quiz Summary */}
+        {/* Quiz Summary Card */}
         <Card className="mb-8 shadow-md bg-primary/5">
           <CardHeader>
             <CardTitle>{result.quiz?.title || 'Quiz Results'}</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              {/* Score */}
-              <Card className="shadow-sm">
-                <CardContent className="pt-6">
-                  <div className="flex flex-col items-center justify-center">
-                    <Trophy className="h-10 w-10 text-primary mb-2" />
-                    <div className={`text-4xl font-bold ${getScoreColor(result.percentageScore || 0)}`}>
-                      {result.percentageScore || 0}%
-                    </div>
-                    <div className="text-muted-foreground">
-                      {getScoreGrade(result.percentageScore || 0)}
-                    </div>
-                    <div className="text-sm mt-2">
-                      {result.questions?.filter(q => q.correct).length || 0} out of {result.totalQuestions || 0} correct
-                    </div>
+             {/* Use exact layout and icons from TestResultsPage */}
+             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 text-center">
+                {/* Score */}
+                <div className="flex flex-col items-center justify-center p-4 bg-background rounded-lg shadow-sm">
+                  <Trophy className="h-8 w-8 text-primary mb-2" />
+                  <div className={`text-3xl font-bold ${getScoreColor(score, passingScore)}`}>
+                    {formattedScore}%
                   </div>
-                </CardContent>
-              </Card>
-              
-              {/* Time */}
-              <Card className="shadow-sm">
-                <CardContent className="pt-6">
-                  <div className="flex flex-col items-center justify-center">
-                    <Clock className="h-10 w-10 text-primary mb-2" />
-                    <div className="text-2xl font-bold">
-                      {formatTime(result.timeSpentInSeconds || 0)}
-                    </div>
-                    <div className="text-muted-foreground">
-                      Time Spent
-                    </div>
+                  <div className="text-muted-foreground text-sm mt-1">
+                    {getScoreGrade(score)}
                   </div>
-                </CardContent>
-              </Card>
-              
-              {/* Date */}
-              <Card className="shadow-sm">
-                <CardContent className="pt-6">
-                  <div className="flex flex-col items-center justify-center">
-                    <Award className="h-10 w-10 text-primary mb-2" />
-                    <div className="text-lg font-medium text-center">
-                      {new Date(result.createdAt || new Date()).toLocaleDateString()}
-                    </div>
-                    <div className="text-muted-foreground">
-                      Completed
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
+                </div>
+                
+                {/* Time Spent */}
+                <div className="flex flex-col items-center justify-center p-4 bg-background rounded-lg shadow-sm">
+                   <Clock className="h-8 w-8 text-primary mb-2" />
+                   <div className="text-2xl font-bold">
+                     {formattedTime}
+                   </div>
+                   <div className="text-muted-foreground text-sm mt-1">
+                     Time Spent
+                   </div>
+                </div>
+                
+                {/* Points Earned */}
+                <div className="flex flex-col items-center justify-center p-4 bg-background rounded-lg shadow-sm">
+                   <CheckCircle2 className="h-8 w-8 text-primary mb-2" /> {/* Use CheckCircle2 */} 
+                   <div className="text-2xl font-bold">
+                      {totalPointsEarned} / {totalPointsPossible}
+                   </div>
+                   <div className="text-muted-foreground text-sm mt-1">
+                     Points Earned
+                   </div>
+                </div>
+                
+                {/* Date Completed */}
+                <div className="flex flex-col items-center justify-center p-4 bg-background rounded-lg shadow-sm">
+                   <Award className="h-8 w-8 text-primary mb-2" />
+                   <div className="text-lg font-medium text-center">
+                     {new Date(result.createdAt || new Date()).toLocaleDateString()}
+                   </div>
+                   <div className="text-muted-foreground text-sm mt-1">
+                     Completed
+                   </div>
+                </div>
+             </div>
           </CardContent>
         </Card>
         
-        {/* Quiz Questions */}
-        <div className="space-y-8">
-          {(result.questions || []).map((question, index) => (
-            <Card key={question.id} className="shadow-md">
-              <CardHeader className="pb-2 border-b">
-                <div className="flex justify-between items-center">
-                  <CardTitle className="flex items-center gap-2">
-                    <span>Question {index + 1}</span>
+        {/* Questions Overview */}
+        <div className="space-y-6">
+          {/* Add Title */} 
+          <h2 className="text-xl font-semibold">Questions Overview</h2>
+          
+          {(result.questions || []).map((question, index) => {
+            const pointsPossible = question.points || 1;
+            const pointsEarned = question.correct ? pointsPossible : 0;
+            
+            return (
+              <Card key={question.id} className="shadow-md">
+                <CardHeader className="pb-3 pt-3 border-b bg-muted/30 dark:bg-muted/10 flex flex-row items-center justify-between">
+                  <div className="flex items-center gap-2">
                     {question.correct ? (
-                      <CheckCircle className="h-5 w-5 text-green-500" />
+                      <CircleCheck className="h-5 w-5 text-green-500 flex-shrink-0" />
                     ) : (
-                      <XCircle className="h-5 w-5 text-red-500" />
+                      <CircleX className="h-5 w-5 text-red-500 flex-shrink-0" />
                     )}
-                  </CardTitle>
-                </div>
-              </CardHeader>
-              
-              <CardContent className="pt-6">
-                {/* Multiple Choice Questions */}
-                {question.type === 'MULTIPLE_CHOICE' && question.mcProblem && (
-                  <MultipleChoiceQuestion 
-                    question={question as QuizQuestion}
-                    selectedOption={question.userAnswer}
-                    onSelectOption={() => {}}
-                    isReview={true}
-                  />
-                )}
-                
-                {/* Fallback for multiple choice without mcProblem */}
-                {question.type === 'MULTIPLE_CHOICE' && !question.mcProblem && (
-                  <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-md">
-                    <p className="text-yellow-700">
-                      This multiple choice question could not be displayed properly. 
-                      {question.userAnswer ? `Your answer was recorded.` : `No answer was recorded.`}
-                    </p>
+                    <CardTitle className="text-base font-semibold">
+                      Question {index + 1}
+                    </CardTitle>
                   </div>
-                )}
+                  <span className="text-sm font-medium border border-border px-2.5 py-0.5 rounded-md">
+                    {pointsEarned} / {pointsPossible} Points
+                  </span>
+                </CardHeader>
                 
-                {/* Code Questions */}
-                {question.type === 'CODE' && question.codeProblem && (
-                  <CodeQuestion
-                    question={question as QuizQuestion}
-                    code={question.userAnswer || ''}
-                    onCodeChange={() => {}}
-                    isReview={true}
-                    testResults={question.codeProblem?.testCases?.map(tc => ({
-                      passed: tc.passed,
-                      input: tc.input,
-                      expectedOutput: tc.expectedOutput,
-                      error: tc.error
-                    }))}
-                  />
-                )}
-                
-                {/* Fallback for code questions without codeProblem */}
-                {question.type === 'CODE' && !question.codeProblem && (
-                  <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-md">
-                    <p className="text-yellow-700">
-                      This code question could not be displayed properly.
-                      {question.userAnswer ? 
-                        <div className="mt-2 bg-gray-900 text-gray-100 p-4 rounded-md font-mono text-sm overflow-auto">
-                          <pre>{question.userAnswer}</pre>
-                        </div> 
-                        : 
-                        `No answer was recorded.`
-                      }
-                    </p>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          ))}
+                <CardContent className="pt-6">
+                  {/* Multiple Choice Questions */}
+                  {question.type === 'MULTIPLE_CHOICE' && question.mcProblem && (
+                    <MultipleChoiceQuestion 
+                      question={question as QuizQuestion}
+                      selectedOption={question.userAnswer}
+                      onSelectOption={() => {}}
+                      isReview={true}
+                    />
+                  )}
+                  
+                  {/* Fallback for multiple choice without mcProblem */}
+                  {question.type === 'MULTIPLE_CHOICE' && !question.mcProblem && (
+                    <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-md">
+                      <p className="text-yellow-700">
+                        This multiple choice question could not be displayed properly. 
+                        {question.userAnswer ? `Your answer was recorded.` : `No answer was recorded.`}
+                      </p>
+                    </div>
+                  )}
+                  
+                  {/* Code Questions */}
+                  {question.type === 'CODE' && question.codeProblem && (
+                    <CodeQuestion
+                      question={question as QuizQuestion}
+                      code={question.userAnswer || ''}
+                      onCodeChange={() => {}}
+                      isReview={true}
+                      testResults={question.codeProblem?.testCases?.map(tc => ({
+                        passed: tc.passed,
+                        input: tc.input,
+                        expectedOutput: tc.expectedOutput,
+                        error: tc.error
+                      }))}
+                    />
+                  )}
+                  
+                  {/* Fallback for code questions without codeProblem */}
+                  {question.type === 'CODE' && !question.codeProblem && (
+                    <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-md">
+                      <p className="text-yellow-700">
+                        This code question could not be displayed properly.
+                        {question.userAnswer ? 
+                          <div className="mt-2 bg-gray-900 text-gray-100 p-4 rounded-md font-mono text-sm overflow-auto">
+                            <pre>{question.userAnswer}</pre>
+                          </div> 
+                          : 
+                          `No answer was recorded.`
+                        }
+                      </p>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            );
+          })}
         </div>
       </div>
     </QuizLayout>

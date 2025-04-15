@@ -24,15 +24,17 @@ export function AssessmentEntryPage() {
   const location = useLocation();
   const { token } = useAuth();
   const { toast } = useToast();
+  
+  // Check if we should skip the intro *first*
+  const skipIntro = location.state?.skipIntro === true;
+
+  // State declarations
   const [submittedCount, setSubmittedCount] = useState<number>(0);
   const [savedTasks, setSavedTasks] = useState<AssessmentTask[] | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  
-  // Check if we should skip the intro (when returning from quiz/test)
-  const skipIntro = location.state?.skipIntro === true;
-  
   const [showIntro, setShowIntro] = useState(!skipIntro);
   const [showExitDialog, setShowExitDialog] = useState(false);
+  const [showSubmitDialog, setShowSubmitDialog] = useState(false);
   
   // Get additional location state (for level context in tests)
   const levelId = location.state?.levelId;
@@ -107,7 +109,8 @@ export function AssessmentEntryPage() {
   });
   
   // Use the shared timer hook AFTER assessment data is available
-  // Pass showExitDialog to pause the timer when the dialog is open
+  // Pause the timer if EITHER dialog is open
+  const isPaused = showExitDialog || showSubmitDialog; // Combine pause conditions
   const { 
     remainingTime, 
     formattedTime,
@@ -115,7 +118,7 @@ export function AssessmentEntryPage() {
     pauseTimer, // Get pauseTimer if needed
     resetTimer, // Get resetTimer
     isRunning
-  } = useAssessmentTimer(assessmentId, assessment?.estimatedTime, showExitDialog);
+  } = useAssessmentTimer(assessmentId, assessment?.estimatedTime, isPaused);
   
   // Fetch topic data for quiz (only for quizzes, not tests)
   const {
@@ -249,6 +252,11 @@ export function AssessmentEntryPage() {
   const handleToggleExitDialog = useCallback((open: boolean) => {
     setShowExitDialog(open);
   }, []);
+
+  // Callback to open/close the submit dialog
+  const handleToggleSubmitDialog = useCallback((open: boolean) => {
+    setShowSubmitDialog(open);
+  }, []);
   
   // Modified exit handler: just opens the dialog
   const handleExitAssessment = useCallback(() => {
@@ -267,18 +275,9 @@ export function AssessmentEntryPage() {
     
     try {
       setIsSubmitting(true);
+      setShowSubmitDialog(false); // Close dialog immediately on confirm
       
-      // Confirm submission
-      const confirmMessage = `Are you sure you want to submit this ${isTest ? 'test' : 'quiz'}? 
-This will finalize your answers and end the session.`;
-      
-      const shouldSubmit = window.confirm(confirmMessage);
-      if (!shouldSubmit) {
-        setIsSubmitting(false);
-        return;
-      }
-      
-      // Need to load answers and session data
+      // Need to load answers and session data *here*
       const sessionData = sessionStorage.getItem(`${storageKeyPrefix}_${assessmentId}`);
       if (!sessionData) {
         toast({
@@ -289,10 +288,10 @@ This will finalize your answers and end the session.`;
         setIsSubmitting(false);
         return;
       }
-      
+
       const parsedSessionData = JSON.parse(sessionData);
       const { answers, startTime } = parsedSessionData;
-      
+
       if (!answers || !startTime) {
         toast({
           title: "Error",
@@ -302,12 +301,12 @@ This will finalize your answers and end the session.`;
         setIsSubmitting(false);
         return;
       }
-      
+
       // Use the shared submit endpoint
       const result = await api.submitCompleteQuiz(
         assessmentId,
-        startTime, // Ensure startTime is correctly retrieved
-        answers,
+        startTime, // Use startTime from session
+        answers,   // Use answers from session
         token
       );
       
@@ -335,7 +334,7 @@ This will finalize your answers and end the session.`;
     } finally {
       setIsSubmitting(false);
     }
-  }, [assessmentId, assessmentType, token, isTest, navigate, toast, clearAssessmentSession, markAssessmentCompleted]);
+  }, [assessmentId, assessmentType, token, isTest, navigate, toast, clearAssessmentSession, markAssessmentCompleted, storageKeyPrefix]);
   
   // Layout component for consistency
   const QuizLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -448,10 +447,12 @@ This will finalize your answers and end the session.`;
         type={isTest ? 'test' : 'quiz'}
         onStartTask={handleStartAssessment}
         onFinishAssessment={handleFinishAssessment}
-        onExit={handleExitAssessment}
+        onExit={() => handleToggleExitDialog(true)}
         showExitDialog={showExitDialog}
         onToggleExitDialog={handleToggleExitDialog}
         onConfirmExit={performExitNavigation}
+        showSubmitDialog={showSubmitDialog}
+        onToggleSubmitDialog={handleToggleSubmitDialog}
       />
     </QuizLayout>
   );

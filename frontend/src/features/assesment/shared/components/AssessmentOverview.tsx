@@ -60,6 +60,8 @@ export interface AssessmentOverviewProps {
   showExitDialog: boolean;
   onToggleExitDialog: (open: boolean) => void;
   onConfirmExit: () => void; // The actual exit/navigation logic
+  showSubmitDialog: boolean;
+  onToggleSubmitDialog: (open: boolean) => void;
 }
 
 // Helper component for the exit confirmation dialog
@@ -198,13 +200,11 @@ export function AssessmentOverview({
   showExitDialog,
   onToggleExitDialog,
   onConfirmExit,
+  showSubmitDialog,
+  onToggleSubmitDialog,
 }: AssessmentOverviewProps) {
   const navigate = useNavigate();
   const location = useLocation();
-  
-  // State for UI elements like the submit dialog
-  const [localIsSubmitting, setLocalIsSubmitting] = useState<boolean>(false);
-  const [showSubmitDialog, setShowSubmitDialog] = useState<boolean>(false);
   
   // Format the remaining time as HH:MM:SS
   const formatRemainingTime = (seconds?: number): string => {
@@ -252,7 +252,6 @@ export function AssessmentOverview({
   
   // Handle finishing the assessment
   const handleFinishAssessment = async () => {
-    setLocalIsSubmitting(true);
     try {
       if (onFinishAssessment) {
         await onFinishAssessment();
@@ -268,8 +267,6 @@ export function AssessmentOverview({
       sessionStorage.removeItem(`assessment_${id}`);
     } catch (error) {
       console.error('Error finishing assessment:', error);
-    } finally {
-      setLocalIsSubmitting(false);
     }
   };
 
@@ -305,6 +302,21 @@ export function AssessmentOverview({
     const seconds = remainingTime % 60;
     return `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
   }, [remainingTime]);
+
+  // Handler to trigger the submit dialog
+  const triggerSubmitDialog = () => {
+    onToggleSubmitDialog(true);
+  };
+
+  // Handler for the actual submission confirmation (called by dialog action)
+  const handleConfirmSubmission = () => {
+    if (onFinishAssessment) {
+      onFinishAssessment();
+    }
+  };
+
+  // Normalize type for display
+  const displayType = type?.charAt(0).toUpperCase() + type?.slice(1);
 
   return (
     <div className="min-h-screen bg-background pb-12">
@@ -407,21 +419,12 @@ export function AssessmentOverview({
                           <Button 
                             variant="outline"
                             size="default"
-                            onClick={() => setShowSubmitDialog(true)}
-                            disabled={submittedCount === 0 || localIsSubmitting}
+                            onClick={triggerSubmitDialog}
+                            disabled={submittedCount === 0}
                             className="w-full transition-colors border-green-300/70 hover:border-green-500 hover:bg-green-50/30 text-green-600 dark:border-green-800/50 dark:text-green-400 dark:hover:bg-green-900/20"
                           >
-                            {localIsSubmitting ? (
-                              <>
-                                <div className="animate-spin h-4 w-4 mr-2 border-2 border-green-600 border-t-transparent rounded-full" />
-                                Submitting...
-                              </>
-                            ) : (
-                              <>
-                                <Send className="h-4 w-4 mr-2" />
-                                Submit {type?.charAt(0).toUpperCase() + type?.slice(1)}
-                              </>
-                            )}
+                            <Send className="h-4 w-4 mr-2" />
+                            Submit {displayType}
                           </Button>
                         </div>
                       </TooltipTrigger>
@@ -514,37 +517,37 @@ export function AssessmentOverview({
               </table>
             </div>
           </div>
-          
-          {/* Submit Confirmation Dialog */}
-          <AlertDialog open={showSubmitDialog} onOpenChange={setShowSubmitDialog}>
-            <AlertDialogContent>
-              <AlertDialogHeader>
-                <AlertDialogTitle>Submit {type?.charAt(0).toUpperCase() + type?.slice(1)}?</AlertDialogTitle>
-                <AlertDialogDescription>
-                  Are you sure you want to submit this {type}? You have completed {submittedCount} out of {tasks.length} questions.
-                  <br /><br />
-                  {submittedCount < tasks.length && (
-                    <div className="flex items-center gap-2 text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 p-2 rounded-md mt-1 mb-2">
-                      <AlertTriangle className="h-4 w-4" />
-                      <span>Some questions are not yet completed. You can still submit, but unanswered questions will be scored as zero.</span>
-                    </div>
-                  )}
-                  After submission, you won't be able to change your answers.
-                </AlertDialogDescription>
-              </AlertDialogHeader>
-              <AlertDialogFooter>
-                <AlertDialogCancel>Cancel</AlertDialogCancel>
-                <AlertDialogAction 
-                  onClick={handleFinishAssessment}
-                  className="bg-green-600 text-white hover:bg-green-700 transition-colors"
-                >
-                  Submit {type?.charAt(0).toUpperCase() + type?.slice(1)}
-                </AlertDialogAction>
-              </AlertDialogFooter>
-            </AlertDialogContent>
-          </AlertDialog>
         </div>
       </div>
+
+      {/* Submit Confirmation Dialog */}
+      <AlertDialog open={showSubmitDialog} onOpenChange={onToggleSubmitDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Submit {displayType}?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to submit this {type}? You have completed {submittedCount} out of {tasks.length} questions.
+              <br /><br />
+              {submittedCount < tasks.length && (
+                <div className="flex items-center gap-2 text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 p-2 rounded-md mt-1 mb-2">
+                  <AlertTriangle className="h-4 w-4" />
+                  <span>Some questions are not yet completed. You can still submit, but unanswered questions will be scored as zero.</span>
+                </div>
+              )}
+              After submission, you won't be able to change your answers.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction 
+              onClick={handleConfirmSubmission}
+              className="bg-green-600 text-white hover:bg-green-700 transition-colors dark:bg-green-700 dark:hover:bg-green-800"
+            >
+              Submit {displayType}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 } 

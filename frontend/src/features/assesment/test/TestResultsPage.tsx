@@ -10,26 +10,15 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { AlertCircle, CheckCircle2, XCircle, Clock, Trophy, Award, ArrowLeft } from 'lucide-react';
 import { Progress } from '@/components/ui/progress';
 import { Badge } from '@/components/ui/badge';
+import { cn } from '@/lib/utils';
+import { MultipleChoiceQuestion, CodeQuestion } from '../shared/components';
+import { AssessmentQuestion } from '../shared/types';
 
-// Helper function for formatting duration since it's not available in utils
-const formatDuration = (seconds: number): string => {
-  if (seconds < 60) return `${seconds} sec`;
-  
-  const minutes = Math.floor(seconds / 60);
-  const remainingSeconds = seconds % 60;
-  
-  if (minutes < 60) {
-    return remainingSeconds 
-      ? `${minutes} min ${remainingSeconds} sec` 
-      : `${minutes} min`;
-  }
-  
-  const hours = Math.floor(minutes / 60);
-  const remainingMinutes = minutes % 60;
-  
-  return remainingMinutes || remainingSeconds
-    ? `${hours} hr ${remainingMinutes} min`
-    : `${hours} hr`;
+// Helper function for formatting duration - ** REPLACED with QuizResultsPage version **
+const formatTime = (seconds: number): string => {
+  const mins = Math.floor(seconds / 60);
+  const secs = seconds % 60;
+  return `${mins}m ${secs}s`;
 };
 
 // Adjust the QuizAttemptResponse interface to better match API shape
@@ -39,6 +28,7 @@ interface QuizAttemptResponse {
     id: string;
     questionText: string;
     questionType: 'MULTIPLE_CHOICE' | 'CODE';
+    points?: number;
     mcProblem?: { 
       options: Array<{ id: string; optionText: string; isCorrect: boolean }>;
       explanation?: string;
@@ -82,12 +72,9 @@ const getScoreGrade = (score: number) => {
   return 'Needs Improvement';
 };
 
-// Get score color - matching quiz results page behavior
-const getScoreColor = (score: number) => {
-  if (score >= 90) return 'text-green-500';
-  if (score >= 75) return 'text-emerald-500';
-  if (score >= 60) return 'text-amber-500';
-  return 'text-red-500';
+// Get score color - **MODIFIED** based on passing score
+const getScoreColor = (score: number, passingScore: number) => {
+  return score >= passingScore ? 'text-green-500' : 'text-red-500';
 };
 
 export function TestResultsPage() {
@@ -247,10 +234,20 @@ export function TestResultsPage() {
       return 0;
   };
   const elapsedTime = calculateElapsedTime();
-  const formattedTime = formatDuration(elapsedTime);
+  const formattedTime = formatTime(elapsedTime);
   
   const passingScore = testResult?.passingScore ?? testResult?.quiz?.passingScore ?? 70;
   const passed = score >= passingScore;
+  
+  // Calculate total possible points and earned points
+  let totalPointsPossible = 0;
+  let totalPointsEarned = 0;
+  testResult?.responses?.forEach(response => {
+    const questionPoints = response.question?.points || 1; // Default to 1 point if missing
+    totalPointsPossible += questionPoints;
+    // Use response.score if available, otherwise check correctness
+    totalPointsEarned += response.score ?? (response.isCorrect ? questionPoints : 0);
+  });
   
   // Log the processed values for debugging
   console.log('Processed test result values:', {
@@ -291,70 +288,66 @@ export function TestResultsPage() {
             <CardTitle>{testResult?.quiz?.name || 'Test Results'}</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            {/* Apply 4-column grid layout like QuizResultsPage */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 text-center">
               {/* Score */}
-              <Card className="shadow-sm">
-                <CardContent className="pt-6">
-                  <div className="flex flex-col items-center justify-center">
-                    <Trophy className="h-10 w-10 text-primary mb-2" />
-                    <div className={`text-4xl font-bold ${getScoreColor(score)}`}>
-                      {formattedScore}%
-                    </div>
-                    <div className="text-muted-foreground">
-                      {getScoreGrade(score)}
-                    </div>
-                    <div className="text-sm mt-2">
-                      {correctAnswers} out of {totalQuestions} correct
-                    </div>
-                    {passed && <Badge className="mt-2 bg-green-100 text-green-800 border-green-200">Passed</Badge>}
-                    {!passed && <Badge className="mt-2 bg-red-100 text-red-800 border-red-200">Failed</Badge>}
-                  </div>
-                </CardContent>
-              </Card>
+              <div className="flex flex-col items-center justify-center p-4 bg-background rounded-lg shadow-sm">
+                <Trophy className="h-8 w-8 text-primary mb-2" />
+                <div className={`text-3xl font-bold ${getScoreColor(score, passingScore)}`}>
+                  {formattedScore}%
+                </div>
+                <div className="text-muted-foreground text-sm mt-1">
+                  {getScoreGrade(score)}
+                </div>
+              </div>
               
-              {/* Time */}
-              <Card className="shadow-sm">
-                <CardContent className="pt-6">
-                  <div className="flex flex-col items-center justify-center">
-                    <Clock className="h-10 w-10 text-primary mb-2" />
-                    <div className="text-2xl font-bold">
-                      {formattedTime}
-                    </div>
-                    <div className="text-muted-foreground">
-                      Time Spent
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
+              {/* Time Spent */}
+              <div className="flex flex-col items-center justify-center p-4 bg-background rounded-lg shadow-sm">
+                 <Clock className="h-8 w-8 text-primary mb-2" />
+                 <div className="text-2xl font-bold">
+                   {formattedTime}
+                 </div>
+                 <div className="text-muted-foreground text-sm mt-1">
+                   Time Spent
+                 </div>
+              </div>
               
-              {/* Date */}
-              <Card className="shadow-sm">
-                <CardContent className="pt-6">
-                  <div className="flex flex-col items-center justify-center">
-                    <Award className="h-10 w-10 text-primary mb-2" />
-                    <div className="text-lg font-medium text-center">
-                      {new Date(testResult?.completedAt || Date.now()).toLocaleDateString()}
-                    </div>
-                    <div className="text-muted-foreground">
-                      Completed
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
+              {/* Points Earned */}
+              <div className="flex flex-col items-center justify-center p-4 bg-background rounded-lg shadow-sm">
+                 <CheckCircle2 className="h-8 w-8 text-primary mb-2" />
+                 <div className="text-2xl font-bold">
+                    {totalPointsEarned} / {totalPointsPossible}
+                 </div>
+                 <div className="text-muted-foreground text-sm mt-1">
+                   Points Earned
+                 </div>
+              </div>
+              
+              {/* Date Completed */}
+              <div className="flex flex-col items-center justify-center p-4 bg-background rounded-lg shadow-sm">
+                 <Award className="h-8 w-8 text-primary mb-2" />
+                 <div className="text-lg font-medium text-center">
+                   {new Date(testResult?.completedAt || Date.now()).toLocaleDateString()}
+                 </div>
+                 <div className="text-muted-foreground text-sm mt-1">
+                   Completed
+                 </div>
+              </div>
             </div>
           </CardContent>
         </Card>
         
         {/* Questions breakdown */}
         <div className="space-y-6">
-          <h2 className="text-xl font-semibold">Question Breakdown</h2>
+          <h2 className="text-xl font-semibold">Questions Overview</h2>
           
           {testResult?.responses?.map((response, index) => {
-            const question = response.question;
-            const mcProblem = question?.mcProblem;
-            const codeProblem = question?.codeProblem;
+            // Log the entire response object and the question part for inspection
+            console.log(`[TestResultsPage] Rendering response ${index}:`, JSON.stringify(response, null, 2));
+            console.log(`[TestResultsPage] Question data for index ${index}:`, JSON.stringify(response.question, null, 2));
             
-            if (!question) {
+            // Ensure question data exists
+            if (!response.question) {
               return (
                 <Card key={response.id} className="shadow-md">
                   <CardContent className="py-4 text-muted-foreground">
@@ -363,101 +356,50 @@ export function TestResultsPage() {
                 </Card>
               );
             }
-
-            // Determine question state for styling
-            const questionState = response.isCorrect === true 
-              ? 'correct' 
-              : response.isCorrect === false 
-                ? 'incorrect' 
-                : 'unanswered';
-
+            
+            // Cast question data to the shared type for components
+            const question = response.question as AssessmentQuestion;
+            const pointsPossible = question.points || 1; // Default to 1 if points missing
+            const pointsEarned = response.score ?? (response.isCorrect ? pointsPossible : 0); // Use response score or calculate based on correctness
+            
             return (
               <Card key={response.id} className="shadow-md">
-                <CardHeader className="pb-2 border-b">
+                <CardHeader className="pb-4 pt-4 border-b bg-muted/30 dark:bg-muted/10">
                   <div className="flex justify-between items-center">
-                    <CardTitle className="flex items-center gap-2">
-                      <span>Question {index + 1}</span>
+                    <CardTitle className="flex items-center gap-2 text-base font-semibold">
                       {response.isCorrect === true ? (
-                        <CheckCircle2 className="h-5 w-5 text-green-500" />
+                        <CheckCircle2 className="h-5 w-5 text-green-500 flex-shrink-0" />
+                      ) : response.isCorrect === false ? (
+                        <XCircle className="h-5 w-5 text-red-500 flex-shrink-0" />
                       ) : (
-                        <XCircle className="h-5 w-5 text-red-500" />
+                        <AlertCircle className="h-5 w-5 text-yellow-500 flex-shrink-0" />
                       )}
+                      <span>Question {index + 1}</span>
                     </CardTitle>
+                    <Badge variant="outline" className="text-sm font-medium">
+                      {pointsEarned} / {pointsPossible} Points
+                    </Badge>
                   </div>
                 </CardHeader>
                 
                 <CardContent className="pt-6">
-                  <div className="space-y-3">
-                    <div className="text-base font-medium">{question.questionText}</div>
-                    
-                    {/* Multiple Choice Display */}
-                    {question.questionType === 'MULTIPLE_CHOICE' && mcProblem?.options && (
-                      <div className="space-y-2">
-                        {mcProblem.options.map((option) => {
-                          const isSelected = option.id === response.selectedOptionId;
-                          const isCorrect = option.isCorrect;
-                          
-                          return (
-                            <div 
-                              key={option.id}
-                              className={`p-3 rounded-md text-sm border ${
-                                isSelected && isCorrect
-                                  ? 'bg-green-100 dark:bg-green-900 border-green-300 dark:border-green-700'
-                                : isSelected && !isCorrect
-                                  ? 'bg-red-100 dark:bg-red-900 border-red-300 dark:border-red-700'
-                                : isCorrect 
-                                  ? 'bg-green-50 dark:bg-green-950 border-green-200 dark:border-green-800'
-                                  : 'bg-gray-50 dark:bg-gray-950 border-gray-200 dark:border-gray-800'
-                              }`}
-                            >
-                              <div className="flex items-start gap-2">
-                                <div className="flex-1">{option.optionText}</div>
-                                <div>
-                                  {isCorrect && (
-                                    <Badge variant="outline" className="bg-green-100 border-green-300 text-green-700 dark:bg-green-900 dark:border-green-700 dark:text-green-300">
-                                      Correct Answer
-                                    </Badge>
-                                  )}
-                                  {isSelected && !isCorrect && (
-                                    <Badge variant="outline" className="bg-red-100 border-red-300 text-red-700 dark:bg-red-900 dark:border-red-700 dark:text-red-300">
-                                      Your Answer
-                                    </Badge>
-                                  )}
-                                  {isSelected && isCorrect && (
-                                    <Badge variant="outline" className="bg-green-100 border-green-300 text-green-700 dark:bg-green-900 dark:border-green-700 dark:text-green-300">
-                                      Your Answer
-                                    </Badge>
-                                  )}
-                                </div>
-                              </div>
-                            </div>
-                          );
-                        })}
-                        {mcProblem.explanation && (
-                          <div className="mt-3 p-3 bg-blue-50 dark:bg-blue-950 rounded border border-blue-200 dark:border-blue-900 text-sm">
-                            <p className="font-medium mb-1">Explanation:</p>
-                            <p>{mcProblem.explanation}</p>
-                          </div>
-                        )}
-                      </div>
-                    )}
-                    
-                    {/* Code Display */}
-                    {question.questionType === 'CODE' && (
-                      <div className="space-y-3">
-                        <div className="p-4 bg-gray-100 dark:bg-gray-800 rounded border border-gray-200 dark:border-gray-700 overflow-auto max-h-[300px]">
-                          <p className="text-xs text-muted-foreground mb-1">Your Submission:</p>
-                          <pre className="text-sm whitespace-pre-wrap break-words"><code>{response.submittedCode || codeProblem?.submittedCode || 'No code submitted'}</code></pre>
-                        </div>
-                        {(response.feedback || codeProblem?.feedback) && (
-                          <div className="p-3 bg-blue-50 dark:bg-blue-950 rounded border border-blue-200 dark:border-blue-900 text-sm">
-                            <p className="font-medium mb-1">Feedback:</p>
-                            <p>{response.feedback || codeProblem?.feedback}</p>
-                          </div>
-                        )}
-                      </div>
-                    )}
-                  </div>
+                  {question.questionType === 'MULTIPLE_CHOICE' && (
+                    <MultipleChoiceQuestion 
+                      question={question} 
+                      selectedOption={response.selectedOptionId} 
+                      isReview={true} 
+                      onSelectOption={() => {}} 
+                    />
+                  )}
+                  
+                  {question.questionType === 'CODE' && (
+                    <CodeQuestion
+                      question={question}
+                      code={response.submittedCode || ''} 
+                      isReview={true}
+                      onCodeChange={() => {}}
+                    />
+                  )}
                 </CardContent>
               </Card>
             );
