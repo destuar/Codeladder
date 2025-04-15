@@ -34,13 +34,7 @@ function MultipleChoiceQuestionComponent({
     }
   }, [question.id, selectedOption, options]);
   
-  // If shuffleOptions is true and we're not in review mode, shuffle the options
-  const displayOptions = React.useMemo(() => {
-    if (!isReview && shuffleOptions) {
-      return [...options].sort(() => Math.random() - 0.5);
-    }
-    return options;
-  }, [options, shuffleOptions, isReview]);
+  const displayOptions = options; // Use options directly as they are pre-shuffled if needed
 
   // Use callback to prevent re-renders
   const handleOptionSelect = React.useCallback((optionId: string) => {

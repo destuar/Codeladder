@@ -47,8 +47,7 @@ export interface AssessmentPageProps {
   isSubmitting: boolean;
   goToQuestion: (index: number) => void;
   saveAnswer: (questionId: string, answer: string) => void;
-  submitAssessment: () => Promise<{ success: boolean; attemptId?: string; message?: string }>;
-  startAttempt: (id: string) => void;
+  submitAssessment: () => Promise<any>; // Return type changed to any for now
   forceReset: () => void;
   locationState?: {
     skipIntro?: boolean;
@@ -72,7 +71,6 @@ export function AssessmentPage({
   goToQuestion,
   saveAnswer,
   submitAssessment,
-  startAttempt,
   forceReset,
   locationState
 }: AssessmentPageProps) {
@@ -101,10 +99,17 @@ export function AssessmentPage({
   }, [isLoading, assessment]);
   
   // Use the shared timer hook - ONLY when assessment data is ready
-  const remainingTime = useAssessmentTimer(
+  const { 
+    remainingTime, 
+    formattedTime, // Get formatted time
+    isRunning, 
+    pauseTimer, 
+    resetTimer 
+  } = useAssessmentTimer(
     isReady ? id : undefined, // Pass id only when ready
-    assessment?.estimatedTime,
-    isLoading // Pause timer while loading initially
+    assessment?.estimatedTime
+    // Remove pause prop, manual control might be better if needed
+    // isLoading // Pause timer while loading initially - Let isRunning control this
   );
   
   // Calculate navigation state
@@ -144,16 +149,31 @@ export function AssessmentPage({
     // 2. If not reset, ensure an attempt is started/session exists
     if (!wasReset) {
       const existingSession = sessionStorage.getItem(`${type}_${id}`);
-      if (!existingSession) {
-        console.log('Initializing new assessment state in sessionStorage for:', id);
-        startAttempt(id);
-        // Ensure submitted questions are cleared if starting totally fresh
-        setSubmittedQuestions([]);
-      } else {
-        // If session exists, ensure submittedQuestions state is synced with storage
-        // This handles cases where the page might reload without full re-initialization
+      const existingAttemptId = sessionStorage.getItem(`${type}_attempt_${id}`); // Check for existing attempt ID
+
+      if (!existingSession && !existingAttemptId) {
+        // Scenario: Truly starting fresh (no session data, no attempt ID)
+        console.log('Initializing new assessment session and starting attempt for:', id);
+        // Only start a new attempt if none exists
+        setSubmittedQuestions([]); // Ensure submitted questions are cleared
+      } else if (!existingSession && existingAttemptId) {
+        // Scenario: Session data missing, but an attempt ID exists (e.g., after session expiry/clear but before completion)
+        // We should NOT start a new attempt here.
+        // The useQuiz/useTest hook should load the attempt based on existingAttemptId.
+        console.log(`Session data missing for ${id}, but found existing attemptId ${existingAttemptId}. Attempting to resume.`);
+        // Ensure submitted questions are synced if possible, although main session is gone
         const loadedIds = loadInitialSubmittedQuestions(id, type);
-        // Only update state if the loaded IDs differ from current state
+        setSubmittedQuestions(currentIds => {
+          if (JSON.stringify(currentIds) !== JSON.stringify(loadedIds)) {
+            console.log('Re-syncing submittedQuestions state with sessionStorage on resume');
+            return loadedIds;
+          }
+          return currentIds;
+        });
+      } else if (existingSession) {
+        // Scenario: Session data exists, proceed as before (sync state)
+        console.log(`Session found for ${id}. Syncing state.`);
+        const loadedIds = loadInitialSubmittedQuestions(id, type);
         setSubmittedQuestions(currentIds => {
           if (JSON.stringify(currentIds) !== JSON.stringify(loadedIds)) {
             console.log('Re-syncing submittedQuestions state with sessionStorage');
@@ -164,10 +184,9 @@ export function AssessmentPage({
       }
     }
 
-    // Dependencies: id, type, startAttempt, forceReset
-    // Avoid adding `assessment` or `answers` here to prevent unnecessary re-runs
-    // that might interfere with initialization.
-  }, [id, type, startAttempt, forceReset]);
+    // Dependencies: id, type, forceReset
+    // Remove startAttempt from dependencies
+  }, [id, type, forceReset]);
   
   // Effect to initialize or verify the assessment data structure in sessionStorage
   useEffect(() => {
@@ -358,59 +377,6 @@ export function AssessmentPage({
     }
   }, [currentQuestion, id, type, answers /* Add answers dependency */]);
   
-  // Handle submitting the entire assessment
-  const handleSubmitAssessment = async () => {
-    if (!id || !assessment) return;
-    
-    const confirmMessage = `Are you sure you want to submit this ${type}? 
-You have submitted ${submittedQuestions.length} out of ${assessment.questions.length} questions.`;
-    
-    const confirmed = window.confirm(confirmMessage);
-    if (!confirmed) return;
-    
-    setLocalIsSubmitting(true);
-    
-    try {
-      const result = await submitAssessment();
-      
-      if (result.success) {
-        sessionStorage.setItem(`${type}_${id}_completed`, 'true');
-        
-        if (result.attemptId) {
-          navigate(`/assessment/results/${result.attemptId}?type=${type}`);
-          
-          toast({
-            title: `${type.charAt(0).toUpperCase() + type.slice(1)} Submitted`,
-            description: `Your ${type} has been submitted successfully!`,
-            variant: "default",
-          });
-        } else {
-          console.error('Missing attemptId in successful submit response');
-          toast({
-            title: "Error",
-            description: `Failed to get ${type} results. Please try again.`,
-            variant: "destructive",
-          });
-        }
-      } else {
-        toast({
-          title: "Error",
-          description: result.message || `Failed to submit ${type}. Please try again.`,
-          variant: "destructive",
-        });
-      }
-    } catch (error) {
-      console.error(`Error submitting ${type}:`, error);
-      toast({
-        title: "Error",
-        description: "An error occurred while submitting. Please try again.",
-        variant: "destructive",
-      });
-    } finally {
-      setLocalIsSubmitting(false);
-    }
-  };
-  
   // Handle navigation
   const handlePreviousQuestion = () => {
     if (currentQuestionIndex > 0) {
@@ -538,7 +504,7 @@ You have submitted ${submittedQuestions.length} out of ${assessment.questions.le
         submittedQuestionIds={submittedQuestions}
         onNavigate={goToQuestion}
         onExit={handleExit}
-        elapsedTime={remainingTime || 0}
+        elapsedTime={remainingTime ?? 0}
         quizTitle={assessment.title || type.charAt(0).toUpperCase() + type.slice(1)}
       />
       
@@ -546,14 +512,14 @@ You have submitted ${submittedQuestions.length} out of ${assessment.questions.le
         <AssessmentHeader
           currentIndex={currentQuestionIndex}
           totalQuestions={assessment.questions.length}
-          elapsedTime={remainingTime || 0}
+          elapsedTime={remainingTime ?? 0}
           answeredCount={submittedQuestions.length}
           isFirstQuestion={isFirstQuestion}
           isLastQuestion={isLastQuestion}
           onPrevious={handlePreviousQuestion}
           onNext={handleNextQuestion}
           onExit={handleExit}
-          onSubmit={handleSubmitAssessment}
+          onSubmit={submitAssessment}
           isSubmitting={localIsSubmitting}
           title={
             type === 'quiz' 

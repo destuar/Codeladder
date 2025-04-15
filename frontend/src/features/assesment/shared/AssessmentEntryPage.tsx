@@ -108,7 +108,14 @@ export function AssessmentEntryPage() {
   
   // Use the shared timer hook AFTER assessment data is available
   // Pass showExitDialog to pause the timer when the dialog is open
-  const remainingTime = useAssessmentTimer(assessmentId, assessment?.estimatedTime, showExitDialog);
+  const { 
+    remainingTime, 
+    formattedTime,
+    startTimer, // Get the startTimer function
+    pauseTimer, // Get pauseTimer if needed
+    resetTimer, // Get resetTimer
+    isRunning
+  } = useAssessmentTimer(assessmentId, assessment?.estimatedTime, showExitDialog);
   
   // Fetch topic data for quiz (only for quizzes, not tests)
   const {
@@ -128,36 +135,47 @@ export function AssessmentEntryPage() {
   const formatAssessmentTasksCallback = useCallback((): AssessmentTask[] => {
     if (!assessment || !assessment.questions) return [];
     
-    // If we have saved tasks, use those to preserve submission state
-    // Check if savedTasks is not null AND has items that match the current assessment questions
+    // Define an explicit type for the question structure expected from the API
+    type ApiQuestion = { id: string; questionType?: string; pointsPossible?: number; [key: string]: any };
+
+    const freshQuestionsMap = new Map(assessment.questions.map((q: ApiQuestion) => [q.id, q]));
+
+    // If we have saved tasks, use those to preserve submission/viewed state
     if (savedTasks && savedTasks.length === assessment.questions.length && 
         savedTasks.every((task, index) => assessment.questions[index] && task.id === assessment.questions[index].id)) {
-      console.log('Using saved tasks from sessionStorage for assessment overview');
-      return savedTasks.map(task => ({
-        ...task,
-        type: task.type || 'Unknown' // Fallback if type was missing in saved data
-      }));
+      console.log('Using saved task status (submitted/viewed) from sessionStorage, but fresh data for type/details.');
+      
+      return savedTasks.map((savedTask, index) => {
+        // Explicitly type freshQuestion after retrieval and cast the result
+        const freshQuestion = freshQuestionsMap.get(savedTask.id) as { id: string; questionType?: string; pointsPossible?: number; [key: string]: any } | undefined;
+        const originalType = freshQuestion?.questionType || 'Unknown';
+
+        if (!freshQuestion?.questionType) {
+           console.warn(`Restored task, but original type missing for question ID: ${savedTask.id}`);
+        } else if (String(originalType).toUpperCase() !== 'MULTIPLE_CHOICE' && String(originalType).toUpperCase() !== 'CODE') {
+           console.warn(`Restored task, but original type unrecognized from API: ${originalType}`);
+        }
+
+        return {
+          id: savedTask.id,
+          title: `Question ${index + 1}`, // Keep simple title
+          type: originalType, // *** Use the fresh type from API ***
+          maxScore: freshQuestion?.pointsPossible || savedTask.maxScore || 1, // Prioritize fresh score
+          isSubmitted: savedTask.isSubmitted || false, // Restore status
+          isViewed: savedTask.isViewed || false, // Restore status
+        };
+      });
     }
     
-    console.log('Formatting tasks from fresh assessment data');
+    // Otherwise, format tasks from fresh assessment data
+    console.log('Formatting tasks purely from fresh assessment data');
     return assessment.questions.map((question: any, index: number) => {
-      let taskType = 'Unknown'; // Default type
-      
-      if (question.questionType) {
-        const lowerCaseType = String(question.questionType).toLowerCase();
-        if (lowerCaseType === 'multiple_choice' || lowerCaseType === 'mcq') {
-          taskType = 'Multiple Choice';
-        } else if (lowerCaseType === 'code') {
-          taskType = 'Code';
-        } else {
-          // Log if the type is unexpected but present
+      const taskType = question.questionType || 'Unknown';
+
+      if (!question.questionType) {
+          console.warn(`Question type is missing for question ID: ${question.id}`);
+      } else if (String(taskType).toUpperCase() !== 'MULTIPLE_CHOICE' && String(taskType).toUpperCase() !== 'CODE') {
           console.warn(`Unrecognized question type from API: ${question.questionType}`);
-          // Optionally use the raw type or keep 'Unknown'
-          // taskType = question.questionType; 
-        }
-      } else {
-        // Log if the type is completely missing
-        console.warn(`Question type is missing for question ID: ${question.id}`);
       }
       
       return {
@@ -165,7 +183,8 @@ export function AssessmentEntryPage() {
         title: `Question ${index + 1}`,
         type: taskType,
         maxScore: question.pointsPossible || 1,
-        isSubmitted: false // Initialize as false, saved state handles actual status
+        isSubmitted: false, // Initialize as false
+        isViewed: false, // Initialize as false
       };
     });
   }, [assessment, savedTasks]);
@@ -176,6 +195,9 @@ export function AssessmentEntryPage() {
   // Memoize callback functions
   const handleStartAssessment = useCallback((taskId?: string) => {
     if (assessmentId) {
+      // Start the timer before navigating
+      startTimer(); 
+      
       if (isQuiz) {
         navigate(`/quizzes/${assessmentId}/take`, {
           state: {
@@ -196,7 +218,7 @@ export function AssessmentEntryPage() {
         });
       }
     }
-  }, [assessmentId, isQuiz, isTest, navigate, topic, levelId, levelName]);
+  }, [assessmentId, isQuiz, isTest, navigate, topic, levelId, levelName, startTimer]);
   
   const handleProceedToOverview = useCallback(() => {
     setShowIntro(false);

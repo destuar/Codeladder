@@ -329,22 +329,16 @@ export function TestHistoryPage() {
                             {testAttempts.map((attempt: TestAttempt) => (
                               <TableRow key={attempt.id}>
                                 <TableCell>
-                                  {attempt.completedAt ? (
-                                    attempt.passed ? (
-                                      <Badge
-                                        variant="default"
-                                        className="flex items-center w-fit bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400 border-green-200 dark:border-green-700/50"
-                                      >
-                                        <CheckCircle className="h-3 w-3 mr-1" /> Passed
-                                      </Badge>
-                                    ) : (
-                                      <Badge variant="destructive" className="flex items-center w-fit">
-                                        <XCircle className="h-3 w-3 mr-1" /> Failed
-                                      </Badge>
-                                    )
+                                  {attempt.passed ? (
+                                    <Badge
+                                      variant="default"
+                                      className="flex items-center w-fit bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400 border-green-200 dark:border-green-700/50"
+                                    >
+                                      <CheckCircle className="h-3 w-3 mr-1" /> Passed
+                                    </Badge>
                                   ) : (
-                                    <Badge variant="secondary" className="flex items-center w-fit">
-                                      <Activity className="h-3 w-3 mr-1" /> In Progress
+                                    <Badge variant="destructive" className="flex items-center w-fit">
+                                      <XCircle className="h-3 w-3 mr-1" /> Failed
                                     </Badge>
                                   )}
                                 </TableCell>
@@ -353,31 +347,19 @@ export function TestHistoryPage() {
                                 </TableCell>
                                 <TableCell>{formatDate(attempt.startedAt)}</TableCell>
                                 <TableCell>
-                                  {attempt.completedAt ? formatDate(attempt.completedAt) : 'In Progress'}
+                                  {formatDate(attempt.completedAt!)}
                                 </TableCell>
                                 <TableCell>
-                                  {attempt.completedAt
-                                    ? formatDuration(calculateTimeTaken(attempt.startedAt, attempt.completedAt))
-                                    : '-'}
+                                  {formatDuration(calculateTimeTaken(attempt.startedAt, attempt.completedAt!))}
                                 </TableCell>
                                 <TableCell className="text-right">
-                                  {attempt.completedAt ? (
-                                    <Button
-                                      variant="outline"
-                                      size="sm"
-                                      onClick={() => navigate(`/assessment/results/${attempt.id}?type=test&fromHistory=true&levelId=${levelId}`)}
-                                    >
-                                      View Results
-                                    </Button>
-                                  ) : (
-                                    <Button
-                                      variant="outline"
-                                      size="sm"
-                                      onClick={() => navigate(`/assessment/test/${attempt.quizId}?attemptId=${attempt.id}`)}
-                                    >
-                                      Continue Test
-                                    </Button>
-                                  )}
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => navigate(`/assessment/results/${attempt.id}?type=test&fromHistory=true&levelId=${levelId}`)}
+                                  >
+                                    View Results
+                                  </Button>
                                 </TableCell>
                               </TableRow>
                             ))}

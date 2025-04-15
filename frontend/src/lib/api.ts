@@ -266,7 +266,7 @@ export const api = {
 
   // Learning path management
   async createLevel(data: any, token: string) {
-    return this.post('/learning/levels', data, token);
+    return this.post('/admin/levels', data, token);
   },
 
   async deleteProblem(id: string, token: string) {
@@ -474,8 +474,7 @@ export const api = {
 
   // Add a new function specifically for updating Test questions
   async updateTestQuestion(questionId: string, data: any, token: string) {
-    // Assuming the endpoint follows a similar pattern for tests
-    return this.put(`/tests/questions/${questionId}`, data, token);
+    return this.put(`/quizzes/questions/${questionId}`, data, token);
   },
 
   async deleteQuizQuestion(questionId: string, token: string) {
@@ -487,43 +486,19 @@ export const api = {
    * Used primarily for loading the assessment before an attempt starts.
    */
   async getAssessmentStructure(assessmentId: string, token: string, assessmentType: 'QUIZ' | 'TEST' = 'QUIZ') {
+    console.log(`[API] Fetching assessment structure for ${assessmentType} ID: ${assessmentId}`);
     try {
-      console.log(`Fetching ${assessmentType.toLowerCase()} structure with ID ${assessmentId}`);
-      
       const endpoint = `/quizzes/${assessmentId}/attempt?assessmentType=${assessmentType}`;
       const data = await this.get(endpoint, token);
-      
-      // Ensure the response has a questions array, even if empty
-      if (data && !data.questions) {
-        console.warn(`Response for ${assessmentType.toLowerCase()} ${assessmentId} did not include questions array:`, data);
-        data.questions = [];
-      }
-      
-      // Log question count for debugging
-      if (data && data.questions) {
-        console.log(`Received ${data.questions.length} questions for ${assessmentType.toLowerCase()} ${assessmentId}`);
-      }
-      
+      console.log(`[API] Received assessment structure for ${assessmentId}:`, data);
       return data;
     } catch (error) {
-      console.error(`Error fetching ${assessmentType.toLowerCase()} structure:`, error);
-      // Add more specific error logging
-      if (error instanceof Error) {
-          const apiError = error as ApiError;
-          console.error(`Details: Status=${apiError.status}, URL=${apiError.url}`);
-      }
-      throw error; // Re-throw the error after logging
+      console.error(`[API] Error fetching structure for ${assessmentType} ${assessmentId}:`, error);
+      throw error;
     }
   },
 
   // Quiz attempt and response management
-  async startQuizAttempt(quizId: string, token: string) {
-    return this.post(`/quizzes/${quizId}/attempts`, {}, token);
-  },
-
-  /**
-   * Fetches the details of a specific quiz/test attempt.
-   */
   async getAttemptDetails(attemptId: string, token: string) {
     try {
       console.log(`Fetching attempt details for ID ${attemptId}`);
@@ -552,42 +527,6 @@ export const api = {
       responseData, 
       token
     );
-  },
-
-  async completeQuizAttempt(attemptId: string, token: string) {
-    return this.post(`/quizzes/attempts/${attemptId}/complete`, {}, token);
-  },
-
-  // New method to submit entire quiz at once
-  async submitCompleteQuiz(
-    quizId: string,
-    startedAt: string,
-    answers: Record<string, any>,
-    token: string
-  ) {
-    console.log('API - submitCompleteQuiz called:', { 
-      quizId, 
-      startedAt,
-      answersCount: Object.keys(answers).length 
-    });
-    
-    try {
-      const endpoint = `/quizzes/${quizId}/submit`;
-      console.log(`Making POST request to ${endpoint}`);
-      
-      const result = await this.post(
-        endpoint,
-        { startedAt, answers },
-        token
-      );
-      
-      console.log('submitCompleteQuiz API response:', result);
-      return result;
-    } catch (error) {
-      console.error('submitCompleteQuiz failed:', error);
-      // Rethrow the error to be handled by the caller
-      throw error;
-    }
   },
 
   async getQuizAttemptResults(attemptId: string, token: string) {
@@ -712,6 +651,49 @@ export const api = {
   // Spaced Repetition
   async getReviewItems(token: string) {
     return this.get('/spaced-repetition/review', token);
+  },
+
+  // Specific Delete Helpers
+  async deleteQuizAttempt(attemptId: string, token: string) {
+    console.log(`[API] Deleting quiz attempt: ${attemptId}`);
+    return this.delete(`/quizzes/attempts/${attemptId}`, token);
+  },
+
+  async deleteTestAttempt(attemptId: string, token: string) {
+    console.log(`[API] Deleting test attempt: ${attemptId}`);
+    // Assuming a similar endpoint structure for tests
+    return this.delete(`/tests/attempts/${attemptId}`, token);
+  },
+
+  async submitCompleteQuiz(
+    quizId: string,
+    startedAt: string,
+    answers: Record<string, any>,
+    token: string
+  ) {
+    console.log('API - submitCompleteQuiz called:', { 
+      quizId, 
+      startedAt,
+      answersCount: Object.keys(answers).length 
+    });
+    
+    try {
+      const endpoint = `/quizzes/${quizId}/submit`;
+      console.log(`Making POST request to ${endpoint}`);
+      
+      const result = await this.post(
+        endpoint,
+        { startedAt, answers },
+        token
+      );
+      
+      console.log('submitCompleteQuiz API response:', result);
+      return result;
+    } catch (error) {
+      console.error('submitCompleteQuiz failed:', error);
+      // Rethrow the error to be handled by the caller
+      throw error;
+    }
   },
 };
 

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -30,6 +30,7 @@ import {
   TooltipTrigger
 } from "@/components/ui/tooltip";
 import { clearAssessmentSession } from '@/lib/sessionUtils';
+import { ScrollArea } from "@/components/ui/scroll-area";
 
 // Interface for task item in assessment
 export interface AssessmentTask {
@@ -46,11 +47,11 @@ export interface AssessmentTask {
 export interface AssessmentOverviewProps {
   id: string;
   title: string;
-  description?: string;
+  description?: string | null;
   duration?: number; // in minutes
   tasks: AssessmentTask[];
   submittedCount?: number;
-  remainingTime?: number; // in seconds
+  remainingTime?: number | null; // Accept null
   type?: 'quiz' | 'test'; // extensible for future test type
   onStartTask?: (taskId: string) => void;
   onFinishAssessment?: () => void;
@@ -61,17 +62,17 @@ export interface AssessmentOverviewProps {
   onConfirmExit: () => void; // The actual exit/navigation logic
 }
 
-// Create a dedicated memoized component for the exit dialog
-const ExitConfirmationDialog = React.memo(({
+// Helper component for the exit confirmation dialog
+const ExitConfirmationDialog = React.memo(({ 
   open,
   onOpenChange,
   displayType,
-  onConfirm,
+  onConfirm 
 }: {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  displayType: string;
-  onConfirm: () => void;
+  open: boolean,
+  onOpenChange: (open: boolean) => void,
+  displayType: string,
+  onConfirm: () => void
 }) => {
   return (
     <AlertDialog open={open} onOpenChange={onOpenChange}>
@@ -79,16 +80,13 @@ const ExitConfirmationDialog = React.memo(({
         <AlertDialogHeader>
           <AlertDialogTitle>Exit {displayType}?</AlertDialogTitle>
           <AlertDialogDescription>
-            Are you sure you want to exit this {displayType.toLowerCase()}? You will lose any progress you may have made.
+            Are you sure you want to exit? Your progress may not be saved.
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
           <AlertDialogCancel>Cancel</AlertDialogCancel>
-          <AlertDialogAction 
-            onClick={onConfirm}
-            className="bg-red-600 text-white hover:bg-red-700"
-          >
-            Exit {displayType}
+          <AlertDialogAction onClick={onConfirm} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+            Confirm Exit
           </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>
@@ -204,58 +202,9 @@ export function AssessmentOverview({
   const navigate = useNavigate();
   const location = useLocation();
   
-  // State to track locally with session persistence
-  const [localSubmittedCount, setLocalSubmittedCount] = useState<number>(submittedCount);
-  const [localTasks, setLocalTasks] = useState<AssessmentTask[]>(tasks);
+  // State for UI elements like the submit dialog
   const [localIsSubmitting, setLocalIsSubmitting] = useState<boolean>(false);
   const [showSubmitDialog, setShowSubmitDialog] = useState<boolean>(false);
-  
-  // Load assessment state from sessionStorage on initial render
-  useEffect(() => {
-    if (!id) return;
-
-    const savedAssessment = sessionStorage.getItem(`assessment_${id}`);
-    if (savedAssessment) {
-      try {
-        const assessmentData = JSON.parse(savedAssessment);
-        
-        // Restore tasks and submitted count
-        if (assessmentData.tasks && assessmentData.tasks.length > 0) {
-          setLocalTasks(assessmentData.tasks);
-          // Count submitted tasks
-          const submitted = assessmentData.tasks.filter((task: AssessmentTask) => task.isSubmitted).length;
-          setLocalSubmittedCount(submitted);
-        }
-      } catch (e) {
-        console.error('Error parsing saved assessment data:', e);
-        // Clear invalid data
-        sessionStorage.removeItem(`assessment_${id}`);
-      }
-    } else {
-      // No saved data, initialize from props
-      setLocalTasks(tasks);
-      setLocalSubmittedCount(submittedCount);
-      
-      // Initialize session storage with current state
-      saveAssessmentState(tasks, submittedCount);
-    }
-  }, [id]);
-  
-  // Save assessment state to sessionStorage
-  const saveAssessmentState = (
-    currentTasks: AssessmentTask[], 
-    currentSubmittedCount: number
-  ) => {
-    if (!id) return;
-    
-    const assessmentData = {
-      tasks: currentTasks,
-      submittedCount: currentSubmittedCount,
-      lastUpdated: new Date().toISOString()
-    };
-    
-    sessionStorage.setItem(`assessment_${id}`, JSON.stringify(assessmentData));
-  };
   
   // Format the remaining time as HH:MM:SS
   const formatRemainingTime = (seconds?: number): string => {
@@ -297,12 +246,8 @@ export function AssessmentOverview({
   
   // Mark a task as viewed (separate from submission)
   const markTaskViewed = (taskId: string) => {
-    const updatedTasks = localTasks.map(task =>
-      task.id === taskId ? { ...task, isViewed: true } : task
-    );
-    
-    setLocalTasks(updatedTasks);
-    saveAssessmentState(updatedTasks, localSubmittedCount);
+    console.warn('markTaskViewed called in AssessmentOverview, but local state is removed. This action currently does nothing.');
+    // TODO: Implement task viewing update via props/callbacks if needed
   };
   
   // Handle finishing the assessment
@@ -316,7 +261,10 @@ export function AssessmentOverview({
         navigate(`/topics`);
       }
       
-      // Clear session storage when assessment is finished
+      // Clear session storage - This might need to be moved to the parent
+      // if AssessmentOverview shouldn't manage session state.
+      // For now, keep it, assuming the parent calls this via onFinishAssessment prop
+      // after its own submission logic.
       sessionStorage.removeItem(`assessment_${id}`);
     } catch (error) {
       console.error('Error finishing assessment:', error);
@@ -325,8 +273,8 @@ export function AssessmentOverview({
     }
   };
 
-  // Calculate progress percentage
-  const progressPercentage = localTasks.length > 0 ? (localSubmittedCount / localTasks.length) * 100 : 0;
+  // Calculate progress percentage based on props
+  const progressPercentage = tasks.length > 0 ? (submittedCount / tasks.length) * 100 : 0;
 
   // Get icon based on question type
   const getTaskIcon = (taskType: string | undefined | null): React.ReactNode => {
@@ -337,17 +285,26 @@ export function AssessmentOverview({
       return <HelpCircle className="h-4 w-4 text-muted-foreground" />;
     }
     
-    const lowerCaseType = taskType.toLowerCase();
+    const lowerCaseType = String(taskType).toLowerCase(); // Use String() for safety
     
-    if (lowerCaseType.includes('multiple choice') || lowerCaseType.includes('mcq')) {
+    // Check against the original backend types
+    if (lowerCaseType === 'multiple_choice' || lowerCaseType === 'mcq') { 
       return <CheckSquare className="h-4 w-4 text-amber-500" />;
-    } else if (lowerCaseType.includes('code')) {
+    } else if (lowerCaseType === 'code') {
       return <Code2 className="h-4 w-4 text-indigo-500" />;
+    } else {
+      // Default icon if type is unrecognized
+      console.warn(`Unrecognized task type: ${taskType}, returning default icon.`);
+      return <HelpCircle className="h-4 w-4 text-muted-foreground" />;
     }
-    // Default icon if type is unrecognized
-    console.warn(`Unrecognized task type: ${taskType}, returning default icon.`);
-    return <HelpCircle className="h-4 w-4 text-muted-foreground" />;
   };
+
+  const formattedRemainingTime = useMemo(() => {
+    if (remainingTime === null || remainingTime === undefined || remainingTime < 0) return "--:--";
+    const minutes = Math.floor(remainingTime / 60);
+    const seconds = remainingTime % 60;
+    return `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+  }, [remainingTime]);
 
   return (
     <div className="min-h-screen bg-background pb-12">
@@ -381,7 +338,7 @@ export function AssessmentOverview({
                     )}
                   </div>
                   <Badge variant="outline" className="font-medium">
-                    {type.toUpperCase()} Assessment
+                    {type?.toUpperCase()} Assessment
                   </Badge>
                 </div>
               </div>
@@ -401,14 +358,14 @@ export function AssessmentOverview({
                     <span className="text-xs text-muted-foreground">Tasks</span>
                     <div className="flex items-center mt-1">
                       <BookOpenCheck className="h-3.5 w-3.5 text-muted-foreground mr-1" />
-                      <span className="font-medium text-sm">{localTasks.length} questions</span>
+                      <span className="font-medium text-sm">{tasks.length} questions</span>
                     </div>
                   </div>
                   
                   <div className="flex flex-col">
                     <span className="text-xs text-muted-foreground">Progress</span>
                     <div className="flex items-center gap-1 mt-1">
-                      <span className="font-medium text-sm">{localSubmittedCount}/{localTasks.length} completed</span>
+                      <span className="font-medium text-sm">{submittedCount}/{tasks.length} completed</span>
                     </div>
                   </div>
                 </div>
@@ -430,14 +387,14 @@ export function AssessmentOverview({
               </CardHeader>
               <CardContent className="text-center pt-0">
                 <div className="text-4xl font-mono font-bold tracking-wider pb-2 text-primary">
-                  {formatRemainingTime(remainingTime)}
+                  {formattedRemainingTime}
                 </div>
                 <div className="flex flex-col gap-2 mt-2">
                   <Button 
                     variant="outline"
                     size="default"
                     className="w-full transition-colors border-blue-300/70 hover:border-blue-500 hover:bg-blue-50/30 text-blue-600 dark:border-blue-800/50 dark:text-blue-400 dark:hover:bg-blue-900/20"
-                    onClick={() => handleStartTask(localTasks[0]?.id || '')}
+                    onClick={() => handleStartTask(tasks[0]?.id || '')}
                   >
                     {progressPercentage > 0 ? 'Continue Assessment' : `Start ${type}`}
                   </Button>
@@ -451,7 +408,7 @@ export function AssessmentOverview({
                             variant="outline"
                             size="default"
                             onClick={() => setShowSubmitDialog(true)}
-                            disabled={localSubmittedCount === 0 || localIsSubmitting}
+                            disabled={submittedCount === 0 || localIsSubmitting}
                             className="w-full transition-colors border-green-300/70 hover:border-green-500 hover:bg-green-50/30 text-green-600 dark:border-green-800/50 dark:text-green-400 dark:hover:bg-green-900/20"
                           >
                             {localIsSubmitting ? (
@@ -462,13 +419,13 @@ export function AssessmentOverview({
                             ) : (
                               <>
                                 <Send className="h-4 w-4 mr-2" />
-                                Submit {type.charAt(0).toUpperCase() + type.slice(1)}
+                                Submit {type?.charAt(0).toUpperCase() + type?.slice(1)}
                               </>
                             )}
                           </Button>
                         </div>
                       </TooltipTrigger>
-                      {localSubmittedCount === 0 && (
+                      {submittedCount === 0 && (
                         <TooltipContent className="bg-muted text-muted-foreground border max-w-xs p-2">
                           <p>Start at least one question before submitting your {type}</p>
                         </TooltipContent>
@@ -499,7 +456,7 @@ export function AssessmentOverview({
                   </tr>
                 </thead>
                 <tbody>
-                  {localTasks.map((task, index) => (
+                  {tasks.map((task, index) => (
                     <tr 
                       key={task.id} 
                       className={cn(
@@ -562,11 +519,11 @@ export function AssessmentOverview({
           <AlertDialog open={showSubmitDialog} onOpenChange={setShowSubmitDialog}>
             <AlertDialogContent>
               <AlertDialogHeader>
-                <AlertDialogTitle>Submit {type.charAt(0).toUpperCase() + type.slice(1)}?</AlertDialogTitle>
+                <AlertDialogTitle>Submit {type?.charAt(0).toUpperCase() + type?.slice(1)}?</AlertDialogTitle>
                 <AlertDialogDescription>
-                  Are you sure you want to submit this {type}? You have completed {localSubmittedCount} out of {localTasks.length} questions.
+                  Are you sure you want to submit this {type}? You have completed {submittedCount} out of {tasks.length} questions.
                   <br /><br />
-                  {localSubmittedCount < localTasks.length && (
+                  {submittedCount < tasks.length && (
                     <div className="flex items-center gap-2 text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 p-2 rounded-md mt-1 mb-2">
                       <AlertTriangle className="h-4 w-4" />
                       <span>Some questions are not yet completed. You can still submit, but unanswered questions will be scored as zero.</span>
@@ -581,7 +538,7 @@ export function AssessmentOverview({
                   onClick={handleFinishAssessment}
                   className="bg-green-600 text-white hover:bg-green-700 transition-colors"
                 >
-                  Submit {type.charAt(0).toUpperCase() + type.slice(1)}
+                  Submit {type?.charAt(0).toUpperCase() + type?.slice(1)}
                 </AlertDialogAction>
               </AlertDialogFooter>
             </AlertDialogContent>

@@ -17,10 +17,30 @@ export function calculateNextReviewDate(reviewLevel: number, previousDueDate?: D
   
   const daysToAdd = intervals[Math.min(reviewLevel, intervals.length - 1)];
   
-  // Use the previous due date if provided, otherwise use current date
-  const baseDate = previousDueDate || new Date();
+  // Get the current date (at the start of the day) for comparison
+  const today = new Date();
+  today.setHours(0, 0, 0, 0); // Normalize to the beginning of the day
+
+  // Determine the base date for the next review
+  let baseDate = new Date(); // Default to today if no previous date
+  if (previousDueDate) {
+    const normalizedPreviousDueDate = new Date(previousDueDate);
+    normalizedPreviousDueDate.setHours(0, 0, 0, 0); // Normalize for fair comparison
+    
+    // If the previous due date is in the past, base the next review on today's date
+    // Otherwise, base it on the previous due date
+    baseDate = normalizedPreviousDueDate < today ? today : normalizedPreviousDueDate;
+  } else {
+    // If there's no previous due date, base it on today
+    baseDate = today;
+  }
+  
+  // Use the previous due date if provided AND it's not in the past, otherwise use current date
+  // const baseDate = previousDueDate && previousDueDate >= today ? previousDueDate : today;
   const nextDate = new Date(baseDate);
   nextDate.setDate(nextDate.getDate() + daysToAdd);
+  // Ensure the time is consistent, e.g., set to midnight or a specific time
+  // nextDate.setHours(0, 0, 0, 0); // Optional: Normalize the resulting date
   return nextDate;
 }
 

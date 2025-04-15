@@ -1,10 +1,20 @@
 import React, { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 import { useAuth } from '@/features/auth/AuthContext';
 import { QuizLayout } from '@/components/layouts/QuizLayout';
-import { 
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
   Card, 
   CardContent, 
   CardDescription, 
@@ -39,11 +49,13 @@ import {
   Star,
   Activity,
   Award,
-  RotateCcw
+  RotateCcw,
+  Trash2
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
+import { useToast } from '@/components/ui/use-toast';
 
 type QuizAttempt = {
   id: string;
@@ -78,7 +90,11 @@ export function QuizHistoryPage() {
   const { topicId } = useParams<{ topicId: string }>();
   const navigate = useNavigate();
   const { token } = useAuth();
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
   const [activeTab, setActiveTab] = useState('all');
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [attemptToDelete, setAttemptToDelete] = useState<QuizAttempt | null>(null);
   
   // Fetch topic details
   const { data: topic, isLoading: topicLoading } = useQuery({
@@ -91,7 +107,7 @@ export function QuizHistoryPage() {
   });
   
   // Fetch quiz attempts for this topic
-  const { data: attempts, isLoading: attemptsLoading } = useQuery({
+  const { data: attempts, isLoading: attemptsLoading } = useQuery<QuizAttempt[], Error>({
     queryKey: ['quizAttempts', topicId],
     queryFn: async () => {
       if (!token || !topicId) throw new Error('No token or topic ID');
@@ -142,6 +158,35 @@ export function QuizHistoryPage() {
     return validAttempts.reduce((best: QuizAttempt, current: QuizAttempt) => {
       return (current.score || 0) > (best.score || 0) ? current : best;
     }, validAttempts[0]);
+  };
+  
+  // Delete Attempt Mutation
+  const deleteMutation = useMutation({
+    mutationFn: (attemptIdToDelete: string) => {
+      if (!token) throw new Error("Not authenticated");
+      return api.deleteQuizAttempt(attemptIdToDelete, token);
+    },
+    onSuccess: () => {
+      toast({ title: "Success", description: "Attempt deleted successfully." });
+      queryClient.invalidateQueries({ queryKey: ['quizAttempts', topicId] });
+      setShowDeleteDialog(false);
+      setAttemptToDelete(null);
+    },
+    onError: (error) => {
+      toast({ 
+        variant: "destructive", 
+        title: "Error", 
+        description: error.message || "Failed to delete attempt." 
+      });
+      setShowDeleteDialog(false);
+      setAttemptToDelete(null);
+    },
+  });
+
+  // Handler to open delete confirmation
+  const handleDeleteClick = (attempt: QuizAttempt) => {
+    setAttemptToDelete(attempt);
+    setShowDeleteDialog(true);
   };
   
   // Handle loading state
@@ -319,22 +364,16 @@ export function QuizHistoryPage() {
                             {quizAttempts.map((attempt: QuizAttempt) => (
                               <TableRow key={attempt.id}>
                                 <TableCell>
-                                  {attempt.completedAt ? (
-                                    attempt.passed ? (
-                                      <Badge
-                                        variant="default"
-                                        className="flex items-center w-fit bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400 border-green-200 dark:border-green-700/50"
-                                      >
-                                        <CheckCircle className="h-3 w-3 mr-1" /> Passed
-                                      </Badge>
-                                    ) : (
-                                      <Badge variant="destructive" className="flex items-center w-fit">
-                                        <XCircle className="h-3 w-3 mr-1" /> Failed
-                                      </Badge>
-                                    )
+                                  {attempt.passed ? (
+                                    <Badge
+                                      variant="default"
+                                      className="flex items-center w-fit bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400 border-green-200 dark:border-green-700/50"
+                                    >
+                                      <CheckCircle className="h-3 w-3 mr-1" /> Passed
+                                    </Badge>
                                   ) : (
-                                    <Badge variant="secondary" className="flex items-center w-fit">
-                                      <Activity className="h-3 w-3 mr-1" /> In Progress
+                                    <Badge variant="destructive" className="flex items-center w-fit">
+                                      <XCircle className="h-3 w-3 mr-1" /> Failed
                                     </Badge>
                                   )}
                                 </TableCell>
@@ -343,31 +382,28 @@ export function QuizHistoryPage() {
                                 </TableCell>
                                 <TableCell>{formatDate(attempt.startedAt)}</TableCell>
                                 <TableCell>
-                                  {attempt.completedAt ? formatDate(attempt.completedAt) : 'In Progress'}
+                                  {formatDate(attempt.completedAt!)}
                                 </TableCell>
                                 <TableCell>
-                                  {attempt.completedAt 
-                                    ? formatDuration(calculateTimeTaken(attempt.startedAt, attempt.completedAt))
-                                    : '-'}
+                                  {formatDuration(calculateTimeTaken(attempt.startedAt, attempt.completedAt!))}
                                 </TableCell>
-                                <TableCell className="text-right">
-                                  {attempt.completedAt ? (
-                                    <Button
-                                      variant="outline"
-                                      size="sm"
-                                      onClick={() => navigate(`/assessment/results/${attempt.id}?type=quiz&fromHistory=true&topicId=${topicId}`)}
-                                    >
-                                      View Results
-                                    </Button>
-                                  ) : (
-                                    <Button
-                                      variant="outline"
-                                      size="sm"
-                                      onClick={() => navigate(`/assessment/quiz/${attempt.quizId}?attemptId=${attempt.id}`)}
-                                    >
-                                      Continue Quiz
-                                    </Button>
-                                  )}
+                                <TableCell className="text-right space-x-2">
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => navigate(`/assessment/results/${attempt.id}?type=quiz&fromHistory=true&topicId=${topicId}`)}
+                                  >
+                                    View Results
+                                  </Button>
+                                  <Button
+                                    variant="destructive"
+                                    size="icon"
+                                    onClick={() => handleDeleteClick(attempt)}
+                                    title="Delete Attempt"
+                                    disabled={deleteMutation.isPending && attemptToDelete?.id === attempt.id}
+                                  >
+                                    <Trash2 className="h-4 w-4" />
+                                  </Button>
                                 </TableCell>
                               </TableRow>
                             ))}
@@ -382,6 +418,36 @@ export function QuizHistoryPage() {
           )}
         </div>
       </div>
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This action cannot be undone. This will permanently delete this quiz attempt
+              ({attemptToDelete?.id}) and remove its data from our servers.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setAttemptToDelete(null)} disabled={deleteMutation.isPending}>
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (attemptToDelete) {
+                  deleteMutation.mutate(attemptToDelete.id);
+                }
+              }}
+              disabled={deleteMutation.isPending}
+              className={cn(deleteMutation.isPending && "opacity-50 cursor-not-allowed")}
+            >
+              {deleteMutation.isPending ? "Deleting..." : "Continue"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
     </QuizLayout>
   );
 } 
