@@ -94,7 +94,7 @@ function MemoryJourneyButton({ problem }: { problem: ReviewProblem }) {
           problemId={problem.id}
           problemSlug={problem.slug}
           currentLevel={problem.reviewLevel}
-          reviewHistory={problem.reviewHistory || []}
+          reviewHistory={[]}
           onClose={() => setShowMemoryJourney(false)}
         />
       )}
@@ -312,11 +312,8 @@ export function SpacedRepetitionPanel() {
                 } : undefined
               );
             }}
-            variant={isActiveDay ? "default" : "secondary"}
-            className={isActiveDay 
-              ? "transition-all hover:shadow-sm" 
-              : "dark:bg-muted dark:hover:bg-muted/80 transition-all hover:shadow-sm"
-            }
+            variant="outline"
+            className="transition-all hover:shadow-sm"
           >
             Review
           </Button>
