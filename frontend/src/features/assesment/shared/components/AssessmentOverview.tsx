@@ -165,7 +165,7 @@ const AssessmentOverviewHeader = React.memo(({
 
         {/* Right section - profile and theme toggle */}
         <div className="flex items-center justify-end gap-2 pr-3">
-          <BorderlessThemeToggle />
+          <BorderlessThemeToggle isStatic={true} />
           
           <Avatar className="h-8 w-8 transition-transform hover:scale-105">
             <AvatarImage src={profile?.avatarUrl} />

@@ -1,7 +1,12 @@
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 
-export function BorderlessThemeToggle() {
+interface BorderlessThemeToggleProps {
+  isStatic?: boolean;
+}
+
+export function BorderlessThemeToggle({ isStatic = false }: BorderlessThemeToggleProps) {
   const [theme, setTheme] = useState<'light' | 'dark'>('light');
 
   useEffect(() => {
@@ -31,8 +36,13 @@ export function BorderlessThemeToggle() {
       <div className="relative w-5 h-5">
         {/* Sun */}
         <div
-          className={`absolute inset-0 transition-transform duration-500 rotate-0 flex items-center justify-center
-            ${theme === 'dark' ? 'rotate-[360deg] scale-0' : 'scale-100'}`}
+          className={cn(
+            "absolute inset-0 flex items-center justify-center",
+            !isStatic && "transition-transform duration-500",
+            theme === 'dark' 
+              ? (isStatic ? 'scale-0' : 'rotate-[360deg] scale-0')
+              : 'rotate-0 scale-100' 
+          )}
         >
           <svg
             xmlns="http://www.w3.org/2000/svg"
@@ -52,8 +62,13 @@ export function BorderlessThemeToggle() {
 
         {/* Moon */}
         <div
-          className={`absolute inset-0 transition-transform duration-500 flex items-center justify-center
-            ${theme === 'dark' ? 'rotate-0 scale-100' : '-rotate-[360deg] scale-0'}`}
+          className={cn(
+            "absolute inset-0 flex items-center justify-center",
+            !isStatic && "transition-transform duration-500",
+            theme === 'dark' 
+              ? 'rotate-0 scale-100' 
+              : (isStatic ? 'scale-0' : '-rotate-[360deg] scale-0')
+          )}
         >
           <svg
             xmlns="http://www.w3.org/2000/svg"
