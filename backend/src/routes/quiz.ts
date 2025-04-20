@@ -182,9 +182,38 @@ router.get('/attempts/:id', authenticateToken, (async (req, res) => {
     const attempt = await prisma.quizAttempt.findUnique({
       where: { id },
       include: {
-        responses: {
+        quiz: {
           include: {
-            question: true,
+            level: true, // Include level for context
+            _count: { // Include the count of questions for this quiz
+              select: { questions: true }
+            }
+          }
+        },
+        responses: {
+          orderBy: {
+            // Attempt to order responses based on question order number
+            // This requires including question order in the query
+            question: {
+              orderNum: 'asc'
+            }
+          },
+          include: {
+            // Expand question include to get mcProblem/codeProblem details
+            question: {
+              include: {
+                mcProblem: {
+                  include: {
+                    options: true // Need options for display
+                  }
+                },
+                codeProblem: {
+                  include: {
+                    testCases: true // Might need test cases for code review
+                  }
+                }
+              }
+            },
             mcResponse: true,
             codeResponse: {
               include: {
@@ -205,7 +234,22 @@ router.get('/attempts/:id', authenticateToken, (async (req, res) => {
       return res.status(403).json({ error: 'Not authorized to access this attempt' });
     }
     
-    res.json(attempt);
+    // Calculate elapsed time if completedAt exists
+    const elapsedTime = attempt.completedAt && attempt.startedAt
+      ? Math.round((new Date(attempt.completedAt).getTime() - new Date(attempt.startedAt).getTime()) / 1000)
+      : null;
+    
+    // Add total questions count and ensure consistent field naming for time values
+    const responseWithCount = {
+      ...attempt,
+      totalQuestions: attempt.quiz?._count?.questions ?? 0,
+      // Ensure both field name versions exist for compatibility
+      startedAt: attempt.startedAt,
+      startTime: attempt.startedAt, // Add alias for TestResultsPage
+      elapsedTime: elapsedTime
+    };
+    
+    res.json(responseWithCount);
   } catch (error) {
     console.error('Error fetching quiz attempt:', error);
     res.status(500).json({ 
@@ -476,20 +520,16 @@ router.post('/attempts/:id/complete', authenticateToken, (async (req, res) => {
       const pointsEarned = attempt.responses.reduce((sum, r) => sum + (r.points || 0), 0);
       
       // Calculate score as a percentage
-      score = totalPossiblePoints > 0 
-        ? Math.round((pointsEarned / totalPossiblePoints) * 100) 
-        : 0;
+      score = totalPossiblePoints > 0 ? Math.round((pointsEarned / totalPossiblePoints) * 100) : 0;
       
-      // Determine if passed based on quiz passing score
+      // Determine if passed
       passed = score >= attempt.quiz.passingScore;
-    } catch (error) {
-      // If score calculation fails, log error but still complete the attempt
-      console.error('Error calculating quiz score:', error);
-      score = 0;
-      passed = false;
+    } catch (calculationError) {
+      console.error('Error calculating score for attempt ${attemptId}:', calculationError);
+      // Proceed with completion, but score/passed might be inaccurate
     }
     
-    // Complete the attempt
+    // Update the attempt record
     const completedAttempt = await prisma.quizAttempt.update({
       where: { id: attemptId },
       data: {
@@ -498,47 +538,71 @@ router.post('/attempts/:id/complete', authenticateToken, (async (req, res) => {
         passed
       }
     });
+
+    console.log(`Quiz attempt ${attemptId} completed successfully. Score: ${score}, Passed: ${passed}`);
     
-    console.log(`Successfully completed attempt ${attemptId} with score ${score}`);
-    
-    // Always include the attemptId in the response for the frontend
     res.json({
       ...completedAttempt,
-      attemptId: completedAttempt.id
+      attemptId: completedAttempt.id // Ensure attemptId is included for frontend
     });
   } catch (error) {
     console.error('Error completing quiz attempt:', error);
-    
-    const attemptIdFromParams = req.params.id;
-    
-    // Try to save the attempt as completed even if there's an error
-    try {
-      if (attemptIdFromParams) {
-        const failedCompletion = await prisma.quizAttempt.update({
-          where: { id: attemptIdFromParams },
-          data: {
-            completedAt: new Date(),
-            score: 0
-          }
-        });
-        
-        console.log(`Emergency completion of attempt ${attemptIdFromParams} due to error`);
-        
-        // Return something usable to the frontend
-        return res.status(200).json({
-          ...failedCompletion,
-          attemptId: failedCompletion.id,
-          error: 'Quiz completed with errors'
-        });
-      }
-    } catch (fallbackError) {
-      console.error('Failed emergency completion:', fallbackError);
-    }
-    
     res.status(500).json({ 
       error: 'Failed to complete quiz attempt',
-      details: error instanceof Error ? error.message : 'Unknown error',
-      attemptId: attemptIdFromParams // Still include the attemptId even on error
+      details: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+}) as RequestHandler);
+
+/**
+ * @route DELETE /api/quizzes/attempts/:attemptId
+ * @desc Delete a specific quiz attempt
+ * @access Private
+ */
+router.delete('/attempts/:attemptId', authenticateToken, (async (req, res) => {
+  try {
+    const { attemptId } = req.params;
+    const userId = req.user?.id;
+
+    console.log(`Attempting to delete quiz attempt ${attemptId} for user ${userId}`);
+
+    if (!userId) {
+      console.warn(`Attempt deletion failed: User not authenticated`);
+      return res.status(401).json({ error: 'User not authenticated' });
+    }
+
+    // 1. Verify the attempt exists
+    const attempt = await prisma.quizAttempt.findUnique({
+      where: { id: attemptId },
+      select: { userId: true } // Only select userId for verification
+    });
+
+    if (!attempt) {
+      console.warn(`Attempt deletion failed: Attempt ${attemptId} not found`);
+      // Return 404 even if it existed but belonged to someone else, to avoid leaking info
+      return res.status(404).json({ error: 'Attempt not found' });
+    }
+
+    // 2. Verify ownership
+    if (attempt.userId !== userId) {
+      console.warn(`Attempt deletion failed: User ${userId} not authorized to delete attempt ${attemptId}`);
+      // Return 403 Forbidden if the attempt exists but doesn't belong to the user
+      return res.status(403).json({ error: 'Not authorized to delete this attempt' });
+    }
+
+    // 3. Delete the attempt (Prisma handles cascading deletes for related responses, etc. based on schema)
+    await prisma.quizAttempt.delete({
+      where: { id: attemptId }
+    });
+
+    console.log(`Quiz attempt ${attemptId} deleted successfully by user ${userId}`);
+    res.status(204).send(); // 204 No Content is appropriate for successful DELETE
+
+  } catch (error) {
+    console.error(`Error deleting quiz attempt ${req.params.attemptId}:`, error);
+    res.status(500).json({
+      error: 'Failed to delete quiz attempt',
+      details: error instanceof Error ? error.message : 'Unknown error'
     });
   }
 }) as RequestHandler);
@@ -561,7 +625,13 @@ router.get('/attempts/:id/results', authenticateToken, (async (req, res) => {
     const attempt = await prisma.quizAttempt.findUnique({
       where: { id: attemptId },
       include: {
-        quiz: true,
+        quiz: { // Include quiz details
+          include: {
+            _count: { // Include the count of questions for this quiz
+              select: { questions: true }
+            }
+          }
+        },
         responses: {
           include: {
             question: {
@@ -608,6 +678,8 @@ router.get('/attempts/:id/results', authenticateToken, (async (req, res) => {
     }
     
     // Transform data for the frontend
+    const totalQuestionsCount = attempt.quiz?._count?.questions ?? 0;
+    
     const results = {
       id: attempt.id,
       quizId: attempt.quizId,
@@ -620,6 +692,7 @@ router.get('/attempts/:id/results', authenticateToken, (async (req, res) => {
       timeSpent: attempt.completedAt && attempt.startedAt 
         ? Math.round((new Date(attempt.completedAt).getTime() - new Date(attempt.startedAt).getTime()) / 1000)
         : null,
+      totalQuestions: totalQuestionsCount, // Add the actual total question count
       questions: attempt.responses
         .map(response => ({
           response,
@@ -1067,21 +1140,100 @@ router.get('/topic/:topicId/all', authenticateToken, (async (req, res) => {
 router.get('/:id', authenticateToken, (async (req, res) => {
   try {
     const { id } = req.params;
+    const includeDetails = req.query.details === 'true';
+    const assessmentType = (req.query.assessmentType as string)?.toUpperCase() || undefined;
     
-    const quiz = await prisma.quiz.findUnique({
+    console.log(`Fetching quiz ${id} with detailed=${includeDetails}, type=${assessmentType || 'any'}`);
+    
+    let query: any = {
       where: { id },
       include: {
         _count: {
           select: { questions: true }
         }
       }
-    });
+    };
+    
+    // If assessmentType is provided, add it to the query
+    if (assessmentType) {
+      query.where.assessmentType = assessmentType;
+    }
+    
+    // If details are requested, include question data
+    if (includeDetails) {
+      query.include = {
+        ...query.include,
+        topic: {
+          select: {
+            id: true,
+            name: true,
+            slug: true
+          }
+        },
+        level: {
+          select: {
+            id: true,
+            name: true,
+            order: true
+          }
+        },
+        questions: {
+          orderBy: { orderNum: 'asc' },
+          include: {
+            mcProblem: {
+              include: {
+                options: {
+                  orderBy: { orderNum: 'asc' },
+                  select: {
+                    id: true,
+                    questionId: true,
+                    optionText: true,
+                    // In a details request, we can include correct answers
+                    isCorrect: true,
+                    explanation: true,
+                    orderNum: true
+                  }
+                }
+              }
+            },
+            codeProblem: {
+              include: {
+                testCases: {
+                  orderBy: { orderNum: 'asc' }
+                }
+              }
+            }
+          }
+        }
+      };
+    }
+
+    const quiz = await prisma.quiz.findUnique(query);
 
     if (!quiz) {
       return res.status(404).json({ error: 'Quiz not found' });
     }
+    
+    // Transform data for the frontend
+    const quizAny = quiz as any; // Force type assertion
+    const transformedQuiz: any = {
+      ...quiz,
+      title: quiz.name,
+    };
+    
+    // Add these fields only if we have the data
+    if (includeDetails) {
+      if (quizAny.topic) {
+        transformedQuiz.topicName = quizAny.topic.name;
+        transformedQuiz.topicSlug = quizAny.topic.slug;
+      }
+      
+      if (quizAny.level) {
+        transformedQuiz.levelName = quizAny.level.name;
+      }
+    }
 
-    res.json(quiz);
+    res.json(transformedQuiz);
   } catch (error) {
     console.error('Error fetching quiz:', error);
     res.status(500).json({ 
@@ -1099,16 +1251,16 @@ router.get('/:id', authenticateToken, (async (req, res) => {
 router.put('/:id', authenticateToken, authorizeRoles([Role.ADMIN, Role.DEVELOPER]), (async (req, res) => {
   try {
     const { id } = req.params;
-    const { 
-      name, 
-      description, 
-      topicId, 
+    const {
+      name,
+      description,
+      topicId,
       levelId,
-      passingScore, 
-      estimatedTime, 
+      passingScore,
+      estimatedTime,
       orderNum,
-      assessmentType, // We don't allow changing this, but we check it for consistency
-      problems = [] // Extract problems array from request
+      assessmentType, // We check this for consistency but don't allow changing it
+      // PROBLEMS ARRAY IS INTENTIONALLY IGNORED HERE NOW
     } = req.body;
 
     // Validate inputs
@@ -1127,30 +1279,42 @@ router.put('/:id', authenticateToken, authorizeRoles([Role.ADMIN, Role.DEVELOPER
 
     // Prevent changing assessment type - it's a fixed property
     if (assessmentType && assessmentType !== existingAssessment.assessmentType) {
-      return res.status(400).json({ 
+      return res.status(400).json({
         error: 'Assessment type cannot be changed. Create a new assessment instead.'
       });
     }
 
     // Check if the assessment is a quiz or a test
     const isQuiz = existingAssessment.assessmentType === 'QUIZ';
-    
+
     // Prepare the update data based on the assessment type
-    const updateData: any = {
-      name,
-      description,
-      passingScore: passingScore ? parseInt(passingScore.toString()) : existingAssessment.passingScore,
-      estimatedTime: estimatedTime ? parseInt(estimatedTime.toString()) : existingAssessment.estimatedTime,
-      orderNum: orderNum ? parseInt(orderNum.toString()) : existingAssessment.orderNum
-    };
+    const updateData: Prisma.QuizUpdateInput = { name }; // Start with required 'name'
+
+    // Handle optional fields safely, only updating if they are provided
+    if (description !== undefined) {
+        updateData.description = description; // Allows setting to null or a string
+    }
+    if (passingScore !== undefined) {
+        // Assuming passingScore cannot be null based on typical requirements
+        // Add radix 10 to parseInt for safety and clarity
+        updateData.passingScore = parseInt(passingScore.toString(), 10);
+    }
+    if (estimatedTime !== undefined) {
+        // Handle null explicitly for optional fields
+        updateData.estimatedTime = estimatedTime === null ? null : parseInt(estimatedTime.toString(), 10);
+    }
+    if (orderNum !== undefined) {
+        // Handle null explicitly for optional fields
+        updateData.orderNum = orderNum === null ? null : parseInt(orderNum.toString(), 10);
+    }
 
     if (isQuiz) {
-      // For quizzes, topicId is required and levelId must not be provided
+      // For quizzes, topicId is required and levelId must be null/undefined
       if (!topicId) {
         return res.status(400).json({ error: 'Topic ID is required for quizzes' });
       }
-      
-      if (levelId) {
+
+      if (levelId !== undefined && levelId !== null) { // Check if levelId was provided even if null
         return res.status(400).json({ error: 'Level ID should not be provided for quizzes' });
       }
 
@@ -1162,15 +1326,17 @@ router.put('/:id', authenticateToken, authorizeRoles([Role.ADMIN, Role.DEVELOPER
       if (!topic) {
         return res.status(404).json({ error: 'Topic not found' });
       }
-      
-      updateData.topicId = topicId;
+
+      updateData.topic = { connect: { id: topicId } }; // Use connect for relation
+      updateData.level = { disconnect: true }; // Ensure levelId is cleared
+
     } else {
       // For tests, levelId is required and topicId must not be provided
       if (!levelId) {
         return res.status(400).json({ error: 'Level ID is required for tests' });
       }
-      
-      if (topicId) {
+
+      if (topicId !== undefined && topicId !== null) { // Check if topicId was provided
         return res.status(400).json({ error: 'Topic ID should not be provided for tests' });
       }
 
@@ -1182,226 +1348,26 @@ router.put('/:id', authenticateToken, authorizeRoles([Role.ADMIN, Role.DEVELOPER
       if (!level) {
         return res.status(404).json({ error: 'Level not found' });
       }
-      
-      updateData.levelId = levelId;
+
+      updateData.level = { connect: { id: levelId } }; // Use connect for relation
+      updateData.topic = { disconnect: true }; // Ensure topicId is cleared
     }
 
-    // Use a transaction to ensure all operations succeed or fail together
-    const result = await prisma.$transaction(async (tx) => { // Use tx for prisma client in transaction
-      // 1. Update the assessment details
-      const updatedAssessment = await tx.quiz.update({
-        where: { id },
-        data: updateData
-      });
+    // REMOVED THE TRANSACTION BLOCK AND ALL QUESTION PROCESSING LOGIC
 
-      // 2. Process questions if provided
-      if (Array.isArray(problems)) {
-        // Get existing questions
-        const existingQuestions = await tx.quizQuestion.findMany({
-          where: { quizId: id },
-          include: { mcProblem: true, codeProblem: true } // Include relations to check type
-        });
-        const existingQuestionMap = new Map(existingQuestions.map(q => [q.id, q]));
+    // Update only the assessment details
+    const updatedAssessment = await prisma.quiz.update({
+      where: { id },
+      data: updateData
+    });
 
-        // Identify questions to delete
-        const providedProblemIds = new Set(problems.map((p: any) => p.id).filter(Boolean));
-        const questionsToDelete = existingQuestions
-          .filter(q => !providedProblemIds.has(q.id))
-          .map(q => q.id);
+    console.log(`Updated metadata for ${isQuiz ? 'quiz' : 'test'} with ID ${id}`);
+    res.json(updatedAssessment); // Return the updated assessment object
 
-        if (questionsToDelete.length > 0) {
-          console.log(`Deleting ${questionsToDelete.length} questions for assessment ${id}:`, questionsToDelete);
-          // Perform cascading deletes manually or ensure schema handles it
-          // For safety, deleting related data explicitly
-          for (const questionId of questionsToDelete) {
-             const q = existingQuestionMap.get(questionId);
-             if (q?.mcProblem) {
-                await tx.mcOption.deleteMany({ where: { questionId: q.mcProblem.questionId }});
-                await tx.mcProblem.delete({ where: { questionId: q.mcProblem.questionId }});
-             }
-             if (q?.codeProblem) {
-                 await tx.testCase.deleteMany({ where: { codeProblemId: q.codeProblem.questionId }});
-                 await tx.codeProblem.delete({ where: { questionId: q.codeProblem.questionId }});
-             }
-             // Add deletion for QuizResponse if necessary
-             await tx.quizResponse.deleteMany({ where: { questionId: questionId } });
-          }
-          // Delete the questions themselves
-          await tx.quizQuestion.deleteMany({ where: { id: { in: questionsToDelete } } });
-        }
-
-        // Process provided problems (Create or Update)
-        for (let i = 0; i < problems.length; i++) {
-          const problemData = problems[i]; // Contains questionText, questionType, points, and potentially mcProblem/codeProblem data
-          const orderNum = problemData.orderNum || i + 1;
-          const existingQuestion = problemData.id ? existingQuestionMap.get(problemData.id) : undefined;
-
-          // --- Prepare Base Question Data ---
-          const baseQuestionData = {
-            quizId: id,
-            questionText: problemData.questionText,
-            questionType: problemData.questionType,
-            points: problemData.points || 1,
-            orderNum,
-            difficulty: problemData.difficulty || 'MEDIUM',
-          };
-
-          if (existingQuestion) {
-            // --- UPDATE existing question ---
-            console.log(`Updating question ${existingQuestion.id}`);
-            await tx.quizQuestion.update({
-              where: { id: existingQuestion.id },
-              data: baseQuestionData // Update base fields
-            });
-
-            // Handle type-specific updates
-            if (problemData.questionType === 'MULTIPLE_CHOICE') {
-               const mcData = problemData.mcProblem; // Expect MC details here
-               if (!mcData) {
-                   console.warn("MC Question update lacks mcProblem data");
-                   continue;
-               }
-                // Upsert MC Problem
-                const updatedMcProblem = await tx.mcProblem.upsert({
-                  where: { questionId: existingQuestion.id },
-                  update: {
-                    explanation: mcData.explanation || null,
-                    shuffleOptions: mcData.shuffleOptions !== false,
-                  },
-                  create: {
-                    questionId: existingQuestion.id,
-                    explanation: mcData.explanation || null,
-                    shuffleOptions: mcData.shuffleOptions !== false,
-                  },
-                });
-                // Delete old options and create new ones
-                await tx.mcOption.deleteMany({ where: { questionId: updatedMcProblem.questionId } });
-                if (Array.isArray(mcData.options)) {
-                  for (let j = 0; j < mcData.options.length; j++) {
-                    const option = mcData.options[j];
-                    await tx.mcOption.create({ data: { questionId: updatedMcProblem.questionId, optionText: option.text, isCorrect: option.isCorrect === true, explanation: option.explanation || null, orderNum: option.orderNum || j + 1 } });
-                  }
-                }
-                // Cleanup Code Problem if type changed
-                if (existingQuestion.codeProblem) {
-                  await tx.testCase.deleteMany({ where: { codeProblemId: existingQuestion.codeProblem.questionId } });
-                  await tx.codeProblem.delete({ where: { questionId: existingQuestion.codeProblem.questionId } });
-                }
-            } else if (problemData.questionType === 'CODE') {
-               const codeData = problemData.codeProblem; // Expect Code details here
-               if (!codeData) {
-                   console.warn("Code Question update lacks codeProblem data");
-                   continue;
-               }
-                // Upsert Code Problem
-                const updatedCodeProblem = await tx.codeProblem.upsert({
-                  where: { questionId: existingQuestion.id },
-                  update: {
-                    language: codeData.language || 'javascript',
-                    codeTemplate: codeData.codeTemplate || null,
-                    functionName: codeData.functionName || null,
-                    timeLimit: codeData.timeLimit || 5000,
-                    memoryLimit: codeData.memoryLimit || null,
-                  },
-                  create: {
-                    questionId: existingQuestion.id,
-                    language: codeData.language || 'javascript',
-                    codeTemplate: codeData.codeTemplate || null,
-                    functionName: codeData.functionName || null,
-                    timeLimit: codeData.timeLimit || 5000,
-                    memoryLimit: codeData.memoryLimit || null,
-                  },
-                });
-                // Delete old test cases and create new ones
-                await tx.testCase.deleteMany({ where: { codeProblemId: updatedCodeProblem.questionId } });
-                if (Array.isArray(codeData.testCases)) {
-                  for (let j = 0; j < codeData.testCases.length; j++) {
-                    const tc = codeData.testCases[j];
-                    await tx.testCase.create({ data: { codeProblemId: updatedCodeProblem.questionId, input: tc.input || '', expectedOutput: tc.expectedOutput || '', isHidden: tc.isHidden === true, orderNum: tc.orderNum || j + 1 } });
-                  }
-                }
-                 // Cleanup MC Problem if type changed
-                if (existingQuestion.mcProblem) {
-                  await tx.mcOption.deleteMany({ where: { questionId: existingQuestion.mcProblem.questionId } });
-                  await tx.mcProblem.delete({ where: { questionId: existingQuestion.mcProblem.questionId } });
-                }
-            }
-          } else {
-            // --- CREATE new question ---
-            console.log(`Creating new question: ${problemData.questionText}`);
-            let createdQuestion;
-            if (problemData.questionType === 'MULTIPLE_CHOICE') {
-              const mcData = problemData.mcProblem;
-               if (!mcData) {
-                   console.warn("MC Question create lacks mcProblem data");
-                   continue;
-               }
-              createdQuestion = await tx.quizQuestion.create({
-                data: {
-                  ...baseQuestionData,
-                  mcProblem: {
-                    create: {
-                      explanation: mcData.explanation || null,
-                      shuffleOptions: mcData.shuffleOptions !== false,
-                      options: {
-                        create: Array.isArray(mcData.options) ? mcData.options.map((option: any, j: number) => ({
-                          optionText: option.text,
-                          isCorrect: option.isCorrect === true,
-                          explanation: option.explanation || null,
-                          orderNum: option.orderNum || j + 1,
-                        })) : [],
-                      },
-                    },
-                  },
-                },
-              });
-            } else if (problemData.questionType === 'CODE') {
-              const codeData = problemData.codeProblem;
-               if (!codeData) {
-                   console.warn("Code Question create lacks codeProblem data");
-                   continue;
-               }
-              createdQuestion = await tx.quizQuestion.create({
-                data: {
-                  ...baseQuestionData,
-                  codeProblem: {
-                    create: {
-                      language: codeData.language || 'javascript',
-                      codeTemplate: codeData.codeTemplate || null,
-                      functionName: codeData.functionName || null,
-                      timeLimit: codeData.timeLimit || 5000,
-                      memoryLimit: codeData.memoryLimit || null,
-                      testCases: {
-                        create: Array.isArray(codeData.testCases) ? codeData.testCases.map((tc: any, j: number) => ({
-                          input: tc.input || '',
-                          expectedOutput: tc.expectedOutput || '',
-                          isHidden: tc.isHidden === true,
-                          orderNum: tc.orderNum || j + 1,
-                        })) : [],
-                      },
-                    },
-                  },
-                },
-              });
-            } else {
-               console.warn(`Skipping unknown question type: ${problemData.questionType}`);
-               continue;
-            }
-            console.log(`Created question with ID: ${createdQuestion?.id}`);
-          }
-        } // End for loop processing problems
-      } // End if problems array exists
-
-      // Return the main updated assessment object
-      return updatedAssessment;
-    }); // End Transaction
-
-    console.log(`Updated ${isQuiz ? 'quiz' : 'test'} with ID ${id} and processed problems`);
-    res.json(result); // Return the updated assessment object
   } catch (error) {
-    console.error('Error updating quiz/test with problems:', error);
-    res.status(500).json({ 
-      error: 'Failed to update quiz/test',
+    console.error('Error updating quiz/test metadata:', error); // Updated error message context
+    res.status(500).json({
+      error: 'Failed to update quiz/test metadata', // Updated error message context
       details: error instanceof Error ? error.message : 'Unknown error'
     });
   }
@@ -1718,7 +1684,7 @@ router.get('/topic/slug/:slug/next', authenticateToken, (async (req, res) => {
     
     console.log(`User has completed ${completedAttempts.length} quiz attempts for this topic`);
     
-    // Create a set of quiz IDs that have been completed
+    // Create a set of completed quiz IDs
     const completedQuizIds = new Set(completedAttempts.map(attempt => attempt.quizId));
     
     // 3. Find the first quiz that hasn't been completed
@@ -2215,7 +2181,7 @@ router.post('/', authenticateToken, authorizeRoles([Role.ADMIN, Role.DEVELOPER])
           const orderNum = problem.orderNum || i + 1;
           
           if (problem.questionType === 'MULTIPLE_CHOICE') {
-            // Create MC question with options
+            // Create MC question with options using nested writes
             const question = await prisma.quizQuestion.create({
               data: {
                 quizId: newAssessment.id,
@@ -2224,35 +2190,31 @@ router.post('/', authenticateToken, authorizeRoles([Role.ADMIN, Role.DEVELOPER])
                 points: problem.points || 1,
                 orderNum,
                 difficulty: problem.difficulty || 'MEDIUM',
-                mcProblem: {
+                mcProblem: { // Nested create for McProblem
                   create: {
                     explanation: problem.explanation || null,
-                    shuffleOptions: problem.shuffleOptions !== false
+                    shuffleOptions: problem.shuffleOptions !== false,
+                    options: { // Nested create for McOptions
+                      create: Array.isArray(problem.options) ? problem.options.map((option: any, index: number) => ({
+                        optionText: option.text,
+                        isCorrect: option.isCorrect === true,
+                        explanation: option.explanation || null, // Optional explanation per option
+                        orderNum: option.orderNum || index + 1
+                      })) : [] // Handle case where options might not be an array
+                    }
                   }
                 }
               },
+              // Include nested data if needed downstream, otherwise remove include
+              // For now, let's keep it to see the structure after creation
               include: {
-                mcProblem: true
+                mcProblem: {
+                  include: {
+                    options: true
+                  }
+                }
               }
             });
-            
-            // Create options
-            if (Array.isArray(problem.options) && question.mcProblem) {
-              const mcProblemId = question.mcProblem.questionId;
-              
-              for (let j = 0; j < problem.options.length; j++) {
-                const option = problem.options[j];
-                await prisma.mcOption.create({
-                  data: {
-                    questionId: mcProblemId,
-                    optionText: option.text,
-                    isCorrect: option.isCorrect === true,
-                    explanation: option.explanation || null,
-                    orderNum: option.orderNum || j + 1
-                  }
-                });
-              }
-            }
             
             createdProblems.push(question);
           } else if (problem.questionType === 'CODE') {
@@ -3179,6 +3141,86 @@ router.get('/level/:levelId/next-test', authenticateToken, (async (req, res) => 
       error: 'Failed to determine next test',
       details: error instanceof Error ? error.message : 'Unknown error',
       nextAssessmentId: null
+    });
+  }
+}) as RequestHandler);
+
+/**
+ * @route GET /api/quizzes/topic/slug/:slug/next-quiz
+ * @desc Get the ID of the next recommended quiz for the user within a topic (using slug).
+ *       Prioritizes unpassed quizzes, then randomly selects from passed ones if necessary.
+ * @access Private
+ */
+router.get('/topic/slug/:slug/next-quiz', authenticateToken, (async (req, res) => {
+  try {
+    const { slug } = req.params;
+    const userId = req.user?.id;
+
+    if (!userId) {
+      return res.status(401).json({ error: 'User not authenticated' });
+    }
+
+    // 1. Validate Topic exists
+    const topic = await prisma.topic.findUnique({ where: { slug } });
+    if (!topic) {
+      return res.status(404).json({ error: `Topic not found with slug: ${slug}` });
+    }
+
+    // 2. Get all Quiz IDs for this topic
+    const allQuizzes = await prisma.quiz.findMany({
+      where: { topicId: topic.id, assessmentType: 'QUIZ' }, // Ensure only quizzes
+      select: { id: true },
+    });
+
+    const allQuizIds = allQuizzes.map(q => q.id);
+    if (allQuizIds.length === 0) {
+      return res.json({ nextAssessmentId: null, message: 'No quizzes found for this topic.' });
+    }
+
+    // 3. Get IDs of quizzes passed by the user within this topic
+    const passedAttempts = await prisma.quizAttempt.findMany({
+      where: {
+        userId,
+        quizId: { in: allQuizIds },
+        passed: true, // Only consider attempts marked as passed
+        completedAt: { not: null },
+      },
+      select: { quizId: true },
+      distinct: ['quizId'], // Only need one passing attempt per quiz
+    });
+    const passedQuizIds = new Set(passedAttempts.map(a => a.quizId));
+
+    // 4. Filter into unpassed and passed
+    const unpassedIds = allQuizIds.filter(id => !passedQuizIds.has(id));
+    const passedIds = allQuizIds.filter(id => passedQuizIds.has(id)); // For fallback
+
+    let selectedId: string | null = null;
+
+    // 5. Select ID
+    if (unpassedIds.length > 0) {
+      // Randomly select from unpassed quizzes
+      const randomIndex = Math.floor(Math.random() * unpassedIds.length);
+      selectedId = unpassedIds[randomIndex];
+      console.log(`Selected unpassed quiz ID: ${selectedId} for user ${userId}, topic ${slug}`);
+    } else if (passedIds.length > 0) {
+      // All quizzes are passed, randomly select from the passed ones for practice
+      const randomIndex = Math.floor(Math.random() * passedIds.length);
+      selectedId = passedIds[randomIndex];
+      console.log(`All quizzes passed. Selected passed quiz ID for practice: ${selectedId} for user ${userId}, topic ${slug}`);
+    } else {
+      // Should not happen if allQuizIds.length > 0, but handle defensively
+       console.log(`No quizzes available (unpassed or passed) for user ${userId}, topic ${slug}`);
+       return res.json({ nextAssessmentId: null, message: 'No quizzes available for this topic.' });
+    }
+
+    // 6. Return the selected ID
+    res.json({ nextAssessmentId: selectedId });
+
+  } catch (error) {
+    console.error('Error fetching next quiz by topic slug:', error);
+    res.status(500).json({
+      error: 'Failed to fetch next quiz',
+      details: error instanceof Error ? error.message : 'Unknown error'
     });
   }
 }) as RequestHandler);

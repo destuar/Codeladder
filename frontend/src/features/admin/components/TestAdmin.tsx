@@ -1,12 +1,13 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '@/features/auth/AuthContext';
 import { api } from '@/lib/api';
 import { toast } from "sonner";
 import { useNavigate } from 'react-router-dom';
+import { DragDropContext, Droppable, Draggable, DropResult } from "@hello-pangea/dnd";
 
 // UI Components
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -76,14 +77,12 @@ interface QuizQuestionBase {
   questionType: 'MULTIPLE_CHOICE' | 'CODE';
   points: number;
   orderNum?: number;
-  difficulty?: string;
 }
 
 interface McOption {
   id?: string; // Optional for new options
   text: string;
   isCorrect: boolean;
-  explanation?: string | null;
   orderNum?: number;
 }
 
@@ -161,7 +160,6 @@ export function TestAdmin() {
   const [problemType, setProblemType] = useState<'MULTIPLE_CHOICE' | 'CODE'>('MULTIPLE_CHOICE');
   const [problemText, setProblemText] = useState('');
   const [problemPoints, setProblemPoints] = useState(10);
-  const [problemDifficulty, setProblemDifficulty] = useState('MEDIUM');
   const [problemOrderNum, setProblemOrderNum] = useState<number | undefined>(undefined);
 
   // MC Problem specific state
@@ -181,6 +179,24 @@ export function TestAdmin() {
   const [codeTestCases, setCodeTestCases] = useState<TestCase[]>([
     { input: '', expectedOutput: '', isHidden: false },
   ]);
+
+  // DND Handler
+  const handleOnDragEnd = useCallback((result: DropResult) => {
+    if (!result.destination) return; // Dropped outside the list
+
+    const items = Array.from(testProblems);
+    const [reorderedItem] = items.splice(result.source.index, 1);
+    items.splice(result.destination.index, 0, reorderedItem);
+
+    // Update orderNum based on new index
+    const updatedItems = items.map((item, index) => ({
+      ...item,
+      orderNum: index + 1, // Re-assign order based on new position
+    }));
+
+    setTestProblems(updatedItems);
+    toast.info("Question order updated."); // Optional user feedback
+  }, [testProblems]); // Include testProblems in dependency array
 
   // Fetch levels and their associated tests on component mount
   useEffect(() => {
@@ -451,22 +467,16 @@ export function TestAdmin() {
     // Enhanced validation - collect all validation errors
     const errors = [];
     
-    if (!testName.trim()) {
-      errors.push("Test name is required");
+    if (!testName.trim()) errors.push("Test name is required");
+    if (!testDescription.trim()) errors.push("Description is required");
+    
+    if (passingScore < 0 || passingScore > 100) errors.push("Passing score must be between 0 and 100");
+    
+    if (estimatedTime === undefined || estimatedTime === null || estimatedTime <= 0 || isNaN(estimatedTime)) {
+      errors.push("Estimated time is required and must be positive");
     }
     
-    if (passingScore < 0 || passingScore > 100) {
-      errors.push("Passing score must be between 0 and 100");
-    }
-    
-    if (estimatedTime !== undefined && estimatedTime !== null && (estimatedTime <= 0 || isNaN(estimatedTime))) {
-      errors.push("Estimated time must be a positive number if provided");
-    }
-    
-    // If we're in create mode, require at least one question
-    if (!isEditMode && testProblems.length === 0) {
-      errors.push("Test must have at least one question");
-    }
+    if (!isEditMode && testProblems.length === 0) errors.push("Test must have at least one question");
     
     // Display all validation errors if any
     if (errors.length > 0) {
@@ -539,8 +549,7 @@ export function TestAdmin() {
           questionText: problem.questionText.trim(),
           questionType: problem.questionType,
           points: problem.points || 1,
-          orderNum: problem.orderNum || index + 1,
-          difficulty: problem.difficulty || 'MEDIUM'
+          orderNum: index + 1
         };
         
         if (problem.questionType === 'MULTIPLE_CHOICE') {
@@ -551,12 +560,11 @@ export function TestAdmin() {
             shuffleOptions: mcProblem.shuffleOptions !== false,
             options: mcProblem.options
               .filter(opt => opt.text.trim()) // Remove empty options
-              .map((option, optIndex) => ({
-                id: option.id, // Keep track of existing option IDs
+              .map((option) => ({
+                id: option.id,
                 text: option.text.trim(),
                 isCorrect: Boolean(option.isCorrect),
-                explanation: option.explanation || null,
-                orderNum: option.orderNum || optIndex + 1
+                orderNum: option.orderNum
               }))
           };
         } else if (problem.questionType === 'CODE') {
@@ -636,7 +644,7 @@ export function TestAdmin() {
             // Determine if this is a create or update
             if (problem.id) {
               // Update existing question
-              await api.updateQuizQuestion(problem.id, problem, token);
+              await api.updateTestQuestion(problem.id, problem, token);
               updatedCount++;
             } else {
               // Create new question
@@ -709,7 +717,6 @@ export function TestAdmin() {
     // Reset form fields
     setProblemText('');
     setProblemPoints(10);
-    setProblemDifficulty('MEDIUM');
     setProblemOrderNum(undefined);
     setMcOptions([
       { text: '', isCorrect: false },
@@ -739,7 +746,6 @@ export function TestAdmin() {
     setProblemType(problem.questionType);
     setProblemText(problem.questionText);
     setProblemPoints(problem.points);
-    setProblemDifficulty(problem.difficulty || 'MEDIUM');
     setProblemOrderNum(problem.orderNum);
 
     // Set type-specific fields
@@ -805,13 +811,21 @@ export function TestAdmin() {
         questionText: problemText,
         questionType: 'MULTIPLE_CHOICE',
         points: problemPoints,
-        difficulty: problemDifficulty,
-        orderNum: problemOrderNum,
         options: mcOptions.filter(opt => opt.text.trim()),
         explanation: mcExplanation || undefined,
         shuffleOptions: mcShuffle
       };
       
+      // Update the option mapping to remove explanation assignment
+      mcProblem.options = mcOptions
+        .filter(opt => opt.text.trim())
+        .map((option) => ({
+          id: option.id,
+          text: option.text.trim(),
+          isCorrect: Boolean(option.isCorrect),
+          orderNum: option.orderNum
+        }));
+
       // Add/update problem in test problems array
       if (isProblemEditMode && selectedProblem) {
         setTestProblems(prevProblems => 
@@ -840,8 +854,6 @@ export function TestAdmin() {
         questionText: problemText,
         questionType: 'CODE',
         points: problemPoints,
-        difficulty: problemDifficulty,
-        orderNum: problemOrderNum,
         language: codeLanguage,
         codeTemplate: codeTemplate || undefined,
         functionName: codeFunctionName || undefined,
@@ -940,7 +952,7 @@ export function TestAdmin() {
             <Card key={level.id}>
               <CardHeader className="px-4 py-3">
                 <div className="flex justify-between items-center">
-                  <CardTitle className="text-xl">Test Management</CardTitle>
+                  <CardTitle className="text-xl">{level.name} Tests</CardTitle>
                   <Button
                     variant="outline"
                     size="sm"
@@ -995,7 +1007,6 @@ export function TestAdmin() {
                             {/* Test info */}
                             <div className="flex-1 min-w-0 mr-4">
                               <div className="flex items-center">
-                                <ClipboardCheck className="h-4 w-4 mr-2 text-neutral-500 dark:text-neutral-400" />
                                 <h4 className="font-medium truncate">{test.name}</h4>
                               </div>
                               
@@ -1023,19 +1034,25 @@ export function TestAdmin() {
                             
                             {/* Action buttons */}
                             <div className="flex items-center gap-1">
+                              {/* Edit Button */}
                               <Button
                                 variant="ghost"
-                                size="icon"
+                                size="sm"
+                                className="h-7 px-2"
                                 onClick={() => handleEditTest(test)}
                               >
-                                <Pencil className="h-4 w-4" />
+                                <Pencil className="h-3.5 w-3.5 mr-1" />
+                                Edit
                               </Button>
+                              {/* Delete Button */}
                               <Button
                                 variant="ghost"
-                                size="icon"
+                                size="sm"
+                                className="text-destructive hover:text-destructive h-7 px-2"
                                 onClick={() => handleDeleteClick(test)}
                               >
-                                <Trash className="h-4 w-4" />
+                                <Trash className="h-3.5 w-3.5 mr-1" />
+                                Delete
                               </Button>
                             </div>
                           </div>
@@ -1067,7 +1084,7 @@ export function TestAdmin() {
             {/* Test editing form fields */}
             <div className="grid grid-cols-2 gap-4">
               <div className="col-span-2">
-                <Label htmlFor="test-name">Test Name</Label>
+                <Label htmlFor="test-name">Test Name <span className="text-destructive">*</span></Label>
                 <Input 
                   id="test-name"
                   value={testName}
@@ -1076,7 +1093,7 @@ export function TestAdmin() {
                 />
               </div>
               <div className="col-span-2">
-                <Label htmlFor="test-description">Description (Optional)</Label>
+                <Label htmlFor="test-description">Description <span className="text-destructive">*</span></Label>
                 <Textarea
                   id="test-description"
                   value={testDescription}
@@ -1085,7 +1102,7 @@ export function TestAdmin() {
                 />
               </div>
               <div>
-                <Label htmlFor="passing-score">Passing Score (%)</Label>
+                <Label htmlFor="passing-score">Passing Score (%) <span className="text-destructive">*</span></Label>
                 <Input
                   id="passing-score"
                   type="number"
@@ -1096,7 +1113,7 @@ export function TestAdmin() {
                 />
               </div>
               <div>
-                <Label htmlFor="estimated-time">Estimated Time (minutes)</Label>
+                <Label htmlFor="estimated-time">Estimated Time (minutes) <span className="text-destructive">*</span></Label>
                 <Input
                   id="estimated-time"
                   type="number"
@@ -1104,10 +1121,10 @@ export function TestAdmin() {
                   value={estimatedTime === null ? '' : (estimatedTime || '')}
                   onChange={(e) => {
                     const value = e.target.value;
-                    // Set to undefined if empty or invalid, otherwise parse
                     setEstimatedTime(value === '' ? undefined : parseInt(value, 10));
                   }}
-                  placeholder="Optional"
+                  placeholder="Enter estimated time"
+                  required
                 />
               </div>
             </div>
@@ -1147,56 +1164,74 @@ export function TestAdmin() {
                   </Button>
                 </div>
               ) : (
-                <div className="space-y-3 max-h-[300px] overflow-y-auto pr-1">
-                  {testProblems.map((problem, index) => (
-                    <div 
-                      key={problem.id || index} 
-                      className="flex items-center justify-between border rounded-md p-3 hover:bg-accent transition-colors"
-                    >
-                      <div className="flex-1">
-                        <div className="flex items-center space-x-2">
-                          <Badge variant={problem.questionType === 'MULTIPLE_CHOICE' ? 'secondary' : 'outline'}>
-                            {problem.questionType === 'MULTIPLE_CHOICE' ? 'Multiple Choice' : 'Code'}
-                          </Badge>
-                          <Badge variant="outline">{problem.points} pts</Badge>
-                          <Badge variant="outline">{problem.difficulty}</Badge>
-                          {problem.orderNum && (
-                            <Badge variant="outline">Order: {problem.orderNum}</Badge>
-                          )}
-                        </div>
-                        <p className="mt-1 line-clamp-2">{problem.questionText}</p>
-                        {problem.questionType === 'MULTIPLE_CHOICE' && (
-                          <p className="text-xs text-muted-foreground mt-1">
-                            {(problem as McProblem).options.length} options, 
-                            {(problem as McProblem).options.filter(opt => opt.isCorrect).length} correct
-                          </p>
-                        )}
-                        {problem.questionType === 'CODE' && (
-                          <p className="text-xs text-muted-foreground mt-1">
-                            {(problem as CodeProblem).language}, 
-                            {(problem as CodeProblem).testCases?.length || 0} test cases
-                          </p>
-                        )}
+                <DragDropContext onDragEnd={handleOnDragEnd}>
+                  <Droppable droppableId="questions">
+                    {(provided) => (
+                      <div 
+                        {...provided.droppableProps} 
+                        ref={provided.innerRef} 
+                        className="space-y-3"
+                      >
+                        {testProblems.map((problem, index) => (
+                          <Draggable 
+                            key={problem.id || `temp-${index}`}
+                            draggableId={problem.id || `temp-${index}`} 
+                            index={index}
+                          >
+                            {(provided) => (
+                              <div 
+                                ref={provided.innerRef} 
+                                {...provided.draggableProps} 
+                                {...provided.dragHandleProps} 
+                                className="flex items-center justify-between border rounded-md p-3 hover:bg-accent transition-colors"
+                              >
+                                <div className="flex-1 min-w-0 mr-4">
+                                  <div className="flex items-center space-x-2">
+                                    <Badge variant={problem.questionType === 'MULTIPLE_CHOICE' ? 'secondary' : 'outline'}>
+                                      {problem.questionType === 'MULTIPLE_CHOICE' ? 'Multiple Choice' : 'Code'}
+                                    </Badge>
+                                    <Badge variant="outline">{problem.points} pts</Badge>
+                                    <Badge variant="outline">Order: {index + 1}</Badge>
+                                  </div>
+                                  <p className="mt-1 line-clamp-2">{problem.questionText}</p>
+                                  {problem.questionType === 'MULTIPLE_CHOICE' && (
+                                    <p className="text-xs text-muted-foreground mt-1">
+                                      {(problem as McProblem).options.length} options, 
+                                      {(problem as McProblem).options.filter(opt => opt.isCorrect).length} correct
+                                    </p>
+                                  )}
+                                  {problem.questionType === 'CODE' && (
+                                    <p className="text-xs text-muted-foreground mt-1">
+                                      {(problem as CodeProblem).language}, 
+                                      {(problem as CodeProblem).testCases?.length || 0} test cases
+                                    </p>
+                                  )}
+                                </div>
+                                <div className="flex space-x-1">
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    onClick={() => handleEditProblem(problem, index)}
+                                  >
+                                    <Pencil className="h-4 w-4" />
+                                  </Button>
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    onClick={() => handleRemoveProblem(problem)}
+                                  >
+                                    <Trash className="h-4 w-4" />
+                                  </Button>
+                                </div>
+                              </div>
+                            )}
+                          </Draggable>
+                        ))}
+                        {provided.placeholder}
                       </div>
-                      <div className="flex space-x-1">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => handleEditProblem(problem, index)}
-                        >
-                          <Pencil className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => handleRemoveProblem(problem)}
-                        >
-                          <Trash className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
+                    )}
+                  </Droppable>
+                </DragDropContext>
               )}
             </div>
           </div>
@@ -1264,7 +1299,7 @@ export function TestAdmin() {
             {/* Common fields remain outside tabs but within a div below */}
             <div className="mt-4 space-y-4">
               <div>
-                <Label htmlFor="question-text">Question Text</Label>
+                <Label htmlFor="question-text">Question Text <span className="text-destructive">*</span></Label>
                 <Textarea
                   id="question-text"
                   value={problemText}
@@ -1276,40 +1311,13 @@ export function TestAdmin() {
               <div className="grid grid-cols-3 gap-4">
                  {/* Points, Difficulty, Order */}
                  <div>
-                  <Label htmlFor="points">Points</Label>
+                  <Label htmlFor="points">Points <span className="text-destructive">*</span></Label>
                   <Input
                     id="points"
                     type="number"
                     min={1}
                     value={problemPoints}
                     onChange={(e) => setProblemPoints(Number(e.target.value))}
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="difficulty">Difficulty</Label>
-                  <Select 
-                    value={problemDifficulty} 
-                    onValueChange={(value) => setProblemDifficulty(value)}
-                  >
-                    <SelectTrigger id="difficulty">
-                      <SelectValue placeholder="Select difficulty" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="EASY">Easy</SelectItem>
-                      <SelectItem value="MEDIUM">Medium</SelectItem>
-                      <SelectItem value="HARD">Hard</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div>
-                  <Label htmlFor="order-num">Order (Optional)</Label>
-                  <Input
-                    id="order-num"
-                    type="number"
-                    min={1}
-                    value={problemOrderNum === null ? '' : problemOrderNum || ''}
-                    onChange={(e) => setProblemOrderNum(e.target.value ? Number(e.target.value) : undefined)}
-                    placeholder="Auto"
                   />
                 </div>
               </div>
@@ -1320,7 +1328,7 @@ export function TestAdmin() {
               {/* MC specific fields */}
                 <div>
                   <div className="flex justify-between items-center mb-2">
-                    <Label>Answer Options</Label>
+                    <Label>Answer Options <span className="text-destructive">*</span></Label>
                     <Button
                       type="button"
                       variant="outline"
@@ -1332,57 +1340,58 @@ export function TestAdmin() {
                   </div>
                   <div className="space-y-2 max-h-[300px] overflow-y-auto p-1">
                     {mcOptions.map((option, index) => (
-                      <div key={index} className="flex items-start gap-2 border rounded-md p-2">
-                        <Checkbox
-                          id={`option-correct-${index}`}
-                          checked={option.isCorrect}
-                          onCheckedChange={(checked) => {
-                            const newOptions = [...mcOptions];
-                            newOptions[index].isCorrect = !!checked;
-                            setMcOptions(newOptions);
-                          }}
-                        />
+                      <div key={index} className="flex items-center gap-2 mb-2 p-2">
                         <div className="flex-1">
-                          <div className="flex items-center mb-1">
-                            <Label htmlFor={`option-correct-${index}`} className="mr-2">
-                              Correct Answer
-                            </Label>
-                          </div>
-                          <Textarea
+                          <Input
+                            placeholder={`Option ${index + 1}`}
                             value={option.text}
                             onChange={(e) => {
                               const newOptions = [...mcOptions];
                               newOptions[index].text = e.target.value;
                               setMcOptions(newOptions);
                             }}
-                            placeholder="Enter option text"
-                            className="min-h-[60px]"
-                          />
-                          <Input 
-                            value={option.explanation || ''}
-                            onChange={(e) => {
-                              const newOptions = [...mcOptions];
-                              newOptions[index].explanation = e.target.value;
-                              setMcOptions(newOptions);
-                            }}
-                            placeholder="Explanation (optional)"
-                            className="mt-2"
+                            required
                           />
                         </div>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => {
-                            if (mcOptions.length > 2) {
-                              setMcOptions(mcOptions.filter((_, i) => i !== index));
-                            } else {
-                              toast.error("At least 2 options are required");
-                            }
-                          }}
-                        >
-                          <Trash className="h-4 w-4" />
-                        </Button>
+                        <div className="flex items-center gap-1 flex-none">
+                           <Checkbox
+                            id={`option-correct-${index}`}
+                            checked={option.isCorrect}
+                            onCheckedChange={(checked) => {
+                              const newOptions = mcOptions.map((opt, i) => {
+                                if (i === index) {
+                                  return { ...opt, isCorrect: !!checked };
+                                } else if (checked) {
+                                  return { ...opt, isCorrect: false };
+                                } else {
+                                  return opt;
+                                }
+                              });
+                              setMcOptions(newOptions);
+                            }}
+                            aria-label={`Mark option ${index + 1} as correct`}
+                          />
+                           <Label htmlFor={`option-correct-${index}`} className="text-sm">Correct</Label>
+                        </div>
+                        <div className="flex-none">
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            className="h-7 w-7 text-destructive hover:text-destructive"
+                            onClick={() => {
+                              const newOptions = mcOptions.filter((_, i) => i !== index);
+                              if (newOptions.length >= 2) {
+                                setMcOptions(newOptions);
+                              } else {
+                                toast.error("Must have at least 2 options.");
+                              }
+                            }}
+                            disabled={mcOptions.length <= 2}
+                          >
+                            <Trash className="h-4 w-4" />
+                          </Button>
+                        </div>
                       </div>
                     ))}
                   </div>
@@ -1474,7 +1483,7 @@ export function TestAdmin() {
                 </div>
                 <div>
                   <div className="flex justify-between items-center mb-2">
-                    <Label>Test Cases</Label>
+                    <Label>Test Cases <span className="text-destructive">*</span></Label>
                     <Button
                       type="button"
                       variant="outline"
@@ -1506,7 +1515,7 @@ export function TestAdmin() {
                         </div>
                         
                         <div>
-                          <Label htmlFor={`input-${index}`}>Input</Label>
+                          <Label htmlFor={`input-${index}`}>Input <span className="text-destructive">*</span></Label>
                           <Textarea
                             id={`input-${index}`}
                             value={testCase.input}
@@ -1521,7 +1530,7 @@ export function TestAdmin() {
                         </div>
                         
                         <div>
-                          <Label htmlFor={`output-${index}`}>Expected Output</Label>
+                          <Label htmlFor={`output-${index}`}>Expected Output <span className="text-destructive">*</span></Label>
                           <Textarea
                             id={`output-${index}`}
                             value={testCase.expectedOutput}
@@ -1566,6 +1575,100 @@ export function TestAdmin() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Section to display and manage tests for the selected level */}
+      {selectedLevel && (
+        <Card className="mt-6 flex-1">
+          <CardHeader>
+            <CardTitle className="text-xl">
+              {selectedLevel ? `${selectedLevel.name} Tests` : 'Select a Level to Manage Tests'}
+            </CardTitle>
+            <CardDescription>
+              Manage tests for the selected level: {selectedLevel.name}. Add new tests or edit existing ones.
+            </CardDescription>
+          </CardHeader>
+          {/* Tests for this level */}
+          <div>
+            {/* Loading state */}
+            {isLoading ? (
+              <div className="flex justify-center py-4">
+                <Loader2 className="h-6 w-6 animate-spin" />
+              </div>
+            ) : (testsByLevel[selectedLevel.id]?.length || 0) === 0 ? (
+              /* Empty state */
+              <div className="py-2 text-center">
+                <FileQuestion className="h-12 w-12 mx-auto text-muted-foreground mb-2" />
+                <p className="text-sm text-muted-foreground">No tests yet for this level.</p>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="mt-2"
+                  onClick={() => handleCreateTest(selectedLevel)}
+                >
+                  <Plus className="h-4 w-4 mr-1" />
+                  Create Test
+                </Button>
+              </div>
+            ) : (
+              /* Test list */
+              <div className="space-y-2 py-2">
+                {testsByLevel[selectedLevel.id]?.map((test) => (
+                  <Card key={test.id} className="relative overflow-hidden">
+                    {/* Test item */}
+                    <div className="p-3 flex items-center justify-between">
+                      {/* Test info */}
+                      <div className="flex-1 min-w-0 mr-4">
+                        <div className="flex items-center">
+                          <h4 className="font-medium truncate">{test.name}</h4>
+                        </div>
+                        
+                        <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
+                          <div className="flex items-center">
+                            <Award className="h-3.5 w-3.5 mr-1" />
+                            <span>Pass: {test.passingScore}%</span>
+                          </div>
+                          
+                          {test.estimatedTime && (
+                            <div className="flex items-center">
+                              <Clock className="h-3.5 w-3.5 mr-1" />
+                              <span>{formatTime(test.estimatedTime)}</span>
+                            </div>
+                          )}
+                          
+                          <div className="flex items-center">
+                            <MessageSquare className="h-3.5 w-3.5 mr-1" />
+                            <span>
+                              {test._count?.questions || 0} {(test._count?.questions || 0) === 1 ? 'Question' : 'Questions'}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                      
+                      {/* Action buttons */}
+                      <div className="flex items-center gap-1">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => handleEditTest(test)}
+                        >
+                          <Pencil className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => handleDeleteClick(test)}
+                        >
+                          <Trash className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </div>
+                  </Card>
+                ))}
+              </div>
+            )}
+          </div>
+        </Card>
+      )}
     </div>
   );
 }

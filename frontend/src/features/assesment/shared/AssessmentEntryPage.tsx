@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '@/lib/api';
@@ -11,6 +11,12 @@ import { Button } from '@/components/ui/button';
 import { FileX } from 'lucide-react';
 import { useToast } from '@/components/ui/use-toast';
 import { QuizLayout } from '@/components/layouts/QuizLayout';
+import { useAssessmentTimer } from './hooks/useAssessmentTimer';
+import { 
+    clearAssessmentSession, 
+    isAssessmentCompleted, 
+    markAssessmentCompleted 
+} from '@/lib/sessionUtils';
 
 export function AssessmentEntryPage() {
   const { assessmentType, assessmentId } = useParams<{ assessmentType: string; assessmentId: string }>();
@@ -18,14 +24,17 @@ export function AssessmentEntryPage() {
   const location = useLocation();
   const { token } = useAuth();
   const { toast } = useToast();
-  const [timeRemaining, setTimeRemaining] = useState<number | undefined>(3600); // Default 1 hour
+  
+  // Check if we should skip the intro *first*
+  const skipIntro = location.state?.skipIntro === true;
+
+  // State declarations
   const [submittedCount, setSubmittedCount] = useState<number>(0);
   const [savedTasks, setSavedTasks] = useState<AssessmentTask[] | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  
-  // Check if we should skip the intro (when returning from quiz/test)
-  const skipIntro = location.state?.skipIntro === true;
-  const [showIntro, setShowIntro] = useState(!skipIntro); // Skip intro if flag is set
+  const [showIntro, setShowIntro] = useState(!skipIntro);
+  const [showExitDialog, setShowExitDialog] = useState(false);
+  const [showSubmitDialog, setShowSubmitDialog] = useState(false);
   
   // Get additional location state (for level context in tests)
   const levelId = location.state?.levelId;
@@ -37,65 +46,30 @@ export function AssessmentEntryPage() {
   
   const storageKeyPrefix = isTest ? 'test' : 'quiz';
   
-  // Check for saved assessment state
+  // Check for saved assessment state and completion status
   useEffect(() => {
-    if (!assessmentId) return;
+    if (!assessmentId || !assessmentType) return;
 
-    // First check if this assessment was already completed
-    const completedFlag = sessionStorage.getItem(`${storageKeyPrefix}_${assessmentId}_completed`);
-    if (completedFlag === 'true') {
-      console.log('This assessment was previously completed. Clearing session data to start fresh.');
+    const type = assessmentType as 'quiz' | 'test';
+
+    // FIRST: Check if this assessment was previously completed
+    if (isAssessmentCompleted(assessmentId, type)) {
+      console.log(`Assessment ${assessmentId} was previously completed. Clearing session data.`);
+      clearAssessmentSession(assessmentId, type);
       
-      // Clear all session storage for this assessment
-      sessionStorage.removeItem(`${storageKeyPrefix}_${assessmentId}`);
-      sessionStorage.removeItem(`${storageKeyPrefix}_attempt_${assessmentId}`);
-      sessionStorage.removeItem(`assessment_${assessmentId}`);
-      sessionStorage.removeItem(`${storageKeyPrefix}_${assessmentId}_completed`);
-      
-      // Find and clear any other assessment-related items
-      if (assessmentId) {
-        Object.keys(sessionStorage).forEach(key => {
-          if (key.includes(assessmentId)) {
-            console.log(`Clearing additional assessment session data: ${key}`);
-            sessionStorage.removeItem(key);
-          }
-        });
-      }
-      
-      // Remove any saved tasks so we start fresh
+      // Reset local state that might hold old data
       setSavedTasks(null);
       setSubmittedCount(0);
-      
-      // Force reload the page with a cache buster
-      const currentUrl = window.location.href;
-      const cacheBuster = `cache=${Date.now()}`;
-      const separator = currentUrl.includes('?') ? '&' : '?';
-      
-      console.log(`Adding cache buster to force fresh state: ${cacheBuster}`);
-      window.location.href = `${currentUrl}${separator}${cacheBuster}`;
-      return; // Stop further execution since we're reloading
+      // Force reload might be too disruptive, let the state reset naturally
+      // window.location.reload(); // Consider removing this if state resets handle it
+      return; // Stop further execution for this render
     }
 
-    // Check sessionStorage for saved assessment state
+    // If not completed, check for existing resumable session state
     const savedAssessment = sessionStorage.getItem(`assessment_${assessmentId}`);
     if (savedAssessment) {
       try {
         const assessmentData = JSON.parse(savedAssessment);
-        
-        // Restore time if it exists
-        if (assessmentData.remainingTime) {
-          // Adjust for time passed since last save
-          const lastUpdated = new Date(assessmentData.lastUpdated).getTime();
-          const now = new Date().getTime();
-          const secondsPassed = Math.floor((now - lastUpdated) / 1000);
-          
-          // Calculate new remaining time (don't go below 0)
-          const newRemainingTime = Math.max(0, assessmentData.remainingTime - secondsPassed);
-          setTimeRemaining(newRemainingTime);
-          
-          // Since we have saved data, we should skip the intro
-          setShowIntro(false);
-        }
         
         // Restore tasks and submitted count
         if (assessmentData.tasks && assessmentData.tasks.length > 0) {
@@ -106,11 +80,11 @@ export function AssessmentEntryPage() {
         }
       } catch (e) {
         console.error('Error parsing saved assessment data:', e);
-        // Clear invalid data
+        // Clear only the invalid assessment data, not the whole session yet
         sessionStorage.removeItem(`assessment_${assessmentId}`);
       }
     }
-  }, [assessmentId, storageKeyPrefix]);
+  }, [assessmentId, assessmentType]);
   
   // Fetch assessment data (quiz or test)
   const { 
@@ -122,14 +96,29 @@ export function AssessmentEntryPage() {
   } = useQuery({
     queryKey: [assessmentType, assessmentId],
     queryFn: async () => {
-      if (!token || !assessmentId) throw new Error(`No token or ${assessmentType} ID available`);
-      
-      // Use the same API call for both quiz and test since backend handles both under /quizzes endpoint
-      return api.getQuizForAttempt(assessmentId, token);
+      if (!token || !assessmentId) throw new Error('No token or ID');
+      console.log(`Fetching ${assessmentType} structure for entry page: ${assessmentId}`);
+      // Use the new function to get initial structure
+      return api.getAssessmentStructure(assessmentId, token, assessmentType as 'QUIZ' | 'TEST');
     },
     enabled: !!token && !!assessmentId,
-    staleTime: 1000 * 60 * 5, // 5 minutes
+    staleTime: 1000 * 60 * 5, // Cache data for 5 minutes
+    gcTime: 1000 * 60 * 10, // Garbage collect after 10 minutes
+    retry: 1, // Retry once on failure
+    refetchOnWindowFocus: false, // Don't refetch just on focus
   });
+  
+  // Use the shared timer hook AFTER assessment data is available
+  // Pause the timer if EITHER dialog is open
+  const isPaused = showExitDialog || showSubmitDialog; // Combine pause conditions
+  const { 
+    remainingTime, 
+    formattedTime,
+    startTimer, // Get the startTimer function
+    pauseTimer, // Get pauseTimer if needed
+    resetTimer, // Get resetTimer
+    isRunning
+  } = useAssessmentTimer(assessmentId, assessment?.estimatedTime, isPaused);
   
   // Fetch topic data for quiz (only for quizzes, not tests)
   const {
@@ -145,38 +134,86 @@ export function AssessmentEntryPage() {
     staleTime: 1000 * 60 * 5, // 5 minutes
   });
   
-  // Format assessment data for the AssessmentOverview component
-  const formatAssessmentTasks = (): AssessmentTask[] => {
+  // Memoize the task formatting function
+  const formatAssessmentTasksCallback = useCallback((): AssessmentTask[] => {
     if (!assessment || !assessment.questions) return [];
     
-    // If we have saved tasks, use those to preserve submission state
-    if (savedTasks) return savedTasks;
+    // Define an explicit type for the question structure expected from the API
+    type ApiQuestion = { id: string; questionType?: string; pointsPossible?: number; [key: string]: any };
+
+    const freshQuestionsMap = new Map(assessment.questions.map((q: ApiQuestion) => [q.id, q]));
+
+    // If we have saved tasks, use those to preserve submission/viewed state
+    if (savedTasks && savedTasks.length === assessment.questions.length && 
+        savedTasks.every((task, index) => assessment.questions[index] && task.id === assessment.questions[index].id)) {
+      console.log('Using saved task status (submitted/viewed) from sessionStorage, but fresh data for type/details.');
+      
+      return savedTasks.map((savedTask, index) => {
+        // Explicitly type freshQuestion after retrieval and cast the result
+        const freshQuestion = freshQuestionsMap.get(savedTask.id) as { id: string; questionType?: string; pointsPossible?: number; [key: string]: any } | undefined;
+        const originalType = freshQuestion?.questionType || 'Unknown';
+
+        if (!freshQuestion?.questionType) {
+           console.warn(`Restored task, but original type missing for question ID: ${savedTask.id}`);
+        } else if (String(originalType).toUpperCase() !== 'MULTIPLE_CHOICE' && String(originalType).toUpperCase() !== 'CODE') {
+           console.warn(`Restored task, but original type unrecognized from API: ${originalType}`);
+        }
+
+        return {
+          id: savedTask.id,
+          title: `Question ${index + 1}`, // Keep simple title
+          type: originalType, // *** Use the fresh type from API ***
+          maxScore: freshQuestion?.pointsPossible || savedTask.maxScore || 1, // Prioritize fresh score
+          isSubmitted: savedTask.isSubmitted || false, // Restore status
+          isViewed: savedTask.isViewed || false, // Restore status
+        };
+      });
+    }
     
-    return assessment.questions.map((question: any, index: number) => ({
-      id: question.id,
-      title: `Question ${index + 1}`,
-      type: question.questionType === 'MULTIPLE_CHOICE' ? 'Multiple Choice' : 'Code',
-      maxScore: question.pointsPossible || 1,
-      isSubmitted: false // In a real app, this would be determined by user progress
-    }));
-  };
+    // Otherwise, format tasks from fresh assessment data
+    console.log('Formatting tasks purely from fresh assessment data');
+    return assessment.questions.map((question: any, index: number) => {
+      const taskType = question.questionType || 'Unknown';
+
+      if (!question.questionType) {
+          console.warn(`Question type is missing for question ID: ${question.id}`);
+      } else if (String(taskType).toUpperCase() !== 'MULTIPLE_CHOICE' && String(taskType).toUpperCase() !== 'CODE') {
+          console.warn(`Unrecognized question type from API: ${question.questionType}`);
+      }
+      
+      return {
+        id: question.id,
+        title: `Question ${index + 1}`,
+        type: taskType,
+        maxScore: question.pointsPossible || 1,
+        isSubmitted: false, // Initialize as false
+        isViewed: false, // Initialize as false
+      };
+    });
+  }, [assessment, savedTasks]);
   
-  // Handle starting the assessment (quiz or test)
-  const handleStartAssessment = (taskId?: string) => {
+  // Memoize the actual tasks array based on the callback result
+  const formattedTasks = useMemo(() => formatAssessmentTasksCallback(), [formatAssessmentTasksCallback]);
+  
+  // Memoize callback functions
+  const handleStartAssessment = useCallback((taskId?: string) => {
     if (assessmentId) {
+      // Start the timer before navigating
+      startTimer(); 
+      
       if (isQuiz) {
         navigate(`/quizzes/${assessmentId}/take`, {
           state: {
-            taskId: taskId, // Pass the taskId in state
+            taskId: taskId,
             skipIntro: true,
-            topicName: topic?.name, // Pass topic name to the quiz page
+            topicName: topic?.name,
             topicSlug: topic?.slug
           }
         });
       } else if (isTest) {
         navigate(`/tests/${assessmentId}/take`, {
           state: {
-            taskId: taskId, // Pass the taskId in state
+            taskId: taskId,
             skipIntro: true,
             levelId: levelId,
             levelName: levelName
@@ -184,16 +221,50 @@ export function AssessmentEntryPage() {
         });
       }
     }
-  };
+  }, [assessmentId, isQuiz, isTest, navigate, topic, levelId, levelName, startTimer]);
   
-  // Handle proceeding from intro to assessment overview
-  const handleProceedToOverview = () => {
+  const handleProceedToOverview = useCallback(() => {
     setShowIntro(false);
-  };
+  }, []);
   
-  // Handle finishing and submitting the assessment
-  const handleFinishAssessment = async () => {
-    if (!assessmentId || !token) {
+  // Function to actually perform the exit logic (clearing storage, navigating)
+  const performExitNavigation = useCallback(() => {
+    // **CRITICAL:** Only clear session if the user explicitly exits *without* intending to resume.
+    // This function is called from the ExitConfirmationDialog which implies discarding progress.
+    if (assessmentId && assessmentType) {
+        clearAssessmentSession(assessmentId, assessmentType as 'quiz' | 'test');
+    }
+    
+    // Navigate away
+    if (isTest) {
+      navigate('/dashboard', { replace: true });
+    } else if (isQuiz && topic?.slug) {
+      navigate(`/topic/${topic.slug}`, { replace: true });
+    } else if (location.state?.from) {
+      navigate(location.state.from, { replace: true });
+    } else {
+      navigate('/dashboard', { replace: true });
+    }
+    console.log(`Exiting ${isTest ? 'test' : 'quiz'}. Topic slug: ${topic?.slug || 'none'}`);
+  }, [assessmentId, isTest, isQuiz, navigate, topic, location.state]);
+
+  // Callback to open/close the dialog
+  const handleToggleExitDialog = useCallback((open: boolean) => {
+    setShowExitDialog(open);
+  }, []);
+
+  // Callback to open/close the submit dialog
+  const handleToggleSubmitDialog = useCallback((open: boolean) => {
+    setShowSubmitDialog(open);
+  }, []);
+  
+  // Modified exit handler: just opens the dialog
+  const handleExitAssessment = useCallback(() => {
+    handleToggleExitDialog(true); // Open the dialog
+  }, [handleToggleExitDialog]);
+  
+  const handleFinishAssessment = useCallback(async () => {
+    if (!assessmentId || !token || !assessmentType) {
       toast({
         title: "Error",
         description: `Missing required data to submit ${isTest ? 'test' : 'quiz'}.`,
@@ -204,18 +275,9 @@ export function AssessmentEntryPage() {
     
     try {
       setIsSubmitting(true);
+      setShowSubmitDialog(false); // Close dialog immediately on confirm
       
-      // Confirm submission
-      const confirmMessage = `Are you sure you want to submit this ${isTest ? 'test' : 'quiz'}? 
-This will finalize your answers and end the session.`;
-      
-      const shouldSubmit = window.confirm(confirmMessage);
-      if (!shouldSubmit) {
-        setIsSubmitting(false);
-        return;
-      }
-      
-      // Need to load answers and session data
+      // Need to load answers and session data *here*
       const sessionData = sessionStorage.getItem(`${storageKeyPrefix}_${assessmentId}`);
       if (!sessionData) {
         toast({
@@ -226,10 +288,10 @@ This will finalize your answers and end the session.`;
         setIsSubmitting(false);
         return;
       }
-      
+
       const parsedSessionData = JSON.parse(sessionData);
       const { answers, startTime } = parsedSessionData;
-      
+
       if (!answers || !startTime) {
         toast({
           title: "Error",
@@ -239,79 +301,40 @@ This will finalize your answers and end the session.`;
         setIsSubmitting(false);
         return;
       }
-      
-      // Submit the assessment
-      console.log(`Submitting ${isTest ? 'test' : 'quiz'} from assessment overview:`, { 
-        assessmentId, 
-        startTime, 
-        answersCount: Object.keys(answers).length 
-      });
-      
+
+      // Use the shared submit endpoint
       const result = await api.submitCompleteQuiz(
         assessmentId,
-        startTime,
-        answers,
+        startTime, // Use startTime from session
+        answers,   // Use answers from session
         token
       );
       
-      console.log(`${isTest ? 'Test' : 'Quiz'} submission result:`, result);
-      
       if (result && result.id) {
-        // Set a flag to indicate this assessment was completed
-        if (assessmentId) {
-          sessionStorage.setItem(`${storageKeyPrefix}_${assessmentId}_completed`, 'true');
-        }
-        
-        // Clean up ALL session storage related to this assessment
-        console.log('Clearing all session storage data');
-        
-        // Clear direct data
-        sessionStorage.removeItem(`${storageKeyPrefix}_${assessmentId}`);
-        sessionStorage.removeItem(`assessment_${assessmentId}`);
-        
-        // Clear attempt ID
-        sessionStorage.removeItem(`${storageKeyPrefix}_attempt_${assessmentId}`);
-        
-        // Find and clear any other related items
-        if (assessmentId) {
-          Object.keys(sessionStorage).forEach(key => {
-            if (key.includes(assessmentId)) {
-              console.log(`Clearing additional session data: ${key}`);
-              sessionStorage.removeItem(key);
-            }
-          });
-        }
+        // **CRITICAL:** Mark as completed AND clear session data AFTER successful submission
+        markAssessmentCompleted(assessmentId, assessmentType as 'quiz' | 'test');
+        clearAssessmentSession(assessmentId, assessmentType as 'quiz' | 'test');
         
         toast({
-          title: `${isTest ? 'Test' : 'Quiz'} Submitted`,
-          description: `Your ${isTest ? 'test' : 'quiz'} has been submitted successfully!`,
-          variant: "default",
+          title: "Success",
+          description: `${isTest ? 'Test' : 'Quiz'} submitted successfully!`,
         });
-        
-        // Navigate to results page - use the appropriate route based on type
-        if (isQuiz) {
-          navigate(`/quizzes/attempts/${result.id}/results`);
-        } else if (isTest) {
-          navigate(`/tests/attempts/${result.id}/results`);
-        }
+        // Navigate to results page
+        navigate(`/assessment/results/${result.id}?type=${assessmentType}`);
       } else {
-        toast({
-          title: "Error",
-          description: `Failed to get ${isTest ? 'test' : 'quiz'} results. Please try again.`,
-          variant: "destructive",
-        });
+        throw new Error(result.message || 'Failed to submit and get attempt ID');
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error(`Error submitting ${isTest ? 'test' : 'quiz'}:`, error);
       toast({
-        title: "Error",
-        description: error instanceof Error ? error.message : "An unexpected error occurred. Please try again.",
+        title: "Submission Error",
+        description: error.message || 'An unknown error occurred during submission.',
         variant: "destructive",
       });
     } finally {
       setIsSubmitting(false);
     }
-  };
+  }, [assessmentId, assessmentType, token, isTest, navigate, toast, clearAssessmentSession, markAssessmentCompleted, storageKeyPrefix]);
   
   // Layout component for consistency
   const QuizLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -370,21 +393,45 @@ This will finalize your answers and end the session.`;
   
   // Show intro view first (unless skipIntro is true or we have saved session)
   if (showIntro) {
+    // If it's a quiz, wait for topic data to load before showing the intro
+    // to ensure the correct title (topic name) is displayed without flickering.
+    if (isQuiz && topicLoading) {
+      return (
+        <QuizLayout>
+          <div className="min-h-[calc(100vh-6rem)] bg-background flex items-center justify-center px-4 pt-16 pb-16">
+            <div className="max-w-3xl w-full text-center">
+              <Skeleton className="h-10 w-3/4 mx-auto mb-4" />
+              <Skeleton className="h-6 w-1/2 mx-auto mb-10" />
+              <Card className="border shadow-sm">
+                <CardContent className="p-6">
+                  <Skeleton className="h-48 w-full" />
+                  <div className="flex justify-center gap-5 mt-10">
+                    <Skeleton className="h-12 w-28" />
+                    <Skeleton className="h-12 w-28" />
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+          </div>
+        </QuizLayout>
+      );
+    }
+    
+    // Render intro once quiz topic data is loaded, or for tests immediately
     return (
       <AssessmentIntro
         id={assessmentId || ''}
-        title={isQuiz ? (topic?.name || assessment.title || 'Quiz') : (levelName ? `${levelName} Test` : assessment.title || 'Test')}
+        // For quizzes, prioritize topic name now that we know it's loaded.
+        // For tests, use level name or assessment title.
+        title={isQuiz ? (topic?.name || 'Quiz Topic') : (levelName ? `${levelName} Test` : assessment.title || 'Test')}
         description={assessment.description}
-        duration={assessment.timeLimit || 60}
+        duration={assessment?.estimatedTime || 60}
         questionsCount={assessment.questions?.length || 0}
         type={isTest ? 'test' : 'quiz'}
         onStart={handleProceedToOverview}
       />
     );
   }
-  
-  // Calculate initial time if we don't have a saved session
-  const initialRemainingTime = timeRemaining || (assessment.timeLimit ? assessment.timeLimit * 60 : 3600);
   
   // Render assessment overview after intro
   return (
@@ -393,13 +440,19 @@ This will finalize your answers and end the session.`;
         id={assessmentId || ''}
         title={isQuiz ? (topic?.name || assessment.title || 'Quiz') : (levelName ? `${levelName} Test` : assessment.title || 'Test')}
         description={assessment.description}
-        duration={assessment.timeLimit || 60}
-        tasks={formatAssessmentTasks()}
+        duration={assessment?.estimatedTime || 60}
+        tasks={formattedTasks}
         submittedCount={submittedCount}
-        remainingTime={initialRemainingTime}
+        remainingTime={remainingTime}
         type={isTest ? 'test' : 'quiz'}
         onStartTask={handleStartAssessment}
         onFinishAssessment={handleFinishAssessment}
+        onExit={() => handleToggleExitDialog(true)}
+        showExitDialog={showExitDialog}
+        onToggleExitDialog={handleToggleExitDialog}
+        onConfirmExit={performExitNavigation}
+        showSubmitDialog={showSubmitDialog}
+        onToggleSubmitDialog={handleToggleSubmitDialog}
       />
     </QuizLayout>
   );

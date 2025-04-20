@@ -18,7 +18,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { ArrowUpDown, ChevronDown, ChevronUp, CheckCircle2, Circle, Book, Code2, Timer, Lock, AlertCircle, BookOpen, History, Settings } from "lucide-react";
+import { ArrowUpDown, ChevronDown, ChevronUp, CheckCircle2, Circle, Book, Code2, Timer, Lock, AlertCircle, BookOpen, History, Settings, Loader2 } from "lucide-react";
 import { cn } from '@/lib/utils';
 import { ProblemList } from '@/components/ProblemList';
 import { useToast } from '@/components/ui/use-toast';
@@ -86,7 +86,7 @@ export default function TopicPage() {
   const { toast } = useToast();
   const [showWarning, setShowWarning] = useState(false);
   const [warningMessage, setWarningMessage] = useState('');
-  const [nextQuiz, setNextQuiz] = useState<any>(null);
+  const [isTakingQuiz, setIsTakingQuiz] = useState(false);
 
   const { data: topic, isLoading: loading, error } = useQuery<any>({
     queryKey: ['topic', topicId, slug],
@@ -99,7 +99,9 @@ export default function TopicPage() {
       }
       throw new Error('No topic ID or slug provided');
     },
-    enabled: !!token && (!!topicId || !!slug),
+    enabled: !!token && (!!topicId || !!slug) && window.location.pathname.includes('/topic/'),
+    staleTime: 1000 * 60 * 5, // 5 minutes
+    gcTime: 1000 * 60 * 10,   // 10 minutes
   });
 
   // Get learning path data to check if level is locked
@@ -107,87 +109,58 @@ export default function TopicPage() {
     queryKey: ['learningPath'],
     queryFn: async () => {
       if (!token) throw new Error('No token available');
-      return api.get('/learning/levels', token);
+      return api.getLevels(token);
     },
     enabled: !!token,
   });
 
-  // Query to get the next available quiz for this topic
-  const { data: nextQuizData, isLoading: quizLoading } = useQuery({
-    queryKey: ['nextQuiz', topicId, slug],
-    queryFn: async () => {
-      if (!token) throw new Error('No token available');
-      
-      try {
-        // Always use the slug-based API
-        if (slug) {
-          return api.getNextAvailableQuizBySlug(slug, token);
-        } else if (topic?.slug) {
-          // If we have the topic data but were given an ID instead of slug
-          return api.getNextAvailableQuizBySlug(topic.slug, token);
-        }
-        throw new Error('No topic slug available');
-      } catch (error) {
-        console.error('Error fetching next quiz:', error);
-        return null;
-      }
-    },
-    // Enable only when we have the slug (either directly or from the topic)
-    enabled: !!token && (!!slug || (!!topic?.slug)),
-  });
-
-  // Effect to set the nextQuiz state from nextQuizData when it loads
-  useEffect(() => {
-    if (nextQuizData) {
-      setNextQuiz(nextQuizData);
-    }
-  }, [nextQuizData]);
-
-  // Check if the current topic's level is locked
+  // Check if the current topic's level is locked based on cascading unlock logic
   const isLocked = (() => {
-    if (!learningPath || !topic) return false;
+    // Need learningPath data and the current topic to determine lock status
+    if (!learningPath || !topic || learningPath.length === 0) return false;
 
-    const currentLevel = learningPath.find((level: Level) => 
-      level.topics.some((t: Topic) => t.id === topicId)
+    // Find the index of the level containing the current topic
+    const levelIndex = learningPath.findIndex((level: Level) => 
+      level.topics.some((t: Topic) => t.id === topic.id || t.slug === topic.slug)
     );
-    if (!currentLevel) return false;
 
-    const levelIndex = learningPath.findIndex((l: Level) => l.id === currentLevel.id);
+    // If the topic/level isn't found, or it's the first level, it's not locked
+    if (levelIndex < 0) return false; // Should not happen if topic exists
     if (levelIndex === 0) return false;
-
-    // Check if all previous levels are completed
-    for (let i = 0; i < levelIndex; i++) {
-      const level = learningPath[i];
-      const isLevelCompleted = level.topics.every((topic: Topic) => {
-        const requiredProblems = topic.problems.filter((p: Problem) => p.required);
-        if (requiredProblems.length === 0) return true;
-        const completedRequired = requiredProblems.filter((p: Problem) => p.completed).length;
-        return completedRequired === requiredProblems.length;
-      });
-      if (!isLevelCompleted) return true;
+    
+    // Find the index of the highest level where the user passed an exam
+    let maxPassedIndex = -1;
+    for (let i = learningPath.length - 1; i >= 0; i--) {
+      if (learningPath[i].hasPassedExam === true) {
+        maxPassedIndex = i;
+        break; // Found the highest index
+      }
     }
-
-    return false;
+    
+    // The current level (levelIndex) is unlocked if levelIndex <= maxPassedIndex + 1
+    // Therefore, it is locked if levelIndex > maxPassedIndex + 1
+    return levelIndex > maxPassedIndex + 1;
   })();
 
   const handleProblemStart = (problemId: string, slug?: string) => {
     if (isLocked && !canAccessAdmin) {
-      const uncompletedLevel = learningPath?.find((level: Level, index: number) => {
-        if (index === 0) return false;
-        return !level.topics.every((topic: Topic) => {
-          const requiredProblems = topic.problems.filter((p: Problem) => p.required);
-          if (requiredProblems.length === 0) return true;
-          const completedRequired = requiredProblems.filter((p: Problem) => p.completed).length;
-          return completedRequired === requiredProblems.length;
-        });
-      });
-
-      if (uncompletedLevel) {
-        setWarningMessage(`You must complete Level ${uncompletedLevel.name} before continuing.`);
-        setShowWarning(true);
-        setTimeout(() => setShowWarning(false), 5000);
-        return;
+      // Determine the name of the level whose exam needs to be passed
+      let requiredExamLevelName = 'a previous level';
+      if (learningPath && topic) {
+        const currentLevelIndex = learningPath.findIndex((level: Level) => 
+          level.topics.some((t: Topic) => t.id === topic.id || t.slug === topic.slug)
+        );
+        // The required exam is in the level *before* the first locked level
+        if (currentLevelIndex > 0) {
+            requiredExamLevelName = `Level ${learningPath[currentLevelIndex - 1].name}`;
+        }
       }
+
+      // Update warning message for the new logic
+      setWarningMessage(`Pass the exam in ${requiredExamLevelName} to unlock this content.`);
+      setShowWarning(true);
+      setTimeout(() => setShowWarning(false), 5000);
+      return;
     }
 
     // Add query parameters for context
@@ -204,56 +177,58 @@ export default function TopicPage() {
     }
   };
 
-  // Handle starting a quiz
-  const handleStartQuiz = async () => {
-    if (!topic?.id || !token) {
+  // Handle clicking the "Take Quiz" button
+  const handleTakeQuizClick = async () => {
+    const currentSlug = slug || topic?.slug;
+    if (!currentSlug || !token || isLocked) {
+
+      if (isLocked) {
+        setWarningMessage(`Pass the exam in the previous level to unlock this quiz.`); // Simplified message
+        setShowWarning(true);
+        setTimeout(() => setShowWarning(false), 5000);
+      }
+
       toast({
-        title: "Authentication Required",
-        description: "Please sign in to access quizzes.",
+        title: "Cannot Start Quiz",
+        description: isLocked ? "Level is locked." : "Missing topic information or authentication.",
         variant: "destructive",
       });
       return;
     }
 
-    // If quizzes are still loading, wait
-    if (quizLoading) {
-      return;
-    }
-
+    setIsTakingQuiz(true);
     try {
-      // Fetch quizzes for this topic if not already loaded
-      if (!nextQuiz) {
-        const quizzes = await api.getQuizzesByTopic(topic.id, token);
-        if (quizzes && quizzes.length > 0) {
-          setNextQuiz(quizzes[0]); // Use the first quiz
-        }
+      // 1. Call the API to get the next quiz ID
+      const result = await api.getNextQuizForTopic(currentSlug, token);
+
+      // 2. Handle the response
+      if (result.nextAssessmentId) {
+        // 3. Navigate if ID exists
+        navigate(`/assessment/quiz/${result.nextAssessmentId}`, {
+          state: {
+            topicId: topic?.id, // Pass context if available
+            topicName: topic?.name,
+            topicSlug: currentSlug,
+          }
+        });
+      } else {
+        // 4. Show message if no ID (e.g., all completed or none exist)
+        toast({
+          title: "Quiz Status",
+          description: result.message || "No quizzes currently available for this topic.",
+          variant: "default",
+        });
       }
     } catch (error) {
-      console.error("Error loading quizzes:", error);
+      console.error("Error trying to start next quiz:", error);
       toast({
         title: "Error",
-        description: "Failed to load quizzes for this topic.",
+        description: `Failed to find the next quiz. ${error instanceof Error ? error.message : ''}`,
         variant: "destructive",
       });
+    } finally {
+      setIsTakingQuiz(false);
     }
-
-    if (!nextQuiz) {
-      toast({
-        title: "No Quiz Available",
-        description: "There are no quizzes available for this topic at the moment.",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    // Update to use the new standardized assessment route
-    navigate(`/assessment/quiz/${nextQuiz.id}`, {
-      state: {
-        topicId: topic.id,
-        topicName: topic.name,
-        topicSlug: topic.slug,
-      }
-    });
   };
 
   // Process content to remove duplicate title and description if present
@@ -316,25 +291,21 @@ export default function TopicPage() {
           </Badge>
 
           <div className="ml-auto flex items-center gap-2">
-            {nextQuiz && (
-              <Button 
-                onClick={() => navigate(`/assessment/quiz/${nextQuiz.id}`, {
-                  state: {
-                    topicId: topic.id,
-                    topicName: topic.name,
-                    topicSlug: topic.slug,
-                  }
-                })}
-                size="sm"
-                variant="ghost"
-                className="border border-border/60 text-foreground hover:bg-secondary/30 hover:text-foreground transition-colors"
-                disabled={quizLoading || isLocked || !nextQuiz}
-                title={!nextQuiz ? "No quiz available for this topic" : ""}
-              >
+            <Button 
+              onClick={handleTakeQuizClick}
+              size="sm"
+              variant="ghost"
+              className="border border-border/60 text-foreground hover:bg-secondary/30 hover:text-foreground transition-colors"
+              disabled={isTakingQuiz || isLocked}
+              title={isLocked ? "Complete previous level exam to unlock" : "Take the next available quiz"}
+            >
+              {isTakingQuiz ? (
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+              ) : (
                 <BookOpen className="w-4 h-4 mr-2 text-blue-500" />
-                {quizLoading ? 'Loading...' : 'Take Quiz'}
-              </Button>
-            )}
+              )}
+              {isTakingQuiz ? 'Finding...' : 'Take Quiz'}
+            </Button>
             <Button 
               onClick={() => navigate(`/quizzes/history/${topicId || topic?.id}`)}
               size="sm"

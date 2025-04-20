@@ -1,11 +1,12 @@
 import React from 'react';
-import { useParams, useLocation } from 'react-router-dom';
+import { useParams, useLocation, useNavigate } from 'react-router-dom';
 import { useQuiz } from './hooks/useQuiz';
 import { AssessmentPage } from '../shared/components/AssessmentPage';
 
 export function QuizPage() {
   const { quizId } = useParams<{ quizId: string }>();
   const location = useLocation();
+  const navigate = useNavigate();
   
   const {
     quiz,
@@ -17,9 +18,21 @@ export function QuizPage() {
     goToQuestion,
     saveAnswer,
     submitQuiz,
-    startQuizAttempt,
     forceReset,
   } = useQuiz(quizId);
+
+  const handleQuizSubmit = async () => {
+    try {
+      const result = await submitQuiz();
+      if (result && result.id) {
+        navigate(`/assessment/results/${result.id}?type=quiz`);
+      } else {
+        console.error('Quiz submission succeeded but no attempt ID was returned.');
+      }
+    } catch (error) {
+      console.error('Quiz submission failed in component:', error);
+    }
+  };
 
   return (
     <AssessmentPage
@@ -33,8 +46,7 @@ export function QuizPage() {
       isSubmitting={isSubmitting}
       goToQuestion={goToQuestion}
       saveAnswer={saveAnswer}
-      submitAssessment={submitQuiz}
-      startAttempt={startQuizAttempt}
+      submitAssessment={handleQuizSubmit}
       forceReset={forceReset}
       locationState={location.state}
     />

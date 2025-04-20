@@ -88,7 +88,6 @@ export function Navigation() {
           </div>
         </div>
       </nav>
-      <div className="h-16" /> {/* Spacer for fixed header */}
     </>
   );
 } 

@@ -36,6 +36,13 @@ export interface Level {
   order: number;
   description?: string;
   topics: Topic[];
+  tests?: {
+    id: string;
+    name: string;
+    description?: string;
+    levelId: string;
+  }[];
+  hasPassedExam?: boolean;
 }
 
 export function useLearningPath() {

@@ -21,6 +21,10 @@ module.exports = {
       },
     },
     extend: {
+      fontFamily: {
+        sans: ["Inter var", ...defaultTheme.fontFamily.sans],
+        mono: ["'JetBrains Mono'", ...defaultTheme.fontFamily.mono],
+      },
       colors: {
         border: "hsl(var(--border))",
         input: "hsl(var(--input))",
@@ -94,6 +98,10 @@ module.exports = {
         'bounce-subtle': {
           '0%, 100%': { transform: 'translateX(0)' },
           '50%': { transform: 'translateX(4px)' }
+        },
+        'blink': {
+          '0%, 100%': { opacity: '1' },
+          '50%': { opacity: '0' }
         }
       },
       animation: {
@@ -104,7 +112,8 @@ module.exports = {
         scroll: "scroll var(--animation-duration, 40s) var(--animation-direction, forwards) linear infinite",
         marquee: 'marquee 60s linear infinite',
         'marquee-reverse': 'marquee-reverse 60s linear infinite',
-        'bounce-subtle': 'bounce-subtle 1.5s ease-in-out infinite'
+        'bounce-subtle': 'bounce-subtle 1.5s ease-in-out infinite',
+        'blink': 'blink 1s step-start infinite'
       },
     },
   },

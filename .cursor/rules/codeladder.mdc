@@ -1,30 +1,36 @@
 ---
 description: This rule describes the CodeLadder project requirements, tech stack, build process, and outline
 globs: 
+alwaysApply: false
 ---
 # YOU ARE A 10X DEVELOPER / 100X SENIOR ENGINEER
 
 # Important Rules
 
-- Think thoroughly before coding. Write 2-3 reasoning paragraphs.
-- ALWAYS write simple, clean and modular code.
+- Think thoroughly before coding with reasoning paragraphs. 
+- ALWAYS ask follow up questions to clarify the prompt and then break each task down into its atomic components.
+- ALWAYS create a task.txt file that includes the task and atomic components and potentail dependencies. Check off subproblems as you complete them.
+- ALWAYS write simple, clean and modular code. 
 
 # CodeLadder Project Rules
 
 # Project Overview
 project:
   name: "CodeLadder"
-  description: "A learning platform focused on Data Structures & Algorithms (DSA) using a Mastery-Based Learning Model. The platform features progressive levels, each focusing on core DSA topics, with spaced repetition and adaptive difficulty."
+  description: "A learning platform focused on Data Structures & Algorithms (DSA) using a Mastery-Based Learning Model. The platform features progressive levels, each focusing on core DSA topics, with spaced repetition."
 
 # System Requirements
 requirements:
   node: ">=18.0.0"
   postgres: ">=14.0.0"
   docker: "required"
+  judge0: "required"
   ports:
     backend: 8000
     frontend: 8085
-    prisma studio: 5555
+    frontend_dev: 5173
+    prisma_studio: 5555
+    judge0: 2358
 
 # Technical Stack
 stack:
@@ -32,28 +38,50 @@ stack:
     framework: "React"
     buildTool: "Vite"
     language: "TypeScript"
+    routing: "react-router-dom"
     styling: "Tailwind CSS"
-    components: "shadcn/ui"
-    editor: "Monaco Editor"
+    components: "shadcn/ui (Radix UI, Lucide Icons)"
+    icons: ["@tabler/icons-react", "react-icons"]
+    editor: "Monaco Editor (@monaco-editor/react)"
     state: "@tanstack/react-query"
-    markdown: "react-markdown"
+    forms: "react-hook-form"
+    validation: "zod"
+    http: "axios"
+    markdown: "react-markdown, marked"
+    sanitization: "dompurify"
+    date_handling: "date-fns"
+    utilities: ["clsx", "tailwind-merge", "tailwindcss-animate"]
     server: "Nginx"
 
   backend:
     runtime: "Node.js"
     framework: "Express"
+    language: "TypeScript"
+    middleware: ["cors", "helmet", "cookieParser", "express-rate-limit", "custom error handler", "custom request debugger"]
+    routing: "Modular (routes/, api/)"
+    api_structure: ["auth", "profile", "admin", "learning", "problems", "collections", "code execution", "quizzes", "spaced repetition", "image upload"]
     database: "PostgreSQL"
     orm: "Prisma"
-    auth: "JWT"
-    storage: "AWS S3"
+    auth: "JWT, bcrypt"
+    storage: "AWS S3 (@aws-sdk/client-s3)"
     security:
-      rateLimit: true
+      rateLimit: "express-rate-limit"
       helmet: true
+    logging: "winston"
+    validation: "zod"
+    http: "axios"
+    scheduling: "node-cron"
+    utilities: ["uuid", "slugify"]
+    markdown: "marked"
+
+  execution:
+    engine: "Judge0"
+    communication: "axios"
 
   infrastructure:
-    containerization: "Docker"
-    cicd: "Jenkins"
-    cloud: 
+    containerization: "Docker (Docker Compose)"
+    cicd: "Jenkins (Jenkinsfile)"
+    cloud:
       provider: "AWS"
       services: ["EC2", "S3", "RDS"]
       region: "us-east-2"
@@ -65,13 +93,25 @@ models:
     - Level
     - Topic
     - Problem
+    - Collection
+    - Submission
+    - Quiz
+    - QuizQuestion
+    - CodeProblem
+    - TestCase
+    - QuizAttempt
+    - QuizResponse
     - Progress
+    - ReviewHistory
     - StandaloneInfoPage
 
   enums:
     - Role: ["USER", "ADMIN", "DEVELOPER"]
     - ProblemType: ["INFO", "CODING", "STANDALONE_INFO"]
-    - Difficulty
+    - Difficulty: ["EASY_IIII", "EASY_III", "EASY_II", "EASY_I", "MEDIUM", "HARD"]
+    - ProgressStatus: ["NOT_STARTED", "IN_PROGRESS", "COMPLETED"]
+    - SubmissionStatus: ["PENDING", "PROCESSING", "COMPLETED", "ERROR", "TIMEOUT"]
+    - AssessmentType: ["QUIZ", "TEST"]
 
 # Authorization
 roles:
@@ -107,6 +147,7 @@ uploads:
 
 # Development
 development:
+  structure: "Feature-based directories (features/)"
   frontend:
     commands:
       - "npm install"
@@ -125,8 +166,10 @@ development:
 - Keep files small and focused (<200 lines)
 - Test after every meaningful change
 - Use clear, consistent naming
-- Think thoroughly before coding. Write 2-3 reasoning paragraphs.
-- ALWAYS write simple, clean and modular code.
+- Think thoroughly before coding with reasoning paragraphs. 
+- ALWAYS ask follow up questions to clarify the prompt and then break each task down into its atomic components.
+- ALWAYS create a task.txt file that includes the task and atomic components and potentail dependencies. Check off subproblems as you complete them.
+- ALWAYS write simple, clean and modular code. 
 
 # Error Fixing
 - DO NOT JUMP TO CONCLUSIONS! Consider multiple possible causes before deciding.
@@ -134,9 +177,10 @@ development:
 - in case of strange errors, ask the user to perform a Perplexity web search to find the latest up-to-date information
 
 # Building Process
-- Verify each new feature works by telling the user how to test it
+- ALWAYS ask follow up questions to clarify the prompt and then break each task down into its atomic components.
+- ALWAYS create a task.txt file that includes the task and atomic components and potentail dependencies. Check off subproblems as you complete them.
 - DO NOT write complicated and confusing code. Opt for the simple & modular approach.
-- when not sure what to do, tell the user to perform a web search
+- When not sure what to do, tell the user to perform a web search
 
 # Comments
 - ALWAYS try to add more helpful and explanatory comments into our code

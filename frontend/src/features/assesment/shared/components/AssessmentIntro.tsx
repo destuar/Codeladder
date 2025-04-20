@@ -27,6 +27,9 @@ export function AssessmentIntro({
   
   // Format duration in hours and minutes
   const formatDuration = (minutes: number): string => {
+    if (minutes === undefined || minutes === null) return 'Unknown duration';
+    if (minutes <= 0) return 'Under 1 minute';
+    
     if (minutes < 60) return `${minutes} minutes`;
     const hours = Math.floor(minutes / 60);
     const mins = minutes % 60;

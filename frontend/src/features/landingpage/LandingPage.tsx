@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/features/auth/AuthContext';
@@ -12,6 +12,7 @@ import { RotatingFeatureCards } from './components/RotatingFeatureCards';
 import { CompanyLogos } from './components/CompanyLogos';
 import { Spotlight } from '@/components/ui/spotlight-new';
 import { FeatureShowcase } from './components/FeatureShowcase';
+import { TypeAnimation } from 'react-type-animation';
 
 /**
  * LandingPage component
@@ -23,9 +24,15 @@ import { FeatureShowcase } from './components/FeatureShowcase';
  * - LinkPreview from Aceternity UI (installed via shadcn) can be used for rich content previews
  *   Usage: import { LinkPreview } from "@/components/ui/link-preview";
  */
+
 export default function LandingPage() {
   const { user } = useAuth();
   const [isDarkMode, setIsDarkMode] = useState(false);
+  const [showSecondLine, setShowSecondLine] = useState(false);
+  const secondLineRef = useRef(null);
+  const [typingSecondLine, setTypingSecondLine] = useState(false);
+  const [secondLineText, setSecondLineText] = useState('');
+  const fullSecondLineText = 'your preparation should too.';
   
   // Check for dark mode on component mount and when theme changes
   useEffect(() => {
@@ -52,8 +59,36 @@ export default function LandingPage() {
     return () => observer.disconnect();
   }, []);
 
+  // Handle typing animation for second line
+  useEffect(() => {
+    let timer;
+    
+    // First wait some time, then start typing the second line
+    timer = setTimeout(() => {
+      setTypingSecondLine(true);
+      
+      let currentIndex = 0;
+      const typingInterval = setInterval(() => {
+        if (currentIndex <= fullSecondLineText.length) {
+          setSecondLineText(fullSecondLineText.substring(0, currentIndex));
+          currentIndex++;
+        } else {
+          clearInterval(typingInterval);
+        }
+      }, 60); // Typing speed
+
+      return () => {
+        clearInterval(typingInterval);
+      };
+    }, 4000); // Increased time to start typing the second line (was 2500)
+    
+    return () => {
+      clearTimeout(timer);
+    };
+  }, []);
+
   return (
-    <div className="min-h-[calc(100vh-4rem)] bg-background relative overflow-hidden">
+    <div className="min-h-[calc(100vh-4rem)] bg-background relative overflow-hidden font-mono">
       {/* Background patterns */}
       <div className="absolute inset-0 bg-dot-[#5b5bf7]/[0.2] [mask-image:radial-gradient(ellipse_at_center,transparent_20%,black)]" />
       
@@ -87,10 +122,24 @@ export default function LandingPage() {
             <div className="absolute -top-16 -left-16 w-64 h-64 bg-[#5b5bf7]/10 rounded-full filter blur-3xl opacity-70"></div>
             <div className="absolute -bottom-16 -right-16 w-64 h-64 bg-[#5b5bf7]/10 rounded-full filter blur-3xl opacity-70"></div>
             
-            <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold tracking-tight mb-6 relative z-10">
-              Technical interviews are adapting— <br />
-              <span className="bg-clip-text text-transparent bg-gradient-to-r from-[#5b5bf7] to-[#7a7aff]">your preparation should too.</span>
+            <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold font-mono tracking-tight mb-6 relative z-10">
+              <div className="inline-block" style={{ whiteSpace: 'pre-line' }}>
+                <TypeAnimation
+                  sequence={['Technical interviews are adapting—']}
+                  wrapper="span"
+                  cursor={false}
+                  repeat={0}
+                  speed={50}
+                />
+                {!typingSecondLine && <span className="animate-blink ml-1">|</span>}
+                <br />
+                <span ref={secondLineRef} className="bg-clip-text text-transparent bg-gradient-to-r from-[#5b5bf7] to-[#7a7aff]">
+                  {secondLineText}
+                </span>
+                {typingSecondLine && <span className="animate-blink ml-1 bg-clip-text text-transparent bg-gradient-to-r from-[#5b5bf7] to-[#7a7aff]">|</span>}
+              </div>
             </h1>
+
             <p className="text-xl text-muted-foreground max-w-3xl mx-auto mb-10 relative z-10">
               Start climbing with CodeLadder.
             </p>

@@ -29,6 +29,7 @@ import { AssessmentEntryPage } from './features/assesment/shared/AssessmentEntry
 import { TestResultsPage } from './features/assesment/test/TestResultsPage';
 import { TestHistoryPage } from './features/assesment/test/TestHistoryPage';
 import { TestPage } from './features/assesment/test/TestPage';
+import { AssessmentResultsRouter } from './features/assesment/shared/AssessmentResultsRouter';
 
 // Regular components
 const UnauthorizedPage = () => (
@@ -54,6 +55,7 @@ function AdminViewWrapper({ children }: { children: React.ReactNode }) {
 function MainLayout() {
   const location = useLocation();
   const isProblemPage = location.pathname.match(/^\/problems\/[^/]+$/) || location.pathname.match(/^\/problem\/[^/]+$/);
+  const isProblemReviewPage = location.pathname.match(/^\/problem\/[^/]+\/review$/);
   const isTopicPage = location.pathname.match(/^\/topics\/[^/]+$/) || location.pathname.match(/^\/topic\/[^/]+$/);
   const isInfoPage = location.pathname.match(/^\/info\/[^/]+$/);
   const isCollectionPage = false;
@@ -65,12 +67,12 @@ function MainLayout() {
                     location.pathname.match(/^\/tests\/[^/]+$/);
   const isAssessmentPage = location.pathname.match(/^\/assessment\/[^/]+\/[^/]+$/);
                   
-  const shouldHideNavigation = isProblemPage || isInfoPage || isCollectionPage || isQuizPage || isTestPage || isAssessmentPage;
+  const shouldHideNavigation = isProblemPage || isInfoPage || isCollectionPage || isQuizPage || isTestPage || isAssessmentPage || isProblemReviewPage;
   
   return (
     <div className="min-h-screen bg-background text-foreground">
       {!shouldHideNavigation && <Navigation />}
-      <main>
+      <main className={!shouldHideNavigation ? "pt-16" : ""}>
         <Routes>
           {/* Public routes */}
           <Route path="/landing" element={<AdminViewWrapper><LandingPage /></AdminViewWrapper>} />
@@ -304,6 +306,14 @@ function MainLayout() {
             </ProtectedRoute>
           } />
 
+          <Route path="/assessment/results/:attemptId" element={
+            <ProtectedRoute>
+              <AdminViewWrapper>
+                <AssessmentResultsRouter />
+              </AdminViewWrapper>
+            </ProtectedRoute>
+          } />
+
           {/* Default redirect */}
           <Route path="/" element={<Navigate to="/landing" replace />} />
           <Route path="*" element={<Navigate to="/landing" replace />} />
@@ -316,15 +326,15 @@ function MainLayout() {
 export default function App() {
   return (
     <QueryClientProvider client={queryClient}>
-      <Router>
-        <AuthProvider>
+      <AuthProvider>
+        <ProfileProvider>
           <AdminProvider>
-            <ProfileProvider>
+            <Router>
               <MainLayout />
-            </ProfileProvider>
+            </Router>
           </AdminProvider>
-        </AuthProvider>
-      </Router>
+        </ProfileProvider>
+      </AuthProvider>
     </QueryClientProvider>
   );
 }

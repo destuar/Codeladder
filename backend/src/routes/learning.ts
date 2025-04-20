@@ -54,7 +54,7 @@ router.get('/levels', authenticateToken, (async (req, res) => {
             },
           },
         },
-        // Include tests associated with the level
+        // Include tests associated with the level AND user's attempts
         tests: {
           where: { assessmentType: 'TEST' },
           orderBy: [
@@ -69,31 +69,53 @@ router.get('/levels', authenticateToken, (async (req, res) => {
             passingScore: true,
             estimatedTime: true,
             orderNum: true,
-            _count: { // Optionally include question count
+            _count: { 
               select: { questions: true }
+            },
+            // Include attempts for *this* user on *this* test
+            attempts: {
+              where: { 
+                userId: userId,
+                passed: true // We only need to know if *any* attempt passed
+              },
+              select: {
+                id: true, // Select minimal data, just need to know if a record exists
+                passed: true 
+              },
+              take: 1 // Optimization: we only need one passing attempt
             }
           }
         }
       },
     });
 
-    // Transform the response to include completion status, collection IDs, and tests
-    const transformedLevels = levels.map(level => ({
-      ...level,
-      topics: level.topics.map(topic => ({
-        ...topic,
-        problems: topic.problems.map(problem => ({
-          ...problem,
-          completed: problem.completedBy.length > 0 || problem.progress.some(p => p.status === 'COMPLETED'),
-          collectionIds: problem.collections.map(pc => pc.collection.id),
-          completedBy: undefined,
-          progress: undefined,
-          collections: undefined
+    // Transform the response to include completion status, collection IDs, tests, and exam pass status
+    const transformedLevels = levels.map(level => {
+      // Check if the user has passed at least one exam in this level
+      const hasPassedExam = level.tests.some(test => test.attempts && test.attempts.length > 0 && test.attempts[0].passed);
+      
+      return {
+        ...level,
+        hasPassedExam, // Add the calculated flag
+        topics: level.topics.map(topic => ({
+          ...topic,
+          problems: topic.problems.map(problem => ({
+            ...problem,
+            completed: problem.completedBy.length > 0 || problem.progress.some(p => p.status === 'COMPLETED'),
+            collectionIds: problem.collections.map(pc => pc.collection.id),
+            // Clean up data not needed by frontend
+            completedBy: undefined, 
+            progress: undefined,
+            collections: undefined
+          }))
+        })),
+        // Clean up attempt data from the tests array in the final response
+        tests: level.tests.map(test => ({
+          ...test,
+          attempts: undefined // Remove attempts array from the final response
         }))
-      })),
-      // Ensure tests array is included (it should be from the Prisma query)
-      tests: level.tests || [] 
-    }));
+      };
+    });
 
     res.json(transformedLevels);
   } catch (error) {
