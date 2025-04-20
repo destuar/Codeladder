@@ -12,6 +12,7 @@ interface TestRunnerProps {
   testCases: TestCaseType[];
   problemId: string;
   onRunComplete?: () => void;
+  onAllTestsPassed?: () => void;
   language: string;
   isRunning?: boolean;
   setIsRunning?: React.Dispatch<React.SetStateAction<boolean>>;
@@ -25,6 +26,7 @@ export function TestRunner({
   testCases, 
   problemId, 
   onRunComplete,
+  onAllTestsPassed,
   language,
   isRunning: externalIsRunning,
   setIsRunning: externalSetIsRunning
@@ -39,6 +41,7 @@ export function TestRunner({
   
   const {
     testResults,
+    allPassed,
     runTests,
     runQuickTests,
   } = useTestRunner();
@@ -63,7 +66,15 @@ export function TestRunner({
     setIsRunning(true);
     try {
       await runTests(code, testCases, problemId, language);
+      
+      // Call onRunComplete for all runs
       onRunComplete?.();
+      
+      // If all tests passed, call the onAllTestsPassed callback
+      if (allPassed && onAllTestsPassed) {
+        onAllTestsPassed();
+      }
+      
       // Automatically switch to results tab after running tests
       if (testResults.length > 0) {
         setActiveTab("result");

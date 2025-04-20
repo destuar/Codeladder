@@ -6,7 +6,7 @@ import { isMarkdown } from "@/lib/markdown-to-html";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from '@/lib/utils';
 import { Badge } from "@/components/ui/badge";
-import { Timer, RepeatIcon } from "lucide-react";
+import { Timer, RepeatIcon, FileText, Clipboard, History } from "lucide-react";
 import { CodingProblemProps } from '../../types';
 import { ResizablePanel } from './ResizablePanel';
 import { ProblemTimer } from './timer/ProblemTimer';
@@ -29,6 +29,9 @@ import {
 import { Button } from "@/components/ui/button";
 import { SupportedLanguage, LANGUAGE_CONFIGS } from "../../types/coding";
 import { Resizable } from "re-resizable";
+import { toast } from "sonner";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { SubmissionsTab } from './submissions/SubmissionsTab';
 
 const MIN_PANEL_WIDTH = 300;
 const MAX_PANEL_WIDTH = 800;
@@ -64,6 +67,7 @@ export default function CodingProblem({
   const [code, setCode] = useState(codeTemplate || '');
   const [isRunning, setIsRunning] = useState(false);
   const editorRef = useRef<any>(null);
+  const [leftPanelTab, setLeftPanelTab] = useState("description");
 
   // Use the problem completion hook
   const { 
@@ -178,41 +182,62 @@ export default function CodingProblem({
             onResize={setLeftPanelWidth}
             className="border-r h-full"
           >
-            <ScrollArea className="h-full" type="hover">
-              <div className="p-6 space-y-6 w-full">
-                <div className="space-y-4">
-                  <h1 className="text-3xl font-bold">{title}</h1>
-                  <div className="flex items-center gap-2">
-                    <Badge variant="outline" className={cn("font-semibold", getDifficultyColor())}>
-                      {difficulty.replace(/_/g, ' ')}
-                    </Badge>
-                    {formattedTime && (
-                      <div className="flex items-center text-sm text-muted-foreground">
-                        <Timer className="w-4 h-4 mr-1" />
-                        <span>{formattedTime}</span>
-                      </div>
-                    )}
-                  </div>
-                </div>
-                <div className="max-w-full overflow-hidden">
-                  {isMarkdown(content) ? (
-                    // For backward compatibility, use Markdown for existing markdown content
-                    <div className="prose dark:prose-invert max-w-full overflow-hidden">
-                      <Markdown 
-                        content={content}
-                        className="max-w-full [&_pre]:!whitespace-pre-wrap [&_pre]:!break-words [&_code]:!whitespace-pre-wrap [&_code]:!break-words [&_pre]:!max-w-full [&_pre]:!overflow-x-auto"
-                      />
-                    </div>
-                  ) : (
-                    // Use HtmlContent for HTML content
-                    <HtmlContent 
-                      content={content} 
-                      className="max-w-full [&_pre]:!whitespace-pre-wrap [&_pre]:!break-words [&_code]:!whitespace-pre-wrap [&_code]:!break-words [&_pre]:!max-w-full [&_pre]:!overflow-x-auto"
-                    />
-                  )}
-                </div>
+            <Tabs value={leftPanelTab} onValueChange={setLeftPanelTab} className="h-full flex flex-col">
+              <div className="border-b px-4 py-2 bg-muted/20 flex-shrink-0">
+                <TabsList className="bg-muted">
+                  <TabsTrigger value="description" className="flex items-center gap-1">
+                    <FileText className="h-4 w-4" />
+                    <span>Description</span>
+                  </TabsTrigger>
+                  <TabsTrigger value="submissions" className="flex items-center gap-1">
+                    <History className="h-4 w-4" />
+                    <span>Submissions</span>
+                  </TabsTrigger>
+                </TabsList>
               </div>
-            </ScrollArea>
+            
+              <TabsContent value="description" className="h-full flex-1 overflow-hidden m-0 p-0">
+                <ScrollArea className="h-full" type="hover">
+                  <div className="p-6 space-y-6 w-full">
+                    <div className="space-y-4">
+                      <h1 className="text-3xl font-bold">{title}</h1>
+                      <div className="flex items-center gap-2">
+                        <Badge variant="outline" className={cn("font-semibold", getDifficultyColor())}>
+                          {difficulty.replace(/_/g, ' ')}
+                        </Badge>
+                        {formattedTime && (
+                          <div className="flex items-center text-sm text-muted-foreground">
+                            <Timer className="w-4 h-4 mr-1" />
+                            <span>{formattedTime}</span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                    <div className="max-w-full overflow-hidden">
+                      {isMarkdown(content) ? (
+                        // For backward compatibility, use Markdown for existing markdown content
+                        <div className="prose dark:prose-invert max-w-full overflow-hidden">
+                          <Markdown 
+                            content={content}
+                            className="max-w-full [&_pre]:!whitespace-pre-wrap [&_pre]:!break-words [&_code]:!whitespace-pre-wrap [&_code]:!break-words [&_pre]:!max-w-full [&_pre]:!overflow-x-auto"
+                          />
+                        </div>
+                      ) : (
+                        // Use HtmlContent for HTML content
+                        <HtmlContent 
+                          content={content} 
+                          className="max-w-full [&_pre]:!whitespace-pre-wrap [&_pre]:!break-words [&_code]:!whitespace-pre-wrap [&_code]:!break-words [&_pre]:!max-w-full [&_pre]:!overflow-x-auto"
+                        />
+                      )}
+                    </div>
+                  </div>
+                </ScrollArea>
+              </TabsContent>
+              
+              <TabsContent value="submissions" className="h-full flex-1 overflow-hidden m-0 p-0">
+                <SubmissionsTab problemId={problemId} />
+              </TabsContent>
+            </Tabs>
           </ResizablePanel>
 
           {/* Right panel - Vertically arranged Code Editor and Test Runner */}
@@ -274,6 +299,14 @@ export default function CodingProblem({
                 testCases={testCases}
                 problemId={problemId}
                 onRunComplete={() => {}}
+                onAllTestsPassed={() => {
+                  // If problem is not already completed, mark it as complete
+                  if (!hookIsCompleted) {
+                    console.log('All tests passed, automatically marking problem as complete');
+                    hookHandleMarkComplete();
+                    toast.success('Congratulations! All tests passed. Problem automatically marked as complete! 🎉');
+                  }
+                }}
                 language={selectedLanguage}
                 isRunning={isRunning}
                 setIsRunning={setIsRunning}

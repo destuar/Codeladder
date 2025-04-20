@@ -695,6 +695,26 @@ export const api = {
       throw error;
     }
   },
+
+  // Get submissions for a problem
+  async getProblemSubmissions(problemId: string, token: string) {
+    try {
+      return await this.get(`/problems/${problemId}/submissions`, token);
+    } catch (error) {
+      console.error('Failed to fetch problem submissions:', error);
+      throw error;
+    }
+  },
+
+  // Get a single submission with full details
+  async getSubmissionDetails(submissionId: string, token: string) {
+    try {
+      return await this.get(`/problems/submissions/${submissionId}`, token);
+    } catch (error) {
+      console.error('Failed to fetch submission details:', error);
+      throw error;
+    }
+  },
 };
 
 export const getProblem = async (problemId: string) => {

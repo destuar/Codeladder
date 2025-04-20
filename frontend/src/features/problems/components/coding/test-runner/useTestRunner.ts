@@ -32,6 +32,7 @@ interface RunTestsResponse {
 
 interface UseTestRunnerResult {
   testResults: TestResult[];
+  allPassed: boolean;
   runTests: (code: string, testCases: TestCase[], problemId: string, language: string) => Promise<void>;
   runQuickTests: (code: string, problemId: string, language: string) => Promise<void>;
   runCustomTest: (code: string, input: any[], functionName: string, language: string) => Promise<TestResult>;
@@ -43,6 +44,7 @@ interface UseTestRunnerResult {
  */
 export function useTestRunner(): UseTestRunnerResult {
   const [testResults, setTestResults] = useState<TestResult[]>([]);
+  const [allPassed, setAllPassed] = useState<boolean>(false);
   // Store pending requests for retry after token refresh
   const pendingRequests = useRef<Array<() => Promise<void>>>([]);
   // Track if a token refresh is in progress
@@ -113,6 +115,7 @@ export function useTestRunner(): UseTestRunnerResult {
   const runTests = useCallback(async (code: string, testCases: TestCase[], problemId: string, language: string) => {
     const executeRequest = async () => {
       setTestResults([]);
+      setAllPassed(false);
       
       try {
         // Call the backend API with secure headers
@@ -127,6 +130,7 @@ export function useTestRunner(): UseTestRunnerResult {
         // Process the results
         if (data && data.results && Array.isArray(data.results)) {
           setTestResults(data.results);
+          setAllPassed(data.allPassed);
         } else {
           throw new Error('Invalid response format from server');
         }
@@ -144,9 +148,9 @@ export function useTestRunner(): UseTestRunnerResult {
             expected: "Error",
             output: "Failed to execute tests",
             runtime: 0,
-            memory: 0,
             error: error instanceof Error ? error.message : 'Unknown error'
           }]);
+          setAllPassed(false);
         }
       }
     };
@@ -159,6 +163,7 @@ export function useTestRunner(): UseTestRunnerResult {
   const runQuickTests = useCallback(async (code: string, problemId: string, language: string) => {
     const quickTestRequest = async () => {
       setTestResults([]);
+      setAllPassed(false);
       
       try {
         // Call the backend API with secure headers
@@ -173,6 +178,7 @@ export function useTestRunner(): UseTestRunnerResult {
         // Process the results
         if (data && data.results && Array.isArray(data.results)) {
           setTestResults(data.results);
+          setAllPassed(data.allPassed);
         } else {
           throw new Error('Invalid response format from server');
         }
@@ -190,9 +196,9 @@ export function useTestRunner(): UseTestRunnerResult {
             expected: "Error",
             output: "Failed to execute tests",
             runtime: 0,
-            memory: 0,
             error: error instanceof Error ? error.message : 'Unknown error'
           }]);
+          setAllPassed(false);
         }
       }
     };
@@ -262,6 +268,7 @@ export function useTestRunner(): UseTestRunnerResult {
 
   return {
     testResults,
+    allPassed,
     runTests,
     runQuickTests,
     runCustomTest,

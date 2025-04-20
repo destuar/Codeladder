@@ -163,6 +163,73 @@ router.get('/:problemId', authenticateToken, (async (req, res) => {
   }
 }) as RequestHandler);
 
+// Get submissions for a problem
+router.get('/:problemId/submissions', authenticateToken, (async (req, res) => {
+  try {
+    const { problemId } = req.params;
+    const userId = req.user?.id;
+
+    if (!userId) {
+      return res.status(401).json({ error: 'User not authenticated' });
+    }
+
+    // Get submissions for this problem by the current user
+    const submissions = await prisma.submission.findMany({
+      where: {
+        problemId,
+        userId
+      },
+      orderBy: {
+        submittedAt: 'desc'
+      },
+      select: {
+        id: true,
+        language: true,
+        status: true,
+        executionTime: true,
+        memory: true,
+        passed: true,
+        submittedAt: true,
+        code: false // Don't include code in the listing to reduce payload size
+      }
+    });
+
+    res.json(submissions);
+  } catch (error) {
+    console.error('Error fetching problem submissions:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+}) as RequestHandler);
+
+// Get a single submission with full details
+router.get('/submissions/:submissionId', authenticateToken, (async (req, res) => {
+  try {
+    const { submissionId } = req.params;
+    const userId = req.user?.id;
+
+    if (!userId) {
+      return res.status(401).json({ error: 'User not authenticated' });
+    }
+
+    // Get the submission, ensuring it belongs to the current user
+    const submission = await prisma.submission.findFirst({
+      where: {
+        id: submissionId,
+        userId
+      }
+    });
+
+    if (!submission) {
+      return res.status(404).json({ error: 'Submission not found' });
+    }
+
+    res.json(submission);
+  } catch (error) {
+    console.error('Error fetching submission details:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+}) as RequestHandler);
+
 // Get problems by type
 router.get('/', authenticateToken, (async (req, res) => {
   try {
