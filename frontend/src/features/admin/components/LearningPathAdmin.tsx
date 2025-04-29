@@ -42,6 +42,13 @@ type TestCase = {
   isHidden: boolean;
 };
 
+// Add a more robust parameter type
+type FunctionParameter = {
+  name: string;
+  type: string;
+  description?: string;
+};
+
 type NewProblem = {
   name: string;
   content: string;
@@ -58,6 +65,8 @@ type NewProblem = {
   functionName: string;
   timeLimit: number;
   memoryLimit?: number;
+  return_type?: string; // Add return type
+  params?: FunctionParameter[]; // Add params as array of objects
 };
 
 type DraggedProblem = Problem & {
@@ -118,7 +127,7 @@ type EditProblemData = {
     timeLimit?: number;
     memoryLimit?: number;
     return_type?: string;
-    params?: any[];
+    params?: FunctionParameter[]; // Updated type
   };
 };
 
@@ -278,7 +287,9 @@ export function LearningPathAdmin() {
     language: "javascript",
     functionName: "",
     timeLimit: 5000,
-    memoryLimit: undefined
+    memoryLimit: undefined,
+    return_type: "", // Initialize return_type
+    params: [] // Initialize params
   });
 
   const [isDragging, setIsDragging] = useState(false);
@@ -295,6 +306,58 @@ export function LearningPathAdmin() {
   // ***
 
   const [isLoadingProblems, setIsLoadingProblems] = useState(false); // Add this state
+
+  // Add the helper functions here, inside the component
+  // Helper function to parse params
+  const parseParams = (params: any): FunctionParameter[] => {
+    if (!params) return [];
+    
+    if (typeof params === 'string') {
+      try {
+        const parsed = JSON.parse(params);
+        return Array.isArray(parsed) ? parsed : [];
+      } catch (error) {
+        console.error("Error parsing params:", error);
+        return [];
+      }
+    }
+    
+    return Array.isArray(params) ? params : [];
+  };
+
+  // Function to handle parameter changes for new problem form  
+  const handleParamChange = (index: number, field: string, value: string) => {
+    setNewProblem(prev => {
+      const params = [...(prev.params || [])];
+      
+      // If the parameter doesn't exist yet, create it
+      if (!params[index]) {
+        params[index] = { name: '', type: '' };
+      }
+      
+      // Update the parameter field
+      params[index] = { ...params[index], [field]: value };
+      
+      return { ...prev, params };
+    });
+  };
+
+  // Function to add a new param to the new problem form
+  const handleAddParam = () => {
+    setNewProblem(prev => ({
+      ...prev,
+      params: [...(prev.params || []), { name: '', type: '' }]
+    }));
+  };
+
+  // Function to remove a param from the new problem form
+  const handleRemoveParam = (index: number) => {
+    setNewProblem(prev => {
+      const params = [...(prev.params || [])];
+      params.splice(index, 1);
+      return { ...prev, params };
+    });
+  };
 
   // Listen for problem removal events from the ProblemCollectionAdmin component
   useEffect(() => {
@@ -482,7 +545,9 @@ export function LearningPathAdmin() {
           language: newProblem.language,
           functionName: newProblem.functionName,
           timeLimit: Number(newProblem.timeLimit),
-          memoryLimit: newProblem.memoryLimit ? Number(newProblem.memoryLimit) : undefined
+          memoryLimit: newProblem.memoryLimit ? Number(newProblem.memoryLimit) : undefined,
+          return_type: newProblem.return_type, // Add return_type
+          params: newProblem.params ? JSON.stringify(newProblem.params) : undefined // Add params with JSON serialization
         } : {}),
         ...(newProblem.estimatedTime ? { estimatedTime: newProblem.estimatedTime } : {})
       };
@@ -506,7 +571,9 @@ export function LearningPathAdmin() {
         language: "javascript",
         functionName: "",
         timeLimit: 5000,
-        memoryLimit: undefined
+        memoryLimit: undefined,
+        return_type: "", // Reset return_type
+        params: [] // Reset params
       });
       
       toast.success("Problem added successfully");
@@ -716,7 +783,7 @@ export function LearningPathAdmin() {
         problemPayload.timeLimit = editProblemData.codeProblem.timeLimit;
         problemPayload.memoryLimit = editProblemData.codeProblem.memoryLimit;
         problemPayload.return_type = editProblemData.codeProblem.return_type;
-        problemPayload.params = editProblemData.codeProblem.params;
+        problemPayload.params = JSON.stringify(editProblemData.codeProblem.params || []);
       }
 
       // Handle topic change separately (if logic is needed)
@@ -789,7 +856,9 @@ export function LearningPathAdmin() {
         language: "javascript",
         functionName: "",
         timeLimit: 5000,
-        memoryLimit: undefined
+        memoryLimit: undefined,
+        return_type: "", // Reset return_type
+        params: [] // Reset params
       } : {})
     }));
   };
@@ -1149,7 +1218,8 @@ export function LearningPathAdmin() {
             timeLimit: problemDetails.codeProblem.timeLimit || 5000,
             memoryLimit: problemDetails.codeProblem.memoryLimit,
             return_type: problemDetails.codeProblem.return_type || '',
-            params: problemDetails.codeProblem.params || [],
+            // Handle params parsing
+            params: parseParams(problemDetails.codeProblem.params),
             testCases: (Array.isArray(problemDetails.codeProblem.testCases) ? problemDetails.codeProblem.testCases : []).map((tc: any) => ({ 
               input: tc.input || '', 
               expected: tc.expectedOutput || '', // Map backend field name
@@ -1813,6 +1883,67 @@ export function LearningPathAdmin() {
                 </div>
                 
                 <div className="grid gap-2">
+                  <Label htmlFor="return_type">Return Type</Label>
+                  <Input
+                    id="return_type"
+                    name="return_type"
+                    value={newProblem.return_type || ""}
+                    onChange={(e) => setNewProblem(prev => ({ ...prev, return_type: e.target.value }))}
+                    placeholder="e.g., number, string, boolean, number[]"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Specify the return type of the function (e.g., number, string, boolean)
+                  </p>
+                </div>
+                
+                <div className="grid gap-2">
+                  <Label>Function Parameters</Label>
+                  <div className="border rounded-md p-4 space-y-3">
+                    {(newProblem.params || []).map((param, index) => (
+                      <div key={index} className="flex gap-2 items-end">
+                        <div className="flex-1">
+                          <Label htmlFor={`param-name-${index}`} className="text-xs">Name</Label>
+                          <Input
+                            id={`param-name-${index}`}
+                            value={param.name || ''}
+                            onChange={(e) => handleParamChange(index, 'name', e.target.value)}
+                            placeholder="Parameter name"
+                          />
+                        </div>
+                        <div className="flex-1">
+                          <Label htmlFor={`param-type-${index}`} className="text-xs">Type</Label>
+                          <Input
+                            id={`param-type-${index}`}
+                            value={param.type || ''}
+                            onChange={(e) => handleParamChange(index, 'type', e.target.value)}
+                            placeholder="e.g., number, string"
+                          />
+                        </div>
+                        <Button 
+                          type="button" 
+                          variant="ghost" 
+                          size="icon" 
+                          onClick={() => handleRemoveParam(index)}
+                        >
+                          <Trash className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    ))}
+                    
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={handleAddParam}
+                      className="w-full"
+                    >
+                      <PlusCircle className="h-4 w-4 mr-2" />
+                      Add Parameter
+                    </Button>
+                  </div>
+                </div>
+                
+                <div className="grid gap-2">
                   <Label htmlFor="timeLimit">Time Limit (ms)</Label>
                   <Input
                     id="timeLimit"
@@ -2305,8 +2436,11 @@ export function LearningPathAdmin() {
                       name="return_type"
                       value={editProblemData.codeProblem.return_type || ""}
                       onChange={handleEditProblemCodeProblemChange}
-                      placeholder="e.g., int[], string, boolean"
+                      placeholder="e.g., number, string, boolean, number[]"
                     />
+                    <p className="text-xs text-muted-foreground">
+                      Specify the return type of the function (e.g., number, string, boolean)
+                    </p>
                   </div>
                   {/* Add params editor */}
                   <div className="grid gap-2">
@@ -2356,6 +2490,27 @@ export function LearningPathAdmin() {
                                     }
                                   }}
                                   placeholder="param type"
+                                />
+                              </div>
+                              <div className="flex-1">
+                                <Label htmlFor={`param-description-${index}`} className="text-xs">Description (Optional)</Label>
+                                <Input
+                                  id={`param-description-${index}`}
+                                  value={param.description || ''}
+                                  onChange={(e) => {
+                                    if (editProblemData && editProblemData.codeProblem) {
+                                      const newParams = [...(editProblemData.codeProblem.params || [])];
+                                      newParams[index] = { ...newParams[index], description: e.target.value };
+                                      setEditProblemData({
+                                        ...editProblemData,
+                                        codeProblem: {
+                                          ...editProblemData.codeProblem,
+                                          params: newParams
+                                        }
+                                      });
+                                    }
+                                  }}
+                                  placeholder="description (optional)"
                                 />
                               </div>
                               <Button 

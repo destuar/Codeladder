@@ -301,13 +301,14 @@ model McOption {
 }
 
 model CodeProblem {
-  questionId   String       @id @map("question_id")
-  question     QuizQuestion @relation("QuizQuestionToCodeProblem", fields: [questionId], references: [id], onDelete: Cascade)
-  codeTemplate String?      @map("code_template") @db.Text
-  functionName String?      @map("function_name")
-  language     String       @default("javascript")
-  timeLimit    Int          @default(5000) @map("time_limit") // Execution time limit in ms
-  memoryLimit  Int?         @map("memory_limit") // Memory limit in MB if applicable
+  id            String       @id @default(cuid())
+  question      QuizQuestion? @relation("QuizQuestionToCodeProblem", fields: [questionId], references: [id], onDelete: Cascade)
+  questionId    String?      @map("question_id") @unique
+  codeTemplate  String?      @map("code_template") @db.Text
+  functionName  String?      @map("function_name")
+  language      String       @default("javascript")
+  timeLimit     Int          @default(5000) @map("time_limit") // Execution time limit in ms
+  memoryLimit   Int?         @map("memory_limit") // Memory limit in MB if applicable
   
   // New JSON fields for structured test data
   return_type  String?      @map("return_type")
@@ -321,12 +322,14 @@ model CodeProblem {
   problem   Problem? @relation("ProblemToCodeProblem", fields: [problemId], references: [id])
   problemId String?  @map("problem_id") @unique
 
+  @@index([questionId])
+  @@index([problemId])
   @@map("code_problems")
 }
 
 model TestCase {
   id             String      @id @default(cuid())
-  codeProblem    CodeProblem @relation(fields: [codeProblemId], references: [questionId], onDelete: Cascade)
+  codeProblem    CodeProblem @relation(fields: [codeProblemId], references: [id], onDelete: Cascade)
   codeProblemId  String      @map("code_problem_id")
   input          String      @db.Text
   expectedOutput String      @map("expected_output") @db.Text

@@ -411,8 +411,7 @@ router.post('/', authenticateToken, authorizeRoles([Role.ADMIN, Role.DEVELOPER])
             functionName: functionName || 'solution',
             timeLimit: timeLimit ? Number(timeLimit) : 5000,
             memoryLimit: memoryLimit ? Number(memoryLimit) : null,
-            // Required for UncheckedCreate
-            questionId: undefined as unknown as string, // Will be assigned by Prisma
+            // No longer need to specify questionId since it's now optional
             // Add JSON fields
             testCases: {
               create: parsedTestCases ? parsedTestCases.map((testCase) => ({
@@ -621,14 +620,11 @@ router.put('/:problemId', authenticateToken, authorizeRoles([Role.ADMIN, Role.DE
         if (existingCodeProblem) {
           // Update existing CodeProblem - handle different ID fields with type casting
           const codeProblemObj = existingCodeProblem as any;
-          const codeProblemId = codeProblemObj.questionId || codeProblemObj.id || codeProblemObj.problemId;
+          const codeProblemId = codeProblemObj.id; // Use the new id field as primary key
           finalCodeProblemId = codeProblemId;
           
           // Create where clause safely
-          const whereClause: any = {};
-          if (codeProblemObj.questionId) whereClause.questionId = codeProblemObj.questionId;
-          if (codeProblemObj.id) whereClause.id = codeProblemObj.id;
-          if (codeProblemObj.problemId) whereClause.problemId = codeProblemObj.problemId;
+          const whereClause: any = { id: codeProblemId };
           
           const updateData: any = {
             ...(codeTemplate !== undefined && { codeTemplate }),
@@ -774,24 +770,10 @@ router.put('/:problemId', authenticateToken, authorizeRoles([Role.ADMIN, Role.DE
 
       // --- Handle Connections/Disconnections for Relations ---
       if (effectiveProblemType === 'CODING' && finalCodeProblemId) {
-        // Safe-build the connection clause based on available properties
-        const connectClause: any = {};
-        
-        // Type cast existingCodeProblem for safe property access 
-        const codeProblemObj = existingCodeProblem as any;
-        
-        if (codeProblemObj?.questionId) {
-          connectClause.questionId = finalCodeProblemId;
-        } else if (codeProblemObj?.id) {
-          connectClause.id = finalCodeProblemId;
-        } else if (codeProblemObj?.problemId) {
-          connectClause.problemId = finalCodeProblemId;
-        } else {
-          // Default if no identifying property found
-          connectClause.questionId = finalCodeProblemId;
-        }
-        
-        problemUpdateData.codeProblem = { connect: connectClause };
+        // Connect using the id field - use type assertion to work around TS errors
+        (problemUpdateData.codeProblem as any) = { 
+          connect: { id: finalCodeProblemId } 
+        };
       } else { 
         // Disconnect codeProblem if type is neither or related record wasn't created/found
         if (currentProblem.codeProblem) problemUpdateData.codeProblem = { disconnect: true };
