@@ -2234,7 +2234,7 @@ router.post('/', authenticateToken, authorizeRoles([Role.ADMIN, Role.DEVELOPER])
                     functionName: problem.functionName || null,
                     timeLimit: problem.timeLimit || 5000,
                     memoryLimit: problem.memoryLimit || null
-                  } as Prisma.CodeProblemUncheckedCreateWithoutQuizQuestionInput
+                  } as Prisma.CodeProblemUncheckedCreateWithoutQuestionInput
                 }
               },
               include: {
@@ -2481,30 +2481,47 @@ router.post('/:quizId/questions', authenticateToken, authorizeRoles([Role.ADMIN,
       // Create CODE question with test cases
       createdQuestion = await prisma.$transaction(async (prisma) => {
         // Create base question with inline CodeProblem
-        const question = await prisma.quizQuestion.create({
-          data: {
-            quizId,
-            questionText: questionData.questionText,
-            questionType: questionData.questionType,
-            points: questionData.points || 1,
-            orderNum,
-            difficulty: questionData.difficulty || 'MEDIUM',
-            codeProblem: {
-              create: {
-                questionId: undefined as unknown as string, // Will be set by Prisma to match QuizQuestion.id
-                language: questionData.language || 'javascript',
-                codeTemplate: questionData.codeTemplate || null,
-                functionName: questionData.functionName || null,
-                timeLimit: questionData.timeLimit || 5000,
-                memoryLimit: questionData.memoryLimit || null
-              } satisfies Prisma.CodeProblemUncheckedCreateWithoutQuizQuestionInput
+        const questionCreateData: any = {
+          quiz: { connect: { id: quizId } },
+          questionText: questionData.questionText,
+          questionType: 'CODE',
+          points: questionData.points || 1,
+          orderNum: questionData.orderNum,
+          difficulty: questionData.difficulty,
+          codeProblem: {
+            create: {
+              codeTemplate: questionData.codeProblem?.codeTemplate || null,
+              language: questionData.codeProblem?.language || 'javascript',
+              functionName: questionData.codeProblem?.functionName || null,
+              timeLimit: questionData.codeProblem?.timeLimit || 5000,
+              memoryLimit: questionData.codeProblem?.memoryLimit || null,
             }
-          },
+          }
+        };
+        
+        // Add custom fields to the nested create outside the TypeScript type system
+        if (questionData.codeProblem?.return_type) {
+          (questionCreateData.codeProblem.create as any).return_type = questionData.codeProblem.return_type;
+        }
+        
+        if (questionData.codeProblem?.params) {
+          const paramsValue = typeof questionData.codeProblem.params === 'string' 
+            ? questionData.codeProblem.params 
+            : JSON.stringify(questionData.codeProblem.params);
+          (questionCreateData.codeProblem.create as any).params = paramsValue;
+        }
+        
+        if (Array.isArray(questionData.testCases)) {
+          (questionCreateData.codeProblem.create as any).test_cases = JSON.stringify(questionData.testCases);
+        }
+        
+        const question = await prisma.quizQuestion.create({
+          data: questionCreateData,
           include: {
             codeProblem: true
           }
         }) as QuizQuestionWithCodeProblem;
-
+        
         // Create test cases if we have them and codeProblem was created
         if (Array.isArray(questionData.testCases) && question.codeProblem) {
           const codeProblemId = question.codeProblem.questionId;
@@ -2745,17 +2762,35 @@ router.put('/questions/:questionId', authenticateToken, authorizeRoles([Role.ADM
           if (!codeProblemData) {
             throw new Error("Cannot change question type to CODE without providing 'codeProblem' details.");
           }
+          // Prepare data for create with proper type handling
+          const codeProblemCreateData: any = {
+            questionId: questionId, // Will use questionId as primary key
+            language: codeProblemData.language || 'javascript',
+            codeTemplate: codeProblemData.codeTemplate || null,
+            functionName: codeProblemData.functionName || null,
+            timeLimit: codeProblemData.timeLimit || 5000,
+            memoryLimit: codeProblemData.memoryLimit || null,
+          };
+          
+          // Add custom fields outside the type system
+          if (codeProblemData.return_type) {
+            codeProblemCreateData.return_type = codeProblemData.return_type;
+          }
+          
+          if (codeProblemData.params) {
+            codeProblemCreateData.params = typeof codeProblemData.params === 'string'
+              ? codeProblemData.params
+              : JSON.stringify(codeProblemData.params);
+          }
+          
+          if (codeProblemData.test_cases) {
+            codeProblemCreateData.test_cases = typeof codeProblemData.test_cases === 'string'
+              ? codeProblemData.test_cases
+              : JSON.stringify(codeProblemData.test_cases);
+          }
+          
           const newCodeProblem = await prisma.codeProblem.create({
-            data: {
-              // questionId is the PK and must match QuizQuestion ID
-              questionId: questionId,
-              language: codeProblemData.language || 'javascript',
-              codeTemplate: codeProblemData.codeTemplate || null,
-              functionName: codeProblemData.functionName || null,
-              timeLimit: codeProblemData.timeLimit || 5000,
-              memoryLimit: codeProblemData.memoryLimit || null,
-              // We don't need to connect quizQuestion here as IDs match
-            }
+            data: codeProblemCreateData
           });
           targetCodeProblemId = newCodeProblem.questionId; // Should be same as questionId
           console.log(`Created new CodeProblem ${targetCodeProblemId} for question ${questionId}`);
@@ -2766,21 +2801,41 @@ router.put('/questions/:questionId', authenticateToken, authorizeRoles([Role.ADM
           if (!codeProblemData) {
             console.warn(`Updating CODE question ${questionId} without providing 'codeProblem' details. Skipping CodeProblem update.`);
           } else {
+            // --- Update existing CodeProblem ---
+            const updateData: any = {
+              // Carefully preserve existing values if not provided in update
+              language: codeProblemData.language || existingQuestion.codeProblem.language || 'javascript',
+              codeTemplate: codeProblemData.codeTemplate !== undefined ? codeProblemData.codeTemplate : existingQuestion.codeProblem.codeTemplate,
+              functionName: codeProblemData.functionName !== undefined ? codeProblemData.functionName : existingQuestion.codeProblem.functionName,
+              timeLimit: codeProblemData.timeLimit !== undefined ? codeProblemData.timeLimit : existingQuestion.codeProblem.timeLimit || 5000,
+              memoryLimit: codeProblemData.memoryLimit !== undefined ? codeProblemData.memoryLimit : existingQuestion.codeProblem.memoryLimit,
+            };
+            
+            // Handle custom fields
+            if (codeProblemData.return_type !== undefined) {
+              updateData.return_type = codeProblemData.return_type;
+            }
+            
+            if (codeProblemData.params !== undefined) {
+              updateData.params = typeof codeProblemData.params === 'string'
+                ? codeProblemData.params
+                : JSON.stringify(codeProblemData.params);
+            }
+            
+            if (codeProblemData.test_cases !== undefined) {
+              updateData.test_cases = typeof codeProblemData.test_cases === 'string'
+                ? codeProblemData.test_cases
+                : JSON.stringify(codeProblemData.test_cases);
+            }
+            
             await prisma.codeProblem.update({
               where: { questionId: targetCodeProblemId },
-              data: {
-                // Read nested data, falling back to existing values
-                language: codeProblemData.language || existingQuestion.codeProblem.language || 'javascript',
-                codeTemplate: codeProblemData.codeTemplate !== undefined ? codeProblemData.codeTemplate : existingQuestion.codeProblem.codeTemplate,
-                functionName: codeProblemData.functionName !== undefined ? codeProblemData.functionName : existingQuestion.codeProblem.functionName,
-                timeLimit: codeProblemData.timeLimit !== undefined ? codeProblemData.timeLimit : existingQuestion.codeProblem.timeLimit || 5000,
-                memoryLimit: codeProblemData.memoryLimit !== undefined ? codeProblemData.memoryLimit : existingQuestion.codeProblem.memoryLimit
-              }
+              data: updateData
             });
             console.log(`Updated existing CodeProblem ${targetCodeProblemId}`);
           }
           // Delete existing test cases before adding new ones (only if new ones are provided)
-          if (codeProblemData && Array.isArray(codeProblemData.testCases)) {
+          if (codeProblemData && Array.isArray(codeProblemData.test_cases)) {
              console.log(`Deleting existing test cases for CodeProblem ${targetCodeProblemId}`);
              await prisma.testCase.deleteMany({
                where: { codeProblemId: targetCodeProblemId }
@@ -2789,10 +2844,10 @@ router.put('/questions/:questionId', authenticateToken, authorizeRoles([Role.ADM
         }
 
         // 3. Create new TestCases (if provided)
-        if (codeProblemData && Array.isArray(codeProblemData.testCases)) {
-          console.log(`Creating ${codeProblemData.testCases.length} new test cases for CodeProblem ${targetCodeProblemId}`);
-          for (let i = 0; i < codeProblemData.testCases.length; i++) {
-            const testCase = codeProblemData.testCases[i];
+        if (codeProblemData && Array.isArray(codeProblemData.test_cases)) {
+          console.log(`Creating ${codeProblemData.test_cases.length} new test cases for CodeProblem ${targetCodeProblemId}`);
+          for (let i = 0; i < codeProblemData.test_cases.length; i++) {
+            const testCase = codeProblemData.test_cases[i];
             await prisma.testCase.create({
               data: {
                 codeProblemId: targetCodeProblemId, // Link to the correct CodeProblem ID

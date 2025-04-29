@@ -117,6 +117,8 @@ type EditProblemData = {
     functionName?: string;
     timeLimit?: number;
     memoryLimit?: number;
+    return_type?: string;
+    params?: any[];
   };
 };
 
@@ -565,7 +567,9 @@ export function LearningPathAdmin() {
               language: 'javascript',
               functionName: 'solution',
               timeLimit: 5000,
-              memoryLimit: undefined
+              memoryLimit: undefined,
+              return_type: '',
+              params: []
             }
           };
         }
@@ -602,7 +606,9 @@ export function LearningPathAdmin() {
         language: 'javascript',
         functionName: 'solution',
         timeLimit: 5000,
-        memoryLimit: undefined
+        memoryLimit: undefined,
+        return_type: '',
+        params: []
       };
       
       return {
@@ -709,6 +715,8 @@ export function LearningPathAdmin() {
         problemPayload.functionName = editProblemData.codeProblem.functionName;
         problemPayload.timeLimit = editProblemData.codeProblem.timeLimit;
         problemPayload.memoryLimit = editProblemData.codeProblem.memoryLimit;
+        problemPayload.return_type = editProblemData.codeProblem.return_type;
+        problemPayload.params = editProblemData.codeProblem.params;
       }
 
       // Handle topic change separately (if logic is needed)
@@ -1140,6 +1148,8 @@ export function LearningPathAdmin() {
             functionName: problemDetails.codeProblem.functionName || '',
             timeLimit: problemDetails.codeProblem.timeLimit || 5000,
             memoryLimit: problemDetails.codeProblem.memoryLimit,
+            return_type: problemDetails.codeProblem.return_type || '',
+            params: problemDetails.codeProblem.params || [],
             testCases: (Array.isArray(problemDetails.codeProblem.testCases) ? problemDetails.codeProblem.testCases : []).map((tc: any) => ({ 
               input: tc.input || '', 
               expected: tc.expectedOutput || '', // Map backend field name
@@ -2287,6 +2297,116 @@ export function LearningPathAdmin() {
                     </div>
                   </div>
                   {/* End Test Cases */}
+                  {/* Add return type field */}
+                  <div className="grid gap-2">
+                    <Label htmlFor="edit-return-type">Return Type</Label>
+                    <Input
+                      id="edit-return-type"
+                      name="return_type"
+                      value={editProblemData.codeProblem.return_type || ""}
+                      onChange={handleEditProblemCodeProblemChange}
+                      placeholder="e.g., int[], string, boolean"
+                    />
+                  </div>
+                  {/* Add params editor */}
+                  <div className="grid gap-2">
+                    <Label htmlFor="edit-params">Function Parameters</Label>
+                    <div className="border rounded-md p-4">
+                      {editProblemData.codeProblem.params && editProblemData.codeProblem.params.length > 0 ? (
+                        <div className="space-y-4">
+                          {editProblemData.codeProblem.params.map((param, index) => (
+                            <div key={index} className="flex gap-2 items-end">
+                              <div className="flex-1">
+                                <Label htmlFor={`param-name-${index}`} className="text-xs">Name</Label>
+                                <Input
+                                  id={`param-name-${index}`}
+                                  value={param.name || ''}
+                                  onChange={(e) => {
+                                    if (editProblemData && editProblemData.codeProblem) {
+                                      const newParams = [...(editProblemData.codeProblem.params || [])];
+                                      newParams[index] = { ...newParams[index], name: e.target.value };
+                                      setEditProblemData({
+                                        ...editProblemData,
+                                        codeProblem: {
+                                          ...editProblemData.codeProblem,
+                                          params: newParams
+                                        }
+                                      });
+                                    }
+                                  }}
+                                  placeholder="param name"
+                                />
+                              </div>
+                              <div className="flex-1">
+                                <Label htmlFor={`param-type-${index}`} className="text-xs">Type</Label>
+                                <Input
+                                  id={`param-type-${index}`}
+                                  value={param.type || ''}
+                                  onChange={(e) => {
+                                    if (editProblemData && editProblemData.codeProblem) {
+                                      const newParams = [...(editProblemData.codeProblem.params || [])];
+                                      newParams[index] = { ...newParams[index], type: e.target.value };
+                                      setEditProblemData({
+                                        ...editProblemData,
+                                        codeProblem: {
+                                          ...editProblemData.codeProblem,
+                                          params: newParams
+                                        }
+                                      });
+                                    }
+                                  }}
+                                  placeholder="param type"
+                                />
+                              </div>
+                              <Button 
+                                type="button" 
+                                variant="ghost" 
+                                size="icon" 
+                                onClick={() => {
+                                  if (editProblemData && editProblemData.codeProblem) {
+                                    const newParams = [...(editProblemData.codeProblem.params || [])];
+                                    newParams.splice(index, 1);
+                                    setEditProblemData({
+                                      ...editProblemData,
+                                      codeProblem: {
+                                        ...editProblemData.codeProblem,
+                                        params: newParams
+                                      }
+                                    });
+                                  }
+                                }}
+                              >
+                                <Trash className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <p className="text-center text-muted-foreground py-2">No parameters defined</p>
+                      )}
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          if (editProblemData && editProblemData.codeProblem) {
+                            const newParams = [...(editProblemData.codeProblem.params || []), { name: '', type: '' }];
+                            setEditProblemData({
+                              ...editProblemData,
+                              codeProblem: {
+                                ...editProblemData.codeProblem,
+                                params: newParams
+                              }
+                            });
+                          }
+                        }}
+                        className="w-full mt-4"
+                      >
+                        <PlusCircle className="h-4 w-4 mr-2" />
+                        Add Parameter
+                      </Button>
+                    </div>
+                  </div>
                 </div>
               ) : (
                 <p className="text-muted-foreground text-center py-4">Select 'CODING' type in General Info to edit code details.</p>

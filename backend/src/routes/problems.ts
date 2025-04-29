@@ -23,6 +23,8 @@ interface CreateProblemBody {
   functionName?: string;
   timeLimit?: number;
   memoryLimit?: number;
+  return_type?: string;
+  params?: string;
 }
 
 interface UpdateProblemBody {
@@ -41,6 +43,8 @@ interface UpdateProblemBody {
   functionName?: string;
   timeLimit?: number;
   memoryLimit?: number;
+  return_type?: string;
+  params?: string;
 }
 
 const router = express.Router();
@@ -308,7 +312,9 @@ router.post('/', authenticateToken, authorizeRoles([Role.ADMIN, Role.DEVELOPER])
       language = 'javascript',
       functionName,
       timeLimit,
-      memoryLimit
+      memoryLimit,
+      return_type,
+      params
     } = req.body as CreateProblemBody;
 
     console.log('Creating problem with data:', {
@@ -327,7 +333,9 @@ router.post('/', authenticateToken, authorizeRoles([Role.ADMIN, Role.DEVELOPER])
       language: problemType === 'CODING' ? language : undefined,
       functionName: problemType === 'CODING' ? functionName : undefined,
       timeLimit: problemType === 'CODING' ? timeLimit : undefined,
-      memoryLimit: problemType === 'CODING' ? memoryLimit : undefined
+      memoryLimit: problemType === 'CODING' ? memoryLimit : undefined,
+      return_type: return_type ? 'Provided' : undefined,
+      params: params ? 'Provided' : undefined
     });
 
     // Only validate topic if topicId is provided
@@ -403,15 +411,30 @@ router.post('/', authenticateToken, authorizeRoles([Role.ADMIN, Role.DEVELOPER])
             functionName: functionName || 'solution',
             timeLimit: timeLimit ? Number(timeLimit) : 5000,
             memoryLimit: memoryLimit ? Number(memoryLimit) : null,
+            // Required for UncheckedCreate
+            questionId: undefined as unknown as string, // Will be assigned by Prisma
+            // Add JSON fields
             testCases: {
-              create: parsedTestCases.map((testCase) => ({
-                input: testCase.input,
-                expectedOutput: testCase.expected,
-                isHidden: testCase.isHidden || false
-              }))
+              create: parsedTestCases ? parsedTestCases.map((testCase) => ({
+                input: testCase.input || JSON.stringify(testCase.input_args || {}),
+                expectedOutput: testCase.expected || JSON.stringify(testCase.expected_out || null),
+                isHidden: testCase.isHidden || (testCase.phase === 'hidden') || false
+              })) : []
             }
-          }
+          } as Prisma.CodeProblemUncheckedCreateWithoutProblemInput
         };
+
+        // Add additional properties outside the Prisma type system
+        // These will be stored in the database but TypeScript doesn't recognize them
+        if (return_type) {
+          (codeProblemCreateData.create as any).return_type = return_type;
+        }
+        if (params) {
+          (codeProblemCreateData.create as any).params = typeof params === 'string' ? params : JSON.stringify(params);
+        }
+        if (parsedTestCases && parsedTestCases.length > 0) {
+          (codeProblemCreateData.create as any).test_cases = JSON.stringify(parsedTestCases);
+        }
       }
       
       // Create the base Problem record
@@ -509,7 +532,9 @@ router.put('/:problemId', authenticateToken, authorizeRoles([Role.ADMIN, Role.DE
     language,
     functionName,
     timeLimit,
-    memoryLimit
+    memoryLimit,
+    return_type,
+    params
   } = req.body as UpdateProblemBody;
 
   try {
@@ -537,7 +562,9 @@ router.put('/:problemId', authenticateToken, authorizeRoles([Role.ADMIN, Role.DE
       language: problemType === 'CODING' ? language : undefined,
       functionName: problemType === 'CODING' ? functionName : undefined,
       timeLimit: problemType === 'CODING' ? timeLimit : undefined,
-      memoryLimit: problemType === 'CODING' ? memoryLimit : undefined
+      memoryLimit: problemType === 'CODING' ? memoryLimit : undefined,
+      return_type: return_type ? 'Provided' : undefined,
+      params: params ? 'Provided' : undefined
     });
 
     // Check for duplicate order number if reqOrder is provided and different from current
@@ -603,15 +630,28 @@ router.put('/:problemId', authenticateToken, authorizeRoles([Role.ADMIN, Role.DE
           if (codeProblemObj.id) whereClause.id = codeProblemObj.id;
           if (codeProblemObj.problemId) whereClause.problemId = codeProblemObj.problemId;
           
+          const updateData: any = {
+            ...(codeTemplate !== undefined && { codeTemplate }),
+            ...(language !== undefined && { language }),
+            ...(functionName !== undefined && { functionName }),
+            ...(timeLimit !== undefined && { timeLimit: parseInt(timeLimit.toString()) }),
+            ...(memoryLimit !== undefined && { memoryLimit: memoryLimit ? parseInt(memoryLimit.toString()) : null }),
+          };
+
+          // Add the new JSON fields with type assertion
+          if (return_type !== undefined) {
+            updateData.return_type = return_type;
+          }
+          if (params !== undefined) {
+            updateData.params = typeof params === 'string' ? params : JSON.stringify(params);
+          }
+          if (parsedTestCases) {
+            updateData.test_cases = JSON.stringify(parsedTestCases);
+          }
+          
           await tx.codeProblem.update({
             where: whereClause,
-            data: {
-              ...(codeTemplate !== undefined && { codeTemplate }),
-              ...(language !== undefined && { language }),
-              ...(functionName !== undefined && { functionName }),
-              ...(timeLimit !== undefined && { timeLimit: parseInt(timeLimit.toString()) }),
-              ...(memoryLimit !== undefined && { memoryLimit: memoryLimit ? parseInt(memoryLimit.toString()) : null })
-            }
+            data: updateData
           });
           
           // For test case deletion
@@ -636,23 +676,37 @@ router.put('/:problemId', authenticateToken, authorizeRoles([Role.ADMIN, Role.DE
           }
         } else {
           // Create new CodeProblem
-          const newCodeProblem = await tx.codeProblem.create({
-            data: {
-              problem: { connect: { id: problemId } },
-              codeTemplate: codeTemplate ?? null,
-              language: language ?? 'javascript',
-              functionName: functionName ?? null,
-              timeLimit: timeLimit ? parseInt(timeLimit.toString()) : 5000,
-              memoryLimit: memoryLimit ? parseInt(memoryLimit.toString()) : null,
-              testCases: {
-                create: Array.isArray(parsedTestCases) ? parsedTestCases.map((tc: any, index: number) => ({
-                  input: JSON.stringify(tc.input ?? ''),
-                  expectedOutput: JSON.stringify(tc.expectedOutput ?? ''),
-                  isHidden: tc.isHidden || false,
-                  orderNum: tc.orderNum || index + 1
-                })) : []
-              }
+          const codeProblemData: any = {
+            codeTemplate: codeTemplate ?? null,
+            language: language ?? 'javascript',
+            functionName: functionName ?? null,
+            timeLimit: timeLimit ? parseInt(timeLimit.toString()) : 5000,
+            memoryLimit: memoryLimit ? parseInt(memoryLimit.toString()) : null,
+            // Use unchecked create to directly reference problemId without question relation
+            problemId: problemId,
+            testCases: {
+              create: Array.isArray(parsedTestCases) ? parsedTestCases.map((tc: any, index: number) => ({
+                input: JSON.stringify(tc.input ?? tc.input_args ?? ''),
+                expectedOutput: JSON.stringify(tc.expected ?? tc.expected_out ?? ''),
+                isHidden: tc.isHidden || (tc.phase === 'hidden') || false,
+                orderNum: tc.orderNum || tc.case_id || index + 1
+              })) : []
             }
+          };
+
+          // Add the new JSON fields outside of the TypeScript type system
+          if (return_type) {
+            codeProblemData.return_type = return_type;
+          }
+          if (params) {
+            codeProblemData.params = typeof params === 'string' ? params : JSON.stringify(params);
+          }
+          if (parsedTestCases && parsedTestCases.length > 0) {
+            codeProblemData.test_cases = JSON.stringify(parsedTestCases);
+          }
+
+          const newCodeProblem = await tx.codeProblem.create({
+            data: codeProblemData
           });
           
           // Access ID safely with type casting

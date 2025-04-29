@@ -110,7 +110,7 @@ model Problem {
   topic         Topic?                @relation(fields: [topicId], references: [id]) // Make topic optional for standalone info
   topicId       String? // Make topicId optional for standalone info
   
-  // Updated relation to CodeProblem
+  // Fixed relation to CodeProblem
   codeProblem     CodeProblem? @relation("ProblemToCodeProblem")
   
   completedBy   User[]                @relation("UserCompletedProblems")
@@ -301,21 +301,25 @@ model McOption {
 }
 
 model CodeProblem {
-  questionId   String       @id @default(cuid()) @map("question_id")
-  quizQuestionId String?      @unique @map("quiz_question_id")
-  quizQuestion   QuizQuestion? @relation("QuizQuestionToCodeProblem", fields: [quizQuestionId], references: [id], onDelete: SetNull)
+  questionId   String       @id @map("question_id")
+  question     QuizQuestion @relation("QuizQuestionToCodeProblem", fields: [questionId], references: [id], onDelete: Cascade)
   codeTemplate String?      @map("code_template") @db.Text
   functionName String?      @map("function_name")
   language     String       @default("javascript")
-  timeLimit    Int          @default(5000) @map("time_limit")
-  memoryLimit  Int?         @map("memory_limit")
-
-  // Relation to the Problem model
-  problem      Problem?     @relation("ProblemToCodeProblem", fields: [problemId], references: [id], onDelete: SetNull)
-  problemId    String?      @unique @map("problem_id")
-
+  timeLimit    Int          @default(5000) @map("time_limit") // Execution time limit in ms
+  memoryLimit  Int?         @map("memory_limit") // Memory limit in MB if applicable
+  
+  // New JSON fields for structured test data
+  return_type  String?      @map("return_type")
+  params       Json?        @map("params") @default("[]")
+  test_cases   Json?        @map("test_cases") @default("[]")
+  
   // Test cases for this problem
   testCases TestCase[]
+
+  // Fixed relationship to Problem
+  problem   Problem? @relation("ProblemToCodeProblem", fields: [problemId], references: [id])
+  problemId String?  @map("problem_id") @unique
 
   @@map("code_problems")
 }
