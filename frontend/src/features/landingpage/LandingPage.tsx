@@ -127,7 +127,7 @@ export default function LandingPage() {
                       <Button 
                         size="lg" 
                         variant="outline"
-                        className="border-[#5b5bf7]/50 border-2 text-[#5b5bf7] hover:text-[#5b5bf7] hover:bg-white dark:hover:bg-[#5b5bf7]/10 w-full sm:w-auto py-6 px-8 text-lg font-medium transition-all duration-300 ease-in-out hover:scale-105 shadow-none"
+                        className="border-[#5b5bf7]/50 border-2 text-[#5b5bf7] hover:text-[#5b5bf7] hover:bg-transparent dark:hover:bg-[#5b5bf7]/[0.05] w-full sm:w-auto py-6 px-8 text-lg font-medium transition-all duration-300 ease-in-out hover:scale-105 shadow-none"
                       >
                         Log In
                       </Button>
