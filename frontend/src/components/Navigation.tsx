@@ -38,11 +38,11 @@ export function Navigation() {
     <>
       <nav 
         className={cn(
-          "fixed top-0 left-0 right-0 z-50 transition-[background-color,top,max-width,box-shadow,backdrop-filter] duration-300 ease-in-out",
+          "fixed top-0 left-0 right-0 z-50 transition-[background-color,top,max-width,box-shadow,backdrop-filter,border-radius] duration-[400ms] ease-in-out transition-top duration-700",
           "mx-auto",
           {
-            "top-4 max-w-6xl rounded-full shadow-md border-none bg-background/90 backdrop-blur-sm": isScrolled,
-            "bg-background max-w-full": !isScrolled
+            "top-4 max-w-6xl rounded-full shadow-md border-none bg-background/95 backdrop-blur-sm": isScrolled,
+            "bg-background/30 backdrop-blur-sm max-w-full": !isScrolled
           }
         )}
       >

@@ -89,9 +89,9 @@ export default function LandingPage() {
   }, []);
 
   return (
-    <div className="min-h-[calc(100vh-4rem)] bg-background relative overflow-hidden font-mono">
+    <div className="min-h-[calc(100vh-4rem)] bg-background relative overflow-visible font-mono">
       {/* Background patterns */}
-      <div className="absolute inset-0 bg-dot-[#5b5bf7]/[0.2] [mask-image:radial-gradient(ellipse_at_center,transparent_20%,black)]" />
+      <div className="absolute -top-16 inset-x-0 bottom-0 bg-dot-[#5b5bf7]/[0.2] [mask-image:radial-gradient(ellipse_at_center,transparent_20%,black)]" />
       
       {/* Spotlight effect - Only visible in dark mode */}
       {isDarkMode ? (
