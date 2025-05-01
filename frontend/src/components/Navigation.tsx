@@ -15,6 +15,8 @@ import {
   TooltipProvider, 
   TooltipTrigger 
 } from "@/components/ui/tooltip";
+import { Dialog, DialogTrigger, DialogContent, DialogClose, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { Menu } from "lucide-react";
 
 export function Navigation() {
   const location = useLocation();
@@ -82,14 +84,14 @@ export function Navigation() {
         >
           <div 
             className={cn(
-              "relative flex items-center h-16", // Base styles
+              "relative flex items-center justify-between h-16", // Added justify-between
               isLandingPage 
                 ? "transition-[padding] duration-700 ease-in-out" // Apply transition only on landing page
-                : "px-12", // Default padding for non-landing pages
+                : "px-6 lg:px-12", // Adjusted padding for mobile and lg+ non-landing pages
               {
                 // Padding variations for landing page
-                "px-4": shouldApplyScrollStyles, // Scrolled state
-                "px-12": isLandingPage && !isScrolled // Initial state
+                "px-4": shouldApplyScrollStyles, // Scrolled state (remains px-4 for mobile and desktop)
+                "px-6 lg:px-12": isLandingPage && !isScrolled // Initial state (mobile and lg+)
               }
             )}
           >
@@ -112,27 +114,25 @@ export function Navigation() {
             <div 
               className={cn(
                 "absolute inset-y-0 left-1/2 -translate-x-1/2",
-                "flex items-center justify-center gap-12 transition-opacity duration-200 ease-in-out"
+                "hidden lg:flex items-center justify-center gap-12 transition-opacity duration-200 ease-in-out"
               )}
             >
               {!canAccessAdmin ? (
-                <TooltipProvider delayDuration={100}>
-                  <Tooltip>
-                    <TooltipTrigger 
-                      asChild
-                      onClick={(e) => {
-                        e.preventDefault();
-                      }}
-                    >
-                      <span className="text-base font-medium text-muted-foreground hover:text-foreground cursor-pointer">
-                        Learn
-                      </span>
-                    </TooltipTrigger>
-                    <TooltipContent className="text-primary">
-                      <p>Coming Soon</p>
-                    </TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
+                <Dialog>
+                  <DialogTrigger asChild>
+                    <span className="text-base font-medium text-muted-foreground hover:text-foreground cursor-pointer">
+                      Learn
+                    </span>
+                  </DialogTrigger>
+                  <DialogContent className="sm:max-w-[425px]">
+                    <DialogHeader>
+                      <DialogTitle>Feature Coming Soon</DialogTitle>
+                      <DialogDescription>
+                        The full 'Learn' section featuring the mastery-based learning dashboard is currently under development. Check back later!
+                      </DialogDescription>
+                    </DialogHeader>
+                  </DialogContent>
+                </Dialog>
               ) : (
                 <Link 
                   to="/dashboard" 
@@ -150,7 +150,7 @@ export function Navigation() {
                 to={user ? "/collections" : "/login"}
                 className="text-base font-medium text-muted-foreground hover:text-foreground"
               >
-                <span className="relative inline-block px-1 py-0.5">
+                <span className="relative inline-block py-0.5">
                   Practice
                   <span 
                     className="absolute top-0 right-0 translate-x-3/4 -translate-y-1/4 rotate-[15deg] text-[0.6rem] font-bold leading-none text-[#5b5bf7] bg-[#5b5bf7]/10 px-0.5 py-0.5 rounded-sm shadow-[0_0_6px_#5b5bf7]"
@@ -165,83 +165,198 @@ export function Navigation() {
               >
                 Review
               </Link>
-              <TooltipProvider delayDuration={100}>
-                <Tooltip>
-                  <TooltipTrigger 
-                    asChild
-                    onClick={(e) => {
-                      e.preventDefault();
-                    }}
-                  >
-                    <span className="text-base font-medium text-muted-foreground hover:text-foreground cursor-pointer">
-                      Apply
-                    </span>
-                  </TooltipTrigger>
-                  <TooltipContent className="text-primary">
-                    <p>Coming Soon</p>
-                  </TooltipContent>
-                </Tooltip>
-              </TooltipProvider>
+              <Dialog>
+                <DialogTrigger asChild>
+                  <span className="text-base font-medium text-muted-foreground hover:text-foreground cursor-pointer">
+                    Apply
+                  </span>
+                </DialogTrigger>
+                <DialogContent className="sm:max-w-[425px]">
+                  <DialogHeader>
+                    <DialogTitle>Feature Coming Soon</DialogTitle>
+                    <DialogDescription>
+                      The 'Apply' section featuring projects and challenges is currently under development. Check back later!
+                    </DialogDescription>
+                  </DialogHeader>
+                </DialogContent>
+              </Dialog>
             </div>
 
             <div 
               className={cn(
-                "flex items-center flex-shrink-0 ml-auto", // Base styles
-                isLandingPage 
-                  ? "transition-[gap] duration-700 ease-in-out" // Apply transition only on landing page
-                  : "gap-6", // Default gap for non-landing pages
-                {
-                   // Gap variations for landing page
-                  "gap-4": shouldApplyScrollStyles, // Scrolled state
-                  "gap-6": isLandingPage && !isScrolled // Initial state
+                "flex items-center flex-shrink-0", // Base styles, removed ml-auto
+                "gap-3 lg:gap-6", // Slightly increased mobile gap, larger desktop gap
+                isLandingPage ? "transition-[gap] duration-700 ease-in-out" : "", // Apply transition only on landing page
+                { // Conditional overrides
+                  "gap-4 lg:gap-4": isLandingPage && isScrolled // Smaller gap when landing page is scrolled (applies to both mobile/desktop)
                 }
               )}
             >
+              {/* Always-visible Theme Toggle */}
               <ThemeToggle />
-              
-              {/* Logged-in user controls */} 
-              {user && canAccessAdmin && (
-                <Button
-                  variant="outline"
-                  onClick={() => setIsAdminView(!isAdminView)}
-                >
-                  {isAdminView ? 'Exit Admin' : 'Admin View'}
-                </Button>
-              )}
-              {user && (
-                <span 
-                  onClick={logout}
-                  className="text-base font-medium text-muted-foreground hover:text-foreground cursor-pointer"
-                >
-                  Logout
-                </span>
-              )}
-              {user && (
-                <Link to="/profile">
-                  <Avatar className="h-9 w-9 transition-transform hover:scale-105">
-                    <AvatarImage src={profile?.avatarUrl} />
-                    <AvatarFallback>{user.name?.[0] || user.email?.[0]}</AvatarFallback>
-                  </Avatar>
-                </Link>
-              )}
-
-              {/* Logged-out user controls */} 
-              {!user && (
-                <Link to="/login" className="text-base font-medium text-muted-foreground hover:text-foreground">
-                  Login
-                </Link>
-              )}
-              {!user && (
-                <Link to="/register">
-                  <Button 
-                    className={cn(
-                      "bg-[#5b5bf7] hover:bg-[#4a4af0] text-white text-base duration-200 ease-in-out rounded-full px-5"
-                    )}
-                  >
-                    Sign up
+              {/* Add desktop user controls for large screens */}
+              <div className="hidden lg:flex items-center gap-4">
+                {user && canAccessAdmin && (
+                  <Button variant="outline" onClick={() => setIsAdminView(!isAdminView)}>
+                    {isAdminView ? 'Exit Admin' : 'Admin View'}
                   </Button>
-                </Link>
-              )}
+                )}
+                {user && (
+                  <span onClick={logout} className="text-base font-medium text-muted-foreground hover:text-foreground cursor-pointer">
+                    Logout
+                  </span>
+                )}
+                {user && (
+                  <Link to="/profile">
+                    <Avatar className="h-9 w-9 transition-transform hover:scale-105">
+                      <AvatarImage src={profile?.avatarUrl} />
+                      <AvatarFallback>{user.name?.[0] || user.email?.[0]}</AvatarFallback>
+                    </Avatar>
+                  </Link>
+                )}
+                {!user && (
+                  <Link to="/login" className="text-base font-medium text-muted-foreground hover:text-foreground">
+                    Login
+                  </Link>
+                )}
+                {!user && (
+                  <Link to="/register">
+                    <Button className="bg-[#5b5bf7] hover:bg-[#4a4af0] text-white text-base rounded-full px-5">
+                      Sign up
+                    </Button>
+                  </Link>
+                )}
+              </div>
+              {/* Mobile Hamburger Menu Trigger */}
+              <Dialog>
+                <DialogTrigger asChild>
+                  <button className="p-2 lg:hidden">
+                    <Menu className="h-6 w-6 text-foreground" />
+                    <span className="sr-only">Open navigation menu</span>
+                  </button>
+                </DialogTrigger>
+                <DialogContent className="lg:hidden fixed inset-x-0 top-0 z-50 bg-background p-4 !left-0 !top-0 !translate-x-0 !translate-y-0 !max-w-none">
+                  <div className="flex flex-col space-y-4">
+                    {/* Top Row: Login/Sign up (only if logged out) */}
+                    {!user && (
+                      <div className="flex items-center gap-4">
+                        <DialogClose asChild>
+                          <Link to="/login" className="text-base font-medium text-foreground">
+                            Login
+                          </Link>
+                        </DialogClose>
+                        <DialogClose asChild>
+                          <Link to="/register">
+                            <Button className="bg-[#5b5bf7] hover:bg-[#4a4af0] text-white text-base rounded-full px-5">
+                              Sign up
+                            </Button>
+                          </Link>
+                        </DialogClose>
+                      </div>
+                    )}
+
+                    {/* Separator (only if logged out) */}
+                    {!user && <hr className="border-divider" />}
+
+                    {/* Navigation Links */}
+                    {!canAccessAdmin ? (
+                      <DialogClose asChild>
+                        <Dialog>
+                          <DialogTrigger asChild>
+                            <span className="text-base font-medium text-muted-foreground hover:text-foreground cursor-pointer">
+                              Learn
+                            </span>
+                          </DialogTrigger>
+                          <DialogContent className="sm:max-w-[425px]">
+                            <DialogHeader>
+                              <DialogTitle>Feature Coming Soon</DialogTitle>
+                              <DialogDescription>
+                                The full 'Learn' section featuring the mastery-based learning dashboard is currently under development. Check back later!
+                              </DialogDescription>
+                            </DialogHeader>
+                          </DialogContent>
+                        </Dialog>
+                      </DialogClose>
+                    ) : (
+                      <DialogClose asChild>
+                        <Link
+                          to="/dashboard"
+                          className="text-base font-medium text-muted-foreground hover:text-foreground"
+                          onClick={() => {
+                            if (isAdminView) setIsAdminView(false);
+                          }}
+                        >
+                          Learn
+                        </Link>
+                      </DialogClose>
+                    )}
+                    <DialogClose asChild>
+                      <Link
+                        to={user ? "/collections" : "/login"}
+                        className="text-base font-medium text-muted-foreground hover:text-foreground"
+                      >
+                        <span className="relative inline-block py-0.5">
+                          Practice
+                          <span className="absolute top-0 right-0 translate-x-3/4 -translate-y-1/4 rotate-[15deg] text-[0.6rem] font-bold leading-none text-[#5b5bf7] bg-[#5b5bf7]/10 px-0.5 py-0.5 rounded-sm shadow-[0_0_6px_#5b5bf7]">
+                            NEW
+                          </span>
+                        </span>
+                      </Link>
+                    </DialogClose>
+                    <DialogClose asChild>
+                      <Link
+                        to={user ? "/review" : "/login"}
+                        className="text-base font-medium text-muted-foreground hover:text-foreground"
+                      >
+                        Review
+                      </Link>
+                    </DialogClose>
+                    <DialogClose asChild>
+                      <Dialog>
+                        <DialogTrigger asChild>
+                          <span className="text-base font-medium text-muted-foreground hover:text-foreground cursor-pointer">
+                            Apply
+                          </span>
+                        </DialogTrigger>
+                        <DialogContent className="sm:max-w-[425px]">
+                          <DialogHeader>
+                            <DialogTitle>Feature Coming Soon</DialogTitle>
+                            <DialogDescription>
+                              The 'Apply' section featuring projects and challenges is currently under development. Check back later!
+                            </DialogDescription>
+                          </DialogHeader>
+                        </DialogContent>
+                      </Dialog>
+                    </DialogClose>
+                    <hr className="border-divider" />
+                    {/* User/Auth Controls */}
+                    {user && canAccessAdmin && (
+                      <DialogClose asChild>
+                        <Button variant="outline" onClick={() => setIsAdminView(!isAdminView)}>
+                          {isAdminView ? "Exit Admin" : "Admin View"}
+                        </Button>
+                      </DialogClose>
+                    )}
+                    {user && (
+                      <DialogClose asChild>
+                        <span onClick={logout} className="text-base font-medium text-foreground cursor-pointer">
+                          Logout
+                        </span>
+                      </DialogClose>
+                    )}
+                    {user && (
+                      <DialogClose asChild>
+                        <Link to="/profile">
+                          <Avatar className="h-9 w-9 transition-transform hover:scale-105">
+                            <AvatarImage src={profile?.avatarUrl} />
+                            <AvatarFallback>{user.name?.[0] || user.email?.[0]}</AvatarFallback>
+                          </Avatar>
+                        </Link>
+                      </DialogClose>
+                    )}
+                  </div>
+                </DialogContent>
+              </Dialog>
             </div>
           </div>
         </div>
