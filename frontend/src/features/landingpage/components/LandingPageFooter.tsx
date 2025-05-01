@@ -52,8 +52,8 @@ export function LandingPageFooter() {
           {/* Legal Section */}
           <div className="flex flex-col gap-2 items-center md:items-start">
             <p className="font-semibold text-foreground mb-1">Legal</p>
-            <Link to="/privacy" className="text-muted-foreground hover:text-foreground transition-colors">Privacy Policy</Link>
-            <Link to="/terms" className="text-muted-foreground hover:text-foreground transition-colors">Terms of Service</Link>
+            <Link to="/info/privacy" className="text-muted-foreground hover:text-foreground transition-colors">Privacy Policy</Link>
+            <Link to="/info/terms" className="text-muted-foreground hover:text-foreground transition-colors">Terms of Service</Link>
           </div>
 
           {/* Pages Section */}

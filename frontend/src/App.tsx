@@ -30,6 +30,7 @@ import { TestResultsPage } from './features/assesment/test/TestResultsPage';
 import { TestHistoryPage } from './features/assesment/test/TestHistoryPage';
 import { TestPage } from './features/assesment/test/TestPage';
 import { AssessmentResultsRouter } from './features/assesment/shared/AssessmentResultsRouter';
+import { ScrollToTop } from './components/ScrollToTop';
 
 // Regular components
 const UnauthorizedPage = () => (
@@ -68,7 +69,7 @@ function MainLayout() {
                     location.pathname.match(/^\/tests\/[^/]+$/);
   const isAssessmentPage = location.pathname.match(/^\/assessment\/[^/]+\/[^/]+$/);
                   
-  const shouldHideNavigation = isProblemPage || isInfoPage || isCollectionPage || isQuizPage || isTestPage || isAssessmentPage || isProblemReviewPage;
+  const shouldHideNavigation = isProblemPage || isCollectionPage || isQuizPage || isTestPage || isAssessmentPage || isProblemReviewPage;
   
   return (
     <div className="min-h-screen bg-background text-foreground relative">
@@ -338,6 +339,7 @@ export default function App() {
         <ProfileProvider>
           <AdminProvider>
             <Router>
+              <ScrollToTop />
               <MainLayout />
             </Router>
           </AdminProvider>
