@@ -80,7 +80,7 @@ function MainLayout() {
          <Navigation />
       )}
       {/* Removed z-index from main, kept pb-8 */}
-      <main className="pb-8"> 
+      <main className=""> 
         <Routes>
           {/* Public routes */}
           <Route path="/landing" element={<AdminViewWrapper><LandingPage /></AdminViewWrapper>} />
