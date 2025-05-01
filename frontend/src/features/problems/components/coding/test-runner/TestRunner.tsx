@@ -16,6 +16,7 @@ interface TestRunnerProps {
   language: string;
   isRunning?: boolean;
   setIsRunning?: React.Dispatch<React.SetStateAction<boolean>>;
+  functionParams?: { name: string; type: string }[]; // Add optional functionParams
 }
 
 /**
@@ -29,7 +30,8 @@ export function TestRunner({
   onAllTestsPassed,
   language,
   isRunning: externalIsRunning,
-  setIsRunning: externalSetIsRunning
+  setIsRunning: externalSetIsRunning,
+  functionParams
 }: TestRunnerProps) {
   const [activeTab, setActiveTab] = useState("testcase");
   const [selectedTestCase, setSelectedTestCase] = useState<number | null>(0); // Default to first test case
@@ -125,6 +127,7 @@ export function TestRunner({
               testCases={testCases}
               selectedTestCase={selectedTestCase}
               setSelectedTestCase={setSelectedTestCase}
+              functionParams={functionParams}
             />
           ) : (
             <ResultTab

@@ -49,6 +49,72 @@ interface UpdateProblemBody {
 
 const router = express.Router();
 
+/**
+ * Safely parses a value that might be a string representation of JSON
+ * Removes multiple layers of escaping if present
+ * 
+ * @param value The value to parse
+ * @returns Parsed value or original value if parsing fails
+ */
+const safelyParseValue = (value: any): any => {
+  if (value === undefined || value === null) return value;
+  
+  // If it's not a string, we're already done
+  if (typeof value !== 'string') return value;
+  
+  // Attempt to handle excessive JSON escaping by repeatedly parsing
+  let result = value;
+  let iterations = 0;
+  const MAX_ITERATIONS = 5; // Limit iterations to avoid infinite loop
+  
+  while (typeof result === 'string' && 
+         (result.startsWith('"') && result.endsWith('"')) && 
+         result.includes('\\') && 
+         iterations < MAX_ITERATIONS) {
+    try {
+      result = JSON.parse(result);
+      iterations++;
+    } catch (e) {
+      break; // Stop if parsing fails
+    }
+  }
+  
+  // Try one more parse if it looks like JSON
+  if (typeof result === 'string' && 
+      ((result.startsWith('{') && result.endsWith('}')) || 
+       (result.startsWith('[') && result.endsWith(']')))) {
+    try {
+      return JSON.parse(result);
+    } catch (e) {
+      // Return the current result if this parse fails
+      return result;
+    }
+  }
+  
+  return result;
+};
+
+/**
+ * Normalizes a test case by ensuring proper data structures
+ * 
+ * @param testCase The input test case to normalize
+ * @returns A normalized test case ready for database storage
+ */
+const normalizeTestCase = (testCase: any, index: number): any => {
+  // Parse and clean the input
+  const parsedInput = safelyParseValue(testCase.input ?? testCase.input_args ?? '');
+  
+  // Parse and clean the expected output
+  const parsedExpected = safelyParseValue(testCase.expected ?? testCase.expected_out ?? '');
+  
+  return {
+    input: JSON.stringify(parsedInput), // Store consistent JSON string
+    expectedOutput: JSON.stringify(parsedExpected), // Store consistent JSON string
+    isHidden: testCase.isHidden || (testCase.phase === 'hidden') || false,
+    orderNum: testCase.orderNum || testCase.case_id || index + 1
+  };
+};
+
 // Get a specific problem
 router.get('/:problemId', authenticateToken, (async (req, res) => {
   try {
@@ -305,7 +371,7 @@ router.post('/', authenticateToken, authorizeRoles([Role.ADMIN, Role.DEVELOPER])
       problemType = 'INFO' as const,
       collectionIds = [],
       codeTemplate,
-      testCases,
+      testCases: testCasesRaw,
       topicId,
       estimatedTime,
       slug,
@@ -326,7 +392,7 @@ router.post('/', authenticateToken, authorizeRoles([Role.ADMIN, Role.DEVELOPER])
       problemType,
       collectionIds,
       codeTemplate: codeTemplate ? 'Provided' : undefined,
-      testCases: testCases ? 'Provided' : undefined,
+      testCases: testCasesRaw ? 'Provided' : undefined,
       topicId,
       estimatedTime,
       slug: slug ? 'Provided' : undefined,
@@ -367,21 +433,28 @@ router.post('/', authenticateToken, authorizeRoles([Role.ADMIN, Role.DEVELOPER])
       }
     }
 
+    // Parse test cases if provided
+    let parsedTestCases: any[] = [];
+    if (testCasesRaw) {
+      if (typeof testCasesRaw === 'string') {
+        try {
+          parsedTestCases = JSON.parse(testCasesRaw);
+        } catch (error) {
+          console.error('Error parsing testCases:', error);
+          return res.status(400).json({ error: 'Invalid test cases format' });
+        }
+      } else if (Array.isArray(testCasesRaw)) {
+        parsedTestCases = testCasesRaw;
+      }
+    }
+
+    // Normalize each test case to ensure proper data structures
+    parsedTestCases = parsedTestCases.map(normalizeTestCase);
+
     // Convert estimatedTime to number if provided
     const parsedEstimatedTime = estimatedTime ? parseInt(estimatedTime.toString()) : null;
     if (estimatedTime && isNaN(parsedEstimatedTime!)) {
       return res.status(400).json({ error: 'Estimated time must be a valid number' });
-    }
-
-    // Parse testCases if it's a string
-    let parsedTestCases = testCases;
-    if (typeof testCases === 'string') {
-      try {
-        parsedTestCases = JSON.parse(testCases);
-      } catch (e) {
-        console.error('Error parsing testCases:', e);
-        return res.status(400).json({ error: 'Invalid testCases JSON format' });
-      }
     }
 
     // Use a transaction for the entire create process
@@ -393,32 +466,21 @@ router.post('/', authenticateToken, authorizeRoles([Role.ADMIN, Role.DEVELOPER])
 
       // If problem type is CODING, prepare CodeProblem create data
       if (problemType === 'CODING') {
-        // Parse testCases
-        let parsedTestCases: Record<string, any>[] = [];
-        try {
-          if (testCases) parsedTestCases = JSON.parse(testCases as string);
-        } catch (e) {
-          // Handle invalid JSON
-          console.error("Invalid testCases JSON:", e);
-          return res.status(400).json({ error: "Invalid testCases JSON" });
-        }
-        
         // Create code problem with testCases data
         codeProblemCreateData = {
           create: {
-            codeTemplate: codeTemplate || '',
-            language: language || 'javascript',
-            functionName: functionName || 'solution',
+            codeTemplate: codeTemplate ?? null,
+            language: language ?? 'javascript',
+            functionName: functionName ?? null,
             timeLimit: timeLimit ? Number(timeLimit) : 5000,
             memoryLimit: memoryLimit ? Number(memoryLimit) : null,
-            // No longer need to specify questionId since it's now optional
-            // Add JSON fields
             testCases: {
-              create: parsedTestCases ? parsedTestCases.map((testCase) => ({
-                input: testCase.input || JSON.stringify(testCase.input_args || {}),
-                expectedOutput: testCase.expected || JSON.stringify(testCase.expected_out || null),
-                isHidden: testCase.isHidden || (testCase.phase === 'hidden') || false
-              })) : []
+              create: parsedTestCases.map((testCase) => ({
+                input: testCase.input,
+                expectedOutput: testCase.expectedOutput,
+                isHidden: testCase.isHidden || false,
+                orderNum: testCase.orderNum || 1
+              }))
             }
           } as Prisma.CodeProblemUncheckedCreateWithoutProblemInput
         };
@@ -430,9 +492,6 @@ router.post('/', authenticateToken, authorizeRoles([Role.ADMIN, Role.DEVELOPER])
         }
         if (params) {
           (codeProblemCreateData.create as any).params = typeof params === 'string' ? params : JSON.stringify(params);
-        }
-        if (parsedTestCases && parsedTestCases.length > 0) {
-          (codeProblemCreateData.create as any).test_cases = JSON.stringify(parsedTestCases);
         }
       }
       
@@ -526,7 +585,7 @@ router.put('/:problemId', authenticateToken, authorizeRoles([Role.ADMIN, Role.DE
     problemType, // Type might be updated
     collectionIds,
     codeTemplate,
-    testCases,
+    testCases: testCasesRaw,
     estimatedTime,
     language,
     functionName,
@@ -556,7 +615,7 @@ router.put('/:problemId', authenticateToken, authorizeRoles([Role.ADMIN, Role.DE
       problemType,
       collectionIds,
       codeTemplate: codeTemplate ? 'Provided' : undefined,
-      testCases: testCases ? 'Provided' : undefined,
+      testCases: testCasesRaw ? 'Provided' : undefined,
       estimatedTime,
       language: problemType === 'CODING' ? language : undefined,
       functionName: problemType === 'CODING' ? functionName : undefined,
@@ -584,16 +643,23 @@ router.put('/:problemId', authenticateToken, authorizeRoles([Role.ADMIN, Role.DE
       }
     }
 
-    // Parse testCases if it's a string
-    let parsedTestCases = testCases;
-    if (typeof testCases === 'string') {
-      try {
-        parsedTestCases = JSON.parse(testCases);
-      } catch (e) {
-        console.error('Error parsing testCases:', e);
-        return res.status(400).json({ error: 'Invalid testCases JSON format' });
+    // Parse test cases if provided
+    let parsedTestCases: any[] = [];
+    if (testCasesRaw) {
+      if (typeof testCasesRaw === 'string') {
+        try {
+          parsedTestCases = JSON.parse(testCasesRaw);
+        } catch (error) {
+          console.error('Error parsing testCases in update:', error);
+          return res.status(400).json({ error: 'Invalid test cases format' });
+        }
+      } else if (Array.isArray(testCasesRaw)) {
+        parsedTestCases = testCasesRaw;
       }
     }
+
+    // Normalize each test case to ensure proper data structures
+    parsedTestCases = parsedTestCases.map(normalizeTestCase);
 
     // Convert estimatedTime to number if provided
     const parsedEstimatedTime = estimatedTime ? parseInt(estimatedTime.toString()) : null;
@@ -662,8 +728,8 @@ router.put('/:problemId', authenticateToken, authorizeRoles([Role.ADMIN, Role.DE
             if (parsedTestCases && Array.isArray(parsedTestCases) && parsedTestCases.length > 0) {
               const testCaseData = parsedTestCases.map((tc: any, index: number) => ({
                 codeProblemId: finalCodeProblemId!, 
-                input: JSON.stringify(tc.input ?? ''),
-                expectedOutput: JSON.stringify(tc.expectedOutput ?? ''),
+                input: tc.input,
+                expectedOutput: tc.expectedOutput,
                 isHidden: tc.isHidden || false,
                 orderNum: tc.orderNum || index + 1
               }));
@@ -681,12 +747,12 @@ router.put('/:problemId', authenticateToken, authorizeRoles([Role.ADMIN, Role.DE
             // Use unchecked create to directly reference problemId without question relation
             problemId: problemId,
             testCases: {
-              create: Array.isArray(parsedTestCases) ? parsedTestCases.map((tc: any, index: number) => ({
-                input: JSON.stringify(tc.input ?? tc.input_args ?? ''),
-                expectedOutput: JSON.stringify(tc.expected ?? tc.expected_out ?? ''),
-                isHidden: tc.isHidden || (tc.phase === 'hidden') || false,
-                orderNum: tc.orderNum || tc.case_id || index + 1
-              })) : []
+              create: parsedTestCases.map((tc: any, index: number) => ({
+                input: tc.input,
+                expectedOutput: tc.expectedOutput,
+                isHidden: tc.isHidden || false,
+                orderNum: tc.orderNum || index + 1
+              }))
             }
           };
 

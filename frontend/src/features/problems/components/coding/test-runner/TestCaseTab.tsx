@@ -21,12 +21,29 @@ interface TestCaseTabProps {
   testCases: TestCaseType[];
   selectedTestCase: number | null;
   setSelectedTestCase: (index: number) => void;
+  functionParams?: { name: string; type: string }[];
 }
+
+/**
+ * Safely parses a JSON string
+ * @param value The string to parse
+ * @returns The parsed value or original if parsing fails
+ */
+const tryParseJson = (value: any): any => {
+  if (!value || typeof value !== 'string') return value;
+  
+  try {
+    return JSON.parse(value);
+  } catch (e) {
+    return value;
+  }
+};
 
 export function TestCaseTab({ 
   testCases, 
   selectedTestCase,
-  setSelectedTestCase
+  setSelectedTestCase,
+  functionParams = []
 }: TestCaseTabProps) {
   const [isAddingTestCase, setIsAddingTestCase] = useState(false);
   const [customInput, setCustomInput] = useState('');
@@ -56,15 +73,7 @@ export function TestCaseTab({
         
         // If input is a string that looks like JSON, try to parse it
         if (typeof testCase.input === 'string') {
-          try {
-            // Try to parse the string as JSON
-            const parsed = JSON.parse(testCase.input);
-            // If parsed result is an array, use it, otherwise wrap in array
-            return Array.isArray(parsed) ? parsed : [parsed];
-          } catch (e) {
-            // If parsing fails, treat the string as a single input
-            return [testCase.input];
-          }
+          return tryParseJson(testCase.input); 
         }
         
         // Default: wrap in array
@@ -81,6 +90,18 @@ export function TestCaseTab({
     setCustomInput('');
     setCustomExpected('');
     setIsAddingTestCase(false);
+  };
+
+  // Get parameter name for the given index based on function parameters
+  const getParameterName = (index: number): string => {
+    if (functionParams && functionParams.length > index) {
+      return functionParams[index].name;
+    }
+    
+    // Fallbacks for common parameter names
+    if (index === 0) return "input";
+    if (index === 1) return "target";
+    return `param ${index + 1}`;
   };
 
   return (
@@ -168,15 +189,8 @@ export function TestCaseTab({
                 {currentTestCase.input.length >= 1 && (
                   <div className="space-y-1 mb-3">
                     <div className="text-xs text-muted-foreground font-mono">
-                      {/* Try to determine parameter name */}
-                      {(() => {
-                        if (currentTestCase.functionName) {
-                          return `${currentTestCase.functionName} param 1`;
-                        } else {
-                          return "input";
-                        }
-                      })()}
-                      {" ="}
+                      {/* Use the parameter name from function parameters */}
+                      {getParameterName(0)} {" ="}
                     </div>
                     <div className="bg-muted/50 border rounded-md p-3">
                       <pre className="text-sm whitespace-pre-wrap break-all">
@@ -190,14 +204,7 @@ export function TestCaseTab({
                 {currentTestCase.input.length >= 2 && (
                   <div className="space-y-1 mb-3">
                     <div className="text-xs text-muted-foreground font-mono">
-                      {(() => {
-                        if (currentTestCase.functionName) {
-                          return `${currentTestCase.functionName} param 2`;
-                        } else {
-                          return "target";
-                        }
-                      })()}
-                      {" ="}
+                      {getParameterName(1)} {" ="}
                     </div>
                     <div className="bg-muted/50 border rounded-md p-3">
                       <pre className="text-sm whitespace-pre-wrap break-all">
@@ -209,10 +216,10 @@ export function TestCaseTab({
                 
                 {/* Additional parameters if they exist */}
                 {currentTestCase.input.length >= 3 && 
-                  currentTestCase.input.slice(2).map((param, idx) => (
+                  currentTestCase.input.slice(2).map((param: any, idx: number) => (
                     <div key={idx} className="space-y-1 mb-3">
                       <div className="text-xs text-muted-foreground font-mono">
-                        {`param ${idx + 3} =`}
+                        {getParameterName(idx + 2)} {" ="}
                       </div>
                       <div className="bg-muted/50 border rounded-md p-3">
                         <pre className="text-sm whitespace-pre-wrap break-all">
@@ -231,7 +238,7 @@ export function TestCaseTab({
                 <h3 className="text-sm font-medium mb-2">Expected</h3>
                 <div className="bg-muted/50 border rounded-md p-3">
                   <pre className="text-sm whitespace-pre-wrap break-all">
-                    {JSON.stringify(currentTestCase.expected, null, 2)}
+                    {JSON.stringify(tryParseJson(currentTestCase.expected), null, 2)}
                   </pre>
                 </div>
               </div>

@@ -239,6 +239,79 @@ declare global {
   }
 }
 
+// Add these utility functions after the component types and before the component definition
+
+/**
+ * Safely parses a string value that might contain JSON
+ * @param value The string value to parse
+ * @returns The parsed value or the original value if parsing fails
+ */
+const tryParseJson = (value: string): any => {
+  if (!value || typeof value !== 'string') return value;
+  
+  try {
+    // Try to parse the string as JSON
+    return JSON.parse(value);
+  } catch (e) {
+    // If parsing fails, return the original string
+    return value;
+  }
+};
+
+/**
+ * Prepares a test case for API submission by parsing string values to proper objects/arrays
+ * @param testCase The test case to prepare
+ * @returns A prepared test case with parsed input and expected values
+ */
+const prepareTestCase = (testCase: TestCase): { input: any, expected: any, isHidden: boolean } => {
+  return {
+    input: tryParseJson(testCase.input),
+    expected: tryParseJson(testCase.expected),
+    isHidden: testCase.isHidden
+  };
+};
+
+/**
+ * Normalizes a test case from the API for editing
+ * @param testCase The test case from the API
+ * @returns A normalized test case for UI editing
+ */
+const normalizeTestCase = (testCase: any): TestCase => {
+  // Handle input - ensure it's a string for editing
+  let inputStr = typeof testCase.input === 'string' 
+    ? testCase.input
+    : JSON.stringify(testCase.input);
+    
+  // Remove excessive escaping if present
+  while (inputStr.startsWith('"') && inputStr.endsWith('"') && inputStr.includes('\\')) {
+    try {
+      inputStr = JSON.parse(inputStr);
+    } catch (e) {
+      break;
+    }
+  }
+  
+  // Handle expected output - ensure it's a string for editing
+  let expectedStr = typeof testCase.expected === 'string' || typeof testCase.expectedOutput === 'string'
+    ? (testCase.expected || testCase.expectedOutput)
+    : JSON.stringify(testCase.expected || testCase.expectedOutput);
+    
+  // Remove excessive escaping if present
+  while (expectedStr.startsWith('"') && expectedStr.endsWith('"') && expectedStr.includes('\\')) {
+    try {
+      expectedStr = JSON.parse(expectedStr);
+    } catch (e) {
+      break;
+    }
+  }
+  
+  return {
+    input: inputStr,
+    expected: expectedStr,
+    isHidden: !!testCase.isHidden
+  };
+};
+
 export function LearningPathAdmin() {
   const { token } = useAuth();
   const { setIsAdminView } = useAdmin();
@@ -529,7 +602,7 @@ export function LearningPathAdmin() {
     if (!selectedTopic) return;
     try {
       // Create problem with necessary data
-      const problemData = {
+      const problemData: any = {
         name: newProblem.name,
         content: newProblem.content,
         difficulty: newProblem.difficulty,
@@ -539,18 +612,23 @@ export function LearningPathAdmin() {
         topicId: selectedTopic.id,
         collectionIds: newProblem.collectionIds,
         slug: newProblem.slug,
-        ...(newProblem.problemType === 'CODING' ? {
-          codeTemplate: newProblem.codeTemplate,
-          testCases: JSON.stringify(newProblem.testCases),
-          language: newProblem.language,
-          functionName: newProblem.functionName,
-          timeLimit: Number(newProblem.timeLimit),
-          memoryLimit: newProblem.memoryLimit ? Number(newProblem.memoryLimit) : undefined,
-          return_type: newProblem.return_type, // Add return_type
-          params: newProblem.params ? JSON.stringify(newProblem.params) : undefined // Add params with JSON serialization
-        } : {}),
         ...(newProblem.estimatedTime ? { estimatedTime: newProblem.estimatedTime } : {})
       };
+      
+      // Add coding-specific fields if this is a coding problem
+      if (newProblem.problemType === 'CODING') {
+        problemData.codeTemplate = newProblem.codeTemplate;
+        problemData.language = newProblem.language;
+        problemData.functionName = newProblem.functionName;
+        problemData.timeLimit = Number(newProblem.timeLimit);
+        problemData.memoryLimit = newProblem.memoryLimit ? Number(newProblem.memoryLimit) : undefined;
+        problemData.return_type = newProblem.return_type;
+        problemData.params = newProblem.params ? JSON.stringify(newProblem.params) : undefined;
+        
+        // Process test cases - convert strings to appropriate JSON values before stringifying
+        const preparedTestCases = newProblem.testCases.map(prepareTestCase);
+        problemData.testCases = JSON.stringify(preparedTestCases);
+      }
       
       await api.post("/problems", problemData, token);
       setIsAddingProblem(false);
@@ -572,8 +650,8 @@ export function LearningPathAdmin() {
         functionName: "",
         timeLimit: 5000,
         memoryLimit: undefined,
-        return_type: "", // Reset return_type
-        params: [] // Reset params
+        return_type: "",
+        params: []
       });
       
       toast.success("Problem added successfully");
@@ -753,7 +831,6 @@ export function LearningPathAdmin() {
   }, []);
 
   const handleEditProblem = async () => {
-    // *** MODIFIED to use editProblemData ***
     if (!editProblemData) {
       toast.error("No problem data to save.");
       return;
@@ -777,17 +854,20 @@ export function LearningPathAdmin() {
       if (editProblemData.problemType === 'CODING' && editProblemData.codeProblem) {
         // Add codeProblem fields
         problemPayload.codeTemplate = editProblemData.codeProblem.codeTemplate;
-        problemPayload.testCases = JSON.stringify(editProblemData.codeProblem.testCases || []);
         problemPayload.language = editProblemData.codeProblem.language;
         problemPayload.functionName = editProblemData.codeProblem.functionName;
         problemPayload.timeLimit = editProblemData.codeProblem.timeLimit;
         problemPayload.memoryLimit = editProblemData.codeProblem.memoryLimit;
         problemPayload.return_type = editProblemData.codeProblem.return_type;
         problemPayload.params = JSON.stringify(editProblemData.codeProblem.params || []);
+        
+        // Process test cases - convert strings to appropriate JSON values before stringifying
+        const preparedTestCases = (editProblemData.codeProblem.testCases || []).map(prepareTestCase);
+        problemPayload.testCases = JSON.stringify(preparedTestCases);
       }
 
       // Handle topic change separately (if logic is needed)
-      const currentTopicId = selectedProblem?.topic?.id || null; // Get original topic ID from selectedProblem
+      const currentTopicId = selectedProblem?.topic?.id || null;
       const newTopicId = editProblemData.topicId;
 
       if (newTopicId !== currentTopicId) {
@@ -814,9 +894,9 @@ export function LearningPathAdmin() {
       }
 
       setIsEditingProblem(false);
-      setEditProblemData(null); // Clear edit form state
-      setSelectedProblem(null); // Clear selection
-      refresh(); // Refresh learning path data
+      setEditProblemData(null);
+      setSelectedProblem(null);
+      refresh();
     } catch (err) {
       console.error("Error updating problem:", err);
       toast.error("Failed to update problem");
@@ -1203,9 +1283,16 @@ export function LearningPathAdmin() {
 
   // Update the click handler to set the NEW editProblemData state
   const handleEditProblemClick = (problem: Problem) => {
-    setIsLoadingProblems(true); // Use a loading state for fetching
+    setIsLoadingProblems(true);
     api.get(`/problems/${problem.id}`, token)
       .then(problemDetails => {
+        // Normalize test cases from the API to ensure they're ready for editing
+        const normalizedTestCases = problemDetails.codeProblem?.testCases 
+          ? (Array.isArray(problemDetails.codeProblem.testCases) 
+              ? problemDetails.codeProblem.testCases.map(normalizeTestCase)
+              : [{ input: '', expected: '', isHidden: false }])
+          : [{ input: '', expected: '', isHidden: false }];
+          
         // Initialize editProblemData state
         setEditProblemData({
           ...problemDetails,
@@ -1220,14 +1307,10 @@ export function LearningPathAdmin() {
             return_type: problemDetails.codeProblem.return_type || '',
             // Handle params parsing
             params: parseParams(problemDetails.codeProblem.params),
-            testCases: (Array.isArray(problemDetails.codeProblem.testCases) ? problemDetails.codeProblem.testCases : []).map((tc: any) => ({ 
-              input: tc.input || '', 
-              expected: tc.expectedOutput || '', // Map backend field name
-              isHidden: tc.isHidden || false
-            })),
-          } : undefined, // Use undefined instead of null
+            testCases: normalizedTestCases,
+          } : undefined,
         });
-        setSelectedProblem(problemDetails); // Keep original selection for comparison if needed
+        setSelectedProblem(problemDetails);
         setIsEditingProblem(true);
       })
       .catch(err => {
@@ -1246,7 +1329,7 @@ export function LearningPathAdmin() {
             collectionIds: problem.collectionIds || [],
             reqOrder: problem.reqOrder,
             topicId: problem.topic?.id || null,
-            codeProblem: undefined // Use undefined instead of null
+            codeProblem: undefined
         });
         setSelectedProblem(problem);
         setIsEditingProblem(true);

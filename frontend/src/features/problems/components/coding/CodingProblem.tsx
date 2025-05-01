@@ -1,4 +1,4 @@
-import { useState, useRef, useMemo, useCallback } from 'react';
+import { useState, useRef, useMemo, useCallback, useEffect } from 'react';
 import { Card } from "@/components/ui/card";
 import { Markdown } from "@/components/ui/markdown";
 import { HtmlContent } from "@/components/ui/html-content";
@@ -32,6 +32,7 @@ import { Resizable } from "re-resizable";
 import { toast } from "sonner";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { SubmissionsTab } from './submissions/SubmissionsTab';
+import { api } from '@/lib/api';
 
 const MIN_PANEL_WIDTH = 300;
 const MAX_PANEL_WIDTH = 800;
@@ -68,6 +69,52 @@ export default function CodingProblem({
   const [isRunning, setIsRunning] = useState(false);
   const editorRef = useRef<any>(null);
   const [leftPanelTab, setLeftPanelTab] = useState("description");
+  const [functionParams, setFunctionParams] = useState<{ name: string; type: string }[]>([]);
+  const [problemDetails, setProblemDetails] = useState<any>(null);
+
+  // Parse test cases from string to array
+  const parsedTestCases = useMemo(() => {
+    if (!testCasesString) return [];
+    
+    try {
+      const parsed = typeof testCasesString === 'string' 
+        ? JSON.parse(testCasesString) 
+        : testCasesString;
+      
+      return Array.isArray(parsed) ? parsed : [];
+    } catch (e) {
+      console.error('Error parsing test cases:', e);
+      return [];
+    }
+  }, [testCasesString]);
+
+  // Fetch problem details including function parameters when component mounts
+  useEffect(() => {
+    if (problemId) {
+      api.get(`/problems/${problemId}`)
+        .then(data => {
+          setProblemDetails(data);
+          
+          // If we have a codeProblem with params, parse them
+          if (data.codeProblem?.params) {
+            try {
+              let params = data.codeProblem.params;
+              if (typeof params === 'string') {
+                params = JSON.parse(params);
+              }
+              if (Array.isArray(params)) {
+                setFunctionParams(params);
+              }
+            } catch (err) {
+              console.error('Error parsing function parameters:', err);
+            }
+          }
+        })
+        .catch(err => {
+          console.error('Error fetching problem details:', err);
+        });
+    }
+  }, [problemId]);
 
   // Use the problem completion hook
   const { 
@@ -79,43 +126,6 @@ export default function CodingProblem({
     onCompleted, // Pass parent callback to hook
     isReviewMode
   );
-
-  // Parse test cases
-  const testCases = useMemo(() => {
-    try {
-      // Check if testCasesString is already an object
-      if (testCasesString && typeof testCasesString === 'object') {
-        console.log("TestCases is already an object:", testCasesString);
-        return testCasesString;
-      }
-      // Otherwise try to parse it as JSON
-      const parsed = JSON.parse(testCasesString || '[]');
-      console.log("TestCases parsed from JSON:", parsed);
-      
-      // Format validation and conversion
-      if (Array.isArray(parsed)) {
-        // Make sure each test case has an input property as an array
-        const formatted = parsed.map(tc => {
-          // If input is not an array, make it an array
-          if (tc.input && !Array.isArray(tc.input)) {
-            console.log("Converting non-array input to array:", tc.input);
-            return {
-              ...tc,
-              input: [tc.input]
-            };
-          }
-          return tc;
-        });
-        console.log("Formatted test cases:", formatted);
-        return formatted;
-      }
-      
-      return parsed;
-    } catch (e) {
-      console.error('Error parsing test cases:', e);
-      return [];
-    }
-  }, [testCasesString]);
 
   // Handle code changes
   const handleCodeChange = useCallback((newCode: string) => {
@@ -292,11 +302,11 @@ export default function CodingProblem({
               </div>
             </Resizable>
 
-            {/* Test Runner */}
-            <div className="flex-1 min-h-0 overflow-hidden border-t">
+            {/* Test Runner - with function params */}
+            <div className="flex-1 min-h-0 overflow-hidden">
               <TestRunner
                 code={code}
-                testCases={testCases}
+                testCases={parsedTestCases}
                 problemId={problemId}
                 onRunComplete={() => {}}
                 onAllTestsPassed={() => {
@@ -310,6 +320,7 @@ export default function CodingProblem({
                 language={selectedLanguage}
                 isRunning={isRunning}
                 setIsRunning={setIsRunning}
+                functionParams={functionParams}
               />
             </div>
           </div>

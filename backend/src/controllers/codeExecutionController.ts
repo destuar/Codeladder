@@ -39,6 +39,22 @@ type ProblemWithCodeDetailsPayload = Prisma.ProblemGetPayload<{
   }
 }>;
 
+/**
+ * Safely parses a JSON string, handling errors gracefully
+ * @param value The string to parse
+ * @returns The parsed object or array, or the original value if parsing fails
+ */
+const safelyParseJson = (value: string): any => {
+  if (!value || typeof value !== 'string') return value;
+  
+  try {
+    return JSON.parse(value);
+  } catch (e) {
+    console.warn(`Failed to parse JSON value: ${value}`);
+    return value;
+  }
+};
+
 // Helper type for parsed test cases
 type ParsedTestCase = {
   id: string;
@@ -114,23 +130,7 @@ export async function executeCode(req: Request, res: Response): Promise<void> {
     // Explicitly type 'tc' and define ParsedTestCase helper type
     const testCases: ParsedTestCase[] = codeProblemDetails.testCases.map((tc: typeof codeProblemDetails.testCases[0]): ParsedTestCase => ({
       id: tc.id,
-      input: (() => {
-          try {
-              // Always parse the input string from the DB
-              return JSON.parse(tc.input);
-          } catch (e) {
-              // If tc.input is not valid JSON, treat it as a plain string.
-              // Wrap in array if formatTestCode strictly requires it.
-              // However, let's assume tc.input *should* be valid JSON representing the args array.
-              // Log error if parsing fails, as it might indicate bad data.
-              console.error(`Failed to parse input for test case ${tc.id}:`, tc.input, e);
-              // Return as is, or handle error appropriately
-              // Returning as raw string might break formatTestCode if it expects array
-              // Let's return an empty array to avoid breaking formatTestCode, but log the error.
-              return []; // Or throw? Needs decision based on how invalid data should be handled.
-          }
-      })(),
-       // Keep expectedOutput as string initially, parse during comparison
+      input: safelyParseJson(tc.input),
       expectedOutput: tc.expectedOutput,
       isHidden: tc.isHidden,
       orderNum: tc.orderNum,
@@ -468,17 +468,7 @@ export async function runTests(req: Request, res: Response): Promise<void> {
     // Apply type fixes here too
     const testCases: ParsedTestCase[] = codeProblemDetails.testCases.map((tc: typeof codeProblemDetails.testCases[0]): ParsedTestCase => ({
       id: tc.id,
-       // Attempt to parse input if it's stored as a JSON string
-       input: (() => {
-          try {
-              return JSON.parse(tc.input);
-          } catch (e) {
-              console.error(`Failed to parse input for test case ${tc.id} in runTests:`, tc.input, e);
-              // Return as is or handle error appropriately
-              return []; // Default to empty array if parse fails
-          }
-       })(),
-       // Keep expectedOutput as string initially
+      input: safelyParseJson(tc.input),
       expectedOutput: tc.expectedOutput,
       isHidden: tc.isHidden,
       orderNum: tc.orderNum,
