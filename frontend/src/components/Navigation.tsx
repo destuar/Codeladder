@@ -1,4 +1,4 @@
-import { Link } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '@/features/auth/AuthContext';
 import { useAdmin } from '@/features/admin/AdminContext';
 import { Button } from '@/components/ui/button';
@@ -17,47 +17,80 @@ import {
 } from "@/components/ui/tooltip";
 
 export function Navigation() {
+  const location = useLocation();
   const { user, logout } = useAuth();
   const { isAdminView, setIsAdminView, canAccessAdmin } = useAdmin();
   const { profile } = useProfile();
   const [isScrolled, setIsScrolled] = useState(false);
-  const logoSrc = useLogoSrc('banner', isScrolled);
+  
+  const isLandingPage = location.pathname === '/landing';
+  const shouldApplyScrollStyles = isLandingPage && isScrolled;
+  
+  const logoSrc = useLogoSrc('banner', shouldApplyScrollStyles); // Use combined state
 
   useEffect(() => {
-    const handleScroll = () => {
-      setIsScrolled(window.scrollY > 50);
-    };
+    // Reset scroll state when path changes *away* from landing page
+    if (!isLandingPage) {
+      setIsScrolled(false);
+    }
 
-    window.addEventListener('scroll', handleScroll);
-    return () => {
-      window.removeEventListener('scroll', handleScroll);
-    };
-  }, []);
+    if (isLandingPage) {
+      const handleScroll = () => {
+        setIsScrolled(window.scrollY > 50);
+      };
+      window.addEventListener('scroll', handleScroll);
+      handleScroll(); // Initial check
+      return () => {
+        window.removeEventListener('scroll', handleScroll);
+        // No need to reset isScrolled here, handled by path change or initial state
+      };
+    }
+    // No listener needed if not on landing page
+    return () => {};
+  }, [location.pathname, isLandingPage]); // Depend on isLandingPage as well
 
   return (
     <>
       <nav 
         className={cn(
-          "fixed top-0 left-0 right-0 z-50 transition-[top] duration-700 ease-in-out",
+          "left-0 right-0 z-50", // Base styles
+          isLandingPage 
+            ? "fixed transition-[top] duration-700 ease-in-out" // Landing page: fixed positioning and transition
+            : "relative border-b bg-background", // Other pages: relative positioning, border, background
           {
-            "top-4": isScrolled,
-            "top-0": !isScrolled
+            // These only have effect if fixed positioning is applied (i.e., on landing page)
+            "top-0": isLandingPage && !isScrolled, // Initial top position for landing page
+            "top-4": shouldApplyScrollStyles,     // Scrolled top position for landing page
           }
         )}
       >
         <div
           className={cn(
-            "mx-auto transition-[background-color,max-width,box-shadow,backdrop-filter,border-radius] duration-700 ease-in-out",
+            "mx-auto", // Base styles
+            isLandingPage 
+              ? "transition-[background-color,max-width,box-shadow,backdrop-filter,border-radius] duration-700 ease-in-out" // Apply transitions only on landing page
+              : "", // No transitions needed for other pages
             {
-              "max-w-5xl rounded-full shadow-md border-none bg-background/95 backdrop-blur-sm": isScrolled,
-              "max-w-full bg-transparent backdrop-blur-none": !isScrolled
+              // Styles for scrolled state on landing page
+              "max-w-5xl rounded-full shadow-md border-none bg-background/95 backdrop-blur-sm": shouldApplyScrollStyles,
+              // Styles for initial state on landing page (transparent background)
+              "max-w-full bg-transparent backdrop-blur-none": isLandingPage && !isScrolled,
+              // Styles for non-landing pages (ensure full width, standard background handled by nav)
+              "max-w-full": !isLandingPage 
             }
           )}
         >
           <div 
             className={cn(
-              "relative flex items-center h-16 transition-[padding] duration-700 ease-in-out",
-              isScrolled ? "px-4" : "px-12"
+              "relative flex items-center h-16", // Base styles
+              isLandingPage 
+                ? "transition-[padding] duration-700 ease-in-out" // Apply transition only on landing page
+                : "px-12", // Default padding for non-landing pages
+              {
+                // Padding variations for landing page
+                "px-4": shouldApplyScrollStyles, // Scrolled state
+                "px-12": isLandingPage && !isScrolled // Initial state
+              }
             )}
           >
             <div className="flex items-center flex-shrink-0">
@@ -66,8 +99,11 @@ export function Navigation() {
                   src={logoSrc} 
                   alt="CodeLadder Logo" 
                   className={cn(
-                    "w-auto transition-all duration-200 ease-in-out",
-                    isScrolled ? "h-[3.25rem]" : "h-14"
+                    "w-auto transition-all duration-200 ease-in-out", // Logo height transition
+                    {
+                      "h-[3.25rem]": shouldApplyScrollStyles, // Scrolled height on landing page
+                      "h-14": !shouldApplyScrollStyles // Default height (initial landing or other pages)
+                    }
                   )}
                 />
               </Link>
@@ -150,8 +186,15 @@ export function Navigation() {
 
             <div 
               className={cn(
-                "flex items-center flex-shrink-0 ml-auto transition-[gap] duration-700 ease-in-out",
-                isScrolled ? "gap-4" : "gap-6"
+                "flex items-center flex-shrink-0 ml-auto", // Base styles
+                isLandingPage 
+                  ? "transition-[gap] duration-700 ease-in-out" // Apply transition only on landing page
+                  : "gap-6", // Default gap for non-landing pages
+                {
+                   // Gap variations for landing page
+                  "gap-4": shouldApplyScrollStyles, // Scrolled state
+                  "gap-6": isLandingPage && !isScrolled // Initial state
+                }
               )}
             >
               <ThemeToggle />

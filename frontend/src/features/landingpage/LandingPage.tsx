@@ -15,6 +15,7 @@ import { TypeAnimation } from 'react-type-animation';
 import { Pricing } from './components/Pricing';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { LandingPageFooter } from './components/LandingPageFooter';
+import { Spotlight } from '@/components/ui/spotlight-new';
 
 /**
  * LandingPage component
@@ -29,12 +30,32 @@ import { LandingPageFooter } from './components/LandingPageFooter';
 
 export default function LandingPage() {
   const { user } = useAuth();
+  const [isDarkMode, setIsDarkMode] = useState(false);
   const [showSecondLine, setShowSecondLine] = useState(false);
   const secondLineRef = useRef(null);
   const [typingSecondLine, setTypingSecondLine] = useState(false);
   const [secondLineText, setSecondLineText] = useState('');
   const fullSecondLineText = 'your preparation should too.';
   
+  // Re-add useEffect for dark mode detection
+  useEffect(() => {
+    const checkDarkMode = () => {
+      const isDark = document.documentElement.classList.contains('dark') || 
+                    window.matchMedia('(prefers-color-scheme: dark)').matches;
+      setIsDarkMode(isDark);
+    };
+    checkDarkMode();
+    const observer = new MutationObserver((mutations) => {
+      mutations.forEach((mutation) => {
+        if (mutation.attributeName === 'class') {
+          checkDarkMode();
+        }
+      });
+    });
+    observer.observe(document.documentElement, { attributes: true });
+    return () => observer.disconnect();
+  }, []);
+
   // Handle typing animation for second line
   useEffect(() => {
     let timer;
@@ -65,10 +86,24 @@ export default function LandingPage() {
 
   return (
     <div className="min-h-[calc(100vh-4rem)] bg-transparent relative overflow-hidden font-mono flex flex-col">
-      {/* Background pattern REMOVED */}
-
-      {/* Content Wrapper: Removed relative z-0 */}
-      <div className="flex-grow">
+      {/* Background pattern: Positioned to cover navbar area, z-0 */}
+      <div className="absolute top-[-4rem] left-0 right-0 bottom-0 z-0 bg-dot-[#5b5bf7]/[0.2] [mask-image:radial-gradient(ellipse_at_center,transparent_20%,black)]" />
+      
+      {/* Spotlight Wrapper: Positioned behind pattern/content */}
+      <div className="absolute inset-0 -z-10 overflow-hidden">
+        {isDarkMode ? (
+          <Spotlight
+            // ... props ...
+          />
+        ) : (
+          <Spotlight
+            // ... props ...
+          />
+        )}
+      </div>
+      
+      {/* Content Wrapper: Added relative z-10 */}
+      <div className="flex-grow relative z-10">
         {/* 1. Hero Section */}
         <section className="flex items-center justify-center min-h-[calc(100vh-4rem)] px-4 md:px-6 lg:px-8 max-w-7xl mx-auto relative">
           <div className="flex flex-col items-center text-center py-16">
@@ -127,7 +162,7 @@ export default function LandingPage() {
                       <Button 
                         size="lg" 
                         variant="outline"
-                        className="border-[#5b5bf7]/50 border-2 text-[#5b5bf7] hover:text-[#5b5bf7] hover:bg-transparent dark:hover:bg-[#5b5bf7]/[0.05] w-full sm:w-auto py-6 px-8 text-lg font-medium transition-all duration-300 ease-in-out hover:scale-105 shadow-none"
+                        className="border-[#5b5bf7]/50 border-2 text-[#5b5bf7] hover:text-[#5b5bf7] hover:bg-white dark:hover:bg-[#5b5bf7]/10 w-full sm:w-auto py-6 px-8 text-lg font-medium transition-all duration-300 ease-in-out hover:scale-105 shadow-none"
                       >
                         Log In
                       </Button>
@@ -144,17 +179,17 @@ export default function LandingPage() {
           </div>
         </section>
 
-        {/* 6. Company Logos Section */}
+        {/* 6. Company Logos Section: Ensure bg-transparent if needed */}
         <div className="py-16">
           <CompanyLogos />
         </div>
 
-        {/* Pricing Section: Removed relative z-10 */}
+        {/* Pricing Section: Ensure bg-transparent if needed */}
         <div className="py-16">
           <Pricing />
         </div>
 
-        {/* FAQ Section: Removed relative z-10. Added bg-transparent to ensure pattern shows through if needed */}
+        {/* FAQ Section: Ensure bg-transparent */}
         <section id="faq" className="pb-16 pt-24 bg-transparent text-foreground">
           <div className="container mx-auto px-4 md:px-6 lg:px-8 max-w-7xl">
             <div className="text-center mb-12">
@@ -197,7 +232,7 @@ export default function LandingPage() {
         </section>
       </div> {/* End flex-grow wrapper */}
 
-      {/* Footer: Keep relative z-10 if it needs to be above spotlight, otherwise could remove */} 
+      {/* Footer: Keep relative z-10 */} 
       <LandingPageFooter />
 
     </div>

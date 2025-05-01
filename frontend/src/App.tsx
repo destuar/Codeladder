@@ -1,5 +1,4 @@
 import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
-import React, { useState, useEffect } from 'react';
 import { AuthProvider } from './features/auth/AuthContext';
 import { AdminProvider } from './features/admin/AdminContext';
 import { ProfileProvider } from './features/profile/ProfileContext';
@@ -31,7 +30,6 @@ import { TestResultsPage } from './features/assesment/test/TestResultsPage';
 import { TestHistoryPage } from './features/assesment/test/TestHistoryPage';
 import { TestPage } from './features/assesment/test/TestPage';
 import { AssessmentResultsRouter } from './features/assesment/shared/AssessmentResultsRouter';
-import { Spotlight } from '@/components/ui/spotlight-new';
 
 // Regular components
 const UnauthorizedPage = () => (
@@ -56,29 +54,6 @@ function AdminViewWrapper({ children }: { children: React.ReactNode }) {
 // Main layout component with conditional navigation
 function MainLayout() {
   const location = useLocation();
-  const [isDarkMode, setIsDarkMode] = useState(false);
-
-  useEffect(() => {
-    const checkDarkMode = () => {
-      const isDark = document.documentElement.classList.contains('dark') || 
-                    window.matchMedia('(prefers-color-scheme: dark)').matches;
-      setIsDarkMode(isDark);
-    };
-    
-    checkDarkMode();
-    
-    const observer = new MutationObserver((mutations) => {
-      mutations.forEach((mutation) => {
-        if (mutation.attributeName === 'class') {
-          checkDarkMode();
-        }
-      });
-    });
-    
-    observer.observe(document.documentElement, { attributes: true });
-    
-    return () => observer.disconnect();
-  }, []);
 
   const isProblemPage = location.pathname.match(/^\/problems\/[^/]+$/) || location.pathname.match(/^\/problem\/[^/]+$/);
   const isProblemReviewPage = location.pathname.match(/^\/problem\/[^/]+\/review$/);
@@ -97,42 +72,15 @@ function MainLayout() {
   
   return (
     <div className="min-h-screen bg-background text-foreground relative">
-      {/* Background pattern: Placed here, z-0 */}
-      <div className="absolute inset-0 z-0 bg-dot-[#5b5bf7]/[0.2] [mask-image:radial-gradient(ellipse_at_center,transparent_20%,black)]" />
-      
-      {/* Spotlight Wrapper: Placed behind Nav/Content */}
-      <div className="absolute inset-0 -z-10 overflow-hidden"> 
-        {isDarkMode ? (
-          <Spotlight
-            gradientFirst="radial-gradient(68.54% 68.72% at 55.02% 31.46%, hsla(240, 100%, 85%, .08) 0, hsla(240, 100%, 55%, .02) 50%, hsla(240, 100%, 45%, 0) 80%)"
-            gradientSecond="radial-gradient(50% 50% at 50% 50%, hsla(240, 100%, 85%, .06) 0, hsla(240, 100%, 55%, .02) 80%, transparent 100%)"
-            gradientThird="radial-gradient(50% 50% at 50% 50%, hsla(240, 100%, 85%, .04) 0, hsla(240, 100%, 45%, .02) 80%, transparent 100%)"
-            translateY={-300}
-            width={600}
-            height={1200}
-            duration={10}
-          />
-        ) : (
-          <Spotlight
-            gradientFirst="radial-gradient(68.54% 68.72% at 55.02% 31.46%, hsla(240, 100%, 85%, .02) 0, hsla(240, 100%, 55%, .005) 50%, hsla(240, 100%, 45%, 0) 80%)"
-            gradientSecond="radial-gradient(50% 50% at 50% 50%, hsla(240, 100%, 85%, .015) 0, hsla(240, 100%, 55%, .005) 80%, transparent 100%)"
-            gradientThird="radial-gradient(50% 50% at 50% 50%, hsla(240, 100%, 85%, .01) 0, hsla(240, 100%, 45%, .005) 80%, transparent 100%)"
-            translateY={-300}
-            width={600}
-            height={1200}
-            duration={10}
-          />
-        )}
-      </div>
-
-      {/* Ensure Navbar is above background and spotlight: z-30 */}
+      {/* Removed conditional background pattern */}
+      {/* Removed conditional Spotlight */}
+  
+      {/* Removed z-index wrapper for Navbar */}
       {!shouldHideNavigation && (
-        <div className="relative z-30">
-          <Navigation />
-        </div>
+         <Navigation />
       )}
-      {/* Ensure main content is above background and spotlight: z-20 */}
-      <main className={`relative z-20 pb-8 ${!shouldHideNavigation ? "pt-16" : ""}`}>
+      {/* Removed z-index from main, kept pb-8 */}
+      <main className="pb-8"> 
         <Routes>
           {/* Public routes */}
           <Route path="/landing" element={<AdminViewWrapper><LandingPage /></AdminViewWrapper>} />
