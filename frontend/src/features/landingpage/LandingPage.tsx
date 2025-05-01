@@ -105,7 +105,7 @@ export default function LandingPage() {
       {/* Content Wrapper: Added relative z-10 */}
       <div className="flex-grow relative z-10">
         {/* 1. Hero Section */}
-        <section className="flex items-center justify-center min-h-[calc(100vh-4rem)] px-4 md:px-6 lg:px-8 max-w-7xl mx-auto relative">
+        <section className="flex items-center justify-center min-h-[calc(100vh-4rem)] px-4 md:px-6 lg:px-8 max-w-7xl mx-auto relative pt-20">
           <div className="flex flex-col items-center text-center py-16">
             <div className="relative">
               <div className="absolute -top-16 -left-16 w-64 h-64 bg-[#5b5bf7]/10 rounded-full filter blur-3xl opacity-70"></div>
