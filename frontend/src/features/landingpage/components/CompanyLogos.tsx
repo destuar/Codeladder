@@ -63,7 +63,7 @@ export function CompanyLogos() {
   };
 
   return (
-    <div ref={sectionRef} className="w-full py-10 bg-background">
+    <div ref={sectionRef} className="w-full py-10">
       <div className="max-w-7xl mx-auto px-4 md:px-6 lg:px-8">
         <div className="flex flex-col items-center">
           <div className="mb-12 text-center pt-8">

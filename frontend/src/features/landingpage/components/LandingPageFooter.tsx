@@ -10,7 +10,7 @@ export function LandingPageFooter() {
   const { user } = useAuth();
 
   return (
-    <footer className="w-full bg-transparent py-8 px-4 md:px-6 lg:px-8 mt-24 relative z-10">
+    <footer className="w-full bg-transparent pt-4 pb-4 px-4 md:px-6 lg:px-8 mt-12 relative z-10">
       <div className="container mx-auto max-w-7xl flex flex-col md:flex-row justify-between items-start gap-4">
         {/* Group Logo and Copyright */}
         <div className="flex flex-col items-center md:items-start gap-2">

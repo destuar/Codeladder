@@ -116,7 +116,7 @@ export const Pricing = () => {
   ];
 
   return (
-    <section id="pricing" className="py-16 bg-background text-foreground">
+    <section id="pricing" className="py-16 text-foreground">
       <div className="container mx-auto px-4">
         <div className="text-center mb-12">
           <h2 className="text-3xl font-bold tracking-tight sm:text-4xl">Pricing</h2>
