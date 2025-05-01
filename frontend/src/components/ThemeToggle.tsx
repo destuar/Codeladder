@@ -11,22 +11,37 @@ export function ThemeToggle() {
     
     const initialTheme = savedTheme || (prefersDark ? 'dark' : 'light');
     setTheme(initialTheme);
-    document.documentElement.classList.toggle('dark', initialTheme === 'dark');
+    // apply without transitions
+    const root = document.documentElement;
+    root.classList.add('no-transitions');
+    root.classList.toggle('dark', initialTheme === 'dark');
+    window.requestAnimationFrame(() => {
+      window.requestAnimationFrame(() => root.classList.remove('no-transitions'));
+    });
   }, []);
 
   const toggleTheme = () => {
     const newTheme = theme === 'light' ? 'dark' : 'light';
+    const root = document.documentElement;
+    // disable transitions for the flip
+    root.classList.add('no-transitions');
     setTheme(newTheme);
-    document.documentElement.classList.toggle('dark', newTheme === 'dark');
+    root.classList.toggle('dark', newTheme === 'dark');
     localStorage.setItem('theme', newTheme);
+    // re-enable transitions after paint
+    window.requestAnimationFrame(() => {
+      window.requestAnimationFrame(() => {
+        root.classList.remove('no-transitions');
+      });
+    });
   };
 
   return (
     <Button
-      variant="outline"
+      variant="ghost"
       size="icon"
       onClick={toggleTheme}
-      className="w-10 h-10 rounded-lg border-2 flex items-center justify-center"
+      className="w-10 h-10 rounded-lg flex items-center justify-center focus-visible:ring-0"
     >
       <div className="relative w-6 h-6">
         {/* Sun */}
@@ -40,7 +55,7 @@ export function ThemeToggle() {
             viewBox="0 0 24 24"
             strokeWidth={1.5}
             stroke="currentColor"
-            className="w-5 h-5"
+            className="w-5 h-5 text-muted-foreground"
           >
             <path
               strokeLinecap="round"
@@ -61,7 +76,7 @@ export function ThemeToggle() {
             viewBox="0 0 24 24"
             strokeWidth={1.5}
             stroke="currentColor"
-            className="w-5 h-5"
+            className="w-5 h-5 text-muted-foreground"
           >
             <path
               strokeLinecap="round"

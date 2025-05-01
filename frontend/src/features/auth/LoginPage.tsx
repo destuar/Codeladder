@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { SocialAuthButton } from '@/components/ui/social-auth-button';
 import { Separator } from '@/components/ui/separator';
+import { useAdmin } from '@/features/admin/AdminContext';
 
 const loginSchema = z.object({
   email: z.string().email('Invalid email address'),
@@ -16,7 +17,8 @@ const loginSchema = z.object({
 type LoginFormData = z.infer<typeof loginSchema>;
 
 export default function LoginPage() {
-  const { login, error, isLoading, loginWithProvider } = useAuth();
+  const { login, error, isLoading, loginWithProvider, user } = useAuth();
+  const { canAccessAdmin } = useAdmin();
   const navigate = useNavigate();
 
   const {
@@ -30,8 +32,14 @@ export default function LoginPage() {
   const onSubmit = async (data: LoginFormData) => {
     try {
       await login(data.email, data.password);
-      await new Promise(resolve => setTimeout(resolve, 100));
-      navigate('/dashboard');
+      // Wait briefly for context update
+      await new Promise(resolve => setTimeout(resolve, 100)); 
+      // Use canAccessAdmin from useAdmin context after waiting
+      if (canAccessAdmin) { 
+        navigate('/dashboard'); // Admins go to Learn/Dashboard
+      } else {
+        navigate('/collections'); // Non-admins go to Practice/Collections
+      }
     } catch (err) {
       // Error is handled by the auth context
     }
@@ -40,8 +48,14 @@ export default function LoginPage() {
   const handleSocialAuth = async (provider: 'google' | 'github' | 'apple') => {
     try {
       await loginWithProvider(provider);
-      await new Promise(resolve => setTimeout(resolve, 100));
-      navigate('/dashboard');
+      // Wait briefly for context update
+      await new Promise(resolve => setTimeout(resolve, 100)); 
+      // Use canAccessAdmin from useAdmin context after waiting
+      if (canAccessAdmin) { 
+        navigate('/dashboard'); // Admins go to Learn/Dashboard
+      } else {
+        navigate('/collections'); // Non-admins go to Practice/Collections
+      }
     } catch (err) {
       // Error is handled by the auth context
     }

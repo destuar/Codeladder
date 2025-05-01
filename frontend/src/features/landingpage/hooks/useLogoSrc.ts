@@ -9,9 +9,9 @@ import singleLogoLight from '../images/codeladder single logo (light mode).svg';
 type LogoType = 'banner' | 'single';
 
 /**
- * Custom hook to get the appropriate logo source based on current theme
+ * Custom hook to get the appropriate logo source based on current theme and scroll state
  */
-export function useLogoSrc(type: LogoType = 'single') {
+export function useLogoSrc(type: LogoType = 'single', isScrolled?: boolean) {
   const [isDarkMode, setIsDarkMode] = useState(false);
   
   // Check for dark mode on component mount and when theme changes
@@ -41,7 +41,11 @@ export function useLogoSrc(type: LogoType = 'single') {
     };
   }, []);
   
-  // Return the appropriate logo based on type and current theme
+  // Determine logo source based on scroll state, type, and theme
+  if (isScrolled) {
+    return isDarkMode ? singleLogoDark : singleLogoLight;
+  }
+
   return type === 'banner'
     ? (isDarkMode ? bannerLogoDark : bannerLogoLight)
     : (isDarkMode ? singleLogoDark : singleLogoLight);
