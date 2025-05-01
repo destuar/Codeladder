@@ -2,6 +2,7 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Button } from "@/components/ui/button";
 import { CheckCircle2, Check } from "lucide-react";
 import { cn } from "@/lib/utils"; 
+import { Link } from "react-router-dom";
 
 interface PricingTierProps {
   title: string;
@@ -12,9 +13,11 @@ interface PricingTierProps {
   buttonText: string;
   isPopular?: boolean;
   isAnnual?: boolean;
+  isComingSoon?: boolean;
+  linkTo?: string;
 }
 
-const PricingTier = ({ title, subtitle, price, priceDetail, features, buttonText, isPopular = false }: PricingTierProps) => (
+const PricingTier = ({ title, subtitle, price, priceDetail, features, buttonText, isPopular = false, isComingSoon = false, linkTo }: PricingTierProps) => (
   // Use brand blue for border, add glow effect via shadow
   <Card className={cn(
     "flex flex-col", 
@@ -35,17 +38,32 @@ const PricingTier = ({ title, subtitle, price, priceDetail, features, buttonText
       {priceDetail && <p className="text-xs text-muted-foreground">{priceDetail}</p>}
       <ul className="space-y-2 text-sm flex-grow">
         {features.map((feature, index) => (
-          <li key={index} className="flex items-center">
-            {/* Keep check green for feature list */}
-            <CheckCircle2 className="h-4 w-4 mr-2 text-green-500 flex-shrink-0" />
+          <li key={index} className="flex items-start">
+            <span className="mr-2 font-semibold">-</span>
             <span>{feature}</span>
           </li>
         ))}
       </ul>
     </CardContent>
     <CardFooter>
-      {/* Apply brand blue style to ALL buttons */}
-      <Button className="w-full bg-[#5b5bf7] hover:bg-[#4a4af0] text-white">{buttonText} &rarr;</Button>
+      {/* Apply brand blue style to ALL buttons, disable if coming soon, link if linkTo provided */}
+      {isComingSoon ? (
+        <Button
+          className="w-full text-white bg-muted text-muted-foreground cursor-not-allowed hover:bg-muted"
+          disabled
+        >
+          Coming Soon
+        </Button>
+      ) : linkTo ? (
+        <Button className="w-full bg-[#5b5bf7] hover:bg-[#4a4af0] text-white" asChild>
+          <Link to={linkTo}>{buttonText} &rarr;</Link>
+        </Button>
+      ) : (
+        // Fallback for a button that's not coming soon and has no link
+        <Button className="w-full bg-[#5b5bf7] hover:bg-[#4a4af0] text-white">
+          {buttonText} &rarr;
+        </Button>
+      )}
     </CardFooter>
   </Card>
 );
@@ -54,14 +72,15 @@ export const Pricing = () => {
   const tiers: PricingTierProps[] = [
     {
       title: "CodeLadder Free",
-      subtitle: "Try it and see",
+      subtitle: "Try It Yourself",
       price: "$0",
       features: [
-        "Access to Level 1", 
-        "Basic Problem Sets", 
-        "Standard AI Assistance"
+        "Basic Problem Collections", 
+        "Limited Company Profiles", 
+        "Full Review Dashboard"
       ],
       buttonText: "Get Started Free",
+      linkTo: "/register",
     },
     {
       title: "CodeLadder Pro",
@@ -69,28 +88,30 @@ export const Pricing = () => {
       price: "$15", 
       priceDetail: "$180 billed annually", 
       features: [
-        "Full Access to All Levels",
-        "Complete Problem Library",
-        "Advanced AI Debugging & Explanations",
-        "Personalized Spaced Repetition",
-        "Priority Support", 
+        "All Problem Collections",
+        "Complete Company Profiles",
+        "10+ DSA Concept Courses",
+        "Learning Dashboard",
+        "Review Dashboard", 
       ],
       buttonText: "Go Pro (Annual)", 
       isPopular: true,
       isAnnual: true,
+      isComingSoon: true,
     },
     {
       title: "CodeLadder Pro",
       subtitle: "Monthly Plan", 
       price: "$25", 
       features: [
-        "Full Access to All Levels",
-        "Complete Problem Library",
-        "Advanced AI Debugging & Explanations",
-        "Personalized Spaced Repetition",
-        "Priority Support", 
+        "All Problem Collections",
+        "Complete Company Profiles",
+        "10+ DSA Concept Courses",
+        "Learning Dashboard",
+        "Review Dashboard", 
       ],
       buttonText: "Go Pro (Monthly)", 
+      isComingSoon: true,
     },
   ];
 
@@ -100,7 +121,7 @@ export const Pricing = () => {
         <div className="text-center mb-12">
           <h2 className="text-3xl font-bold tracking-tight sm:text-4xl">Pricing</h2>
           <p className="mt-2 text-lg text-muted-foreground">
-            Simple and transparent pricing for everyone.
+            An investment into climbing the career ladder
           </p>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-6xl mx-auto">

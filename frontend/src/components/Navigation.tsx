@@ -42,14 +42,14 @@ export function Navigation() {
           "mx-auto",
           {
             "top-4 max-w-6xl rounded-full shadow-md border-none bg-background/95 backdrop-blur-sm": isScrolled,
-            "bg-background/30 backdrop-blur-sm max-w-full": !isScrolled
+            "bg-transparent backdrop-blur-none max-w-full": !isScrolled
           }
         )}
       >
         <div 
           className={cn(
             "relative flex items-center h-16 transition-[padding] duration-200 ease-in-out",
-            isScrolled ? "px-4" : "px-6"
+            isScrolled ? "px-4" : "px-12"
           )}
         >
           <div className="flex items-center flex-shrink-0">
@@ -147,42 +147,49 @@ export function Navigation() {
             )}
           >
             <ThemeToggle />
-            {user ? (
-              <div className={cn("flex items-center", isScrolled ? "gap-2" : "gap-4")}>
-                {canAccessAdmin && (
-                  <Button
-                    variant="outline"
-                    onClick={() => setIsAdminView(!isAdminView)}
-                  >
-                    {isAdminView ? 'Exit Admin' : 'Admin View'}
-                  </Button>
-                )}
-                <Button variant="outline" onClick={logout}>
-                  Logout
+            
+            {/* Logged-in user controls */} 
+            {user && canAccessAdmin && (
+              <Button
+                variant="outline"
+                onClick={() => setIsAdminView(!isAdminView)}
+              >
+                {isAdminView ? 'Exit Admin' : 'Admin View'}
+              </Button>
+            )}
+            {user && (
+              <span 
+                onClick={logout}
+                className="text-base font-medium text-muted-foreground hover:text-foreground cursor-pointer"
+              >
+                Logout
+              </span>
+            )}
+            {user && (
+              <Link to="/profile">
+                <Avatar className="h-9 w-9 transition-transform hover:scale-105">
+                  <AvatarImage src={profile?.avatarUrl} />
+                  <AvatarFallback>{user.name?.[0] || user.email?.[0]}</AvatarFallback>
+                </Avatar>
+              </Link>
+            )}
+
+            {/* Logged-out user controls */} 
+            {!user && (
+              <Link to="/login" className="text-base font-medium text-muted-foreground hover:text-foreground">
+                Login
+              </Link>
+            )}
+            {!user && (
+              <Link to="/register">
+                <Button 
+                  className={cn(
+                    "bg-[#5b5bf7] hover:bg-[#4a4af0] text-white text-base duration-200 ease-in-out rounded-full px-5"
+                  )}
+                >
+                  Sign up
                 </Button>
-                <Link to="/profile">
-                  <Avatar className="h-9 w-9 transition-transform hover:scale-105">
-                    <AvatarImage src={profile?.avatarUrl} />
-                    <AvatarFallback>{user.name?.[0] || user.email?.[0]}</AvatarFallback>
-                  </Avatar>
-                </Link>
-              </div>
-            ) : (
-              <div className="flex items-center gap-6">
-                <Link to="/login" className="text-base font-medium text-muted-foreground hover:text-foreground">
-                  Login
-                </Link>
-                <Link to="/register">
-                  <Button 
-                    className={cn(
-                      "bg-[#5b5bf7] hover:bg-[#4a4af0] text-white transition-[padding] duration-200 ease-in-out",
-                      isScrolled ? "px-3 py-1.5 text-sm" : ""
-                    )}
-                  >
-                    Sign up
-                  </Button>
-                </Link>
-              </div>
+              </Link>
             )}
           </div>
         </div>
