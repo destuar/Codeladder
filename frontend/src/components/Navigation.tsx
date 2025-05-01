@@ -17,6 +17,7 @@ import {
 } from "@/components/ui/tooltip";
 import { Dialog, DialogTrigger, DialogContent, DialogClose, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Menu } from "lucide-react";
+import { useMediaQuery } from '@/hooks/useMediaQuery';
 
 export function Navigation() {
   const location = useLocation();
@@ -24,11 +25,13 @@ export function Navigation() {
   const { isAdminView, setIsAdminView, canAccessAdmin } = useAdmin();
   const { profile } = useProfile();
   const [isScrolled, setIsScrolled] = useState(false);
+  const isDesktop = useMediaQuery('(min-width: 1024px)');
   
   const isLandingPage = location.pathname === '/landing';
   const shouldApplyScrollStyles = isLandingPage && isScrolled;
+  const shouldApplyDesktopScrollStyles = isDesktop && shouldApplyScrollStyles;
   
-  const logoSrc = useLogoSrc('banner', shouldApplyScrollStyles); // Use combined state
+  const logoSrc = useLogoSrc('banner', shouldApplyDesktopScrollStyles);
 
   useEffect(() => {
     // Reset scroll state when path changes *away* from landing page
@@ -55,43 +58,39 @@ export function Navigation() {
     <>
       <nav 
         className={cn(
-          "left-0 right-0 z-50", // Base styles
-          isLandingPage 
-            ? "fixed transition-[top] duration-700 ease-in-out" // Landing page: fixed positioning and transition
-            : "relative border-b bg-background", // Other pages: relative positioning, border, background
-          {
-            // These only have effect if fixed positioning is applied (i.e., on landing page)
-            "top-0": isLandingPage && !isScrolled, // Initial top position for landing page
-            "top-4": shouldApplyScrollStyles,     // Scrolled top position for landing page
+          "fixed left-0 right-0 top-0 z-50", // Always fixed on mobile
+          "border-b bg-background", // Default mobile background/border
+          isLandingPage
+            ? "lg:fixed lg:bg-transparent lg:border-none lg:transition-[top] lg:duration-700 lg:ease-in-out" // Desktop Landing: fixed, transparent, transitions
+            : "lg:relative", // Desktop Other: relative (keeps bg/border from base)
+          { // Desktop Landing scroll effects ONLY
+            "lg:top-4": shouldApplyScrollStyles
           }
         )}
       >
         <div
           className={cn(
-            "mx-auto", // Base styles
-            isLandingPage 
-              ? "transition-[background-color,max-width,box-shadow,backdrop-filter,border-radius] duration-700 ease-in-out" // Apply transitions only on landing page
-              : "", // No transitions needed for other pages
-            {
-              // Styles for scrolled state on landing page
-              "max-w-5xl rounded-full shadow-md border-none bg-background/95 backdrop-blur-sm": shouldApplyScrollStyles,
-              // Styles for initial state on landing page (transparent background)
-              "max-w-full bg-transparent backdrop-blur-none": isLandingPage && !isScrolled,
-              // Styles for non-landing pages (ensure full width, standard background handled by nav)
-              "max-w-full": !isLandingPage 
+            "mx-auto max-w-full", // Base styles for mobile (always max-w)
+            isLandingPage
+              ? "lg:transition-[background-color,max-width,box-shadow,backdrop-filter,border-radius] lg:duration-700 lg:ease-in-out" // Desktop Landing: Apply transitions
+              : "",
+            { // Desktop Landing scroll effects ONLY
+              "lg:max-w-5xl lg:rounded-full lg:shadow-md lg:border-none lg:bg-background/95 lg:backdrop-blur-sm": shouldApplyScrollStyles,
+              "lg:bg-transparent lg:backdrop-blur-none": isLandingPage && !isScrolled,
+              // Mobile defaults to max-w-full, desktop handled above
             }
           )}
         >
           <div 
             className={cn(
               "relative flex items-center justify-between h-16", // Added justify-between
-              isLandingPage 
-                ? "transition-[padding] duration-700 ease-in-out" // Apply transition only on landing page
-                : "px-6 lg:px-12", // Adjusted padding for mobile and lg+ non-landing pages
-              {
-                // Padding variations for landing page
-                "px-4": shouldApplyScrollStyles, // Scrolled state (remains px-4 for mobile and desktop)
-                "px-6 lg:px-12": isLandingPage && !isScrolled // Initial state (mobile and lg+)
+              "px-6", // Default mobile padding
+              isLandingPage
+                ? "lg:transition-[padding] lg:duration-700 lg:ease-in-out" // Desktop Landing: Apply transition
+                : "lg:px-12", // Desktop Other: Apply padding
+              { // Desktop Landing scroll effects ONLY
+                "lg:px-4": shouldApplyScrollStyles, // Desktop Landing Scrolled state
+                "lg:px-12": isLandingPage && !isScrolled // Desktop Landing Initial state
               }
             )}
           >
@@ -101,10 +100,10 @@ export function Navigation() {
                   src={logoSrc} 
                   alt="CodeLadder Logo" 
                   className={cn(
-                    "w-auto transition-all duration-200 ease-in-out", // Logo height transition
+                    "w-auto h-14", // Default mobile height, no transition needed for mobile
+                    "lg:transition-all lg:duration-200 lg:ease-in-out", // Desktop height transition
                     {
-                      "h-[3.25rem]": shouldApplyScrollStyles, // Scrolled height on landing page
-                      "h-14": !shouldApplyScrollStyles // Default height (initial landing or other pages)
+                      "lg:h-[3.25rem]": shouldApplyScrollStyles // Desktop Landing Scrolled height ONLY
                     }
                   )}
                 />
@@ -185,10 +184,13 @@ export function Navigation() {
             <div 
               className={cn(
                 "flex items-center flex-shrink-0", // Base styles, removed ml-auto
-                "gap-3 lg:gap-6", // Slightly increased mobile gap, larger desktop gap
-                isLandingPage ? "transition-[gap] duration-700 ease-in-out" : "", // Apply transition only on landing page
-                { // Conditional overrides
-                  "gap-4 lg:gap-4": isLandingPage && isScrolled // Smaller gap when landing page is scrolled (applies to both mobile/desktop)
+                "gap-3", // Default mobile gap
+                isLandingPage
+                  ? "lg:transition-[gap] lg:duration-700 lg:ease-in-out" // Desktop Landing: Apply transition
+                  : "lg:gap-6", // Desktop Other: Apply specific gap
+                { // Desktop Conditional overrides
+                  "lg:gap-4": isLandingPage && isScrolled, // Desktop Landing scrolled gap
+                  "lg:gap-6": isLandingPage && !isScrolled // Desktop Landing initial gap (redundant but clear)
                 }
               )}
             >
@@ -237,8 +239,8 @@ export function Navigation() {
                 </DialogTrigger>
                 <DialogContent className="lg:hidden fixed inset-x-0 top-0 z-50 bg-background p-4 !left-0 !top-0 !translate-x-0 !translate-y-0 !max-w-none">
                   <div className="flex flex-col space-y-4">
-                    {/* Top Row: Login/Sign up (only if logged out) */}
-                    {!user && (
+                    {/* Top Row: Conditional based on login status */}
+                    {!user ? (
                       <div className="flex items-center gap-4">
                         <DialogClose asChild>
                           <Link to="/login" className="text-base font-medium text-foreground">
@@ -253,10 +255,18 @@ export function Navigation() {
                           </Link>
                         </DialogClose>
                       </div>
+                    ) : (
+                      <div className="flex items-center">
+                        <DialogClose asChild>
+                          <span onClick={logout} className="text-base font-medium text-muted-foreground hover:text-foreground cursor-pointer">
+                            Logout
+                          </span>
+                        </DialogClose>
+                      </div>
                     )}
 
-                    {/* Separator (only if logged out) */}
-                    {!user && <hr className="border-divider" />}
+                    {/* Separator */}
+                    <hr className="border-divider" />
 
                     {/* Navigation Links */}
                     {!canAccessAdmin ? (
@@ -329,29 +339,19 @@ export function Navigation() {
                       </Dialog>
                     </DialogClose>
                     <hr className="border-divider" />
-                    {/* User/Auth Controls */}
+                    {/* User/Auth Controls (Main List - Only Profile) */}
+                    {user && (
+                      <DialogClose asChild>
+                        <Link to="/profile" className="text-base font-medium text-muted-foreground hover:text-foreground">
+                          Profile
+                        </Link>
+                      </DialogClose>
+                    )}
                     {user && canAccessAdmin && (
                       <DialogClose asChild>
                         <Button variant="outline" onClick={() => setIsAdminView(!isAdminView)}>
                           {isAdminView ? "Exit Admin" : "Admin View"}
                         </Button>
-                      </DialogClose>
-                    )}
-                    {user && (
-                      <DialogClose asChild>
-                        <span onClick={logout} className="text-base font-medium text-foreground cursor-pointer">
-                          Logout
-                        </span>
-                      </DialogClose>
-                    )}
-                    {user && (
-                      <DialogClose asChild>
-                        <Link to="/profile">
-                          <Avatar className="h-9 w-9 transition-transform hover:scale-105">
-                            <AvatarImage src={profile?.avatarUrl} />
-                            <AvatarFallback>{user.name?.[0] || user.email?.[0]}</AvatarFallback>
-                          </Avatar>
-                        </Link>
                       </DialogClose>
                     )}
                   </div>
