@@ -135,6 +135,7 @@ export function TestRunner({
               selectedTestCase={selectedTestCase}
               setSelectedTestCase={setSelectedTestCase}
               testCases={testCases}
+              functionParams={functionParams}
             />
           )}
         </div>

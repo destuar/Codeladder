@@ -263,10 +263,10 @@ const tryParseJson = (value: string): any => {
  * @param testCase The test case to prepare
  * @returns A prepared test case with parsed input and expected values
  */
-const prepareTestCase = (testCase: TestCase): { input: any, expected: any, isHidden: boolean } => {
+const prepareTestCase = (testCase: TestCase): { input: any, expectedOutput: any, isHidden: boolean } => {
   return {
     input: tryParseJson(testCase.input),
-    expected: tryParseJson(testCase.expected),
+    expectedOutput: tryParseJson(testCase.expected), // Use expectedOutput to match backend field name
     isHidden: testCase.isHidden
   };
 };
