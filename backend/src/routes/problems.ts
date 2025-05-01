@@ -20,6 +20,8 @@ interface CreateProblemBody {
   estimatedTime?: string | number;
   slug?: string;
   language?: string;
+  defaultLanguage?: string;
+  languageSupport?: string; // JSON string containing language templates and references
   functionName?: string;
   timeLimit?: number;
   memoryLimit?: number;
@@ -40,6 +42,8 @@ interface UpdateProblemBody {
   estimatedTime?: string | number;
   slug?: string;
   language?: string;
+  defaultLanguage?: string;
+  languageSupport?: string;
   functionName?: string;
   timeLimit?: number;
   memoryLimit?: number;
@@ -113,6 +117,41 @@ const normalizeTestCase = (testCase: any, index: number): any => {
     isHidden: testCase.isHidden || (testCase.phase === 'hidden') || false,
     orderNum: testCase.orderNum || testCase.case_id || index + 1
   };
+};
+
+/**
+ * Prepares language support data for storage
+ * @param language Default language (e.g. 'python')
+ * @param codeTemplate Template for the default language
+ * @param languageSupportJson Optional JSON string with additional language templates
+ * @returns Structured language support JSON object
+ */
+const prepareLanguageSupport = (
+  language: string = 'python', 
+  codeTemplate?: string, 
+  languageSupportJson?: string
+): any => {
+  // Start with empty object
+  let languageSupport: any = {};
+  
+  // Parse languageSupport if provided
+  if (languageSupportJson) {
+    try {
+      languageSupport = JSON.parse(languageSupportJson);
+    } catch (e) {
+      console.warn('Error parsing languageSupport JSON:', e);
+    }
+  }
+  
+  // Add/update the default language template
+  if (codeTemplate) {
+    languageSupport[language] = {
+      ...(languageSupport[language] || {}),
+      template: codeTemplate
+    };
+  }
+  
+  return languageSupport;
 };
 
 // Get a specific problem
@@ -375,7 +414,9 @@ router.post('/', authenticateToken, authorizeRoles([Role.ADMIN, Role.DEVELOPER])
       topicId,
       estimatedTime,
       slug,
-      language = 'javascript',
+      language = 'python',
+      defaultLanguage = language,
+      languageSupport: languageSupportJson,
       functionName,
       timeLimit,
       memoryLimit,
@@ -466,11 +507,18 @@ router.post('/', authenticateToken, authorizeRoles([Role.ADMIN, Role.DEVELOPER])
 
       // If problem type is CODING, prepare CodeProblem create data
       if (problemType === 'CODING') {
+        // Prepare language support data
+        const languageSupport = prepareLanguageSupport(
+          defaultLanguage || language,  // Use defaultLanguage if provided, fall back to language
+          codeTemplate,
+          languageSupportJson
+        );
+
         // Create code problem with testCases data
         codeProblemCreateData = {
           create: {
-            codeTemplate: codeTemplate ?? null,
-            language: language ?? 'javascript',
+            defaultLanguage: defaultLanguage || language,
+            languageSupport,
             functionName: functionName ?? null,
             timeLimit: timeLimit ? Number(timeLimit) : 5000,
             memoryLimit: memoryLimit ? Number(memoryLimit) : null,
@@ -588,6 +636,8 @@ router.put('/:problemId', authenticateToken, authorizeRoles([Role.ADMIN, Role.DE
     testCases: testCasesRaw,
     estimatedTime,
     language,
+    defaultLanguage,
+    languageSupport: languageSupportJson,
     functionName,
     timeLimit,
     memoryLimit,
@@ -684,20 +734,38 @@ router.put('/:problemId', authenticateToken, authorizeRoles([Role.ADMIN, Role.DE
         existingCodeProblem = await tx.codeProblem.findUnique({ where: { problemId: problemId }});
         
         if (existingCodeProblem) {
-          // Update existing CodeProblem - handle different ID fields with type casting
-          const codeProblemObj = existingCodeProblem as any;
-          const codeProblemId = codeProblemObj.id; // Use the new id field as primary key
-          finalCodeProblemId = codeProblemId;
+          // Update existing CodeProblem
           
-          // Create where clause safely
-          const whereClause: any = { id: codeProblemId };
+          // Handle language support
+          let updatedLanguageSupport = undefined;
+          if (defaultLanguage || language || codeTemplate || languageSupportJson) {
+            // Get current language support
+            const currentLanguageSupport = existingCodeProblem.languageSupport ? 
+              (typeof existingCodeProblem.languageSupport === 'string' ? 
+                JSON.parse(existingCodeProblem.languageSupport as string) : 
+                existingCodeProblem.languageSupport) : 
+              {};
+            
+            // Prepare updated language support
+            updatedLanguageSupport = prepareLanguageSupport(
+              defaultLanguage || language || existingCodeProblem.defaultLanguage || 'python',
+              codeTemplate,
+              languageSupportJson
+            );
+            
+            // Merge with existing language support
+            updatedLanguageSupport = {
+              ...currentLanguageSupport,
+              ...updatedLanguageSupport
+            };
+          }
           
           const updateData: any = {
-            ...(codeTemplate !== undefined && { codeTemplate }),
-            ...(language !== undefined && { language }),
             ...(functionName !== undefined && { functionName }),
             ...(timeLimit !== undefined && { timeLimit: parseInt(timeLimit.toString()) }),
             ...(memoryLimit !== undefined && { memoryLimit: memoryLimit ? parseInt(memoryLimit.toString()) : null }),
+            ...(defaultLanguage !== undefined && { defaultLanguage }),
+            ...(updatedLanguageSupport !== undefined && { languageSupport: updatedLanguageSupport })
           };
 
           // Add the new JSON fields with type assertion
@@ -712,7 +780,7 @@ router.put('/:problemId', authenticateToken, authorizeRoles([Role.ADMIN, Role.DE
           }
           
           await tx.codeProblem.update({
-            where: whereClause,
+            where: { id: existingCodeProblem.id },
             data: updateData
           });
           
@@ -738,13 +806,20 @@ router.put('/:problemId', authenticateToken, authorizeRoles([Role.ADMIN, Role.DE
           }
         } else {
           // Create new CodeProblem
+
+          // Prepare language support
+          const languageSupport = prepareLanguageSupport(
+            defaultLanguage || language || 'python',
+            codeTemplate,
+            languageSupportJson
+          );
+          
           const codeProblemData: any = {
-            codeTemplate: codeTemplate ?? null,
-            language: language ?? 'javascript',
+            defaultLanguage: defaultLanguage || language || 'python',
+            languageSupport,
             functionName: functionName ?? null,
             timeLimit: timeLimit ? parseInt(timeLimit.toString()) : 5000,
             memoryLimit: memoryLimit ? parseInt(memoryLimit.toString()) : null,
-            // Use unchecked create to directly reference problemId without question relation
             problemId: problemId,
             testCases: {
               create: parsedTestCases.map((tc: any, index: number) => ({

@@ -312,6 +312,20 @@ const normalizeTestCase = (testCase: any): TestCase => {
   };
 };
 
+// Add this function to prepare language support data
+const prepareLanguageSupport = (
+  defaultLanguage: string, 
+  codeTemplate: string
+): any => {
+  // Create a language support object with the template
+  return {
+    [defaultLanguage]: {
+      template: codeTemplate || "",
+      reference: null
+    }
+  };
+};
+
 export function LearningPathAdmin() {
   const { token } = useAuth();
   const { setIsAdminView } = useAdmin();
@@ -601,36 +615,55 @@ export function LearningPathAdmin() {
   const handleAddProblem = async () => {
     if (!selectedTopic) return;
     try {
-      // Create problem with necessary data
-      const problemData: any = {
+      // Prepare the problem payload
+      const problemPayload: any = {
         name: newProblem.name,
-        content: newProblem.content,
+        content: newProblem.content || '',
         difficulty: newProblem.difficulty,
         required: newProblem.required,
-        reqOrder: newProblem.reqOrder,
         problemType: newProblem.problemType,
-        topicId: selectedTopic.id,
-        collectionIds: newProblem.collectionIds,
-        slug: newProblem.slug,
-        ...(newProblem.estimatedTime ? { estimatedTime: newProblem.estimatedTime } : {})
+        reqOrder: newProblem.reqOrder,
+        // ... other fields ...
       };
       
-      // Add coding-specific fields if this is a coding problem
-      if (newProblem.problemType === 'CODING') {
-        problemData.codeTemplate = newProblem.codeTemplate;
-        problemData.language = newProblem.language;
-        problemData.functionName = newProblem.functionName;
-        problemData.timeLimit = Number(newProblem.timeLimit);
-        problemData.memoryLimit = newProblem.memoryLimit ? Number(newProblem.memoryLimit) : undefined;
-        problemData.return_type = newProblem.return_type;
-        problemData.params = newProblem.params ? JSON.stringify(newProblem.params) : undefined;
-        
-        // Process test cases - convert strings to appropriate JSON values before stringifying
-        const preparedTestCases = newProblem.testCases.map(prepareTestCase);
-        problemData.testCases = JSON.stringify(preparedTestCases);
+      // Add estimatedTime if provided
+      if (newProblem.estimatedTime) {
+        problemPayload.estimatedTime = newProblem.estimatedTime;
       }
       
-      await api.post("/problems", problemData, token);
+      // For coding problems, add the coding-specific fields
+      if (newProblem.problemType === 'CODING') {
+        // Use the new languageSupport structure
+        problemPayload.defaultLanguage = 'python'; // Default to Python
+        problemPayload.codeTemplate = newProblem.codeTemplate || ''; // For backward compatibility
+        problemPayload.functionName = newProblem.functionName || '';
+        problemPayload.timeLimit = newProblem.timeLimit || 5000;
+        problemPayload.memoryLimit = newProblem.memoryLimit;
+        
+        // Add language support with template
+        problemPayload.languageSupport = JSON.stringify(
+          prepareLanguageSupport('python', newProblem.codeTemplate || '')
+        );
+        
+        // Process test cases
+        if (newProblem.testCases && newProblem.testCases.length > 0) {
+          // Prepare test cases for API
+          const preparedTestCases = newProblem.testCases.map(prepareTestCase);
+          problemPayload.testCases = JSON.stringify(preparedTestCases);
+        }
+        
+        // Add params if provided
+        if (newProblem.params && newProblem.params.length > 0) {
+          problemPayload.params = JSON.stringify(newProblem.params);
+        }
+        
+        // Add return type if provided
+        if (newProblem.return_type) {
+          problemPayload.return_type = newProblem.return_type;
+        }
+      }
+      
+      await api.post("/problems", problemPayload, token);
       setIsAddingProblem(false);
       
       // Reset form state
@@ -852,16 +885,25 @@ export function LearningPathAdmin() {
 
       // For CODING problems, include coding fields
       if (editProblemData.problemType === 'CODING' && editProblemData.codeProblem) {
-        // Add codeProblem fields
-        problemPayload.codeTemplate = editProblemData.codeProblem.codeTemplate;
-        problemPayload.language = editProblemData.codeProblem.language;
+        // Set default language to Python if not specified
+        problemPayload.defaultLanguage = 'python';
+        
+        // Create language support structure
+        const languageSupport = prepareLanguageSupport(
+          'python',
+          editProblemData.codeProblem.codeTemplate || ''
+        );
+        
+        // Add code problem fields
+        problemPayload.codeTemplate = editProblemData.codeProblem.codeTemplate; // For backward compatibility
+        problemPayload.languageSupport = JSON.stringify(languageSupport);
         problemPayload.functionName = editProblemData.codeProblem.functionName;
         problemPayload.timeLimit = editProblemData.codeProblem.timeLimit;
         problemPayload.memoryLimit = editProblemData.codeProblem.memoryLimit;
         problemPayload.return_type = editProblemData.codeProblem.return_type;
         problemPayload.params = JSON.stringify(editProblemData.codeProblem.params || []);
         
-        // Process test cases - convert strings to appropriate JSON values before stringifying
+        // Process test cases
         const preparedTestCases = (editProblemData.codeProblem.testCases || []).map(prepareTestCase);
         problemPayload.testCases = JSON.stringify(preparedTestCases);
       }
