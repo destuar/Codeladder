@@ -71,6 +71,7 @@ export default function CodingProblem({
   const [leftPanelTab, setLeftPanelTab] = useState("description");
   const [functionParams, setFunctionParams] = useState<{ name: string; type: string }[]>([]);
   const [problemDetails, setProblemDetails] = useState<any>(null);
+  const [currentLanguage, setCurrentLanguage] = useState<string>('python');
 
   // Parse test cases from string to array
   const parsedTestCases = useMemo(() => {
@@ -159,6 +160,69 @@ export default function CodingProblem({
     const minutes = Math.round(estimatedTime);
     return `${minutes} min${minutes !== 1 ? 's' : ''}`;
   }, [estimatedTime]);
+
+  // Helper function to get language template from problem data
+  const getLanguageTemplate = (problem: any, language: string): string => {
+    if (!problem) return '';
+    
+    // Try to get from languageSupport JSON first (new structure)
+    try {
+      if (problem.codeProblem?.languageSupport) {
+        const languageSupport = typeof problem.codeProblem.languageSupport === 'string'
+          ? JSON.parse(problem.codeProblem.languageSupport)
+          : problem.codeProblem.languageSupport;
+          
+        if (languageSupport[language]?.template) {
+          return languageSupport[language].template;
+        }
+      }
+    } catch (e) {
+      console.error('Error parsing languageSupport JSON:', e);
+    }
+    
+    // Fallback: Try old fields
+    if (language === problem.codeProblem?.language || language === problem.codeProblem?.language_old) {
+      return problem.codeProblem?.codeTemplate || problem.codeProblem?.code_template_old || '';
+    }
+    
+    // Fallback to empty string or default template
+    return problem.codeProblem?.codeTemplate || '';
+  };
+
+  // Fetch problem details
+  useEffect(() => {
+    const fetchProblem = async () => {
+      try {
+        const response = await api.get(`/problems/${problemId}`);
+        setProblemDetails(response);
+        
+        // Get default language from problem
+        if (response.codeProblem?.defaultLanguage) {
+          setCurrentLanguage(response.codeProblem.defaultLanguage);
+        }
+        
+        // Get template for current language
+        const template = getLanguageTemplate(response, currentLanguage);
+        setCode(template);
+        
+        // ... rest of initialization ...
+      } catch (error) {
+        console.error('Failed to fetch problem:', error);
+      }
+    };
+    
+    fetchProblem();
+  }, [problemId]);
+  
+  // Update code template when language changes
+  useEffect(() => {
+    if (problemDetails) {
+      const template = getLanguageTemplate(problemDetails, currentLanguage);
+      if (template && !code) {
+        setCode(template);
+      }
+    }
+  }, [currentLanguage, problemDetails]);
 
   return (
     <div className={cn(

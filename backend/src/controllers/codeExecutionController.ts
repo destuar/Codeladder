@@ -311,6 +311,54 @@ function compareOutputs(expected: any, actual: any): boolean {
 }
 
 /**
+ * Gets the code template for a specific language from languageSupport JSON
+ * Handles the new multi-language structure
+ */
+function getLanguageTemplate(codeProblem: any, language: string): string | null {
+  if (!codeProblem) return null;
+
+  // Try to get from languageSupport JSON first (new structure)
+  if (codeProblem.languageSupport) {
+    try {
+      const languageSupport = typeof codeProblem.languageSupport === 'string' 
+        ? JSON.parse(codeProblem.languageSupport) 
+        : codeProblem.languageSupport;
+        
+      if (languageSupport[language]?.template) {
+        return languageSupport[language].template;
+      }
+    } catch (e) {
+      console.warn('Error parsing languageSupport JSON:', e);
+    }
+  }
+
+  // For backward compatibility with old fields
+  if (language === codeProblem.language_old || language === codeProblem.language) {
+    return codeProblem.codeTemplate || codeProblem.code_template_old;
+  }
+
+  return null;
+}
+
+/**
+ * Gets the reference implementation for a specific language
+ */
+function getReferenceImplementation(codeProblem: any, language: string): string | null {
+  if (!codeProblem?.languageSupport) return null;
+
+  try {
+    const languageSupport = typeof codeProblem.languageSupport === 'string' 
+      ? JSON.parse(codeProblem.languageSupport) 
+      : codeProblem.languageSupport;
+      
+    return languageSupport[language]?.reference || null;
+  } catch (e) {
+    console.warn('Error parsing languageSupport JSON for reference implementation:', e);
+    return null;
+  }
+}
+
+/**
  * Execute a custom test case
  * Routes: POST /code/custom-test
  * 
@@ -322,7 +370,7 @@ function compareOutputs(expected: any, actual: any): boolean {
  * - functionName: Name of the function to test (optional)
  */
 export async function executeCustomTest(req: Request, res: Response): Promise<void> {
-  const { code, language, input, problemId, functionName: customFunctionName } = req.body;
+  const { code, language = "python", input, problemId, functionName: customFunctionName } = req.body;
   
   if (!code || !language) {
     res.status(400).json({ error: 'Missing required parameters' });
@@ -332,16 +380,17 @@ export async function executeCustomTest(req: Request, res: Response): Promise<vo
   try {
     // If a problem ID is provided, load function name from there
     let functionName = customFunctionName;
+    let expectedOutput = null;
     
-    if (problemId && !functionName) {
+    if (problemId) {
       const problem = await prisma.problem.findUnique({
         where: { id: problemId },
         select: { 
-          // Include codeProblem and necessary fields
           codeProblem: {
             select: {
               functionName: true,
-               // Optionally include testCases if needed elsewhere, but not needed just for functionName
+              languageSupport: true,
+              defaultLanguage: true
             }
           }
         },
@@ -350,6 +399,15 @@ export async function executeCustomTest(req: Request, res: Response): Promise<vo
       // Get function name from the related CodeProblem
       if (problem?.codeProblem?.functionName) {
         functionName = problem.codeProblem.functionName;
+      }
+      
+      // Check for reference implementation
+      const referenceImpl = getReferenceImplementation(problem?.codeProblem, language);
+      if (referenceImpl) {
+        // Run reference implementation to get expected output
+        const formattedRefCode = formatTestCode(referenceImpl, language, input, functionName || 'solution');
+        const refResult = await submitCode(formattedRefCode, language);
+        expectedOutput = refResult.output.trim();
       }
     }
     
@@ -362,8 +420,17 @@ export async function executeCustomTest(req: Request, res: Response): Promise<vo
     // Submit to Judge0
     const result = await submitCode(formattedCode, language);
     
+    // Add expected output if available
+    const response = {
+      ...result,
+      expectedOutput,
+      passed: expectedOutput !== null 
+        ? result.output.trim() === expectedOutput 
+        : null
+    };
+    
     // Return result to client
-    res.status(200).json(result);
+    res.status(200).json(response);
   } catch (error) {
     console.error('Custom test error:', error);
     
