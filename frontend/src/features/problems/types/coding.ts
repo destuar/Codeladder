@@ -4,6 +4,7 @@
 export interface TestCase {
   id?: string;
   functionName?: string;
+  functionParams?: FunctionParameter[];
   input: any[];
   expected: any;
   isHidden?: boolean;
@@ -47,6 +48,15 @@ export interface LanguageConfig {
   label: string;
   monacoLanguage: string;
   defaultTemplate: string;
+}
+
+/**
+ * Language data structure
+ */
+export interface LanguageData {
+  enabled: boolean;
+  template: string;
+  reference: string;
 }
 
 // Supported language types

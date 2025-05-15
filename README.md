@@ -110,3 +110,85 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - [Backend Documentation](./backend/README.md)
 - [Infrastructure Documentation](./infra/README.md)
 - [API Documentation](./docs/api.md)
+
+# Multi-Language Support for Code Problems
+
+This feature adds support for multiple programming languages in coding problems. It allows administrators to:
+
+1. Enable/disable specific programming languages for each problem
+2. Set different code templates for each supported language
+3. Add reference implementations for each language
+4. Specify a default language for each problem
+
+## Implementation
+
+The feature consists of the following components:
+
+### Types and Models
+
+- Added `LanguageData` interface in `frontend/src/features/problems/types/coding.ts`
+- Updated `TestCase` interface to include `functionParams` for improved parameter display
+- Added `FunctionParameter` interface for parameter information
+
+### UI Components
+
+- Created a dedicated `LanguageSupport` component in `frontend/src/features/languages/components/LanguageSupport.tsx`
+- This component provides:
+  - Language selection via checkboxes
+  - Default language selection
+  - Code template editing for each language
+  - Reference implementation editing for each language
+
+### Integration
+
+To integrate the language support feature into the admin interface:
+
+1. Import the `LanguageSupport` component and related types in your admin component:
+   ```typescript
+   import { 
+     LanguageSupport, 
+     defaultSupportedLanguages,
+     prepareLanguageSupport 
+   } from '@/features/languages/components/LanguageSupport';
+   ```
+
+2. Add state for supported languages:
+   ```typescript
+   const [supportedLanguages, setSupportedLanguages] = useState(defaultSupportedLanguages);
+   ```
+
+3. Add the component to your form:
+   ```typescript
+   <LanguageSupport
+     supportedLanguages={supportedLanguages}
+     setSupportedLanguages={setSupportedLanguages}
+     defaultLanguage={defaultLanguage}
+     setDefaultLanguage={setDefaultLanguage}
+   />
+   ```
+
+4. When submitting to the API, use the `prepareLanguageSupport` function:
+   ```typescript
+   const languageSupport = prepareLanguageSupport(defaultLanguage, supportedLanguages);
+   
+   // Include in your API payload
+   const payload = {
+     // ... other fields
+     supportedLanguages: languageSupport
+   };
+   ```
+
+## Backward Compatibility
+
+The feature maintains backward compatibility with existing code templates by:
+
+1. Converting old `codeTemplate` fields to the new structure
+2. Defaulting to the `defaultLanguage` if no supported languages are enabled
+3. Supporting both old and new API formats
+
+## Future Improvements
+
+- Add syntax highlighting in the template editor
+- Support more programming languages 
+- Add language-specific test cases
+- Implement automated testing across languages

@@ -18,6 +18,13 @@ import { ProblemCollectionAdmin } from "./ProblemCollectionAdmin";
 import { Trash, PlusCircle, RefreshCw } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { 
+  LanguageSupport, 
+  defaultSupportedLanguages,
+  prepareLanguageSupport as prepareMultiLanguageSupport,
+  type SupportedLanguage,
+  type LanguageData
+} from '@/features/languages/components/LanguageSupport';
 
 type ProblemDifficulty = 'EASY_IIII' | 'EASY_III' | 'EASY_II' | 'EASY_I' | 'MEDIUM' | 'HARD';
 type ProblemType = 'INFO' | 'CODING';
@@ -37,8 +44,14 @@ type NewTopic = {
 };
 
 type TestCase = {
-  input: string;
-  expected: string;
+  input: string;  // Store as string, will parse when needed
+  expected: string;  // Store as string, will parse when needed
+  isHidden: boolean;
+};
+
+type PreparedTestCase = {
+  input: string;  // Keep as string for API
+  expectedOutput: string;  // Keep as string for API
   isHidden: boolean;
 };
 
@@ -263,10 +276,10 @@ const tryParseJson = (value: string): any => {
  * @param testCase The test case to prepare
  * @returns A prepared test case with parsed input and expected values
  */
-const prepareTestCase = (testCase: TestCase): { input: any, expectedOutput: any, isHidden: boolean } => {
+const prepareTestCase = (testCase: TestCase): PreparedTestCase => {
   return {
-    input: tryParseJson(testCase.input),
-    expectedOutput: tryParseJson(testCase.expected), // Use expectedOutput to match backend field name
+    input: testCase.input,  // Already a string
+    expectedOutput: testCase.expected,  // Already a string
     isHidden: testCase.isHidden
   };
 };
@@ -277,33 +290,15 @@ const prepareTestCase = (testCase: TestCase): { input: any, expectedOutput: any,
  * @returns A normalized test case for UI editing
  */
 const normalizeTestCase = (testCase: any): TestCase => {
-  // Handle input - ensure it's a string for editing
-  let inputStr = typeof testCase.input === 'string' 
+  // Handle input
+  const inputStr = typeof testCase.input === 'string' 
     ? testCase.input
     : JSON.stringify(testCase.input);
     
-  // Remove excessive escaping if present
-  while (inputStr.startsWith('"') && inputStr.endsWith('"') && inputStr.includes('\\')) {
-    try {
-      inputStr = JSON.parse(inputStr);
-    } catch (e) {
-      break;
-    }
-  }
-  
-  // Handle expected output - ensure it's a string for editing
-  let expectedStr = typeof testCase.expected === 'string' || typeof testCase.expectedOutput === 'string'
+  // Handle expected output
+  const expectedStr = typeof testCase.expected === 'string' || typeof testCase.expectedOutput === 'string'
     ? (testCase.expected || testCase.expectedOutput)
     : JSON.stringify(testCase.expected || testCase.expectedOutput);
-    
-  // Remove excessive escaping if present
-  while (expectedStr.startsWith('"') && expectedStr.endsWith('"') && expectedStr.includes('\\')) {
-    try {
-      expectedStr = JSON.parse(expectedStr);
-    } catch (e) {
-      break;
-    }
-  }
   
   return {
     input: inputStr,
@@ -315,15 +310,9 @@ const normalizeTestCase = (testCase: any): TestCase => {
 // Add this function to prepare language support data
 const prepareLanguageSupport = (
   defaultLanguage: string, 
-  codeTemplate: string
+  supportedLanguages: Record<SupportedLanguage, LanguageData>
 ): any => {
-  // Create a language support object with the template
-  return {
-    [defaultLanguage]: {
-      template: codeTemplate || "",
-      reference: null
-    }
-  };
+  return prepareMultiLanguageSupport(defaultLanguage, supportedLanguages);
 };
 
 export function LearningPathAdmin() {
@@ -337,6 +326,8 @@ export function LearningPathAdmin() {
   const [isEditingTopic, setIsEditingTopic] = useState(false);
   const [isAddingProblem, setIsAddingProblem] = useState(false);
   const [isEditingProblem, setIsEditingProblem] = useState(false);
+  const [supportedLanguages, setSupportedLanguages] = useState<Record<SupportedLanguage, LanguageData>>(defaultSupportedLanguages);
+  const [defaultLanguage, setDefaultLanguage] = useState<string>('python');
   
   const [selectedLevel, setSelectedLevel] = useState<Level | null>(null);
   const [selectedTopic, setSelectedTopic] = useState<Topic | null>(null);
@@ -623,32 +614,47 @@ export function LearningPathAdmin() {
         required: newProblem.required,
         problemType: newProblem.problemType,
         reqOrder: newProblem.reqOrder,
-        // ... other fields ...
+        estimatedTime: newProblem.estimatedTime,
+        collectionIds: newProblem.collectionIds || [],
+        slug: newProblem.slug || "",
+        topicId: selectedTopic.id
       };
-      
-      // Add estimatedTime if provided
-      if (newProblem.estimatedTime) {
-        problemPayload.estimatedTime = newProblem.estimatedTime;
-      }
       
       // For coding problems, add the coding-specific fields
       if (newProblem.problemType === 'CODING') {
-        // Use the new languageSupport structure
-        problemPayload.defaultLanguage = 'python'; // Default to Python
-        problemPayload.codeTemplate = newProblem.codeTemplate || ''; // For backward compatibility
+        // Add code problem fields
+        problemPayload.language = defaultLanguage;
         problemPayload.functionName = newProblem.functionName || '';
         problemPayload.timeLimit = newProblem.timeLimit || 5000;
         problemPayload.memoryLimit = newProblem.memoryLimit;
         
-        // Add language support with template
-        problemPayload.languageSupport = JSON.stringify(
-          prepareLanguageSupport('python', newProblem.codeTemplate || '')
-        );
+        // Prepare language support data
+        const languageSupport = { ...defaultSupportedLanguages };
+        languageSupport[defaultLanguage as SupportedLanguage] = {
+          ...languageSupport[defaultLanguage as SupportedLanguage],
+          template: newProblem.codeTemplate || '',
+          enabled: true
+        };
+        
+        // Add language support and code template
+        problemPayload.languageSupport = JSON.stringify(languageSupport);
+        problemPayload.codeTemplate = newProblem.codeTemplate || '';
         
         // Process test cases
         if (newProblem.testCases && newProblem.testCases.length > 0) {
-          // Prepare test cases for API
-          const preparedTestCases = newProblem.testCases.map(prepareTestCase);
+          const preparedTestCases = newProblem.testCases.map(testCase => {
+            // Ensure input is properly stringified if it's not already a string
+            const input = typeof testCase.input === 'string' ? testCase.input : JSON.stringify(testCase.input);
+            
+            // Ensure expected output is properly stringified if it's not already a string
+            const expected = typeof testCase.expected === 'string' ? testCase.expected : JSON.stringify(testCase.expected);
+            
+            return {
+              input,
+              expectedOutput: expected,
+              isHidden: testCase.isHidden
+            };
+          });
           problemPayload.testCases = JSON.stringify(preparedTestCases);
         }
         
@@ -662,8 +668,14 @@ export function LearningPathAdmin() {
           problemPayload.return_type = newProblem.return_type;
         }
       }
+
+      console.log('Creating problem with payload:', problemPayload); // Add logging
+
+      // Create the problem with all necessary fields
+      const createdProblem = await api.post("/problems", problemPayload, token);
       
-      await api.post("/problems", problemPayload, token);
+      console.log('Created problem:', createdProblem); // Add logging
+      
       setIsAddingProblem(false);
       
       // Reset form state
@@ -728,7 +740,7 @@ export function LearningPathAdmin() {
           const content = prev.content || '';
           return {
             ...prev,
-            problemType: value,
+            problemType: value as ProblemType,
             content, // Keep the content
             codeProblem: undefined // Set to undefined instead of null
           };
@@ -737,7 +749,7 @@ export function LearningPathAdmin() {
         else if (value === 'CODING') {
           return {
             ...prev,
-            problemType: value,
+            problemType: value as ProblemType,
             // Initialize codeProblem with defaults
             codeProblem: {
               codeTemplate: '',
@@ -753,8 +765,23 @@ export function LearningPathAdmin() {
         }
         return {
           ...prev,
-          [name]: value
+          [name]: value as ProblemType
         };
+      }
+
+      // Handle language change
+      if (name === 'language') {
+        // Update default language in language support state
+        setDefaultLanguage(value);
+        
+        // Update the language support state to enable the new language
+        const initialLanguageSupport = { ...defaultSupportedLanguages };
+        initialLanguageSupport[value as SupportedLanguage] = {
+          ...initialLanguageSupport[value as SupportedLanguage],
+          enabled: true,
+          template: prev.codeProblem?.codeTemplate || ''
+        };
+        setSupportedLanguages(initialLanguageSupport);
       }
 
       // Handle codeProblem fields
@@ -789,6 +816,17 @@ export function LearningPathAdmin() {
         params: []
       };
       
+      // Update the code template in language support state
+      if (name === 'codeTemplate') {
+        const initialLanguageSupport = { ...defaultSupportedLanguages };
+        initialLanguageSupport[defaultLanguage as SupportedLanguage] = {
+          ...initialLanguageSupport[defaultLanguage as SupportedLanguage],
+          enabled: true,
+          template: value
+        };
+        setSupportedLanguages(initialLanguageSupport);
+      }
+      
       return {
         ...prev,
         codeProblem: {
@@ -797,7 +835,7 @@ export function LearningPathAdmin() {
         },
       };
     });
-  }, []);
+  }, [defaultLanguage]);
 
   const handleEditTestCaseChange = useCallback((index: number, field: string, value: string | boolean) => {
     setEditProblemData(prev => {
@@ -885,18 +923,16 @@ export function LearningPathAdmin() {
 
       // For CODING problems, include coding fields
       if (editProblemData.problemType === 'CODING' && editProblemData.codeProblem) {
-        // Set default language to Python if not specified
-        problemPayload.defaultLanguage = 'python';
+        // Set default language
+        problemPayload.defaultLanguage = defaultLanguage;
         
         // Create language support structure
-        const languageSupport = prepareLanguageSupport(
-          'python',
-          editProblemData.codeProblem.codeTemplate || ''
+        problemPayload.languageSupport = JSON.stringify(
+          prepareLanguageSupport(defaultLanguage, supportedLanguages)
         );
         
         // Add code problem fields
         problemPayload.codeTemplate = editProblemData.codeProblem.codeTemplate; // For backward compatibility
-        problemPayload.languageSupport = JSON.stringify(languageSupport);
         problemPayload.functionName = editProblemData.codeProblem.functionName;
         problemPayload.timeLimit = editProblemData.codeProblem.timeLimit;
         problemPayload.memoryLimit = editProblemData.codeProblem.memoryLimit;
@@ -983,6 +1019,12 @@ export function LearningPathAdmin() {
         params: [] // Reset params
       } : {})
     }));
+
+    // Reset language support state when switching problem type
+    if (value === 'INFO') {
+      setSupportedLanguages(defaultSupportedLanguages);
+      setDefaultLanguage('python');
+    }
   };
 
   const handleDeleteTopic = async (topicId: string) => {
@@ -1335,6 +1377,49 @@ export function LearningPathAdmin() {
               : [{ input: '', expected: '', isHidden: false }])
           : [{ input: '', expected: '', isHidden: false }];
           
+        // Initialize language support state
+        if (problemDetails.codeProblem) {
+          try {
+            const languageSupport = problemDetails.codeProblem.languageSupport 
+              ? JSON.parse(problemDetails.codeProblem.languageSupport)
+              : null;
+
+            if (languageSupport) {
+              // Initialize with existing language support
+              const initialLanguageSupport = { ...defaultSupportedLanguages };
+              Object.entries(languageSupport).forEach(([lang, data]: [string, any]) => {
+                if (lang in initialLanguageSupport) {
+                  initialLanguageSupport[lang as SupportedLanguage] = {
+                    enabled: true,
+                    template: data.template || '',
+                    reference: data.reference || ''
+                  };
+                }
+              });
+              setSupportedLanguages(initialLanguageSupport);
+              setDefaultLanguage(problemDetails.codeProblem.defaultLanguage || 'python');
+            } else {
+              // Initialize with legacy code template
+              const initialLanguageSupport = { ...defaultSupportedLanguages };
+              const defaultLang = (problemDetails.codeProblem.defaultLanguage || 'python') as SupportedLanguage;
+              if (problemDetails.codeProblem.codeTemplate) {
+                initialLanguageSupport[defaultLang] = {
+                  enabled: true,
+                  template: problemDetails.codeProblem.codeTemplate,
+                  reference: ''
+                };
+              }
+              setSupportedLanguages(initialLanguageSupport);
+              setDefaultLanguage(defaultLang);
+            }
+          } catch (err) {
+            console.error('Error parsing language support:', err);
+            // Reset to defaults
+            setSupportedLanguages(defaultSupportedLanguages);
+            setDefaultLanguage('python');
+          }
+        }
+          
         // Initialize editProblemData state
         setEditProblemData({
           ...problemDetails,
@@ -1375,6 +1460,9 @@ export function LearningPathAdmin() {
         });
         setSelectedProblem(problem);
         setIsEditingProblem(true);
+        // Reset language support to defaults
+        setSupportedLanguages(defaultSupportedLanguages);
+        setDefaultLanguage('python');
       })
       .finally(() => {
         setIsLoadingProblems(false);
@@ -2014,44 +2102,67 @@ export function LearningPathAdmin() {
                     name="return_type"
                     value={newProblem.return_type || ""}
                     onChange={(e) => setNewProblem(prev => ({ ...prev, return_type: e.target.value }))}
-                    placeholder="e.g., number, string, boolean, number[]"
+                    placeholder="void"
                   />
-                  <p className="text-xs text-muted-foreground">
-                    Specify the return type of the function (e.g., number, string, boolean)
-                  </p>
                 </div>
                 
                 <div className="grid gap-2">
                   <Label>Function Parameters</Label>
-                  <div className="border rounded-md p-4 space-y-3">
-                    {(newProblem.params || []).map((param, index) => (
-                      <div key={index} className="flex gap-2 items-end">
-                        <div className="flex-1">
-                          <Label htmlFor={`param-name-${index}`} className="text-xs">Name</Label>
+                  <div className="space-y-4 border rounded-md p-4">
+                    {newProblem.params?.map((param, index) => (
+                      <div key={index} className="pb-4 border-b last:border-b-0 last:pb-0 space-y-3">
+                        <div className="flex items-center justify-between">
+                          <h4 className="text-sm font-medium">Parameter {index + 1}</h4>
+                          {newProblem.params && newProblem.params.length > 0 && (
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleRemoveParam(index)}
+                            >
+                              <Trash className="h-4 w-4" />
+                            </Button>
+                          )}
+                        </div>
+                        
+                        <div className="grid grid-cols-2 gap-4">
+                          <div className="space-y-2">
+                            <Label htmlFor={`param-name-${index}`} className="text-xs">
+                              Name <span className="text-destructive">*</span>
+                            </Label>
+                            <Input
+                              id={`param-name-${index}`}
+                              value={param.name}
+                              onChange={(e) => handleParamChange(index, 'name', e.target.value)}
+                              placeholder="Parameter name"
+                              required
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label htmlFor={`param-type-${index}`} className="text-xs">
+                              Type <span className="text-destructive">*</span>
+                            </Label>
+                            <Input
+                              id={`param-type-${index}`}
+                              value={param.type}
+                              onChange={(e) => handleParamChange(index, 'type', e.target.value)}
+                              placeholder="Parameter type"
+                              required
+                            />
+                          </div>
+                        </div>
+                        
+                        <div className="space-y-2">
+                          <Label htmlFor={`param-desc-${index}`} className="text-xs">
+                            Description (optional)
+                          </Label>
                           <Input
-                            id={`param-name-${index}`}
-                            value={param.name || ''}
-                            onChange={(e) => handleParamChange(index, 'name', e.target.value)}
-                            placeholder="Parameter name"
+                            id={`param-desc-${index}`}
+                            value={param.description || ''}
+                            onChange={(e) => handleParamChange(index, 'description', e.target.value)}
+                            placeholder="Parameter description"
                           />
                         </div>
-                        <div className="flex-1">
-                          <Label htmlFor={`param-type-${index}`} className="text-xs">Type</Label>
-                          <Input
-                            id={`param-type-${index}`}
-                            value={param.type || ''}
-                            onChange={(e) => handleParamChange(index, 'type', e.target.value)}
-                            placeholder="e.g., number, string"
-                          />
-                        </div>
-                        <Button 
-                          type="button" 
-                          variant="ghost" 
-                          size="icon" 
-                          onClick={() => handleRemoveParam(index)}
-                        >
-                          <Trash className="h-4 w-4" />
-                        </Button>
                       </div>
                     ))}
                     
@@ -2093,14 +2204,12 @@ export function LearningPathAdmin() {
                 </div>
                 
                 <div className="grid gap-2">
-                  <Label htmlFor="codeTemplate">Code Template</Label>
-                  <Textarea
-                    id="codeTemplate"
-                    name="codeTemplate"
-                    value={newProblem.codeTemplate}
-                    onChange={handleProblemChange}
-                    className="min-h-[150px] max-h-[300px] overflow-y-auto font-mono"
-                    placeholder="function solution() {\n  // Write your code here\n}"
+                  <Label>Language Support</Label>
+                  <LanguageSupport
+                    supportedLanguages={supportedLanguages}
+                    setSupportedLanguages={setSupportedLanguages}
+                    defaultLanguage={defaultLanguage}
+                    setDefaultLanguage={setDefaultLanguage}
                   />
                 </div>
                 
@@ -2253,446 +2362,285 @@ export function LearningPathAdmin() {
               Modify the problem details.
             </DialogDescription>
           </DialogHeader>
-          {/* Use Tabs for consistency */}  
-          <Tabs defaultValue="general" className="w-full">
-            <TabsList className="grid w-full grid-cols-2">
-              <TabsTrigger value="general">General Info</TabsTrigger>
-              <TabsTrigger value="code" disabled={editProblemData?.problemType !== 'CODING'}>
-                Code & Test Cases
-              </TabsTrigger>
-            </TabsList>
+          <div className="grid gap-4 py-4">
+            <div className="grid gap-2">
+              <Label htmlFor="edit-problem-name">Name <span className="text-destructive">*</span></Label>
+              <Input
+                id="edit-problem-name"
+                name="name"
+                value={editProblemData?.name || ""}
+                onChange={handleEditProblemInputChange}
+              />
+            </div>
             
-            {/* General Info Tab */}  
-            <TabsContent value="general" className="mt-4">
-              {editProblemData ? (
-                <div className="grid gap-4 py-4">
-                  {/* Existing General Fields - BIND to editProblemData and use new handlers */}
-                  <div className="grid gap-2">
-                    <Label htmlFor="edit-problem-name">Name</Label>
+            <div className="grid gap-2">
+              <Label htmlFor="edit-problem-slug">Slug <span className="text-destructive">*</span></Label>
+              <Input
+                id="edit-problem-slug"
+                name="slug"
+                value={editProblemData?.slug || ""}
+                onChange={handleEditProblemInputChange}
+              />
+              <p className="text-xs text-muted-foreground mt-1">
+                A URL-friendly identifier for this problem. Used in problem URLs.
+              </p>
+            </div>
+            
+            <div className="grid gap-2">
+              <Label htmlFor="edit-problem-content">Content (Markdown) <span className="text-destructive">*</span></Label>
+              <Textarea
+                id="edit-problem-content"
+                name="content"
+                value={editProblemData?.content || ""}
+                onChange={handleEditProblemInputChange}
+                className="min-h-[150px] max-h-[300px] overflow-y-auto"
+              />
+            </div>
+            
+            <div className="grid gap-2">
+              <Label htmlFor="edit-problem-difficulty">Difficulty <span className="text-destructive">*</span></Label>
+              <Select 
+                value={editProblemData?.difficulty} 
+                onValueChange={(value: ProblemDifficulty) => handleEditProblemSelectChange('difficulty', value)}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select difficulty" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="EASY_IIII">Easy IIII</SelectItem>
+                  <SelectItem value="EASY_III">Easy III</SelectItem>
+                  <SelectItem value="EASY_II">Easy II</SelectItem>
+                  <SelectItem value="EASY_I">Easy I</SelectItem>
+                  <SelectItem value="MEDIUM">Medium</SelectItem>
+                  <SelectItem value="HARD">Hard</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            
+            <div className="grid gap-2">
+              <Label htmlFor="edit-problem-type">Problem Type (Cannot change)</Label>
+              <Input
+                id="edit-problem-type"
+                name="problemType"
+                value={editProblemData?.problemType || ""}
+                disabled // Make type non-editable for simplicity
+              />
+            </div>
+            
+            <div className="grid gap-2">
+              <Label htmlFor="edit-problem-collectionIds">Collections (Optional)</Label>
+              <div className="space-y-2 border rounded-md p-3">
+                {loadingCollections ? (
+                  <div className="py-2 text-center text-muted-foreground">Loading collections...</div>
+                ) : collections.length === 0 ? (
+                  <div className="py-2 text-center text-muted-foreground">No collections found</div>
+                ) : (
+                  collections.map(collection => (
+                    <div key={collection.id} className="flex items-center gap-2">
+                      <Checkbox
+                        id={`edit-collection-${collection.id}`}
+                        checked={editProblemData?.collectionIds?.includes(collection.id) || false}
+                        onCheckedChange={(checked) => {
+                          if (!editProblemData) return;
+                          const currentIds = editProblemData.collectionIds || [];
+                          const newIds = checked
+                            ? [...currentIds, collection.id]
+                            : currentIds.filter(id => id !== collection.id);
+                          handleEditProblemSelectChange('collectionIds', newIds);
+                        }}
+                      />
+                      <Label htmlFor={`edit-collection-${collection.id}`}>{collection.name}</Label>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+            
+            {editProblemData?.problemType === 'CODING' && editProblemData?.codeProblem && (
+              <>
+                <div className="grid gap-2">
+                  <Label htmlFor="edit-code-language">Programming Language <span className="text-destructive">*</span></Label>
+                  <Select 
+                    value={editProblemData.codeProblem.language || 'javascript'} 
+                    onValueChange={(value: string) => handleEditProblemSelectChange('language', value)}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select language" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="javascript">JavaScript</SelectItem>
+                      <SelectItem value="python">Python</SelectItem>
+                      <SelectItem value="java">Java</SelectItem>
+                      <SelectItem value="cpp">C++</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                
+                <div className="grid gap-2">
+                  <Label>Language Support <span className="text-destructive">*</span></Label>
+                  <LanguageSupport
+                    supportedLanguages={supportedLanguages}
+                    setSupportedLanguages={setSupportedLanguages}
+                    defaultLanguage={defaultLanguage}
+                    setDefaultLanguage={setDefaultLanguage}
+                  />
+                </div>
+                
+                <div className="grid gap-2">
+                  <Label htmlFor="edit-function-name">Function Name <span className="text-destructive">*</span></Label>
+                  <Input
+                    id="edit-function-name"
+                    name="functionName"
+                    value={editProblemData.codeProblem.functionName || ""}
+                    onChange={handleEditProblemCodeProblemChange}
+                    placeholder="e.g., solveProblem"
+                  />
+                </div>
+                
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label htmlFor="edit-time-limit">Time Limit (ms) <span className="text-destructive">*</span></Label>
                     <Input
-                      id="edit-problem-name"
-                      name="name"
-                      value={editProblemData.name || ""}
-                      onChange={handleEditProblemInputChange}
-                    />
-                  </div>
-                  <div className="grid gap-2">
-                    <Label htmlFor="edit-problem-slug">Slug</Label>
-                    <Input
-                      id="edit-problem-slug"
-                      name="slug"
-                      value={editProblemData.slug || ""}
-                      onChange={handleEditProblemInputChange}
-                    />
-                  </div>
-                  <div className="grid gap-2">
-                    <Label htmlFor="edit-problem-content">Content (Markdown)</Label>
-                    <Textarea
-                      id="edit-problem-content"
-                      name="content"
-                      value={editProblemData.content || ""}
-                      onChange={handleEditProblemInputChange}
-                      className="min-h-[150px] max-h-[300px] overflow-y-auto"
-                    />
-                  </div>
-                   <div className="grid gap-2">
-                    <Label htmlFor="edit-problem-difficulty">Difficulty</Label>
-                    <Select 
-                      value={editProblemData.difficulty} 
-                      onValueChange={(value: ProblemDifficulty) => handleEditProblemSelectChange('difficulty', value)}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select difficulty" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="EASY_IIII">Easy IIII</SelectItem>
-                        <SelectItem value="EASY_III">Easy III</SelectItem>
-                        <SelectItem value="EASY_II">Easy II</SelectItem>
-                        <SelectItem value="EASY_I">Easy I</SelectItem>
-                        <SelectItem value="MEDIUM">Medium</SelectItem>
-                        <SelectItem value="HARD">Hard</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  
-                  <div className="grid gap-2">
-                    <Label htmlFor="edit-problem-type">Problem Type (Cannot change)</Label>
-                    <Input
-                      id="edit-problem-type"
-                      name="problemType"
-                      value={editProblemData.problemType || ""}
-                      disabled // Make type non-editable for simplicity
-                    />
-                  </div>
-                  
-                  <div className="flex items-center gap-2">
-                    <Checkbox // Use Checkbox component
-                      id="edit-problem-required"
-                      name="required"
-                      checked={editProblemData.required || false}
-                      onCheckedChange={(checked) => 
-                          setEditProblemData(prev => 
-                              prev ? { ...prev, required: !!checked } : null
-                          )
-                      }
-                    />
-                    <Label htmlFor="edit-problem-required">Required</Label>
-                  </div>
-                  <div className="grid gap-2">
-                    <Label htmlFor="edit-problem-reqOrder">Required Order</Label>
-                    <Input
-                      id="edit-problem-reqOrder"
-                      name="reqOrder"
+                      id="edit-time-limit"
+                      name="timeLimit"
                       type="number"
-                      value={editProblemData.reqOrder || ''} // Handle potential null
-                      onChange={handleEditProblemInputChange}
-                      min={1}
+                      value={editProblemData.codeProblem.timeLimit || 5000}
+                      onChange={handleEditProblemCodeProblemChange}
+                      min={1000}
                     />
                   </div>
-                  <div className="grid gap-2">
-                    <Label htmlFor="edit-problem-estimatedTime">Estimated Time (minutes)</Label>
+                  <div>
+                    <Label htmlFor="edit-memory-limit">Memory Limit (MB)</Label>
                     <Input
-                      id="edit-problem-estimatedTime"
-                      name="estimatedTime"
+                      id="edit-memory-limit"
+                      name="memoryLimit"
                       type="number"
-                      value={editProblemData.estimatedTime || ''}
-                      onChange={handleEditProblemInputChange}
+                      value={editProblemData.codeProblem.memoryLimit || ''} // Handle potential null
+                      onChange={handleEditProblemCodeProblemChange}
                       min={1}
                       placeholder="Optional"
                     />
                   </div>
-                  <div className="grid gap-2">
-                    <Label htmlFor="edit-problem-collectionIds">Collections</Label>
-                    <div className="space-y-2 border rounded-md p-3 max-h-[200px] overflow-y-auto">
-                      {loadingCollections ? (
-                        <p>Loading collections...</p>
-                      ) : collections.length === 0 ? (
-                        <p>No collections available.</p>
-                      ) : (
-                        collections.map(collection => (
-                          <div key={collection.id} className="flex items-center gap-2">
-                            <Checkbox
-                              id={`edit-collection-${collection.id}`}
-                              checked={editProblemData.collectionIds?.includes(collection.id) || false}
-                              onCheckedChange={(checked) => {
-                                const currentIds = editProblemData.collectionIds || [];
-                                const newIds = checked 
-                                  ? [...currentIds, collection.id] 
-                                  : currentIds.filter(id => id !== collection.id);
-                                handleEditProblemSelectChange('collectionIds', newIds);
-                              }}
-                            />
-                            <Label htmlFor={`edit-collection-${collection.id}`}>{collection.name}</Label>
-                          </div>
-                        ))
-                      )}
-                    </div>
-                  </div>
-                  <div className="grid gap-2">
-                    <Label htmlFor="edit-problem-topic">Topic</Label>
-                    <Select 
-                       value={editProblemData.topicId || 'none'} 
-                       onValueChange={(value) => 
-                          setEditProblemData(prev => prev ? { ...prev, topicId: value === 'none' ? null : value } : null)
-                       }
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select a topic or none" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="none">None (No Topic)</SelectItem>
-                        {levels.flatMap(level => 
-                          level.topics.map(topic => (
-                            <SelectItem key={topic.id} value={topic.id}>
-                              {level.name} - {topic.name}
-                            </SelectItem>
-                          ))
-                        )}
-                      </SelectContent>
-                    </Select>
-                  </div>
                 </div>
-              ) : (
-                <p>Loading problem data...</p>
-              )}
-            </TabsContent>
-            
-            {/* Code Tab */}  
-            <TabsContent value="code" className="mt-4">
-              {editProblemData?.problemType === 'CODING' && editProblemData?.codeProblem ? (
-                <div className="grid gap-4 py-4">
-                  {/* Copied & Adapted Code Fields - BIND to editProblemData.codeProblem */}
-                  <div className="grid gap-2">
-                    <Label htmlFor="edit-code-language">Programming Language</Label>
-                    <Select 
-                      value={editProblemData.codeProblem.language || 'javascript'} 
-                      onValueChange={(value: string) => handleEditProblemSelectChange('language', value)}
-                    >
-                      <SelectTrigger id="edit-code-language">
-                        <SelectValue placeholder="Select language" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="javascript">JavaScript</SelectItem>
-                        <SelectItem value="python">Python</SelectItem>
-                        <SelectItem value="java">Java</SelectItem>
-                        <SelectItem value="csharp">C#</SelectItem>
-                        <SelectItem value="cpp">C++</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="grid gap-2">
-                    <Label htmlFor="edit-code-template">Code Template</Label>
-                    <Textarea
-                      id="edit-code-template"
-                      name="codeTemplate"
-                      value={editProblemData.codeProblem.codeTemplate || ""}
-                      onChange={handleEditProblemCodeProblemChange}
-                      className="min-h-[150px] max-h-[300px] overflow-y-auto font-mono"
-                      placeholder="Optional starting code..."
-                    />
-                  </div>
-                   <div className="grid gap-2">
-                    <Label htmlFor="edit-function-name">Function Name</Label>
-                    <Input
-                      id="edit-function-name"
-                      name="functionName"
-                      value={editProblemData.codeProblem.functionName || ""}
-                      onChange={handleEditProblemCodeProblemChange}
-                      placeholder="e.g., solveProblem"
-                    />
-                  </div>
-                   <div className="grid grid-cols-2 gap-4">
-                     <div>
-                       <Label htmlFor="edit-time-limit">Time Limit (ms)</Label>
-                       <Input
-                         id="edit-time-limit"
-                         name="timeLimit"
-                         type="number"
-                         value={editProblemData.codeProblem.timeLimit || 5000}
-                         onChange={handleEditProblemCodeProblemChange}
-                         min={1000}
-                       />
-                     </div>
-                     <div>
-                       <Label htmlFor="edit-memory-limit">Memory Limit (MB)</Label>
-                       <Input
-                         id="edit-memory-limit"
-                         name="memoryLimit"
-                         type="number"
-                         value={editProblemData.codeProblem.memoryLimit || ''} // Handle potential null
-                         onChange={handleEditProblemCodeProblemChange}
-                         min={1}
-                         placeholder="Optional"
-                       />
-                     </div>
-                  </div>
-                  {/* Test Cases Section - Complete replacement */}
-                  <div className="grid gap-2">
-                    <Label>Test Cases</Label>
-                    <div className="space-y-4 border rounded-md p-4 max-h-[400px] overflow-y-auto">
-                      {editProblemData.codeProblem.testCases && editProblemData.codeProblem.testCases.length > 0 ? (
-                        editProblemData.codeProblem.testCases.map((testCase, index) => (
-                          <div key={index} className="pb-4 border-b last:border-b-0 last:pb-0 space-y-3">
-                            <div className="flex items-center justify-between">
-                              <h4 className="text-sm font-medium">Test Case {index + 1}</h4>
-                              <Button
-                                type="button"
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => handleRemoveEditTestCase(index)}
-                                disabled={(editProblemData.codeProblem?.testCases?.length || 0) <= 1}
-                              >
-                                <Trash className="h-4 w-4" />
-                              </Button>
-                            </div>
-                            <div className="grid grid-cols-2 gap-4">
-                              <div className="space-y-2">
-                                <Label htmlFor={`edit-test-input-${index}`} className="text-xs">Input</Label>
-                                <Textarea
-                                  id={`edit-test-input-${index}`}
-                                  value={testCase.input}
-                                  onChange={(e) => handleEditTestCaseChange(index, 'input', e.target.value)}
-                                  placeholder="Test input"
-                                  className="font-mono text-sm"
-                                />
-                              </div>
-                              <div className="space-y-2">
-                                <Label htmlFor={`edit-test-output-${index}`} className="text-xs">Expected Output</Label>
-                                <Textarea
-                                  id={`edit-test-output-${index}`}
-                                  value={(testCase as any).expected} // Adjust field name if needed
-                                  onChange={(e) => handleEditTestCaseChange(index, 'expected', e.target.value)}
-                                  placeholder="Expected output"
-                                  className="font-mono text-sm"
-                                />
-                              </div>
-                            </div>
-                            <div className="flex items-center gap-2">
-                              <Checkbox
-                                id={`edit-test-hidden-${index}`}
-                                checked={testCase.isHidden}
-                                onCheckedChange={(checked) => handleEditTestCaseChange(index, 'isHidden', !!checked)}
+                
+                {/* Test Cases Section */}
+                <div className="grid gap-2">
+                  <Label>Test Cases <span className="text-destructive">*</span></Label>
+                  <div className="space-y-4 border rounded-md p-4 max-h-[400px] overflow-y-auto">
+                    {editProblemData?.codeProblem?.testCases && editProblemData?.codeProblem?.testCases.length > 0 ? (
+                      editProblemData?.codeProblem?.testCases.map((testCase, index) => (
+                        <div key={index} className="pb-4 border-b last:border-b-0 last:pb-0 space-y-3">
+                          <div className="flex items-center justify-between">
+                            <h4 className="text-sm font-medium">Test Case {index + 1}</h4>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleRemoveEditTestCase(index)}
+                              disabled={(editProblemData?.codeProblem?.testCases?.length || 0) <= 1}
+                            >
+                              <Trash className="h-4 w-4" />
+                            </Button>
+                          </div>
+                          
+                          <div className="grid grid-cols-2 gap-4">
+                            <div className="space-y-2">
+                              <Label htmlFor={`edit-test-input-${index}`} className="text-xs">
+                                Input <span className="text-destructive">*</span>
+                              </Label>
+                              <Textarea
+                                id={`edit-test-input-${index}`}
+                                value={testCase.input}
+                                onChange={(e) => handleEditTestCaseChange(index, 'input', e.target.value)}
+                                placeholder="Test input"
+                                className="font-mono text-sm"
+                                required
                               />
-                              <Label htmlFor={`edit-test-hidden-${index}`} className="text-sm">Hidden</Label>
+                            </div>
+                            <div className="space-y-2">
+                              <Label htmlFor={`edit-test-output-${index}`} className="text-xs">
+                                Expected Output <span className="text-destructive">*</span>
+                              </Label>
+                              <Textarea
+                                id={`edit-test-output-${index}`}
+                                value={testCase.expected}
+                                onChange={(e) => handleEditTestCaseChange(index, 'expected', e.target.value)}
+                                placeholder="Expected output"
+                                className="font-mono text-sm"
+                                required
+                              />
                             </div>
                           </div>
-                        ))
-                      ) : (
-                        <p className="text-center text-muted-foreground py-2">No test cases defined yet</p>
-                      )}
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        onClick={handleAddEditTestCase}
-                        className="w-full"
-                      >
-                        <PlusCircle className="h-4 w-4 mr-2" />
-                        Add Test Case
-                      </Button>
-                    </div>
-                  </div>
-                  {/* End Test Cases */}
-                  {/* Add return type field */}
-                  <div className="grid gap-2">
-                    <Label htmlFor="edit-return-type">Return Type</Label>
-                    <Input
-                      id="edit-return-type"
-                      name="return_type"
-                      value={editProblemData.codeProblem.return_type || ""}
-                      onChange={handleEditProblemCodeProblemChange}
-                      placeholder="e.g., number, string, boolean, number[]"
-                    />
-                    <p className="text-xs text-muted-foreground">
-                      Specify the return type of the function (e.g., number, string, boolean)
-                    </p>
-                  </div>
-                  {/* Add params editor */}
-                  <div className="grid gap-2">
-                    <Label htmlFor="edit-params">Function Parameters</Label>
-                    <div className="border rounded-md p-4">
-                      {editProblemData.codeProblem.params && editProblemData.codeProblem.params.length > 0 ? (
-                        <div className="space-y-4">
-                          {editProblemData.codeProblem.params.map((param, index) => (
-                            <div key={index} className="flex gap-2 items-end">
-                              <div className="flex-1">
-                                <Label htmlFor={`param-name-${index}`} className="text-xs">Name</Label>
-                                <Input
-                                  id={`param-name-${index}`}
-                                  value={param.name || ''}
-                                  onChange={(e) => {
-                                    if (editProblemData && editProblemData.codeProblem) {
-                                      const newParams = [...(editProblemData.codeProblem.params || [])];
-                                      newParams[index] = { ...newParams[index], name: e.target.value };
-                                      setEditProblemData({
-                                        ...editProblemData,
-                                        codeProblem: {
-                                          ...editProblemData.codeProblem,
-                                          params: newParams
-                                        }
-                                      });
-                                    }
-                                  }}
-                                  placeholder="param name"
-                                />
-                              </div>
-                              <div className="flex-1">
-                                <Label htmlFor={`param-type-${index}`} className="text-xs">Type</Label>
-                                <Input
-                                  id={`param-type-${index}`}
-                                  value={param.type || ''}
-                                  onChange={(e) => {
-                                    if (editProblemData && editProblemData.codeProblem) {
-                                      const newParams = [...(editProblemData.codeProblem.params || [])];
-                                      newParams[index] = { ...newParams[index], type: e.target.value };
-                                      setEditProblemData({
-                                        ...editProblemData,
-                                        codeProblem: {
-                                          ...editProblemData.codeProblem,
-                                          params: newParams
-                                        }
-                                      });
-                                    }
-                                  }}
-                                  placeholder="param type"
-                                />
-                              </div>
-                              <div className="flex-1">
-                                <Label htmlFor={`param-description-${index}`} className="text-xs">Description (Optional)</Label>
-                                <Input
-                                  id={`param-description-${index}`}
-                                  value={param.description || ''}
-                                  onChange={(e) => {
-                                    if (editProblemData && editProblemData.codeProblem) {
-                                      const newParams = [...(editProblemData.codeProblem.params || [])];
-                                      newParams[index] = { ...newParams[index], description: e.target.value };
-                                      setEditProblemData({
-                                        ...editProblemData,
-                                        codeProblem: {
-                                          ...editProblemData.codeProblem,
-                                          params: newParams
-                                        }
-                                      });
-                                    }
-                                  }}
-                                  placeholder="description (optional)"
-                                />
-                              </div>
-                              <Button 
-                                type="button" 
-                                variant="ghost" 
-                                size="icon" 
-                                onClick={() => {
-                                  if (editProblemData && editProblemData.codeProblem) {
-                                    const newParams = [...(editProblemData.codeProblem.params || [])];
-                                    newParams.splice(index, 1);
-                                    setEditProblemData({
-                                      ...editProblemData,
-                                      codeProblem: {
-                                        ...editProblemData.codeProblem,
-                                        params: newParams
-                                      }
-                                    });
-                                  }
-                                }}
-                              >
-                                <Trash className="h-4 w-4" />
-                              </Button>
-                            </div>
-                          ))}
+                          
+                          <div className="flex items-center gap-2">
+                            <Checkbox
+                              id={`edit-test-hidden-${index}`}
+                              checked={testCase.isHidden}
+                              onCheckedChange={(checked) => handleEditTestCaseChange(index, 'isHidden', !!checked)}
+                            />
+                            <Label htmlFor={`edit-test-hidden-${index}`} className="text-sm">
+                              Hidden test case (not shown to user)
+                            </Label>
+                          </div>
                         </div>
-                      ) : (
-                        <p className="text-center text-muted-foreground py-2">No parameters defined</p>
-                      )}
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        onClick={() => {
-                          if (editProblemData && editProblemData.codeProblem) {
-                            const newParams = [...(editProblemData.codeProblem.params || []), { name: '', type: '' }];
-                            setEditProblemData({
-                              ...editProblemData,
-                              codeProblem: {
-                                ...editProblemData.codeProblem,
-                                params: newParams
-                              }
-                            });
-                          }
-                        }}
-                        className="w-full mt-4"
-                      >
-                        <PlusCircle className="h-4 w-4 mr-2" />
-                        Add Parameter
-                      </Button>
-                    </div>
+                      ))
+                    ) : (
+                      <p>No test cases added yet.</p>
+                    )}
+                    
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={handleAddEditTestCase}
+                      className="w-full"
+                    >
+                      <PlusCircle className="h-4 w-4 mr-2" />
+                      Add Test Case
+                    </Button>
                   </div>
                 </div>
-              ) : (
-                <p className="text-muted-foreground text-center py-4">Select 'CODING' type in General Info to edit code details.</p>
-              )}
-            </TabsContent>
-          </Tabs>
+              </>
+            )}
+            
+            <div className="grid gap-2">
+              <Label htmlFor="edit-problem-reqOrder">Order (if required)</Label>
+              <Input
+                id="edit-problem-reqOrder"
+                name="reqOrder"
+                type="number"
+                value={editProblemData?.reqOrder || ''}
+                onChange={handleEditProblemInputChange}
+                min={1}
+              />
+            </div>
+            
+            <div className="grid gap-2">
+              <Label htmlFor="edit-problem-estimatedTime">Estimated Time (minutes)</Label>
+              <Input
+                id="edit-problem-estimatedTime"
+                name="estimatedTime"
+                type="number"
+                value={editProblemData?.estimatedTime || ''}
+                onChange={handleEditProblemInputChange}
+                min={1}
+                placeholder="Leave empty for no estimate"
+              />
+            </div>
+            
+            <div className="flex items-center gap-2">
+              <Checkbox
+                id="edit-problem-required"
+                name="required"
+                checked={editProblemData?.required || false}
+                onCheckedChange={(checked) => {
+                  if (!editProblemData) return;
+                  handleEditProblemSelectChange('required', checked);
+                }}
+              />
+              <Label htmlFor="edit-problem-required">Required</Label>
+            </div>
+          </div>
           
           <DialogFooter>
             <Button variant="outline" onClick={() => setIsEditingProblem(false)}>Cancel</Button>
