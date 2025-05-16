@@ -11,29 +11,14 @@ export function ThemeToggle() {
     
     const initialTheme = savedTheme || (prefersDark ? 'dark' : 'light');
     setTheme(initialTheme);
-    // apply without transitions
-    const root = document.documentElement;
-    root.classList.add('no-transitions');
-    root.classList.toggle('dark', initialTheme === 'dark');
-    window.requestAnimationFrame(() => {
-      window.requestAnimationFrame(() => root.classList.remove('no-transitions'));
-    });
+    document.documentElement.classList.toggle('dark', initialTheme === 'dark');
   }, []);
 
   const toggleTheme = () => {
     const newTheme = theme === 'light' ? 'dark' : 'light';
-    const root = document.documentElement;
-    // disable transitions for the flip
-    root.classList.add('no-transitions');
     setTheme(newTheme);
-    root.classList.toggle('dark', newTheme === 'dark');
+    document.documentElement.classList.toggle('dark', newTheme === 'dark');
     localStorage.setItem('theme', newTheme);
-    // re-enable transitions after paint
-    window.requestAnimationFrame(() => {
-      window.requestAnimationFrame(() => {
-        root.classList.remove('no-transitions');
-      });
-    });
   };
 
   return (

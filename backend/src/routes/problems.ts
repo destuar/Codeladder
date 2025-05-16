@@ -14,17 +14,17 @@ interface CreateProblemBody {
   reqOrder?: number;
   problemType?: ProblemType;
   collectionIds?: string[];
-  codeTemplate?: string;
   testCases?: string;
   topicId?: string;
   estimatedTime?: string | number;
   slug?: string;
-  language?: string;
   functionName?: string;
   timeLimit?: number;
   memoryLimit?: number;
   return_type?: string;
   params?: string;
+  defaultLanguage?: string;
+  languageSupport?: string;
 }
 
 interface UpdateProblemBody {
@@ -35,16 +35,16 @@ interface UpdateProblemBody {
   reqOrder?: number;
   problemType?: ProblemType;
   collectionIds?: string[];
-  codeTemplate?: string;
   testCases?: string;
   estimatedTime?: string | number;
   slug?: string;
-  language?: string;
   functionName?: string;
   timeLimit?: number;
   memoryLimit?: number;
   return_type?: string;
   params?: string;
+  defaultLanguage?: string;
+  languageSupport?: string;
 }
 
 const router = express.Router();
@@ -105,7 +105,7 @@ const normalizeTestCase = (testCase: any, index: number): any => {
   const parsedInput = safelyParseValue(testCase.input ?? testCase.input_args ?? '');
   
   // Parse and clean the expected output
-  const parsedExpected = safelyParseValue(testCase.expected ?? testCase.expected_out ?? '');
+  const parsedExpected = safelyParseValue(testCase.expectedOutput ?? testCase.expected ?? testCase.expected_out ?? '');
   
   return {
     input: JSON.stringify(parsedInput), // Store consistent JSON string
@@ -514,17 +514,17 @@ router.post('/', authenticateToken, authorizeRoles([Role.ADMIN, Role.DEVELOPER])
       reqOrder,
       problemType = 'INFO' as const,
       collectionIds = [],
-      codeTemplate,
       testCases: testCasesRaw,
       topicId,
       estimatedTime,
       slug,
-      language = 'javascript',
       functionName,
       timeLimit,
       memoryLimit,
       return_type,
-      params
+      params,
+      defaultLanguage,
+      languageSupport: languageSupportRaw
     } = req.body as CreateProblemBody;
 
     // Validate required fields
@@ -581,10 +581,20 @@ router.post('/', authenticateToken, authorizeRoles([Role.ADMIN, Role.DEVELOPER])
 
       // For coding problems, add the codeProblem relation
       if (problemType === 'CODING') {
+        let parsedLanguageSupport: any = null;
+        if (languageSupportRaw) {
+          try {
+            parsedLanguageSupport = JSON.parse(languageSupportRaw);
+          } catch (e) {
+            console.warn('Failed to parse languageSupport JSON on create:', e);
+            // Potentially return error or use a default
+          }
+        }
+
         createData.codeProblem = {
           create: {
-            codeTemplate: codeTemplate || undefined,
-            language: language || 'javascript',
+            defaultLanguage: defaultLanguage || 'python',
+            languageSupport: parsedLanguageSupport,
             functionName: functionName || undefined,
             timeLimit: timeLimit ? Number(timeLimit) : 5000,
             memoryLimit: memoryLimit ? Number(memoryLimit) : undefined,
@@ -653,15 +663,15 @@ router.put('/:problemId', authenticateToken, authorizeRoles([Role.ADMIN, Role.DE
     reqOrder,
     problemType, // Type might be updated
     collectionIds,
-    codeTemplate,
     testCases: testCasesRaw,
     estimatedTime,
-    language,
     functionName,
     timeLimit,
     memoryLimit,
     return_type,
-    params
+    params,
+    defaultLanguage,
+    languageSupport: languageSupportRaw
   } = req.body as UpdateProblemBody;
 
   try {
@@ -683,15 +693,15 @@ router.put('/:problemId', authenticateToken, authorizeRoles([Role.ADMIN, Role.DE
       reqOrder,
       problemType,
       collectionIds,
-      codeTemplate: codeTemplate ? 'Provided' : undefined,
       testCases: testCasesRaw ? 'Provided' : undefined,
       estimatedTime,
-      language: problemType === 'CODING' ? language : undefined,
       functionName: problemType === 'CODING' ? functionName : undefined,
       timeLimit: problemType === 'CODING' ? timeLimit : undefined,
       memoryLimit: problemType === 'CODING' ? memoryLimit : undefined,
       return_type: return_type ? 'Provided' : undefined,
-      params: params ? 'Provided' : undefined
+      params: params ? 'Provided' : undefined,
+      defaultLanguage: problemType === 'CODING' ? defaultLanguage : undefined,
+      languageSupport: problemType === 'CODING' ? languageSupportRaw : undefined
     });
 
     // Check for duplicate order number if reqOrder is provided and different from current
@@ -752,6 +762,16 @@ router.put('/:problemId', authenticateToken, authorizeRoles([Role.ADMIN, Role.DE
       if (effectiveProblemType === 'CODING') {
         existingCodeProblem = await tx.codeProblem.findUnique({ where: { problemId: problemId }});
         
+        let parsedLanguageSupportOnUpdate: any = null;
+        if (languageSupportRaw) {
+          try {
+            parsedLanguageSupportOnUpdate = JSON.parse(languageSupportRaw);
+          } catch (e) {
+            console.warn('Failed to parse languageSupport JSON on update:', e);
+             // Potentially return error or use a default
+          }
+        }
+
         if (existingCodeProblem) {
           // Update existing CodeProblem - handle different ID fields with type casting
           const codeProblemObj = existingCodeProblem as any;
@@ -762,8 +782,8 @@ router.put('/:problemId', authenticateToken, authorizeRoles([Role.ADMIN, Role.DE
           const whereClause: any = { id: codeProblemId };
           
           const updateData: any = {
-            ...(codeTemplate !== undefined && { codeTemplate }),
-            ...(language !== undefined && { language }),
+            ...(defaultLanguage !== undefined && { defaultLanguage }),
+            ...(parsedLanguageSupportOnUpdate !== null && { languageSupport: parsedLanguageSupportOnUpdate }),
             ...(functionName !== undefined && { functionName }),
             ...(timeLimit !== undefined && { timeLimit: parseInt(timeLimit.toString()) }),
             ...(memoryLimit !== undefined && { memoryLimit: memoryLimit ? parseInt(memoryLimit.toString()) : null }),
@@ -808,8 +828,8 @@ router.put('/:problemId', authenticateToken, authorizeRoles([Role.ADMIN, Role.DE
         } else {
           // Create new CodeProblem
           const codeProblemData: any = {
-            codeTemplate: codeTemplate ?? null,
-            language: language ?? 'javascript',
+            defaultLanguage: defaultLanguage ?? 'python',
+            languageSupport: parsedLanguageSupportOnUpdate,
             functionName: functionName ?? null,
             timeLimit: timeLimit ? parseInt(timeLimit.toString()) : 5000,
             memoryLimit: memoryLimit ? parseInt(memoryLimit.toString()) : null,

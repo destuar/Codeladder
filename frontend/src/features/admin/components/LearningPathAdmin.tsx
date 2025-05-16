@@ -623,22 +623,20 @@ export function LearningPathAdmin() {
       // For coding problems, add the coding-specific fields
       if (newProblem.problemType === 'CODING') {
         // Add code problem fields
-        problemPayload.language = defaultLanguage;
+        problemPayload.defaultLanguage = defaultLanguage; // Send the current default language
         problemPayload.functionName = newProblem.functionName || '';
         problemPayload.timeLimit = newProblem.timeLimit || 5000;
         problemPayload.memoryLimit = newProblem.memoryLimit;
         
-        // Prepare language support data
-        const languageSupport = { ...defaultSupportedLanguages };
-        languageSupport[defaultLanguage as SupportedLanguage] = {
-          ...languageSupport[defaultLanguage as SupportedLanguage],
-          template: newProblem.codeTemplate || '',
-          enabled: true
-        };
+        // Prepare language support data using the utility and current state
+        // This is the corrected part:
+        problemPayload.languageSupport = JSON.stringify(
+          prepareLanguageSupport(defaultLanguage, supportedLanguages) // Use the main state
+        );
         
-        // Add language support and code template
-        problemPayload.languageSupport = JSON.stringify(languageSupport);
-        problemPayload.codeTemplate = newProblem.codeTemplate || '';
+        // The individual newProblem.codeTemplate is now part of supportedLanguages state
+        // The backend will use languageSupport.defaultLanguage.template
+        // problemPayload.codeTemplate = newProblem.codeTemplate || ''; // This might be for Problem.codeTemplate (legacy)
         
         // Process test cases
         if (newProblem.testCases && newProblem.testCases.length > 0) {
@@ -1374,50 +1372,61 @@ export function LearningPathAdmin() {
         const normalizedTestCases = problemDetails.codeProblem?.testCases 
           ? (Array.isArray(problemDetails.codeProblem.testCases) 
               ? problemDetails.codeProblem.testCases.map(normalizeTestCase)
-              : [{ input: '', expected: '', isHidden: false }])
+              // If testCases is a string (legacy), parse it, else default
+              : typeof problemDetails.codeProblem.testCases === 'string' 
+                ? tryParseJson(problemDetails.codeProblem.testCases).map(normalizeTestCase)
+                : [{ input: '', expected: '', isHidden: false }])
           : [{ input: '', expected: '', isHidden: false }];
           
         // Initialize language support state
         if (problemDetails.codeProblem) {
           try {
-            const languageSupport = problemDetails.codeProblem.languageSupport 
-              ? JSON.parse(problemDetails.codeProblem.languageSupport)
-              : null;
+            // languageSupport from backend should now be a direct JSON object
+            const languageSupportData = problemDetails.codeProblem.languageSupport;
 
-            if (languageSupport) {
-              // Initialize with existing language support
-              const initialLanguageSupport = { ...defaultSupportedLanguages };
-              Object.entries(languageSupport).forEach(([lang, data]: [string, any]) => {
-                if (lang in initialLanguageSupport) {
-                  initialLanguageSupport[lang as SupportedLanguage] = {
-                    enabled: true,
+            if (languageSupportData && typeof languageSupportData === 'object' && Object.keys(languageSupportData).length > 0) {
+              // Initialize with default structure, then override with fetched data
+              const initialLanguageSupportState = JSON.parse(JSON.stringify(defaultSupportedLanguages)); // Deep clone
+              
+              Object.entries(languageSupportData).forEach(([lang, data]: [string, any]) => {
+                if (lang in initialLanguageSupportState) {
+                  initialLanguageSupportState[lang as SupportedLanguage] = {
+                    enabled: true, // If present in languageSupportData, it was enabled when saved
                     template: data.template || '',
-                    reference: data.reference || ''
+                    reference: data.reference || '' // Ensure reference is also loaded
                   };
                 }
               });
-              setSupportedLanguages(initialLanguageSupport);
+              setSupportedLanguages(initialLanguageSupportState);
               setDefaultLanguage(problemDetails.codeProblem.defaultLanguage || 'python');
-            } else {
-              // Initialize with legacy code template
-              const initialLanguageSupport = { ...defaultSupportedLanguages };
-              const defaultLang = (problemDetails.codeProblem.defaultLanguage || 'python') as SupportedLanguage;
-              if (problemDetails.codeProblem.codeTemplate) {
-                initialLanguageSupport[defaultLang] = {
-                  enabled: true,
-                  template: problemDetails.codeProblem.codeTemplate,
-                  reference: ''
-                };
+            } else if (problemDetails.codeProblem.codeTemplate) { 
+              // Fallback for old problems with only a single codeTemplate and language
+              const initialLanguageSupportState = JSON.parse(JSON.stringify(defaultSupportedLanguages)); // Deep clone
+              const legacyLang = (problemDetails.codeProblem.defaultLanguage || problemDetails.codeProblem.language || 'python') as SupportedLanguage;
+              
+              if (legacyLang in initialLanguageSupportState) {
+                 initialLanguageSupportState[legacyLang] = {
+                    ...initialLanguageSupportState[legacyLang],
+                    enabled: true,
+                    template: problemDetails.codeProblem.codeTemplate,
+                    // reference: '' // Old problems won't have reference here
+                  };
               }
-              setSupportedLanguages(initialLanguageSupport);
-              setDefaultLanguage(defaultLang);
+              setSupportedLanguages(initialLanguageSupportState);
+              setDefaultLanguage(legacyLang);
+            } else {
+                // No language support data and no legacy template, reset to full defaults
+                setSupportedLanguages(JSON.parse(JSON.stringify(defaultSupportedLanguages)));
+                setDefaultLanguage('python');
             }
           } catch (err) {
-            console.error('Error parsing language support:', err);
-            // Reset to defaults
-            setSupportedLanguages(defaultSupportedLanguages);
+            console.error('Error processing language support from API:', err);
+            setSupportedLanguages(JSON.parse(JSON.stringify(defaultSupportedLanguages))); // Reset to defaults on error
             setDefaultLanguage('python');
           }
+        } else { // Not a coding problem or no codeProblem details
+            setSupportedLanguages(JSON.parse(JSON.stringify(defaultSupportedLanguages)));
+            setDefaultLanguage('python');
         }
           
         // Initialize editProblemData state

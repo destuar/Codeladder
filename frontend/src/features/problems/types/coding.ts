@@ -19,7 +19,13 @@ export interface TestResult {
   expected: any;
   passed: boolean;
   runtime?: number;
+  memory?: number;
   error?: string;
+  compilationOutput?: string;
+  statusDescription?: string;
+  statusId?: number;
+  exitCode?: number;
+  isCustom?: boolean;
 }
 
 /**

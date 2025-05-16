@@ -27,7 +27,7 @@ import {
   AlertDialogTitle
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
-import { SupportedLanguage, LANGUAGE_CONFIGS } from "../../types/coding";
+import { SupportedLanguage, LANGUAGE_CONFIGS, TestCase as TestCaseType } from "../../types/coding";
 import { Resizable } from "re-resizable";
 import { toast } from "sonner";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -38,6 +38,8 @@ const MIN_PANEL_WIDTH = 300;
 const MAX_PANEL_WIDTH = 800;
 const DEFAULT_EDITOR_HEIGHT = 500; // px
 const MIN_EDITOR_HEIGHT = 200; // px
+
+const getLocalStorageKeyForCodes = (problemId: string) => `problem-${problemId}-languageCodes`;
 
 /**
  * Main component for the coding problem interface
@@ -65,76 +67,135 @@ export default function CodingProblem({
   const [leftPanelWidth, setLeftPanelWidth] = useState(window.innerWidth * 0.4);
   const [editorHeight, setEditorHeight] = useState(window.innerHeight * 0.6);
   const [selectedLanguage, setSelectedLanguage] = useState<SupportedLanguage>('python');
-  const [code, setCode] = useState(codeTemplate || '');
+  const [languageCodes, setLanguageCodes] = useState<{ [key in SupportedLanguage]?: string }>(() => {
+    if (problemId) {
+      const storedCodes = localStorage.getItem(getLocalStorageKeyForCodes(problemId));
+      try {
+        return storedCodes ? JSON.parse(storedCodes) : {};
+      } catch (e) {
+        console.error("Failed to parse stored language codes:", e);
+        return {};
+      }
+    }
+    return {};
+  });
+  const [code, setCode] = useState('');
   const [isRunning, setIsRunning] = useState(false);
   const editorRef = useRef<any>(null);
   const [leftPanelTab, setLeftPanelTab] = useState("description");
   const [functionParams, setFunctionParams] = useState<{ name: string; type: string }[]>([]);
   const [problemDetails, setProblemDetails] = useState<any>(null);
-  const [currentLanguage, setCurrentLanguage] = useState<string>('python');
 
-  // Parse test cases from string to array
-  const parsedTestCases = useMemo(() => {
+  const parsedOfficialTestCases = useMemo(() => {
     if (!testCasesString) return [];
-    
     try {
       const parsed = typeof testCasesString === 'string' 
         ? JSON.parse(testCasesString) 
         : testCasesString;
-      
-      return Array.isArray(parsed) ? parsed : [];
+      return Array.isArray(parsed) ? parsed.map(tc => ({...tc})) as TestCaseType[] : [];
     } catch (e) {
       console.error('Error parsing test cases:', e);
       return [];
     }
   }, [testCasesString]);
 
-  // Fetch problem details including function parameters when component mounts
+  // Effect to save languageCodes to LocalStorage whenever it or problemId changes
   useEffect(() => {
     if (problemId) {
-      api.get(`/problems/${problemId}`)
-        .then(data => {
-          setProblemDetails(data);
-          
-          // If we have a codeProblem with params, parse them
-          if (data.codeProblem?.params) {
-            try {
-              let params = data.codeProblem.params;
-              if (typeof params === 'string') {
-                params = JSON.parse(params);
-              }
-              if (Array.isArray(params)) {
-                setFunctionParams(params);
-              }
-            } catch (err) {
-              console.error('Error parsing function parameters:', err);
-            }
-          }
-        })
-        .catch(err => {
-          console.error('Error fetching problem details:', err);
-        });
+      localStorage.setItem(getLocalStorageKeyForCodes(problemId), JSON.stringify(languageCodes));
     }
-  }, [problemId]);
+  }, [languageCodes, problemId]);
 
-  // Use the problem completion hook
+  // Effect for initial problem load (fetching data and setting initial language)
+  useEffect(() => {
+    const fetchProblem = async () => {
+      if (!problemId) return;
+      try {
+        const response = await api.get(`/problems/${problemId}`);
+        setProblemDetails(response);
+
+        let initialLang = response.codeProblem?.defaultLanguage || 'python';
+        // Check if there's already code for this initialLang in languageCodes (from LocalStorage)
+        // If not, setSelectedLanguage will trigger the code-setting useEffect to load a template.
+        setSelectedLanguage(initialLang as SupportedLanguage);
+
+        if (response.codeProblem?.params) {
+          try {
+            let params = response.codeProblem.params;
+            if (typeof params === 'string') params = JSON.parse(params);
+            if (Array.isArray(params)) setFunctionParams(params);
+          } catch (err) { console.error('Error parsing function parameters:', err); }
+        }
+      } catch (error) {
+        console.error('Failed to fetch problem:', error);
+        setCode('// Failed to load problem template.');
+      }
+    };
+
+    if (problemId) {
+      // Load from LocalStorage first (done in useState initializer for languageCodes)
+      // Then fetch problem details which might provide templates for languages not in LocalStorage
+      fetchProblem();
+    } else {
+      // For new problem (no problemId), selectedLanguage is 'python' by default.
+      // The code-setting useEffect will handle loading initial code/template for this selectedLanguage.
+      // This ensures code state is initialized even if there's no problemId for LocalStorage.
+      if (!languageCodes[selectedLanguage]) { // If no stored code for default python on a new problem
+        const initialNewProblemCode = codeTemplate || LANGUAGE_CONFIGS[selectedLanguage]?.defaultTemplate || '';
+        setCode(initialNewProblemCode);
+        // Also update languageCodes so it can be potentially saved if problemId becomes available later (though less likely flow)
+        setLanguageCodes(prev => ({...prev, [selectedLanguage]: initialNewProblemCode }));
+      }
+    }
+  }, [problemId]); // Removed languageCodes from here to avoid re-triggering by its own update
+
+  // Effect to manage and display code based on selected language, problemDetails, and languageCodes (from LocalStorage or memory)
+  useEffect(() => {
+    let newCodeContent: string | undefined = undefined;
+    let updateLanguageCache = false; // Flag to indicate if languageCodes should be updated with a new template
+
+    if (languageCodes[selectedLanguage] !== undefined) {
+      newCodeContent = languageCodes[selectedLanguage]!;
+    } else if (problemDetails) {
+      newCodeContent = getLanguageTemplate(problemDetails, selectedLanguage);
+      updateLanguageCache = true; 
+    } else if (!problemId) { // New problem, no problemDetails yet, and no code in languageCodes for selectedLang
+      // Use codeTemplate prop if it's for the current selectedLanguage (assume python if not specified), otherwise default config.
+      const primaryLangForPropTemplate = 'python'; // Assuming codeTemplate prop is for Python on a new problem
+      if (codeTemplate && selectedLanguage === primaryLangForPropTemplate) {
+        newCodeContent = codeTemplate;
+      } else {
+        newCodeContent = LANGUAGE_CONFIGS[selectedLanguage]?.defaultTemplate || '';
+      }
+      updateLanguageCache = true;
+    }
+
+    if (newCodeContent !== undefined) {
+      setCode(newCodeContent); // Update the editor's displayed code
+      if (updateLanguageCache) {
+        // Update languageCodes state if a new template was loaded (and not already in languageCodes)
+        // This will then be picked up by the LocalStorage saving effect.
+        setLanguageCodes(prev => {
+            if (prev[selectedLanguage] === undefined) { // Only update if we just loaded a template for an empty slot
+                return { ...prev, [selectedLanguage]: newCodeContent };
+            }
+            return prev; // Otherwise, no change needed, user's typed code (already in languageCodes) is preserved
+        });
+      }
+    }
+  }, [selectedLanguage, problemDetails, problemId, codeTemplate, languageCodes]); // Added languageCodes to deps
+
   const { 
     isProblemCompleted: hookIsCompleted, 
     handleMarkAsComplete: hookHandleMarkComplete 
-  } = useProblemCompletion(
-    problemId,
-    isCompleted, // Pass initial state from props
-    onCompleted, // Pass parent callback to hook
-    isReviewMode
-  );
+  } = useProblemCompletion(problemId, isCompleted, onCompleted, isReviewMode);
 
-  // Handle code changes
   const handleCodeChange = useCallback((newCode: string) => {
-    setCode(newCode);
+    setCode(newCode); 
+    setLanguageCodes(prev => ({ ...prev, [selectedLanguage]: newCode })); // This triggers LocalStorage save
     onCodeChange?.(newCode);
-  }, [onCodeChange]);
+  }, [selectedLanguage, onCodeChange]);
 
-  // Handle language changes
   const handleLanguageChange = useCallback((language: string) => {
     setSelectedLanguage(language as SupportedLanguage);
   }, []);
@@ -163,66 +224,14 @@ export default function CodingProblem({
 
   // Helper function to get language template from problem data
   const getLanguageTemplate = (problem: any, language: string): string => {
-    if (!problem) return '';
-    
-    // Try to get from languageSupport JSON first (new structure)
-    try {
-      if (problem.codeProblem?.languageSupport) {
-        const languageSupport = typeof problem.codeProblem.languageSupport === 'string'
-          ? JSON.parse(problem.codeProblem.languageSupport)
-          : problem.codeProblem.languageSupport;
-          
-        if (languageSupport[language]?.template) {
-          return languageSupport[language].template;
-        }
-      }
-    } catch (e) {
-      console.error('Error parsing languageSupport JSON:', e);
+    if (!problem?.codeProblem) return LANGUAGE_CONFIGS[language as SupportedLanguage]?.defaultTemplate || '';
+    const langSupport = problem.codeProblem.languageSupport;
+    if (langSupport && typeof langSupport === 'object' && langSupport[language]?.template) {
+      return langSupport[language].template;
     }
-    
-    // Fallback: Try old fields
-    if (language === problem.codeProblem?.language || language === problem.codeProblem?.language_old) {
-      return problem.codeProblem?.codeTemplate || problem.codeProblem?.code_template_old || '';
-    }
-    
-    // Fallback to empty string or default template
-    return problem.codeProblem?.codeTemplate || '';
+    // Fallback to a generic default if specific template isn't found in languageSupport
+    return LANGUAGE_CONFIGS[language as SupportedLanguage]?.defaultTemplate || '';
   };
-
-  // Fetch problem details
-  useEffect(() => {
-    const fetchProblem = async () => {
-      try {
-        const response = await api.get(`/problems/${problemId}`);
-        setProblemDetails(response);
-        
-        // Get default language from problem
-        if (response.codeProblem?.defaultLanguage) {
-          setCurrentLanguage(response.codeProblem.defaultLanguage);
-        }
-        
-        // Get template for current language
-        const template = getLanguageTemplate(response, currentLanguage);
-        setCode(template);
-        
-        // ... rest of initialization ...
-      } catch (error) {
-        console.error('Failed to fetch problem:', error);
-      }
-    };
-    
-    fetchProblem();
-  }, [problemId]);
-  
-  // Update code template when language changes
-  useEffect(() => {
-    if (problemDetails) {
-      const template = getLanguageTemplate(problemDetails, currentLanguage);
-      if (template && !code) {
-        setCode(template);
-      }
-    }
-  }, [currentLanguage, problemDetails]);
 
   return (
     <div className={cn(
@@ -370,11 +379,10 @@ export default function CodingProblem({
             <div className="flex-1 min-h-0 overflow-hidden">
               <TestRunner
                 code={code}
-                testCases={parsedTestCases}
+                officialTestCases={parsedOfficialTestCases}
                 problemId={problemId}
                 onRunComplete={() => {}}
                 onAllTestsPassed={() => {
-                  // If problem is not already completed, mark it as complete
                   if (!hookIsCompleted) {
                     console.log('All tests passed, automatically marking problem as complete');
                     hookHandleMarkComplete();

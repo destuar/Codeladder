@@ -39,6 +39,22 @@ type ProblemWithCodeDetailsPayload = Prisma.ProblemGetPayload<{
   }
 }>;
 
+// Type for what the frontend expects as a single test result in the results array
+interface TestResultForResponse {
+  input: any[];
+  output: any;
+  expected: any;
+  passed: boolean;
+  runtime?: number;
+  memory?: number;
+  error?: string;
+  compilationOutput?: string;
+  statusDescription?: string;
+  statusId?: number;
+  exitCode?: number;
+  isCustom?: boolean; 
+}
+
 /**
  * Safely parses a JSON string, handling errors gracefully
  * @param value The string to parse
@@ -64,6 +80,22 @@ type ParsedTestCase = {
   orderNum?: number | null;
 };
 
+// Helper type for parsed test cases from DB
+type ParsedTestCaseFromDB = {
+  id: string;
+  input: any; 
+  expectedOutput: string; 
+  isHidden: boolean;
+  orderNum?: number | null;
+};
+
+// Type for user-provided custom test cases
+interface UserCustomTestCase {
+  input: any; // Can be a single value or array, needs to be handled for formatTestCode
+  expected?: any; // User-defined expected output
+  // isHidden is part of TestCaseType but likely always false/irrelevant for custom user tests
+}
+
 /**
  * Execute user code with all test cases for a specific problem
  * Routes: POST /code/execute
@@ -74,7 +106,12 @@ type ParsedTestCase = {
  * - problemId: ID of the problem to test against
  */
 export async function executeCode(req: Request, res: Response): Promise<void> {
-  const { code, language, problemId } = req.body;
+  const { code, language, problemId, userCustomTestCases } = req.body as {
+    code: string;
+    language: string;
+    problemId: string;
+    userCustomTestCases?: UserCustomTestCase[];
+  };
   const userId = req.user?.id;
 
   if (!code || !language || !problemId) {
@@ -83,62 +120,52 @@ export async function executeCode(req: Request, res: Response): Promise<void> {
   }
 
   try {
-    // Fetch problem and its associated code problem details
-    const problem: ProblemWithCodeDetailsPayload | null = await prisma.problem.findUnique({
+    const problemData = await prisma.problem.findUnique({
       where: { id: problemId },
       select: {
         id: true,
         name: true,
-        // Include the CodeProblem relation
         codeProblem: {
           select: {
-            questionId: true, // Use correct field 'questionId'
             functionName: true,
             testCases: {
               select: {
                 id: true,
-                input: true, // Input stored as string
+                input: true,
                 expectedOutput: true,
                 isHidden: true,
                 orderNum: true,
               },
               orderBy: {
-                orderNum: 'asc', // Optional: order test cases if needed
+                orderNum: 'asc',
               },
             },
-            // Include other CodeProblem fields if needed
             timeLimit: true,
             memoryLimit: true,
-          },
-        },
-      },
+          }
+        }
+      }
     });
 
-    if (!problem) {
-      res.status(404).json({ error: 'Problem not found' });
+    if (!problemData || !problemData.codeProblem || problemData.codeProblem.testCases.length === 0) {
+      res.status(400).json({ error: 'No valid code problem details or official test cases found.' });
       return;
     }
 
-    // Check if it's a code problem and has necessary details
-    if (!problem.codeProblem || !problem.codeProblem.testCases || problem.codeProblem.testCases.length === 0) {
-      res.status(400).json({ error: 'No valid code problem details or test cases found for this problem' });
-      return;
-    }
-
-    // Use data from CodeProblem
-    const codeProblemDetails = problem.codeProblem;
-    // Explicitly type 'tc' and define ParsedTestCase helper type
-    const testCases: ParsedTestCase[] = codeProblemDetails.testCases.map((tc: typeof codeProblemDetails.testCases[0]): ParsedTestCase => ({
+    const { codeProblem } = problemData;
+    const officialTestCases: ParsedTestCaseFromDB[] = codeProblem.testCases.map(tc => ({
       id: tc.id,
       input: safelyParseJson(tc.input),
-      expectedOutput: tc.expectedOutput,
+      expectedOutput: tc.expectedOutput, // Keep as string, compareOutputs will handle parsing
       isHidden: tc.isHidden,
       orderNum: tc.orderNum,
     }));
 
-    const functionName = codeProblemDetails.functionName || 'solution'; // Use function name from CodeProblem
+    const functionName = codeProblem.functionName || 'solution';
+    const submissionResponseResults: TestResultForResponse[] = []; // Use the new local type
+    let overallAllPassed = true;
 
-    // Create a submission record
+    // Create Submission Record Early
     const submission = await prisma.submission.create({
       data: {
         code,
@@ -146,83 +173,93 @@ export async function executeCode(req: Request, res: Response): Promise<void> {
         status: 'PROCESSING',
         user: { connect: { id: userId } },
         problem: { connect: { id: problemId } },
+        results: [], // Initialize as empty, will be updated later
       },
     });
 
-    // Process each test case
-    const results = [];
-    let allPassed = true;
+    // 1. Process Official Test Cases
+    for (const officialCase of officialTestCases) {
+      const formattedInputArray = Array.isArray(officialCase.input) ? officialCase.input : [officialCase.input];
+      const formattedCode = formatTestCode(code, language, formattedInputArray, functionName);
+      const judge0Result: ProcessedResult = await submitCode(formattedCode, language);
 
-    for (const testCase of testCases) {
-      const { input, expectedOutput } = testCase;
+      let expectedOutputParsed = safelyParseJson(officialCase.expectedOutput);
+      let actualOutputParsed = safelyParseJson(judge0Result.output.trim());
       
-      // Ensure input passed to formatTestCode is an array
-      const formattedInput = Array.isArray(input) ? input : [input];
-      
-      // Format code with test driver
-      const formattedCode = formatTestCode(code, language, formattedInput, functionName);
-      
-      // Submit to Judge0 (Reverted signature - no time/memory limits here)
-      const result = await submitCode(
-        formattedCode,
-        language
-        // stdin and expectedOutput are not needed here as judge0Service handles basic execution
-        // Problem-specific limits would require judge0Service modification
-      );
-      
-      // Normalize the output
-      let expectedOutputParsed: any = expectedOutput; // Keep original string/parsed version
-      let actualOutputParsed: any = result.output.trim();
-      
-      // Try to parse JSON if outputs look like JSON strings
-      try {
-        if (typeof expectedOutputParsed === 'string' && (expectedOutputParsed.startsWith('{') || expectedOutputParsed.startsWith('['))) {
-          expectedOutputParsed = JSON.parse(expectedOutputParsed);
-        }
-        if (typeof actualOutputParsed === 'string' && (actualOutputParsed.startsWith('{') || actualOutputParsed.startsWith('['))) {
-          actualOutputParsed = JSON.parse(actualOutputParsed);
-        }
-      } catch (e) {
-        console.warn('Error parsing result/expected output as JSON:', e);
-      }
-      
-      // Compare expected vs actual
       const outputMatches = compareOutputs(expectedOutputParsed, actualOutputParsed);
+      const casePassed = judge0Result.statusId === 3 && outputMatches;
+
+      if (!casePassed) overallAllPassed = false;
       
-      // Prepare test result
-      const testResult = {
-        ...result,
-        input,
+      submissionResponseResults.push({
+        input: formattedInputArray,
         expected: expectedOutputParsed,
         output: actualOutputParsed,
-        passed: result.passed && outputMatches,
-      };
-      
-      if (!testResult.passed) {
-        allPassed = false;
-      }
-      
-      results.push(testResult);
+        passed: casePassed,
+        runtime: judge0Result.executionTime,
+        memory: judge0Result.memory,
+        error: judge0Result.error || (judge0Result.compilationOutput ? "Compilation Error" : undefined),
+        compilationOutput: judge0Result.compilationOutput,
+        statusDescription: judge0Result.statusDescription,
+        statusId: judge0Result.statusId,
+        exitCode: judge0Result.exitCode,
+        isCustom: false,
+      });
     }
-    
-    // Update submission with results
+
+    // 2. Process User Custom Test Cases (if any)
+    if (userCustomTestCases && userCustomTestCases.length > 0) {
+      for (const customCase of userCustomTestCases) {
+        // Ensure input for formatTestCode is an array
+        const customInputArray = Array.isArray(customCase.input) ? customCase.input : [customCase.input];
+        const formattedCode = formatTestCode(code, language, customInputArray, functionName);
+        const judge0Result: ProcessedResult = await submitCode(formattedCode, language);
+
+        let customExpectedParsed = customCase.expected !== undefined ? safelyParseJson(customCase.expected) : undefined;
+        let actualOutputParsed = safelyParseJson(judge0Result.output.trim());
+
+        let casePassed = judge0Result.statusId === 3; // Accepted by Judge0
+        if (customCase.expected !== undefined) { // Only compare if custom expected output is provided
+          casePassed = casePassed && compareOutputs(customExpectedParsed, actualOutputParsed);
+        }
+
+        if (!casePassed) overallAllPassed = false;
+
+        submissionResponseResults.push({
+          input: customInputArray,
+          expected: customExpectedParsed, // May be undefined
+          output: actualOutputParsed,
+          passed: casePassed,
+          runtime: judge0Result.executionTime,
+          memory: judge0Result.memory,
+          error: judge0Result.error || (judge0Result.compilationOutput ? "Compilation Error" : undefined),
+          compilationOutput: judge0Result.compilationOutput,
+          statusDescription: judge0Result.statusDescription,
+          statusId: judge0Result.statusId,
+          exitCode: judge0Result.exitCode,
+          isCustom: true, // Flag for custom test cases
+        });
+      }
+    }
+
+    // Update Submission with all results
     await prisma.submission.update({
       where: { id: submission.id },
       data: {
-        results: results as unknown as Prisma.JsonArray,
-        passed: allPassed,
+        results: submissionResponseResults as unknown as Prisma.JsonArray,
+        passed: overallAllPassed,
         status: 'COMPLETED',
-        executionTime: results.reduce((sum, r) => sum + (r.executionTime || 0), 0),
-        memory: results.reduce((max, r) => Math.max(max, r.memory || 0), 0),
+        executionTime: submissionResponseResults.reduce((sum, r) => sum + (r.runtime || 0), 0),
+        memory: submissionResponseResults.reduce((max, r) => Math.max(max, r.memory || 0), 0),
       },
     });
 
-    // Return results to client
     res.status(200).json({
-      results,
-      allPassed,
+      results: submissionResponseResults,
+      allPassed: overallAllPassed,
       submissionId: submission.id,
     });
+
   } catch (error) {
     console.error('Code execution error:', error);
     
@@ -479,7 +516,12 @@ type ProblemWithLimitedCodeDetailsPayload = Prisma.ProblemGetPayload<{
  * - problemId: ID of the problem to test against
  */
 export async function runTests(req: Request, res: Response): Promise<void> {
-  const { code, language, problemId } = req.body;
+  const { code, language, problemId, userCustomTestCases } = req.body as {
+    code: string;
+    language: string;
+    problemId: string;
+    userCustomTestCases?: UserCustomTestCase[]; // Same type as in executeCode
+  };
 
   if (!code || !language || !problemId) {
     res.status(400).json({ error: 'Missing required parameters' });
@@ -487,127 +529,133 @@ export async function runTests(req: Request, res: Response): Promise<void> {
   }
 
   try {
-    // Fetch problem and its associated code problem details
-    // Apply explicit type
-    const problem: ProblemWithLimitedCodeDetailsPayload | null = await prisma.problem.findUnique({
+    const problemData = await prisma.problem.findUnique({
       where: { id: problemId },
       select: {
         id: true,
         name: true,
-        // Include the CodeProblem relation
         codeProblem: {
           select: {
-            questionId: true, // Correct field
             functionName: true,
-            testCases: {
-              select: {
-                id: true,
-                input: true,
-                expectedOutput: true,
-                isHidden: true,
-                orderNum: true,
-              },
-              orderBy: {
-                orderNum: 'asc',
-              },
-              take: 2, // Limit to first 2 for runTests
-            },
-             timeLimit: true,
-             memoryLimit: true,
-          },
-        },
-      },
+            testCases: { orderBy: { orderNum: 'asc' }, take: 2 }, 
+            timeLimit: true,
+            memoryLimit: true,
+          }
+        }
+      }
     });
 
-    if (!problem) {
-      res.status(404).json({ error: 'Problem not found' });
-      return;
+    // Initial check for problemData itself
+    if (!problemData) {
+        res.status(404).json({ error: 'Problem not found.' });
+        return;
     }
 
-     // Check if it's a code problem and has necessary details
-    if (!problem.codeProblem || !problem.codeProblem.testCases || problem.codeProblem.testCases.length === 0) {
-      res.status(400).json({ error: 'No valid code problem details or test cases found for this problem' });
-      return;
-    }
-
-    // Use data from CodeProblem
-    const codeProblemDetails = problem.codeProblem;
-    // Apply type fixes here too
-    const testCases: ParsedTestCase[] = codeProblemDetails.testCases.map((tc: typeof codeProblemDetails.testCases[0]): ParsedTestCase => ({
-      id: tc.id,
-      input: safelyParseJson(tc.input),
-      expectedOutput: tc.expectedOutput,
-      isHidden: tc.isHidden,
-      orderNum: tc.orderNum,
-    }));
-    
-    // Use only the fetched (already limited) test cases
-    const limitedTestCases = testCases; 
-
-    // Extract function name from CodeProblem
-    const functionName = codeProblemDetails.functionName || 'solution';
-
-    // Process each limited test case
-    const results = [];
-    let allPassed = true;
-
-    for (const testCase of limitedTestCases) { // Use the limitedTestCases from CodeProblem
-      const { input, expectedOutput } = testCase;
-
-      // Ensure input passed to formatTestCode is an array
-      const formattedInput = Array.isArray(input) ? input : [input];
-
-      // Format code with test driver
-      const formattedCode = formatTestCode(code, language, formattedInput, functionName); // Pass formattedInput
-
-      // Submit to Judge0 (Reverted signature)
-      const result = await submitCode(
-          formattedCode,
-          language
-          // No extra args
-        );
-
-      // Normalize the output
-      let expectedOutputParsed: any = expectedOutput;
-      let actualOutputParsed: any = result.output.trim();
-      
-      // Try to parse JSON if outputs look like JSON strings
-      try {
-        if (typeof expectedOutputParsed === 'string' && (expectedOutputParsed.startsWith('{') || expectedOutputParsed.startsWith('['))) {
-            expectedOutputParsed = JSON.parse(expectedOutputParsed);
-        }
-        if (typeof actualOutputParsed === 'string' && (actualOutputParsed.startsWith('{') || actualOutputParsed.startsWith('['))) {
-            actualOutputParsed = JSON.parse(actualOutputParsed);
-        }
-      } catch (e) {
-        console.warn('Error parsing runTests output as JSON:', e);
+    // Check if codeProblem exists and if official test cases are needed or present
+    if (!problemData.codeProblem) {
+      // If no codeProblem, we can only run custom tests if they are provided
+      if (!userCustomTestCases || userCustomTestCases.length === 0) {
+         res.status(400).json({ error: 'Problem details not found and no custom test cases provided.' });
+         return;
       }
-
-      // Compare expected vs actual
-      const outputMatches = compareOutputs(expectedOutputParsed, actualOutputParsed);
-
-      // Prepare test result
-      const testResult = {
-        ...result,
-        input,
-        expected: expectedOutputParsed,
-        output: actualOutputParsed,
-        passed: result.passed && outputMatches,
-      };
-
-      if (!testResult.passed) {
-        allPassed = false;
-      }
-      
-      results.push(testResult);
+      // If there are custom tests, we can proceed without official ones, using a default functionName if needed
     }
     
-    // Return results to client without creating a submission record
+    const codeProblemDetails = problemData.codeProblem; // Now problemData.codeProblem is safer to access if !problemData.codeProblem was handled
+    const functionName = codeProblemDetails?.functionName || 'solution';
+    const quickRunResults: TestResultForResponse[] = [];
+    let overallAllPassed = true;
+
+    // 1. Process Official Test Cases (Limited for Quick Run)
+    if (codeProblemDetails && codeProblemDetails.testCases && codeProblemDetails.testCases.length > 0) {
+      const officialTestCases: ParsedTestCaseFromDB[] = codeProblemDetails.testCases.map(tc => ({
+        id: tc.id,
+        input: safelyParseJson(tc.input),
+        expectedOutput: tc.expectedOutput,
+        isHidden: tc.isHidden,
+        orderNum: tc.orderNum,
+      }));
+
+      for (const officialCase of officialTestCases) {
+        const formattedInputArray = Array.isArray(officialCase.input) ? officialCase.input : [officialCase.input];
+        const formattedCode = formatTestCode(code, language, formattedInputArray, functionName);
+        const judge0Result: ProcessedResult = await submitCode(formattedCode, language);
+
+        let expectedOutputParsed = safelyParseJson(officialCase.expectedOutput);
+        let actualOutputParsed = safelyParseJson(judge0Result.output.trim());
+        
+        const outputMatches = compareOutputs(expectedOutputParsed, actualOutputParsed);
+        const casePassed = judge0Result.statusId === 3 && outputMatches;
+
+        if (!casePassed) overallAllPassed = false;
+        
+        quickRunResults.push({
+          input: formattedInputArray,
+          expected: expectedOutputParsed,
+          output: actualOutputParsed,
+          passed: casePassed,
+          runtime: judge0Result.executionTime,
+          memory: judge0Result.memory,
+          error: judge0Result.error || (judge0Result.compilationOutput ? "Compilation Error" : undefined),
+          compilationOutput: judge0Result.compilationOutput,
+          statusDescription: judge0Result.statusDescription,
+          statusId: judge0Result.statusId,
+          exitCode: judge0Result.exitCode,
+          isCustom: false,
+        });
+      }
+    }
+
+    // 2. Process User Custom Test Cases (if any)
+    if (userCustomTestCases && userCustomTestCases.length > 0) {
+      for (const customCase of userCustomTestCases) {
+        const customInputArray = Array.isArray(customCase.input) ? customCase.input : [customCase.input];
+        const formattedCode = formatTestCode(code, language, customInputArray, functionName);
+        const judge0Result: ProcessedResult = await submitCode(formattedCode, language);
+
+        let customExpectedParsed = customCase.expected !== undefined ? safelyParseJson(customCase.expected) : undefined;
+        let actualOutputParsed = safelyParseJson(judge0Result.output.trim());
+
+        let casePassed = judge0Result.statusId === 3;
+        if (customCase.expected !== undefined) {
+          casePassed = casePassed && compareOutputs(customExpectedParsed, actualOutputParsed);
+        }
+
+        if (!casePassed) overallAllPassed = false;
+
+        quickRunResults.push({
+          input: customInputArray,
+          expected: customExpectedParsed,
+          output: actualOutputParsed,
+          passed: casePassed,
+          runtime: judge0Result.executionTime,
+          memory: judge0Result.memory,
+          error: judge0Result.error || (judge0Result.compilationOutput ? "Compilation Error" : undefined),
+          compilationOutput: judge0Result.compilationOutput,
+          statusDescription: judge0Result.statusDescription,
+          statusId: judge0Result.statusId,
+          exitCode: judge0Result.exitCode,
+          isCustom: true,
+        });
+      }
+    }
+    
+    if (quickRunResults.length === 0) {
+        // This condition means neither official (even if limited) nor custom tests were run/provided.
+        // If userCustomTestCases were provided but problemData.codeProblem was null (so no functionName implicitly),
+        // the loop for custom tests would still run with functionName = 'solution'.
+        // So, if quickRunResults is empty, it truly means no tests were effectively processed.
+        overallAllPassed = false; 
+        // Consider if a different response is better, e.g., 400 if no tests could be run.
+        // For now, returning empty results with allPassed: false.
+    }
+
     res.status(200).json({
-      results,
-      allPassed,
-      isQuickRun: true
+      results: quickRunResults,
+      allPassed: overallAllPassed,
+      isQuickRun: true,
     });
+
   } catch (error) {
     console.error('Test execution error:', error);
     

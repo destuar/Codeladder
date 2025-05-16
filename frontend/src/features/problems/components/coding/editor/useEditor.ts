@@ -28,6 +28,15 @@ export function useEditor(
   const [isDarkMode, setIsDarkMode] = useState(false);
   const editorRef = useRef<any>(null);
 
+  // Effect to synchronize internal code state with initialCode prop changes
+  useEffect(() => {
+    // If the initialCode prop from the parent changes and it's different
+    // from the current internal code state, update the internal state.
+    if (initialCode !== code) {
+      setCode(initialCode);
+    }
+  }, [initialCode, code]); // Depends on initialCode (prop) and code (internal state)
+
   // Handle editor mounting
   const handleEditorDidMount = (editor: any) => {
     editorRef.current = editor;

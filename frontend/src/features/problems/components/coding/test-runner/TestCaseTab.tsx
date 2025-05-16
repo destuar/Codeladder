@@ -1,5 +1,5 @@
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Plus } from "lucide-react";
+import { Plus, X } from "lucide-react";
 import { TestCase as TestCaseType } from '../../../types/coding';
 import { cn } from "@/lib/utils";
 import {
@@ -22,6 +22,9 @@ interface TestCaseTabProps {
   selectedTestCase: number | null;
   setSelectedTestCase: (index: number) => void;
   functionParams?: { name: string; type: string }[];
+  onAddTestCase?: (testCase: TestCaseType) => void;
+  onDeleteTestCase?: (index: number) => void;
+  numOfficialTestCases?: number;
 }
 
 /**
@@ -43,7 +46,10 @@ export function TestCaseTab({
   testCases, 
   selectedTestCase,
   setSelectedTestCase,
-  functionParams = []
+  functionParams = [],
+  onAddTestCase,
+  onDeleteTestCase,
+  numOfficialTestCases = 0
 }: TestCaseTabProps) {
   const [isAddingTestCase, setIsAddingTestCase] = useState(false);
   const [customInput, setCustomInput] = useState('');
@@ -61,22 +67,20 @@ export function TestCaseTab({
     return {
       ...testCase,
       input: (() => {
-        // If input is undefined, return empty array
-        if (!testCase.input) {
+        if (testCase.input === undefined) {
           return [];
         }
-        
-        // If input is already an array, use it
         if (Array.isArray(testCase.input)) {
           return testCase.input;
         }
-        
-        // If input is a string that looks like JSON, try to parse it
         if (typeof testCase.input === 'string') {
-          return tryParseJson(testCase.input); 
+          if (testCase.input === '') {
+            return [];
+          }
+          const parsedInput = tryParseJson(testCase.input);
+          return Array.isArray(parsedInput) ? parsedInput : [parsedInput];
         }
-        
-        // Default: wrap in array
+        // Fallback for any other type, though type defs suggest this shouldn't be hit often.
         return [testCase.input];
       })()
     };
@@ -84,12 +88,54 @@ export function TestCaseTab({
 
   // Handle adding custom test case
   const handleAddTestCase = () => {
-    // This would typically call a backend API or update state
-    console.log('Adding custom test case:', { input: customInput, expected: customExpected });
-    // Reset form after submission
-    setCustomInput('');
-    setCustomExpected('');
-    setIsAddingTestCase(false);
+    if (!customInput.trim()) {
+      return; // Don't add empty input
+    }
+
+    if (!onAddTestCase) {
+      console.warn("onAddTestCase prop is not provided to TestCaseTab");
+      return;
+    }
+
+    try {
+      // Parse input
+      let parsedInput;
+      try {
+        parsedInput = JSON.parse(customInput);
+      } catch (e) {
+        // If not valid JSON, treat it as a simple string
+        parsedInput = customInput.trim();
+      }
+
+      // Parse expected output
+      let parsedExpected;
+      try {
+        parsedExpected = customExpected ? JSON.parse(customExpected) : '';
+      } catch (e) {
+        // If not valid JSON, treat it as a simple string
+        parsedExpected = customExpected.trim();
+      }
+
+      // Create new test case
+      const newTestCase: TestCaseType = {
+        input: parsedInput,
+        expected: parsedExpected,
+        isHidden: false,
+      };
+
+      // Call the onAddTestCase callback
+      onAddTestCase(newTestCase);
+      
+      // Close the dialog
+      setIsAddingTestCase(false);
+      
+      // Reset form
+      setCustomInput('');
+      setCustomExpected('');
+    } catch (error) {
+      console.error('Error adding custom test case:', error);
+      alert('Failed to add test case. Please check your input format.');
+    }
   };
 
   // Get parameter name for the given index based on function parameters
@@ -107,23 +153,39 @@ export function TestCaseTab({
   return (
     <>
       {/* Test case tabs */}
-      <div className="p-2 flex items-center gap-2 flex-shrink-0 bg-background">
-        <div className="flex gap-2 py-1 px-4">
-          {testCases.map((testCase, index) => (
-            <button
-              key={index}
-              className={cn(
-                "min-w-[80px] flex items-center justify-center rounded-md border px-3 py-1.5 text-sm font-medium transition-all duration-200",
-                selectedTestCase === index 
-                  ? "bg-primary/10 text-primary border-primary/40 shadow-sm transform scale-105" 
-                  : "bg-background text-foreground/80 border-border hover:bg-accent hover:text-accent-foreground"
-              )}
-              onClick={() => setSelectedTestCase(index)}
-            >
-              Case {index + 1}
-              {testCase.isHidden && <span className="ml-1 text-xs opacity-60">(hidden)</span>}
-            </button>
-          ))}
+      <div className="p-2 flex items-center gap-2 flex-shrink-0 bg-background group">
+        <div className="flex gap-2 py-1 px-4 overflow-x-auto scrollbar-thin scrollbar-thumb-muted scrollbar-track-transparent">
+          {testCases.map((testCase, index) => {
+            const isCustom = index >= numOfficialTestCases;
+            return (
+              <div key={index} className="relative group/testcase-btn flex-shrink-0">
+                <button
+                  className={cn(
+                    "min-w-[80px] flex items-center justify-center rounded-md border px-3 py-1.5 text-sm font-medium transition-all duration-200",
+                    selectedTestCase === index 
+                      ? "bg-primary/10 text-primary border-primary/40 shadow-sm transform scale-105" 
+                      : "bg-background text-foreground/80 border-border hover:bg-accent hover:text-accent-foreground"
+                  )}
+                  onClick={() => setSelectedTestCase(index)}
+                >
+                  Case {index + 1}
+                  {testCase.isHidden && !isCustom && <span className="ml-1 text-xs opacity-60">(hidden)</span>}
+                </button>
+                {isCustom && onDeleteTestCase && (
+                  <button 
+                    onClick={(e) => { 
+                        e.stopPropagation();
+                        onDeleteTestCase(index); 
+                    }}
+                    className="absolute top-0 right-0 p-0.5 rounded-full bg-slate-200/70 text-slate-500 hover:bg-slate-400 hover:text-slate-700 opacity-0 group-hover/testcase-btn:opacity-100 transition-opacity duration-150 focus:opacity-100 z-10"
+                    aria-label="Delete test case"
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                )}
+              </div>
+            );
+          })}
           <Dialog open={isAddingTestCase} onOpenChange={setIsAddingTestCase}>
             <DialogTrigger asChild>
               <button 
