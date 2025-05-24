@@ -57,7 +57,7 @@ const loginHandler = async (req: Request, res: Response) => {
       }
     });
     
-    if (!user) {
+    if (!user || !user.password) {
       res.status(401).json({ error: 'Invalid credentials' });
       return;
     }
