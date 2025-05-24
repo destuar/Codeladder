@@ -21,7 +21,7 @@ services:
       # Build context is the backend root directory
       context: ../../
       # Use production Dockerfile
-      dockerfile: ./backend/Dockerfile.backend
+      dockerfile: infra/docker/backend/Dockerfile.backend
     env_file:
       # Load production environment variables
       - ../../.env  # Reference root .env file
