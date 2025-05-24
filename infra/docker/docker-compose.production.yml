@@ -54,7 +54,7 @@ services:
       # Dockerfile: Relative to this docker-compose.yml file.
       # If this file is in infra/docker/ and Dockerfile is infra/docker/frontend/Dockerfile.frontend,
       # path is ./frontend/Dockerfile.frontend
-      dockerfile: ./frontend/Dockerfile.frontend
+      dockerfile: ../infra/docker/frontend/Dockerfile.frontend
     env_file:
       # Reference root .env file, path relative to this docker-compose.yml file
       - ../../.env  
