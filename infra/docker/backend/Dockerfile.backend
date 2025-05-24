@@ -24,9 +24,9 @@ RUN npm ci && \
 
 # Copy source code and configuration files
 # These are separated from package files to optimize layer caching
-COPY tsconfig.json ./
-COPY prisma/ ./prisma/
-COPY src/ ./src/
+COPY ./backend/tsconfig.json ./tsconfig.json
+COPY ./backend/prisma/ ./prisma/
+COPY ./backend/src/ ./src/
 
 # Debug: Verify file structure before build
 # This helps with troubleshooting build issues
