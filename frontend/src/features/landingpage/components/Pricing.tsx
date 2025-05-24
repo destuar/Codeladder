@@ -21,11 +21,11 @@ const PricingTier = ({ title, subtitle, price, priceDetail, features, buttonText
   // Use brand blue for border, add glow effect via shadow
   <Card className={cn(
     "flex flex-col", 
-    isPopular ? "border-[#5b5bf7]/50 border-2 shadow-lg shadow-[#5b5bf7]/30 relative dark:shadow-[#5b5bf7]/50" : "border"
+    isPopular ? "border-[#5271FF]/50 border-2 shadow-lg shadow-[#5271FF]/30 relative dark:shadow-[#5271FF]/50" : "border"
   )}>
     {isPopular && (
       // Use brand blue for popular badge background, white check
-      <div className="absolute top-0 right-0 -mt-3 -mr-3 bg-[#5b5bf7] rounded-full p-1.5 z-10">
+      <div className="absolute top-0 right-0 -mt-3 -mr-3 bg-[#5271FF] rounded-full p-1.5 z-10">
         <Check className="h-5 w-5 text-white" /> 
       </div>
     )}
@@ -55,12 +55,12 @@ const PricingTier = ({ title, subtitle, price, priceDetail, features, buttonText
           Coming Soon
         </Button>
       ) : linkTo ? (
-        <Button className="w-full bg-[#5b5bf7] hover:bg-[#4a4af0] text-white" asChild>
+        <Button className="w-full bg-[#5271FF] hover:bg-[#415ACC] text-white" asChild>
           <Link to={linkTo}>{buttonText} &rarr;</Link>
         </Button>
       ) : (
         // Fallback for a button that's not coming soon and has no link
-        <Button className="w-full bg-[#5b5bf7] hover:bg-[#4a4af0] text-white">
+        <Button className="w-full bg-[#5271FF] hover:bg-[#415ACC] text-white">
           {buttonText} &rarr;
         </Button>
       )}
@@ -77,7 +77,7 @@ export const Pricing = () => {
       features: [
         "Basic Problem Collections", 
         "Limited Company Profiles", 
-        "Full Review Dashboard"
+        "Review Dashboard"
       ],
       buttonText: "Get Started Free",
       linkTo: "/register",
@@ -121,7 +121,7 @@ export const Pricing = () => {
         <div className="text-center mb-12">
           <h2 className="text-3xl font-bold tracking-tight sm:text-4xl">Pricing</h2>
           <p className="mt-2 text-lg text-muted-foreground">
-            An investment into climbing the career ladder
+            Keep climbing the career ladder
           </p>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-6xl mx-auto">

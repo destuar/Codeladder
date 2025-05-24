@@ -263,10 +263,10 @@ export default function CodingProblem({
             minWidth={MIN_PANEL_WIDTH}
             maxWidth={MAX_PANEL_WIDTH}
             onResize={setLeftPanelWidth}
-            className="border-r h-full"
+            className="h-full dark:border-transparent border-r border-border"
           >
             <Tabs value={leftPanelTab} onValueChange={setLeftPanelTab} className="h-full flex flex-col">
-              <div className="border-b px-4 py-2 bg-muted/20 flex-shrink-0">
+              <div className="px-4 py-2 bg-muted/20 flex-shrink-0 dark:border-transparent border-b border-border">
                 <TabsList className="bg-muted">
                   <TabsTrigger value="description" className="flex items-center gap-1">
                     <FileText className="h-4 w-4" />
@@ -345,7 +345,7 @@ export default function CodingProblem({
               }}
               className="relative"
               handleComponent={{
-                bottom: <div className="h-2 w-full bg-border hover:bg-primary/50 transition-colors cursor-ns-resize"></div>
+                bottom: <div className="h-2 w-full bg-border dark:bg-muted/50 hover:bg-primary/50 transition-colors cursor-ns-resize"></div>
               }}
             >
               <div className="absolute inset-0 overflow-hidden">

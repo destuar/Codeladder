@@ -103,6 +103,10 @@ module.exports = {
          'blink': {
            '0%, 100%': { opacity: '1' },
            '50%': { opacity: '0' }
+         },
+         'scrollUp': {
+            '0%': { transform: 'translateY(0)' },
+            '100%': { transform: 'translateY(-50%)' },
          }
        },
        animation: {
@@ -114,7 +118,8 @@ module.exports = {
          marquee: 'marquee 60s linear infinite',
          'marquee-reverse': 'marquee-reverse 60s linear infinite',
          'bounce-subtle': 'bounce-subtle 1.5s ease-in-out infinite',
-         'blink': 'blink 1s step-start infinite'
+         'blink': 'blink 1s step-start infinite',
+         'vertical-scroll': 'scrollUp 30s linear infinite',
        },
      },
   },

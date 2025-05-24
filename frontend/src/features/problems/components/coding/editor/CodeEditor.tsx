@@ -97,7 +97,7 @@ export const CodeEditor = forwardRef<CodeEditorRef, CodeEditorProps>(({
   return (
     <div ref={containerRef} className={`flex flex-col overflow-hidden ${className}`}>
       {/* Editor header with language selector */}
-      <div className="flex items-center justify-between border-b px-4 py-2 bg-muted/20 flex-shrink-0">
+      <div className="flex items-center justify-between px-4 py-2 bg-muted/20 flex-shrink-0 dark:border-transparent border-b border-border">
         <h3 className="text-sm font-medium">Code Editor</h3>
         {onLanguageChange && (
           <div className="flex items-center space-x-2">

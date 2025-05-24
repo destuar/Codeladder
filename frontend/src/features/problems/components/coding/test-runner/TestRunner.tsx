@@ -153,9 +153,9 @@ export function TestRunner({
   };
 
   return (
-    <div className="flex flex-col h-full overflow-hidden border rounded-md">
+    <div className="flex flex-col h-full overflow-hidden rounded-md dark:border-transparent border border-border">
       <Tabs value={activeTab} onValueChange={setActiveTab} className="flex flex-col h-full">
-        <div className="border-b px-4 py-2 bg-muted/20 flex-shrink-0">
+        <div className="px-4 py-2 bg-muted/20 flex-shrink-0 dark:border-transparent border-b border-border">
           <TabsList className="bg-muted grid grid-cols-2 w-60">
             <TabsTrigger value="testcase">Testcase</TabsTrigger>
             <TabsTrigger value="result">Result</TabsTrigger>
@@ -169,7 +169,7 @@ export function TestRunner({
             disabled={isRunning}
             className="gap-2"
             size="sm"
-            variant="outline"
+            variant="ghost"
             data-testrunner-run-button
           >
             Run Tests

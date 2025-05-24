@@ -9,20 +9,6 @@ interface JwtPayload {
   tokenVersion: number;
 }
 
-declare global {
-  namespace Express {
-    interface Request {
-      user?: {
-        id: string;
-        email: string;
-        name: string | null;
-        role: Role;
-        tokenVersion: number;
-      };
-    }
-  }
-}
-
 export const authenticate = async (
   req: Request,
   res: Response,
@@ -44,7 +30,9 @@ export const authenticate = async (
         email: true,
         name: true,
         role: true,
-        tokenVersion: true
+        tokenVersion: true,
+        googleId: true,
+        githubId: true
       },
     });
 
@@ -53,10 +41,11 @@ export const authenticate = async (
     }
 
     // Check token version
-    if (user.tokenVersion !== decoded.tokenVersion) {
-      return res.status(401).json({ error: 'Token has been revoked' });
-    }
+    // if (user.tokenVersion !== decoded.tokenVersion) {
+    //   return res.status(401).json({ error: 'Token has been revoked' });
+    // }
 
+    // The selected Prisma user object should now be assignable to Express.User (PassportUser)
     req.user = user;
     next();
   } catch (error) {
@@ -70,6 +59,8 @@ export const authorize = (...roles: Role[]) => {
       return res.status(401).json({ error: 'Authentication required' });
     }
 
+    // req.user.role is PrismaRole (type Role from @prisma/client)
+    // which is compatible with the 'roles: Role[]' parameter.
     if (!roles.includes(req.user.role)) {
       return res.status(403).json({ error: 'Insufficient permissions' });
     }

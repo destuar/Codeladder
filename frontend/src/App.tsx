@@ -33,6 +33,7 @@ import { AssessmentResultsRouter } from './features/assesment/shared/AssessmentR
 import { ScrollToTop } from './components/ScrollToTop';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
 import { cn } from '@/lib/utils';
+import OAuthCallbackReceiver from './features/auth/OAuthCallbackReceiver';
 
 // Regular components
 const UnauthorizedPage = () => (
@@ -96,6 +97,7 @@ function MainLayout() {
           <Route path="/register" element={<RegisterPage />} />
           <Route path="/unauthorized" element={<UnauthorizedPage />} />
           <Route path="/auth/callback/:provider" element={<OAuthCallback />} />
+          <Route path="/oauth-callback-receiver" element={<OAuthCallbackReceiver />} />
 
           {/* Protected routes */}
           <Route

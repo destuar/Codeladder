@@ -10,20 +10,21 @@ datasource db {
 }
 
 model User {
-  id           String  @id @default(cuid())
-  email        String  @unique
-  password     String
-  name         String?
-  role         Role    @default(USER)
-  tokenVersion Int     @default(0)
+  id           String    @id @default(uuid())
+  email        String    @unique
+  password     String?
+  name         String? // Made optional
+  role         Role      @default(USER)
+  tokenVersion Int       @default(0)
+  avatar       String?   @db.Text
+  bio          String?   @db.Text
+  location     String?
+  website      String?
+  phoneNumber  String?
+  dateOfBirth  DateTime? @db.Date
 
-  // Profile fields
-  avatar      String?
-  bio         String?   @db.Text
-  location    String?
-  website     String?
-  phoneNumber String?
-  dateOfBirth DateTime?
+  googleId String? @unique // Added for Google OAuth
+  githubId String? @unique // Added for GitHub OAuth
 
   // Learning progress
   completedProblems Problem[]  @relation("UserCompletedProblems")
@@ -58,7 +59,7 @@ model Level {
 model Topic {
   id          String     @id @default(cuid())
   name        String
-  slug        String?    @unique  // URL-friendly unique identifier
+  slug        String?    @unique // URL-friendly unique identifier
   description String?    @db.Text
   content     String?    @db.Text
   order       Int // For sorting topics within a level
@@ -84,8 +85,8 @@ enum ProblemType {
 model Collection {
   id          String                @id @default(cuid())
   name        String
-  slug        String?   @unique  // URL-friendly unique identifier
-  description String?   @db.Text
+  slug        String?               @unique // URL-friendly unique identifier
+  description String?               @db.Text
   problems    ProblemToCollection[]
   createdAt   DateTime              @default(now())
   updatedAt   DateTime              @updatedAt
@@ -94,29 +95,29 @@ model Collection {
 }
 
 model Problem {
-  id            String                @id @default(cuid())
+  id            String      @id @default(cuid())
   name          String
-  slug          String?               @unique
-  description   String?               @db.Text
+  slug          String?     @unique
+  description   String?     @db.Text
   difficulty    Difficulty
-  required      Boolean               @default(false)
+  required      Boolean     @default(false)
   reqOrder      Int?
-  content       String?               @db.Text // Content field (for all problem types)
-  solution      String?               @db.Text // Solution or hints
-  problemType   ProblemType           @default(INFO)
-  codeTemplate  String?               @db.Text // Legacy code template (for backward compatibility)
+  content       String?     @db.Text // Content field (for all problem types)
+  solution      String?     @db.Text // Solution or hints
+  problemType   ProblemType @default(INFO)
+  codeTemplate  String?     @db.Text // Legacy code template (for backward compatibility)
   testCases     Json? // Legacy test cases (for backward compatibility)
   estimatedTime Int? // Estimated time to complete the problem (in minutes)
-  topic         Topic?                @relation(fields: [topicId], references: [id]) // Make topic optional for standalone info
+  topic         Topic?      @relation(fields: [topicId], references: [id]) // Make topic optional for standalone info
   topicId       String? // Make topicId optional for standalone info
-  
+
   // Fixed relation to CodeProblem
-  codeProblem     CodeProblem? @relation("ProblemToCodeProblem")
-  
-  completedBy   User[]                @relation("UserCompletedProblems")
-  progress      Progress[]
-  collections   ProblemToCollection[] // Relation to collections
-  
+  codeProblem CodeProblem? @relation("ProblemToCodeProblem")
+
+  completedBy User[]                @relation("UserCompletedProblems")
+  progress    Progress[]
+  collections ProblemToCollection[] // Relation to collections
+
   // Code submissions for this problem
   submissions Submission[]
 
@@ -148,7 +149,7 @@ model Progress {
 
   // Spaced repetition fields
   reviewScheduledAt DateTime? // When this problem is scheduled to be reviewed next
-  reviewLevel       Int       @default(0) // Current review level (determines intervals)
+  reviewLevel       Int             @default(0) // Current review level (determines intervals)
   lastReviewedAt    DateTime? // When the problem was last reviewed
   reviews           ReviewHistory[] // Relation to review history entries
 
@@ -161,16 +162,16 @@ model Progress {
 
 // Model for storing review history
 model ReviewHistory {
-  id            String    @id @default(cuid())
-  progress      Progress  @relation(fields: [progressId], references: [id], onDelete: Cascade)
-  progressId    String    @map("progress_id")
-  date          DateTime  @default(now())
-  wasSuccessful Boolean   @map("was_successful")
-  reviewOption  String    @default("standard-review") @map("review_option") // 'easy', 'difficult', 'forgot'
-  levelBefore   Int       @default(0) @map("level_before")
-  levelAfter    Int       @default(0) @map("level_after")
-  
-  createdAt     DateTime  @default(now()) @map("created_at")
+  id            String   @id @default(cuid())
+  progress      Progress @relation(fields: [progressId], references: [id], onDelete: Cascade)
+  progressId    String   @map("progress_id")
+  date          DateTime @default(now())
+  wasSuccessful Boolean  @map("was_successful")
+  reviewOption  String   @default("standard-review") @map("review_option") // 'easy', 'difficult', 'forgot'
+  levelBefore   Int      @default(0) @map("level_before")
+  levelAfter    Int      @default(0) @map("level_after")
+
+  createdAt DateTime @default(now()) @map("created_at")
 
   @@index([progressId], name: "idx_review_history_progress_id")
   @@map("review_history")
@@ -219,20 +220,20 @@ model Submission {
 
 // New Quiz-related models
 model Quiz {
-  id            String  @id @default(cuid())
-  name          String
-  description   String? @db.Text
-  
-  topic         Topic?  @relation("TopicQuizzes", fields: [topicId], references: [id], onDelete: Cascade)
-  topicId       String? @map("topic_id")
-  
-  level         Level?  @relation("LevelTests", fields: [levelId], references: [id], onDelete: Cascade)
-  levelId       String? @map("level_id")
-  
-  orderNum      Int?    @map("order_num") 
-  estimatedTime Int?    @map("estimated_time") 
-  passingScore  Int     @default(70) @map("passing_score")
-  
+  id          String  @id @default(cuid())
+  name        String
+  description String? @db.Text
+
+  topic   Topic?  @relation("TopicQuizzes", fields: [topicId], references: [id], onDelete: Cascade)
+  topicId String? @map("topic_id")
+
+  level   Level?  @relation("LevelTests", fields: [levelId], references: [id], onDelete: Cascade)
+  levelId String? @map("level_id")
+
+  orderNum      Int? @map("order_num")
+  estimatedTime Int? @map("estimated_time")
+  passingScore  Int  @default(70) @map("passing_score")
+
   assessmentType AssessmentType @default(QUIZ) @map("assessment_type")
 
   questions QuizQuestion[]
@@ -301,28 +302,28 @@ model McOption {
 }
 
 model CodeProblem {
-  id            String       @id @default(cuid())
-  question      QuizQuestion? @relation("QuizQuestionToCodeProblem", fields: [questionId], references: [id], onDelete: Cascade)
-  questionId    String?      @map("question_id") @unique
-  codeTemplate  String?      @map("code_template_old") @db.Text /// @deprecated Use languageSupport instead
-  functionName  String?      @map("function_name")
-  language      String?      @map("language_old") /// @deprecated Use defaultLanguage instead
-  defaultLanguage String     @default("python") @map("default_language")
-  languageSupport Json?      @map("language_support") // Stores all language templates and references
-  timeLimit     Int          @default(5000) @map("time_limit") // Execution time limit in ms
-  memoryLimit   Int?         @map("memory_limit") // Memory limit in MB if applicable
-  
+  id              String        @id @default(cuid())
+  question        QuizQuestion? @relation("QuizQuestionToCodeProblem", fields: [questionId], references: [id], onDelete: Cascade)
+  questionId      String?       @unique @map("question_id")
+  codeTemplate    String?       @map("code_template_old") @db.Text /// @deprecated Use languageSupport instead
+  functionName    String?       @map("function_name")
+  language        String?       @map("language_old") /// @deprecated Use defaultLanguage instead
+  defaultLanguage String        @default("python") @map("default_language")
+  languageSupport Json?         @map("language_support") // Stores all language templates and references
+  timeLimit       Int           @default(5000) @map("time_limit") // Execution time limit in ms
+  memoryLimit     Int?          @map("memory_limit") // Memory limit in MB if applicable
+
   // New JSON fields for structured test data
-  return_type  String?      @map("return_type")
-  params       Json?        @map("params") @default("[]")
-  test_cases   Json?        @map("test_cases") @default("[]")
-  
+  return_type String? @map("return_type")
+  params      Json?   @default("[]") @map("params")
+  test_cases  Json?   @default("[]") @map("test_cases")
+
   // Test cases for this problem
   testCases TestCase[]
 
   // Fixed relationship to Problem
   problem   Problem? @relation("ProblemToCodeProblem", fields: [problemId], references: [id])
-  problemId String?  @map("problem_id") @unique
+  problemId String?  @unique @map("problem_id")
 
   @@index([questionId])
   @@index([problemId])

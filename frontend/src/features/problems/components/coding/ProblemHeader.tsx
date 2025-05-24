@@ -61,7 +61,7 @@ export function ProblemHeader({
   const displayTitle = sourceContext ? sourceContext.name : title;
 
   return (
-    <div className="flex justify-between items-center px-4 py-2 border-b h-16 bg-background">
+    <div className="flex justify-between items-center px-4 py-2 h-16 bg-background dark:border-transparent border-b border-border">
       {/* Left section - Logo and Timer */}
       <div className="flex items-center gap-3 w-1/4">
         <Link to="/dashboard" className="flex items-center">
@@ -168,11 +168,11 @@ export function ProblemHeader({
             <Tooltip>
               <TooltipTrigger asChild>
                 <Button 
-                  variant={isCompleted ? "outline" : "ghost"}
+                  variant="ghost"
                   size="sm"
                   className={cn(
                     "transition-all duration-100",
-                    isCompleted && "border-green-500 text-green-500 hover:bg-green-500/10",
+                    isCompleted && "text-green-500 hover:bg-green-500/10",
                     !isCompleted && "text-muted-foreground hover:text-foreground",
                     "active:scale-95"
                   )}

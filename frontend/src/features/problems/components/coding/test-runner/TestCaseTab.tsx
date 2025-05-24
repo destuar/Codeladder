@@ -161,10 +161,10 @@ export function TestCaseTab({
               <div key={index} className="relative group/testcase-btn flex-shrink-0">
                 <button
                   className={cn(
-                    "min-w-[80px] flex items-center justify-center rounded-md border px-3 py-1.5 text-sm font-medium transition-all duration-200",
+                    "min-w-[80px] flex items-center justify-center rounded-md px-3 py-1.5 text-sm font-medium transition-all duration-200",
                     selectedTestCase === index 
-                      ? "bg-primary/10 text-primary border-primary/40 shadow-sm transform scale-105" 
-                      : "bg-background text-foreground/80 border-border hover:bg-accent hover:text-accent-foreground"
+                      ? "bg-primary/10 text-primary border border-primary/40 shadow-sm transform scale-105" 
+                      : "bg-background text-foreground/80 border dark:border-transparent border-border hover:bg-accent hover:text-accent-foreground"
                   )}
                   onClick={() => setSelectedTestCase(index)}
                 >
@@ -189,7 +189,7 @@ export function TestCaseTab({
           <Dialog open={isAddingTestCase} onOpenChange={setIsAddingTestCase}>
             <DialogTrigger asChild>
               <button 
-                className="min-w-[44px] flex items-center justify-center rounded-md border border-border bg-background text-foreground/80 hover:bg-accent hover:text-accent-foreground px-2 py-1.5 transition-colors"
+                className="min-w-[44px] flex items-center justify-center rounded-md border dark:border-transparent border-border bg-background text-foreground/80 hover:bg-accent hover:text-accent-foreground px-2 py-1.5 transition-colors"
                 aria-label="Add test case"
               >
                 <Plus className="h-4 w-4" />
@@ -254,7 +254,7 @@ export function TestCaseTab({
                       {/* Use the parameter name from function parameters */}
                       {getParameterName(0)} {" ="}
                     </div>
-                    <div className="bg-muted/50 border rounded-md p-3">
+                    <div className="bg-muted/50 rounded-md p-3 dark:border-transparent border border-border">
                       <pre className="text-sm whitespace-pre-wrap break-all">
                         {JSON.stringify(currentTestCase.input[0], null, 2)}
                       </pre>
@@ -268,7 +268,7 @@ export function TestCaseTab({
                     <div className="text-xs text-muted-foreground font-mono">
                       {getParameterName(1)} {" ="}
                     </div>
-                    <div className="bg-muted/50 border rounded-md p-3">
+                    <div className="bg-muted/50 rounded-md p-3 dark:border-transparent border border-border">
                       <pre className="text-sm whitespace-pre-wrap break-all">
                         {JSON.stringify(currentTestCase.input[1], null, 2)}
                       </pre>
@@ -283,7 +283,7 @@ export function TestCaseTab({
                       <div className="text-xs text-muted-foreground font-mono">
                         {getParameterName(idx + 2)} {" ="}
                       </div>
-                      <div className="bg-muted/50 border rounded-md p-3">
+                      <div className="bg-muted/50 rounded-md p-3 dark:border-transparent border border-border">
                         <pre className="text-sm whitespace-pre-wrap break-all">
                           {JSON.stringify(param, null, 2)}
                         </pre>
@@ -298,7 +298,7 @@ export function TestCaseTab({
             {currentTestCase?.expected !== undefined && (
               <div>
                 <h3 className="text-sm font-medium mb-2">Expected</h3>
-                <div className="bg-muted/50 border rounded-md p-3">
+                <div className="bg-muted/50 rounded-md p-3 dark:border-transparent border border-border">
                   <pre className="text-sm whitespace-pre-wrap break-all">
                     {JSON.stringify(tryParseJson(currentTestCase.expected), null, 2)}
                   </pre>

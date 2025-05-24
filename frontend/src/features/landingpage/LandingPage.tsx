@@ -3,19 +3,16 @@ import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/features/auth/AuthContext';
 import { ArrowRight, Code, Dumbbell, Layers, Trophy, CheckCircle } from 'lucide-react';
-import { DashboardShowcase } from './components/DashboardShowcase';
-import { StatsSection } from './components/StatsSection';
-import { FeatureCard } from './components/FeatureCard';
 import { GlowingEffect } from '@/components/ui/glowing-effect';
 import { cn } from '@/lib/utils';
-import { RotatingFeatureCards } from './components/RotatingFeatureCards';
 import { CompanyLogos } from './components/CompanyLogos';
-import { FeatureShowcase } from './components/FeatureShowcase';
 import { TypeAnimation } from 'react-type-animation';
 import { Pricing } from './components/Pricing';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { LandingPageFooter } from './components/LandingPageFooter';
 import { Spotlight } from '@/components/ui/spotlight-new';
+import { useLogoSrc } from '@/features/landingpage/hooks/useLogoSrc';
+import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 
 /**
  * LandingPage component
@@ -36,6 +33,7 @@ export default function LandingPage() {
   const [typingSecondLine, setTypingSecondLine] = useState(false);
   const [secondLineText, setSecondLineText] = useState('');
   const fullSecondLineText = 'your preparation should too.';
+  const standaloneLogoSrc = useLogoSrc('single');
   
   // Re-add useEffect for dark mode detection
   useEffect(() => {
@@ -87,7 +85,7 @@ export default function LandingPage() {
   return (
     <div className="min-h-[calc(100vh-4rem)] bg-transparent relative overflow-hidden font-mono flex flex-col">
       {/* Background pattern: Positioned to cover navbar area, z-0 */}
-      <div className="absolute top-[-4rem] left-0 right-0 bottom-0 z-0 bg-dot-[#5b5bf7]/[0.2] [mask-image:radial-gradient(ellipse_at_center,transparent_20%,black)]" />
+      <div className="absolute top-[-4rem] left-0 right-0 bottom-0 z-0 bg-dot-[#5271FF]/[0.2] [mask-image:radial-gradient(ellipse_at_center,transparent_20%,black)]" />
       
       {/* Spotlight Wrapper: Positioned behind pattern/content */}
       <div className="absolute inset-0 -z-10 overflow-hidden">
@@ -104,22 +102,125 @@ export default function LandingPage() {
       
       {/* Content Wrapper: Added relative z-10 */}
       <div className="flex-grow relative z-10">
+        {/* Large transparent logo backdrop - top-rightish */}
+        <img
+          src={standaloneLogoSrc}
+          alt="" // Decorative image
+          className="absolute top-[21%] md:top-[22%] left-[200px] sm:left-[400px] md:left-[600px] lg:left-[900px] -translate-y-1/2 w-[1000px] h-[1000px] opacity-[0.03] pointer-events-none -z-1 select-none"
+        />
+        {/* Second large transparent logo backdrop - lower left */}
+        <img
+          src={standaloneLogoSrc}
+          alt="" // Decorative image
+          className="absolute top-[65%] md:top-[77%] left-[-700px] sm:left-[-600px] md:left-[-450px] -translate-y-1/2 w-[1000px] h-[1000px] opacity-[0.03] pointer-events-none -z-10 select-none"
+        />
+
         {/* 1. Hero Section */}
-        <section className="flex items-center justify-center min-h-[calc(100vh-4rem)] px-4 md:px-6 lg:px-8 max-w-7xl mx-auto relative pt-20">
+        <section className="flex items-center justify-center min-h-[calc(100vh-4rem)] px-4 md:px-6 lg:px-8 max-w-7xl mx-auto relative pt-8">
           <div className="flex flex-col items-center text-center py-16">
             <div className="relative">
-              <div className="absolute -top-16 -left-16 w-64 h-64 bg-[#5b5bf7]/10 rounded-full filter blur-3xl opacity-70"></div>
-              <div className="absolute -bottom-16 -right-16 w-64 h-64 bg-[#5b5bf7]/10 rounded-full filter blur-3xl opacity-70"></div>
+              <div className="absolute -top-16 -left-16 w-64 h-64 bg-[#5271FF]/10 rounded-full filter blur-3xl opacity-70"></div>
+              <div className="absolute -bottom-16 -right-16 w-64 h-64 bg-[#5271FF]/10 rounded-full filter blur-3xl opacity-70"></div>
               
-              <h1 className="text-5xl md:text-6xl lg:text-7xl font-bold font-mono tracking-tight mb-12 relative z-10">
-                <span>Practice</span> 
-                <ArrowRight className="inline-block h-6 w-6 mx-4 text-muted-foreground" /> 
-                <span>Interview</span> 
-                <ArrowRight className="inline-block h-6 w-6 mx-4 text-muted-foreground" /> 
-                <span className="bg-clip-text text-transparent bg-gradient-to-r from-[#5b5bf7] to-[#7a7aff]">Get Hired</span>
-              </h1>
+              {/* Updated Hero Text and Scrolling Code Ladder */}
+              <div className="flex items-center justify-center text-center relative z-10 mb-12">
+                {/* Main Text - Stacked */}
+                <div className="flex flex-col items-center">
+                  <span className="text-6xl lg:text-7xl font-bold font-mono tracking-tight">Practice</span>
+                  <span className="text-6xl lg:text-7xl font-bold font-mono tracking-tight my-1 md:my-2">Interview</span>
+                  <span className="text-6xl lg:text-7xl font-bold font-mono tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-[#5271FF] to-[#6B8EFF]">Offered</span>
+                </div>
 
-              <p className="text-xl text-muted-foreground max-w-3xl mx-auto mb-12 relative z-10">
+                {/* Right Scrolling Code Ladder - hidden on xs & sm, flex on md+ */}
+                <div className="hidden md:flex flex-col h-60 w-72 overflow-hidden relative font-mono text-xs text-muted-foreground/50 ml-16">
+                  {/*
+                    Container for the scrolling content.
+                    To enable continuous upward scrolling, you would typically:
+                    1. Define CSS @keyframes (e.g., 'scrollUp').
+                    2. Add this animation to your tailwind.config.js.
+                    3. Apply the animation class to the div below.
+                    The content is duplicated for a seamless loop.
+                  */}
+                  <div className="flex flex-col items-start space-y-1 animate-vertical-scroll"> {/* This div would get the animation class */}
+                    {/* CODE BLOCK 1 (Original Content) */}
+                    <span>{'# Binary Tree Max Depth'}</span>
+                    <span>{'class TreeNode:'}</span>
+                    <span>{'    def __init__(self, val=0, left=None, right=None):'}</span>
+                    <span>{'        self.val = val'}</span>
+                    <span>{'        self.left = left'}</span>
+                    <span>{'        self.right = right'}</span>
+                    <span className="py-1 block"> </span> {/* Spacer */}
+                    <span>{'def maxDepth(root: TreeNode) -> int:'}</span>
+                    <span>{'    if not root:'}</span>
+                    <span>{'        return 0'}</span>
+                    <span>{'    left_depth = maxDepth(root.left)'}</span>
+                    <span>{'    right_depth = maxDepth(root.right)'}</span>
+                    <span>{'    return max(left_depth, right_depth) + 1'}</span>
+                    <span className="py-1 block"> </span> {/* Spacer */}
+                    <span>{'# Two Sum Problem'}</span>
+                    <span>{'def twoSum(nums: list[int], target: int) -> list[int]:'}</span>
+                    <span>{'    num_map = {}'}</span>
+                    <span>{'    for i, num in enumerate(nums):'}</span>
+                    <span>{'        complement = target - num'}</span>
+                    <span>{'        if complement in num_map:'}</span>
+                    <span>{'            return [num_map[complement], i]'}</span>
+                    <span>{'        num_map[num] = i'}</span>
+                    <span>{'    return []'}</span>
+                    <span className="py-1 block"> </span> {/* Spacer */}
+                    <span>{'# Quick Sort Partition'}</span>
+                    <span>{'def partition(arr: list[int], low: int, high: int) -> int:'}</span>
+                    <span>{'    pivot = arr[high]'}</span>
+                    <span>{'    i = low - 1'}</span>
+                    <span>{'    for j in range(low, high):'}</span>
+                    <span>{'        if arr[j] < pivot:'}</span>
+                    <span>{'            i += 1'}</span>
+                    <span>{'            arr[i], arr[j] = arr[j], arr[i] # Swap'}</span>
+                    <span>{'    arr[i + 1], arr[high] = arr[high], arr[i + 1] # Swap pivot'}</span>
+                    <span>{'    return i + 1'}</span>
+                    
+                    {/* Spacer before duplication for smooth transition */}
+                    <span className="py-2 block"> </span>
+
+                    {/* CODE BLOCK 2 (Duplicated Content for seamless scroll) */}
+                    <span>{'# Binary Tree Max Depth'}</span>
+                    <span>{'class TreeNode:'}</span>
+                    <span>{'    def __init__(self, val=0, left=None, right=None):'}</span>
+                    <span>{'        self.val = val'}</span>
+                    <span>{'        self.left = left'}</span>
+                    <span>{'        self.right = right'}</span>
+                    <span className="py-1 block"> </span> {/* Spacer */}
+                    <span>{'def maxDepth(root: TreeNode) -> int:'}</span>
+                    <span>{'    if not root:'}</span>
+                    <span>{'        return 0'}</span>
+                    <span>{'    left_depth = maxDepth(root.left)'}</span>
+                    <span>{'    right_depth = maxDepth(root.right)'}</span>
+                    <span>{'    return max(left_depth, right_depth) + 1'}</span>
+                    <span className="py-1 block"> </span> {/* Spacer */}
+                    <span>{'# Two Sum Problem'}</span>
+                    <span>{'def twoSum(nums: list[int], target: int) -> list[int]:'}</span>
+                    <span>{'    num_map = {}'}</span>
+                    <span>{'    for i, num in enumerate(nums):'}</span>
+                    <span>{'        complement = target - num'}</span>
+                    <span>{'        if complement in num_map:'}</span>
+                    <span>{'            return [num_map[complement], i]'}</span>
+                    <span>{'        num_map[num] = i'}</span>
+                    <span>{'    return []'}</span>
+                    <span className="py-1 block"> </span> {/* Spacer */}
+                    <span>{'# Quick Sort Partition'}</span>
+                    <span>{'def partition(arr: list[int], low: int, high: int) -> int:'}</span>
+                    <span>{'    pivot = arr[high]'}</span>
+                    <span>{'    i = low - 1'}</span>
+                    <span>{'    for j in range(low, high):'}</span>
+                    <span>{'        if arr[j] < pivot:'}</span>
+                    <span>{'            i += 1'}</span>
+                    <span>{'            arr[i], arr[j] = arr[j], arr[i] # Swap'}</span>
+                    <span>{'    arr[i + 1], arr[high] = arr[high], arr[i + 1] # Swap pivot'}</span>
+                    <span>{'    return i + 1'}</span>
+                  </div>
+                </div>
+              </div>
+
+              <p className="text-lg lg:text-xl text-muted-foreground max-w-3xl mx-auto mb-12 relative z-10">
                 Yes, it should be that simple.
               </p>
             </div>
@@ -128,14 +229,14 @@ export default function LandingPage() {
                 <Link to="/dashboard">
                   <Button 
                     size="lg" 
-                    className="gap-2 bg-[#5b5bf7] hover:bg-[#4a4af0] text-white relative overflow-hidden group shadow-md shadow-[#5b5bf7]/5 w-full sm:w-auto py-6 px-8 text-lg font-medium transition-all duration-300 ease-in-out hover:scale-105"
+                    className="gap-2 bg-[#5271FF] hover:bg-[#415ACC] text-white relative overflow-hidden group shadow-md shadow-[#5271FF]/5 w-full sm:w-auto py-6 px-8 text-lg font-medium transition-all duration-300 ease-in-out hover:scale-105"
                   >
                     <span className="relative z-10 flex items-center">
                       Start Climbing <ArrowRight className="h-5 w-5 ml-2" />
                     </span>
                     <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
-                      <div className="absolute inset-0 bg-[#4a4af0]"></div>
-                      <div className="absolute -inset-[1px] bg-gradient-to-r from-[#5b5bf7] via-[#7a7aff] to-[#5b5bf7] opacity-50 group-hover:opacity-100 transition-opacity duration-500 blur-[2px]"></div>
+                      <div className="absolute inset-0 bg-[#415ACC]"></div>
+                      <div className="absolute -inset-[1px] bg-gradient-to-r from-[#5271FF] via-[#6B8EFF] to-[#5271FF] opacity-50 group-hover:opacity-100 transition-opacity duration-500 blur-[2px]"></div>
                     </div>
                   </Button>
                 </Link>
@@ -147,14 +248,14 @@ export default function LandingPage() {
                     <Link to="/register" className="w-full sm:w-auto">
                       <Button 
                         size="lg" 
-                        className="gap-2 bg-[#5b5bf7] hover:bg-[#4a4af0] text-white relative overflow-hidden group shadow-md shadow-[#5b5bf7]/5 w-full sm:w-auto py-6 px-8 text-lg font-medium transition-all duration-300 ease-in-out hover:scale-105"
+                        className="gap-2 bg-[#5271FF] hover:bg-[#415ACC] text-white relative overflow-hidden group shadow-md shadow-[#5271FF]/5 w-full sm:w-auto py-6 px-8 text-lg font-medium transition-all duration-300 ease-in-out hover:scale-105"
                       >
                         <span className="relative z-10 flex items-center">
-                          Get Started <ArrowRight className="h-5 w-5 ml-2" />
+                          Get Started Free <ArrowRight className="h-5 w-5 ml-2" />
                         </span>
                         <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
-                          <div className="absolute inset-0 bg-[#4a4af0]"></div>
-                          <div className="absolute -inset-[1px] bg-gradient-to-r from-[#5b5bf7] via-[#7a7aff] to-[#5b5bf7] opacity-50 group-hover:opacity-100 transition-opacity duration-500 blur-[2px]"></div>
+                          <div className="absolute inset-0 bg-[#415ACC]"></div>
+                          <div className="absolute -inset-[1px] bg-gradient-to-r from-[#5271FF] via-[#6B8EFF] to-[#5271FF] opacity-50 group-hover:opacity-100 transition-opacity duration-500 blur-[2px]"></div>
                         </div>
                       </Button>
                     </Link>
@@ -162,7 +263,7 @@ export default function LandingPage() {
                       <Button 
                         size="lg" 
                         variant="outline"
-                        className="border-[#5b5bf7]/50 border-2 text-[#5b5bf7] hover:text-[#5b5bf7] hover:bg-white dark:hover:bg-[#5b5bf7]/10 w-full sm:w-auto py-6 px-8 text-lg font-medium transition-all duration-300 ease-in-out hover:scale-105 shadow-none"
+                        className="border-[#5271FF]/50 border-2 text-[#5271FF] hover:text-[#5271FF] hover:bg-white dark:hover:bg-[#5271FF]/10 w-full sm:w-auto py-6 px-8 text-lg font-medium transition-all duration-300 ease-in-out hover:scale-105 shadow-none"
                       >
                         Log In
                       </Button>
@@ -173,9 +274,9 @@ export default function LandingPage() {
             </div>
             
             {/* 2. Stats Section */}
-            <div className="mt-4">
+            {/* <div className="mt-4">
               <StatsSection />
-            </div>
+            </div> */}
           </div>
         </section>
 
@@ -195,7 +296,7 @@ export default function LandingPage() {
             <div className="text-center mb-12">
               <h2 className="text-3xl font-bold tracking-tight sm:text-4xl">Frequently Asked Questions</h2>
             </div>
-            <Accordion type="single" collapsible className="w-full max-w-3xl mx-auto">
+            <Accordion type="single" collapsible className="w-full max-w-md sm:max-w-3xl mx-auto">
               {
                 [
                   {

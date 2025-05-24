@@ -59,7 +59,7 @@ export function Navigation() {
       <nav 
         className={cn(
           "fixed left-0 right-0 top-0 z-50", // Always fixed on mobile
-          "border-b bg-background", // Default mobile background/border
+          "border-b bg-background dark:border-transparent", // Default mobile background/border, dark mode border transparent
           isLandingPage
             ? "lg:fixed lg:bg-transparent lg:border-none lg:transition-[top] lg:duration-700 lg:ease-in-out" // Desktop Landing: fixed, transparent, transitions
             : "lg:relative", // Desktop Other: relative (keeps bg/border from base)
@@ -152,18 +152,27 @@ export function Navigation() {
                 <span className="relative inline-block py-0.5">
                   Practice
                   <span 
-                    className="absolute top-0 right-0 translate-x-3/4 -translate-y-1/4 rotate-[15deg] text-[0.6rem] font-bold leading-none text-[#5b5bf7] bg-[#5b5bf7]/10 px-0.5 py-0.5 rounded-sm shadow-[0_0_6px_#5b5bf7]"
+                    className="absolute top-0 right-0 translate-x-3/4 -translate-y-1/4 rotate-[15deg] text-[0.6rem] font-bold leading-none text-[#5271FF] bg-[#5271FF]/10 px-0.5 py-0.5 rounded-sm shadow-[0_0_3px_#5271FF]"
                   >
                     NEW
                   </span>
                 </span>
               </Link>
-              <Link 
-                to={user ? "/review" : "/login"}
-                className="text-base font-medium text-muted-foreground hover:text-foreground"
-              >
-                Review
-              </Link>
+              <Dialog>
+                <DialogTrigger asChild>
+                  <span className="text-base font-medium text-muted-foreground hover:text-foreground cursor-pointer">
+                    Review
+                  </span>
+                </DialogTrigger>
+                <DialogContent className="sm:max-w-[425px]">
+                  <DialogHeader>
+                    <DialogTitle>Feature Coming Soon</DialogTitle>
+                    <DialogDescription>
+                      The 'Review' section, featuring a personalized spaced repetition dashboard to help you retain knowledge, is currently under development. Check back later!
+                    </DialogDescription>
+                  </DialogHeader>
+                </DialogContent>
+              </Dialog>
               <Dialog>
                 <DialogTrigger asChild>
                   <span className="text-base font-medium text-muted-foreground hover:text-foreground cursor-pointer">
@@ -223,7 +232,7 @@ export function Navigation() {
                 )}
                 {!user && (
                   <Link to="/register">
-                    <Button className="bg-[#5b5bf7] hover:bg-[#4a4af0] text-white text-base rounded-full px-5">
+                    <Button className="bg-[#5271FF] hover:bg-[#415ACC] text-white text-base rounded-full px-5">
                       Sign up
                     </Button>
                   </Link>
@@ -249,7 +258,7 @@ export function Navigation() {
                         </DialogClose>
                         <DialogClose asChild>
                           <Link to="/register">
-                            <Button className="bg-[#5b5bf7] hover:bg-[#4a4af0] text-white text-base rounded-full px-5">
+                            <Button className="bg-[#5271FF] hover:bg-[#415ACC] text-white text-base rounded-full px-5">
                               Sign up
                             </Button>
                           </Link>
@@ -307,19 +316,28 @@ export function Navigation() {
                       >
                         <span className="relative inline-block py-0.5">
                           Practice
-                          <span className="absolute top-0 right-0 translate-x-3/4 -translate-y-1/4 rotate-[15deg] text-[0.6rem] font-bold leading-none text-[#5b5bf7] bg-[#5b5bf7]/10 px-0.5 py-0.5 rounded-sm shadow-[0_0_6px_#5b5bf7]">
+                          <span className="absolute top-0 right-0 translate-x-3/4 -translate-y-1/4 rotate-[15deg] text-[0.6rem] font-bold leading-none text-[#5271FF] bg-[#5271FF]/10 px-0.5 py-0.5 rounded-sm shadow-[0_0_3px_#5271FF]">
                             NEW
                           </span>
                         </span>
                       </Link>
                     </DialogClose>
                     <DialogClose asChild>
-                      <Link
-                        to={user ? "/review" : "/login"}
-                        className="text-base font-medium text-muted-foreground hover:text-foreground"
-                      >
-                        Review
-                      </Link>
+                      <Dialog>
+                        <DialogTrigger asChild>
+                          <span className="text-base font-medium text-muted-foreground hover:text-foreground cursor-pointer">
+                            Review
+                          </span>
+                        </DialogTrigger>
+                        <DialogContent className="sm:max-w-[425px]">
+                          <DialogHeader>
+                            <DialogTitle>Feature Coming Soon</DialogTitle>
+                            <DialogDescription>
+                              The 'Review' section, featuring a personalized spaced repetition dashboard to help you retain knowledge, is currently under development. Check back later!
+                            </DialogDescription>
+                          </DialogHeader>
+                        </DialogContent>
+                      </Dialog>
                     </DialogClose>
                     <DialogClose asChild>
                       <Dialog>

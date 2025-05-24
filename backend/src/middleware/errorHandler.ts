@@ -11,25 +11,6 @@ import { Request, Response, NextFunction } from 'express';
 import { Role } from '@prisma/client';
 
 /**
- * Global Type Declaration
- * Extends Express Request interface to include authenticated user information
- * This ensures TypeScript recognizes the user object attached during authentication
- */
-declare global {
-  namespace Express {
-    interface Request {
-      user?: {
-        id: string;
-        email: string;
-        name: string | null;
-        role: Role;
-        tokenVersion: number;
-      };
-    }
-  }
-}
-
-/**
  * Custom Application Error Class
  * Extends the native Error class to include additional properties needed for
  * proper error handling and client responses.
