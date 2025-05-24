@@ -18,14 +18,10 @@ services:
   # ============================= BACKEND SERVICE ==============================
   backend:
     build:
-      # Context: Relative to this docker-compose.yml file. 
-      # If this file is in infra/docker/ and backend source is in the project's backend/ dir,
-      # the context path is ../../backend (i.e. /home/ec2-user/codeladder/backend)
-      context: ../../
-      # Dockerfile: Relative to this docker-compose.yml file.
-      # If this file is in infra/docker/ and the Dockerfile is infra/docker/backend/Dockerfile.backend,
-      # the path is ./backend/Dockerfile.backend
-      dockerfile: ./backend/Dockerfile.backend
+      # Build context is the backend root directory
+      context: ./backend
+      # Use production Dockerfile
+      dockerfile: Dockerfile.backend
     env_file:
       # Reference root .env file, path relative to this docker-compose.yml file
       - ../../.env  
