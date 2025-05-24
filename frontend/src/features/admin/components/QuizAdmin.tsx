@@ -85,6 +85,13 @@ interface TestCase {
   orderNum?: number;
 }
 
+// Add FunctionParameter interface after TestCase interface
+interface FunctionParameter {
+  name: string;
+  type: string;
+  description?: string;
+}
+
 interface CodeProblem extends QuizQuestionBase {
   questionType: 'CODE';
   language?: string;
@@ -93,6 +100,8 @@ interface CodeProblem extends QuizQuestionBase {
   timeLimit?: number;
   memoryLimit?: number | null; // Allow null
   testCases: TestCase[];
+  return_type?: string; // Add return type field
+  params?: FunctionParameter[]; // Add params field
 }
 
 // Union type representing a question in the state (Consistent with TestAdmin)
@@ -156,6 +165,10 @@ export function QuizAdmin() {
   const [testCases, setTestCases] = useState<TestCase[]>([
     { input: '', expectedOutput: '', isHidden: false }
   ]);
+  
+  // Add state for the new fields
+  const [returnType, setReturnType] = useState<string>('');
+  const [functionParams, setFunctionParams] = useState<FunctionParameter[]>([]);
   
   // Confirmation dialog for delete
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
@@ -447,7 +460,9 @@ export function QuizAdmin() {
               expectedOutput: testCase.expectedOutput.trim() || '',
               isHidden: Boolean(testCase.isHidden),
               orderNum: testCase.orderNum || tcIndex + 1
-            }))
+            })),
+          return_type: codeProblem.return_type || undefined,
+          params: codeProblem.params ? [...codeProblem.params] : undefined
         };
       }
       return baseProblem; // Fallback
@@ -586,6 +601,8 @@ export function QuizAdmin() {
     setTestCases([
       { input: '', expectedOutput: '', isHidden: false }
     ]);
+    setReturnType(''); // Reset return type
+    setFunctionParams([]); // Reset function params
     
     setShowProblemDialog(true);
   };
@@ -615,6 +632,8 @@ export function QuizAdmin() {
       setTimeLimit(codeProblem.timeLimit || 5000);
       setMemoryLimit(codeProblem.memoryLimit === null ? undefined : codeProblem.memoryLimit);
       setTestCases([...codeProblem.testCases]);
+      setReturnType(codeProblem.return_type || ''); // Set return type
+      setFunctionParams(codeProblem.params ? [...codeProblem.params] : []); // Set function params
     }
     
     setShowProblemDialog(true);
@@ -683,7 +702,10 @@ export function QuizAdmin() {
         functionName: functionName.trim() || undefined,
         timeLimit: timeLimit,
         memoryLimit: memoryLimit,
-        testCases: validTestCases.map(tc => ({ ...tc })) // Deep copy test cases
+        testCases: validTestCases.map(tc => ({ ...tc })), // Deep copy test cases
+        return_type: returnType.trim() || undefined, // Add return type
+        params: functionParams.length > 0 ? 
+          functionParams.filter(p => p.name.trim() || p.type.trim()) : undefined // Add filtered params
         // orderNum is set during main save
       };
     }
@@ -716,6 +738,25 @@ export function QuizAdmin() {
       )
     );
     toast.success("Problem removed locally");
+  };
+
+  // Helper function to add a function parameter
+  const handleAddFunctionParam = () => {
+    setFunctionParams([...functionParams, { name: '', type: '' }]);
+  };
+  
+  // Helper function to update a function parameter
+  const handleFunctionParamChange = (index: number, field: keyof FunctionParameter, value: string) => {
+    const newParams = [...functionParams];
+    newParams[index] = { ...newParams[index], [field]: value };
+    setFunctionParams(newParams);
+  };
+  
+  // Helper function to remove a function parameter
+  const handleRemoveFunctionParam = (index: number) => {
+    const newParams = [...functionParams];
+    newParams.splice(index, 1);
+    setFunctionParams(newParams);
   };
 
   // --- RENDER LOGIC (Mostly Unchanged) ---
@@ -1252,6 +1293,88 @@ export function QuizAdmin() {
                         <Label htmlFor="memory-limit">Memory Limit (MB, Optional)</Label>
                         <Input id="memory-limit" type="number" value={memoryLimit || ''} onChange={(e) => setMemoryLimit(e.target.value ? parseInt(e.target.value) : undefined)} min={1} placeholder="Default" className="w-full" />
                     </div>
+                </div>
+
+                {/* Add Return Type field after code template */}
+                <div>
+                  <Label htmlFor="return-type">
+                    Return Type (Optional)
+                  </Label>
+                  <Input
+                    id="return-type"
+                    value={returnType}
+                    onChange={(e) => setReturnType(e.target.value)}
+                    placeholder="e.g., number, string, boolean, number[]"
+                    className="w-full"
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Specify the return type of the function (e.g., number, string, boolean)
+                  </p>
+                </div>
+                
+                {/* Add Function Parameters section before test cases */}
+                <div className="space-y-2">
+                  <Label>
+                    Function Parameters (Optional)
+                  </Label>
+                  <div className="border rounded-md p-4 space-y-4">
+                    {functionParams.length > 0 ? (
+                      <div className="space-y-4">
+                        {functionParams.map((param, index) => (
+                          <div key={index} className="flex gap-2 items-end">
+                            <div className="flex-1">
+                              <Label htmlFor={`param-name-${index}`} className="text-xs">Name</Label>
+                              <Input
+                                id={`param-name-${index}`}
+                                value={param.name}
+                                onChange={(e) => handleFunctionParamChange(index, 'name', e.target.value)}
+                                placeholder="param name"
+                              />
+                            </div>
+                            <div className="flex-1">
+                              <Label htmlFor={`param-type-${index}`} className="text-xs">Type</Label>
+                              <Input
+                                id={`param-type-${index}`}
+                                value={param.type}
+                                onChange={(e) => handleFunctionParamChange(index, 'type', e.target.value)}
+                                placeholder="param type"
+                              />
+                            </div>
+                            <div className="flex-1">
+                              <Label htmlFor={`param-description-${index}`} className="text-xs">Description (Optional)</Label>
+                              <Input
+                                id={`param-description-${index}`}
+                                value={param.description || ''}
+                                onChange={(e) => handleFunctionParamChange(index, 'description', e.target.value)}
+                                placeholder="description (optional)"
+                              />
+                            </div>
+                            <Button 
+                              type="button" 
+                              variant="ghost" 
+                              size="icon" 
+                              onClick={() => handleRemoveFunctionParam(index)}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-center text-muted-foreground py-2">No parameters defined</p>
+                    )}
+                    
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={handleAddFunctionParam}
+                      className="w-full mt-2"
+                    >
+                      <PlusCircle className="h-4 w-4 mr-2" />
+                      Add Parameter
+                    </Button>
+                  </div>
                 </div>
 
                 <div className="space-y-2">

@@ -30,6 +30,10 @@ import { TestResultsPage } from './features/assesment/test/TestResultsPage';
 import { TestHistoryPage } from './features/assesment/test/TestHistoryPage';
 import { TestPage } from './features/assesment/test/TestPage';
 import { AssessmentResultsRouter } from './features/assesment/shared/AssessmentResultsRouter';
+import { ScrollToTop } from './components/ScrollToTop';
+import { useMediaQuery } from '@/hooks/useMediaQuery';
+import { cn } from '@/lib/utils';
+import OAuthCallbackReceiver from './features/auth/OAuthCallbackReceiver';
 
 // Regular components
 const UnauthorizedPage = () => (
@@ -54,6 +58,8 @@ function AdminViewWrapper({ children }: { children: React.ReactNode }) {
 // Main layout component with conditional navigation
 function MainLayout() {
   const location = useLocation();
+  const isDesktop = useMediaQuery('(min-width: 1024px)');
+
   const isProblemPage = location.pathname.match(/^\/problems\/[^/]+$/) || location.pathname.match(/^\/problem\/[^/]+$/);
   const isProblemReviewPage = location.pathname.match(/^\/problem\/[^/]+\/review$/);
   const isTopicPage = location.pathname.match(/^\/topics\/[^/]+$/) || location.pathname.match(/^\/topic\/[^/]+$/);
@@ -67,12 +73,23 @@ function MainLayout() {
                     location.pathname.match(/^\/tests\/[^/]+$/);
   const isAssessmentPage = location.pathname.match(/^\/assessment\/[^/]+\/[^/]+$/);
                   
-  const shouldHideNavigation = isProblemPage || isInfoPage || isCollectionPage || isQuizPage || isTestPage || isAssessmentPage || isProblemReviewPage;
+  const shouldHideNavigation = isProblemPage || isCollectionPage || isQuizPage || isTestPage || isAssessmentPage || isProblemReviewPage;
+  const isLandingPage = location.pathname === '/landing';
+
+  // Add top padding only when the navbar is fixed (mobile view OR desktop landing page)
+  const shouldAddTopPadding = !isDesktop || isLandingPage;
   
   return (
-    <div className="min-h-screen bg-background text-foreground">
-      {!shouldHideNavigation && <Navigation />}
-      <main className={!shouldHideNavigation ? "pt-16" : ""}>
+    <div className={cn("min-h-screen bg-background text-foreground relative", { "pt-16": shouldAddTopPadding })}>
+      {/* Removed conditional background pattern */}
+      {/* Removed conditional Spotlight */}
+  
+      {/* Removed z-index wrapper for Navbar */}
+      {!shouldHideNavigation && (
+         <Navigation />
+      )}
+      {/* Removed z-index from main, kept pb-8 */}
+      <main className=""> 
         <Routes>
           {/* Public routes */}
           <Route path="/landing" element={<AdminViewWrapper><LandingPage /></AdminViewWrapper>} />
@@ -80,6 +97,7 @@ function MainLayout() {
           <Route path="/register" element={<RegisterPage />} />
           <Route path="/unauthorized" element={<UnauthorizedPage />} />
           <Route path="/auth/callback/:provider" element={<OAuthCallback />} />
+          <Route path="/oauth-callback-receiver" element={<OAuthCallbackReceiver />} />
 
           {/* Protected routes */}
           <Route
@@ -330,6 +348,7 @@ export default function App() {
         <ProfileProvider>
           <AdminProvider>
             <Router>
+              <ScrollToTop />
               <MainLayout />
             </Router>
           </AdminProvider>

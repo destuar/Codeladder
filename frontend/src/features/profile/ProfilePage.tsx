@@ -4,10 +4,20 @@ import { useProfile } from './ProfileContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
-import { Pencil, X, Check, Book, Trophy, Brain, ChevronRight, ArrowRight, RepeatIcon } from 'lucide-react';
+import { Pencil, X, Check, Book, Trophy, Brain, ChevronRight, ArrowRight, RepeatIcon, LockIcon } from 'lucide-react';
 import { api } from '@/lib/api';
 import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
+import { toast } from '@/components/ui/use-toast';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+  DialogClose
+} from "@/components/ui/dialog";
 
 // Types for dashboard statistics
 interface DashboardStats {
@@ -222,12 +232,20 @@ export default function ProfilePage() {
   
   // Navigation handlers
   const handleContinueLearning = () => {
-    if (dashboardStats.data?.nextTopicSlug) {
-      navigate(`/topic/${dashboardStats.data.nextTopicSlug}`);
-    } else if (dashboardStats.data?.nextTopicId) {
-      navigate(`/topics/${dashboardStats.data.nextTopicId}`);
+    if (user && (user.role === 'ADMIN' || user.role === 'DEVELOPER')) {
+      if (dashboardStats.data?.nextTopicSlug) {
+        navigate(`/topic/${dashboardStats.data.nextTopicSlug}`);
+      } else if (dashboardStats.data?.nextTopicId) {
+        navigate(`/topics/${dashboardStats.data.nextTopicId}`);
+      } else {
+        navigate('/dashboard');
+      }
     } else {
-      navigate('/dashboard');
+      toast({
+        title: "Feature Access",
+        description: "The full Learning Dashboard is currently available for admins and will be rolled out to all users soon!",
+        variant: "default",
+      });
     }
   };
   
@@ -236,7 +254,15 @@ export default function ProfilePage() {
   };
   
   const handleStartReview = () => {
-    navigate('/review');
+    if (user && (user.role === 'ADMIN' || user.role === 'DEVELOPER')) {
+      navigate('/review');
+    } else {
+      toast({
+        title: "Feature Access",
+        description: "The Review Dashboard is currently available for admins and will be rolled out to all users soon!",
+        variant: "default", 
+      });
+    }
   };
 
   const handleAvatarClick = () => {

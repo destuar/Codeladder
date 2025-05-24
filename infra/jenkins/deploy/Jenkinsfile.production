@@ -18,7 +18,7 @@ pipeline {
     // Define environment variables for the pipeline
     environment {
         // ===================== Infrastructure Configuration ======================
-        EC2_HOST = '3.21.246.147'           // Production server IP
+        EC2_HOST = '3.149.228.148'           // Production server IP
         DEPLOY_PATH = '/home/ec2-user/codeladder'  // Deployment directory
         FRONTEND_PORT = '8085'               // Frontend service port
         BACKEND_PORT = '8000'                // Backend service port
@@ -36,7 +36,7 @@ pipeline {
         S3_BUCKET = 'codeladder-s3'         // S3 bucket for file storage
         
         // ===================== Application Configuration =====================
-        CORS_ORIGIN = "http://${EC2_HOST}:${FRONTEND_PORT}"  // CORS allowed origin
+        CORS_ORIGIN = "https://codeladder.io"  // CORS allowed origin
         NODE_ENV = 'production'              // Force production mode
         
         // ===================== Deployment Configuration =====================

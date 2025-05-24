@@ -139,25 +139,25 @@ export function ReviewCalendar({
       {/* Month Navigation */}
       <div className="flex items-center justify-between">
         <div className="flex items-center">
-          <Calendar className="h-5 w-5 text-blue-500 mr-2" />
+          <Calendar className="h-5 w-5 text-[#5271FF] dark:text-[#6B8EFF] mr-2" />
           <h2 className="text-lg font-medium">
             {format(currentMonth, 'MMMM yyyy')}
           </h2>
         </div>
         <div className="flex items-center space-x-2">
           <Button
-            variant="outline"
+            variant="ghost"
             size="icon"
             onClick={prevMonth}
-            className="h-8 w-8 border-blue-200 hover:bg-blue-50 hover:text-blue-500 dark:border-blue-800 dark:hover:bg-blue-900/30 dark:hover:text-blue-400"
+            className="h-8 w-8 bg-transparent dark:bg-transparent text-[#5271FF] hover:text-white hover:bg-[#5271FF]/80 dark:text-[#6B8EFF] dark:hover:text-white dark:hover:bg-[#6B8EFF]/80 transition-colors duration-150"
           >
             <ChevronLeft className="h-4 w-4" />
           </Button>
           <Button
-            variant="outline"
+            variant="ghost"
             size="icon"
             onClick={nextMonth}
-            className="h-8 w-8 border-blue-200 hover:bg-blue-50 hover:text-blue-500 dark:border-blue-800 dark:hover:bg-blue-900/30 dark:hover:text-blue-400"
+            className="h-8 w-8 bg-transparent dark:bg-transparent text-[#5271FF] hover:text-white hover:bg-[#5271FF]/80 dark:text-[#6B8EFF] dark:hover:text-white dark:hover:bg-[#6B8EFF]/80 transition-colors duration-150"
           >
             <ChevronRight className="h-4 w-4" />
           </Button>
@@ -191,10 +191,10 @@ export function ReviewCalendar({
           
           const dayClasses = cn(
             "h-12 flex flex-col justify-center items-center relative rounded-md text-sm transition-colors",
-            "hover:bg-muted/80 cursor-pointer",
+            "hover:bg-[#5271FF]/10 dark:hover:bg-[#6B8EFF]/10 cursor-pointer",
             !inCurrentMonth && "text-muted-foreground/40",
-            isCurrentDay && !isCurrentSelected && "bg-blue-50 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400 font-medium border border-blue-200 dark:border-blue-800",
-            isCurrentSelected && "bg-blue-500 text-white font-medium",
+            isCurrentDay && !isCurrentSelected && "bg-[#5271FF]/10 text-[#5271FF] dark:bg-[#6B8EFF]/10 dark:text-[#6B8EFF] font-medium border border-[#5271FF]/30 dark:border-[#6B8EFF]/30",
+            isCurrentSelected && "bg-[#5271FF] text-white dark:bg-[#6B8EFF] font-medium",
             dayProblems.length > 0 && inCurrentMonth && !isCurrentSelected && !isCurrentDay && "font-medium"
           );
           
@@ -215,9 +215,9 @@ export function ReviewCalendar({
                     className={cn(
                       "w-2 h-2 rounded-full", 
                       isCurrentSelected ? "bg-white/80" : (
-                        inNextWeek ? "bg-blue-500 dark:bg-blue-400" :
-                        inFuture ? "bg-indigo-500 dark:bg-indigo-400" :
-                        "bg-amber-500 dark:bg-amber-400"
+                        inNextWeek ? "bg-[#5271FF] dark:bg-[#6B8EFF]" :
+                        inFuture ? "bg-[#5271FF]/70 dark:bg-[#6B8EFF]/70" :
+                        "bg-[#5271FF] dark:bg-[#6B8EFF]"
                       )
                     )}
                   />

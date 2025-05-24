@@ -44,7 +44,7 @@ VITE_ENABLE_MOCK_API=true
 # Server Configuration
 NODE_ENV=production
 PORT=8000
-CORS_ORIGIN=https://your-domain.com
+CORS_ORIGIN=https://codeladder.io
 
 # Database
 DATABASE_URL="postgresql://user:password@your-db-host:5432/codeladder_prod"
@@ -64,7 +64,7 @@ S3_BUCKET=codeladder-prod
 ### Frontend Variables
 ```bash
 # API Configuration
-VITE_API_URL=https://api.your-domain.com
+VITE_API_URL=https://codeladder.io/api
 VITE_ENV=production
 
 # Feature Flags

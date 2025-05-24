@@ -7,7 +7,6 @@ import { useNavigate } from 'react-router-dom';
 import { useAdmin } from '@/features/admin/AdminContext';
 import { isMarkdown } from '@/lib/markdown-to-html';
 import { useProblemCompletion } from '@/features/problems/hooks/useProblemCompletion';
-import { InfoHeader } from './InfoHeader';
 import { formatEstimatedTime } from '../../utils/time';
 import ReactMarkdown from 'react-markdown';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
@@ -17,10 +16,6 @@ import { Badge } from '@/components/ui/badge';
 export interface InfoProblemProps {
   content: string;
   isCompleted?: boolean;
-  nextProblemId?: string;
-  nextProblemSlug?: string;
-  prevProblemId?: string;
-  prevProblemSlug?: string;
   problemId: string;
   estimatedTime?: number;
   isStandalone?: boolean;
@@ -28,21 +23,11 @@ export interface InfoProblemProps {
   onCompleted?: () => void;
   title?: string;
   onNavigate: (id: string, slug?: string) => void;
-  sourceContext?: {
-    from: string;
-    name: string;
-    id?: string;
-    slug?: string;
-  };
 }
 
 const InfoProblem: React.FC<InfoProblemProps> = ({ 
   content, 
   isCompleted = false,
-  nextProblemId,
-  nextProblemSlug,
-  prevProblemId,
-  prevProblemSlug,
   problemId,
   estimatedTime,
   isStandalone = false,
@@ -50,7 +35,6 @@ const InfoProblem: React.FC<InfoProblemProps> = ({
   onCompleted,
   title = "Problem",
   onNavigate,
-  sourceContext
 }) => {
   const navigate = useNavigate();
   const { canAccessAdmin } = useAdmin();
@@ -69,48 +53,33 @@ const InfoProblem: React.FC<InfoProblemProps> = ({
   };
 
   return (
-    <div className="flex flex-col bg-background min-h-screen h-screen max-h-screen">
-      <InfoHeader
-        isCompleted={isProblemCompleted}
-        onMarkComplete={handleMarkAsComplete}
-        nextProblemId={nextProblemId}
-        nextProblemSlug={nextProblemSlug}
-        prevProblemId={prevProblemId}
-        prevProblemSlug={prevProblemSlug}
-        onNavigate={handleNavigate}
-        title={title}
-        isReviewMode={isReviewMode}
-        sourceContext={sourceContext}
-      />
+    <div className="container mx-auto px-4 md:px-8 py-8">
+      <div className="py-4 max-w-4xl mx-auto">
+        {/* Reading time indicator */}
+        {formattedTime && (
+          <div className="flex items-center space-x-2 text-sm text-muted-foreground mb-4">
+            <Timer className="w-4 h-4" />
+            <span>Reading Time: {formattedTime}</span>
+          </div>
+        )}
 
-      <div className="flex-1 overflow-auto px-4 md:px-8">
-        <div className="py-4 max-w-4xl mx-auto">
-          {/* Reading time indicator */}
-          {formattedTime && (
-            <div className="flex items-center space-x-2 text-sm text-muted-foreground mb-4">
-              <Timer className="w-4 h-4" />
-              <span>Reading Time: {formattedTime}</span>
-            </div>
-          )}
-
-          {/* Main content */}
-          <div className="max-w-full">
-            {isMarkdown(content) ? (
-              // For backward compatibility, use Markdown for existing markdown content
-              <div className="prose dark:prose-invert max-w-full">
-                <Markdown 
-                  content={content} 
-                  className="max-w-full [&_pre]:!whitespace-pre-wrap [&_pre]:!break-words [&_code]:!whitespace-pre-wrap [&_code]:!break-words [&_pre]:!max-w-full [&_pre]:!overflow-x-auto"
-                />
-              </div>
-            ) : (
-              // Use HtmlContent for HTML content
-              <HtmlContent 
+        {/* Main content */}
+        <div className="max-w-full">
+          {isMarkdown(content) ? (
+            // For backward compatibility, use Markdown for existing markdown content
+            <div className="prose dark:prose-invert max-w-full">
+              <Markdown 
                 content={content} 
                 className="max-w-full [&_pre]:!whitespace-pre-wrap [&_pre]:!break-words [&_code]:!whitespace-pre-wrap [&_code]:!break-words [&_pre]:!max-w-full [&_pre]:!overflow-x-auto"
               />
-            )}
-          </div>
+            </div>
+          ) : (
+            // Use HtmlContent for HTML content
+            <HtmlContent 
+              content={content} 
+              className="max-w-full [&_pre]:!whitespace-pre-wrap [&_pre]:!break-words [&_code]:!whitespace-pre-wrap [&_code]:!break-words [&_pre]:!max-w-full [&_pre]:!overflow-x-auto"
+            />
+          )}
         </div>
       </div>
     </div>

@@ -11,15 +11,26 @@ const envSchema = z.object({
   JWT_REFRESH_SECRET: z.string(),
   JWT_EXPIRES_IN: z.string().default('15m'),
   CORS_ORIGIN: z.string().default('http://localhost:8085'),
+  
+  // OAuth Credentials
+  GOOGLE_CLIENT_ID: z.string(),
+  GOOGLE_CLIENT_SECRET: z.string(),
+  GOOGLE_CALLBACK_URL: z.string().url(),
+  GITHUB_CLIENT_ID: z.string(),
+  GITHUB_CLIENT_SECRET: z.string(),
+  GITHUB_CALLBACK_URL: z.string().url(),
+
   AWS_ACCESS_KEY_ID: z.string().optional(),
   AWS_SECRET_ACCESS_KEY: z.string().optional(),
   AWS_REGION: z.string().optional(),
   S3_BUCKET: z.string().optional(),
+  
   // Judge0 configuration
   JUDGE0_API_URL: z.string().default('https://judge0-ce.p.rapidapi.com'),
   JUDGE0_AUTH_TOKEN: z.string().optional(),
   JUDGE0_HOST: z.string().default('judge0-ce.p.rapidapi.com'),
   JUDGE0_TIMEOUT: z.string().default('10000'),
+  
   // Judge0 Extra configuration (backup)
   JUDGE0_EXTRA_API_URL: z.string().default('https://judge0-extra-ce.p.rapidapi.com').optional(),
   JUDGE0_EXTRA_AUTH_TOKEN: z.string().optional(),

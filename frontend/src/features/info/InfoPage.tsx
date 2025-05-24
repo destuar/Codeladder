@@ -25,7 +25,7 @@ export function InfoPage() {
       if (!page || !token) return;
 
       try {
-        const data = await api.get(`/standalone-info/${page}`, token);
+        const data = await api.get(`/problems/slug/${page}`, token);
         setInfoPage(data);
       } catch (error) {
         console.error("Error fetching info page:", error);
@@ -56,12 +56,20 @@ export function InfoPage() {
     );
   }
 
+  // Dummy navigation handler as standalone info pages don't have next/prev
+  const handleNavigate = (id: string, slug?: string) => {
+    console.warn(`Navigation attempt from InfoPage: id=${id}, slug=${slug}. Standalone pages have no sequence.`);
+    // Do nothing, or potentially navigate to a default page if needed?
+  };
+
   return (
     <InfoProblem
       content={infoPage.content}
-      isCompleted={false}
+      isCompleted={false} // Standalone info pages aren't typically 'completed'
       problemId={infoPage.id}
       title={infoPage.name}
+      onNavigate={handleNavigate} // <-- Pass the dummy handler
+      isStandalone={true} // Indicate it's a standalone page
     />
   );
 } 

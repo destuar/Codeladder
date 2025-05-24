@@ -122,9 +122,10 @@ export async function submitCode(
   expectedOutput: string = '',
 ): Promise<ProcessedResult> {
   // Get the language ID from the language mapping
-  const languageId = LANGUAGE_IDS[language.toLowerCase()];
+  const languageId = EXTRA_LANGUAGE_IDS[language.toLowerCase()];
   if (!languageId) {
-    throw new Error(`Unsupported language: ${language}`);
+    console.error(`Unsupported language for Judge0 Extra CE: ${language}. Attempted ID lookup in EXTRA_LANGUAGE_IDS.`);
+    throw new Error(`Unsupported language for current Judge0 configuration: ${language}`);
   }
 
   // Prepare the submission request
@@ -160,14 +161,25 @@ export async function submitCode(
     return await getSubmissionResult(token);
   } catch (error) {
     console.error('Judge0 submission error:', error);
+
+    // Check if it's an Axios error and specifically a 429
+    if (axios.isAxiosError(error) && error.response && error.response.status === 429) {
+      return {
+        passed: false,
+        output: '',
+        error: 'Server is busy (rate limit exceeded). Please try again in a few minutes.',
+        statusDescription: 'Rate Limit Exceeded',
+        statusId: 429, // Using HTTP status code for clarity, or a custom one
+      };
+    }
     
-    // Return a meaningful error response
+    // For other errors, return a generic error response
     return {
       passed: false,
       output: '',
       error: error instanceof Error ? error.message : 'Unknown error occurred during code execution',
       statusDescription: 'Error',
-      statusId: STATUS_CODES.INTERNAL_ERROR,
+      statusId: STATUS_CODES.INTERNAL_ERROR, // Or some other appropriate status
     };
   }
 }
@@ -213,8 +225,19 @@ async function getSubmissionResult(token: string): Promise<ProcessedResult> {
       return processResult(response.data);
     } catch (error) {
       console.error('Error fetching submission result:', error);
+
+      // Check if it's an Axios error and specifically a 429
+      if (axios.isAxiosError(error) && error.response && error.response.status === 429) {
+        return {
+          passed: false,
+          output: '',
+          error: 'Server is busy (rate limit exceeded while fetching results). Please try again.',
+          statusDescription: 'Rate Limit Exceeded',
+          statusId: 429, // Using HTTP status code for clarity
+        };
+      }
       
-      // Return a meaningful error response
+      // For other errors, return a generic error response
       return {
         passed: false,
         output: '',

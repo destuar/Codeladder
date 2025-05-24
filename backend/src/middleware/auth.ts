@@ -25,17 +25,6 @@ interface JWTPayload {
 }
 
 /**
- * Express Request Type Extension
- * Extends the Express Request interface to include the authenticated user object
- * Contains essential user information needed across the application
- */
-declare module 'express' {
-  interface Request {
-    user?: Pick<User, 'id' | 'email' | 'name' | 'role' | 'tokenVersion'>;
-  }
-}
-
-/**
  * Token Authentication Middleware
  * Verifies the JWT token and attaches the user object to the request.
  * Process:
@@ -67,6 +56,8 @@ export const authenticateToken: RequestHandler = async (req, res, next) => {
         name: true,
         role: true,
         tokenVersion: true,
+        googleId: true,
+        githubId: true
       },
     });
 

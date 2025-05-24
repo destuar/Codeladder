@@ -23,10 +23,10 @@ export function ThemeToggle() {
 
   return (
     <Button
-      variant="outline"
+      variant="ghost"
       size="icon"
       onClick={toggleTheme}
-      className="w-10 h-10 rounded-lg border-2 flex items-center justify-center"
+      className="w-10 h-10 rounded-lg flex items-center justify-center focus-visible:ring-0"
     >
       <div className="relative w-6 h-6">
         {/* Sun */}
@@ -40,7 +40,7 @@ export function ThemeToggle() {
             viewBox="0 0 24 24"
             strokeWidth={1.5}
             stroke="currentColor"
-            className="w-5 h-5"
+            className="w-5 h-5 text-muted-foreground"
           >
             <path
               strokeLinecap="round"
@@ -61,7 +61,7 @@ export function ThemeToggle() {
             viewBox="0 0 24 24"
             strokeWidth={1.5}
             stroke="currentColor"
-            className="w-5 h-5"
+            className="w-5 h-5 text-muted-foreground"
           >
             <path
               strokeLinecap="round"

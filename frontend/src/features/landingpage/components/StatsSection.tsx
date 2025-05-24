@@ -1,5 +1,5 @@
 import React from 'react';
-import { Trophy, Rocket, CheckCircle } from 'lucide-react';
+import { Building2, Rocket, CheckCircle } from 'lucide-react';
 
 /**
  * StatsSection component
@@ -11,13 +11,13 @@ export function StatsSection() {
   return (
     <div className="w-full max-w-4xl mx-auto">
       <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-        {/* Custom Levels Stat */}
+        {/* Company Profiles Stat */}
         <div className="flex flex-col items-center">
           <div className="flex items-center justify-center">
-            <Trophy className="h-8 w-8 text-primary/70 mr-3" />
-            <span className="text-3xl font-bold text-foreground/70">7</span>
+            <Building2 className="h-8 w-8 text-primary/70 mr-3" />
+            <span className="text-3xl font-bold text-foreground/70">10</span>
           </div>
-          <p className="text-lg text-muted-foreground/90 mt-1">Custom Levels</p>
+          <p className="text-lg text-muted-foreground/90 mt-1">Company Profiles</p>
         </div>
 
         {/* DSA Topics Stat */}

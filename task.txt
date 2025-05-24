@@ -574,3 +574,29 @@
     *   If `previousDueDate` was not provided or was not in the past, the `baseDate` remains `previousDueDate` (or defaults to `today` if `previousDueDate` was null).
 
 **Outcome:** When completing overdue reviews, the next review date is now scheduled correctly relative to the date the review was actually completed, preventing newly scheduled reviews from being immediately overdue.
+
+# Task: Implement Responsive Mobile Navigation
+
+**Goal:** Ensure that the primary navigation bar is fully responsive: on large screens (>=lg) show the full navigation links and user controls; on smaller screens show only the logo, theme toggle, and a hamburger menu that opens a slide-in panel containing the navigation links and user controls.
+
+**Atomic Subtasks:**
+- [ ] 1. Identify and isolate the `<div>` containers for desktop navigation links and user controls in `Navigation.tsx`.
+- [ ] 2. Apply Tailwind responsive utility classes (`hidden lg:flex` and `flex lg:hidden`) to hide desktop elements on small screens and show the hamburger icon.
+- [ ] 3. Import and configure a slide-in panel component (e.g., `Dialog`/`Sheet`) from `@/components/ui`.
+- [ ] 4. Add a `DialogTrigger` button with the hamburger icon (`Menu`) visible on small screens.
+- [ ] 5. Populate the panel (`DialogContent`) with the navigation links (Learn, Practice, Review, Apply) and user/auth controls (Login, Sign up, Logout, Admin toggle, Profile avatar).
+- [ ] 6. Ensure `ThemeToggle` remains visible outside the panel on all screen sizes.
+- [ ] 7. Add accessible labels (`aria-label` or `sr-only` spans) to the hamburger trigger and close buttons.
+- [ ] 8. Style the panel for full-screen height with padding and a close (`X`) button at the top-right.
+- [ ] 9. Test the responsive behavior in the browser at various viewport widths (mobile, tablet, desktop).
+- [ ] 10. Fix any alignment, spacing, or overflow issues identified during testing.
+
+**Dependencies:**
+- Requires `@/components/ui/dialog` (or `sheet`) to be available.
+- Needs access to `Tooltip`, `Link`, `Button`, `Avatar`, `ThemeToggle`, `useAuth`, and `useAdmin` context/state in `Navigation.tsx`.
+
+**Done Criteria:**
+- On large screens: full navigation links + user controls are visible inline.
+- On small screens: logo + theme toggle + hamburger icon are visible; desktop nav links and user controls are hidden.
+- Clicking the hamburger opens a panel showing the full navigation links and user controls.
+- The panel can be closed by clicking the close button or outside (depending on Dialog/Sheet behavior).

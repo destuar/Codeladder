@@ -4,6 +4,7 @@
 export interface TestCase {
   id?: string;
   functionName?: string;
+  functionParams?: FunctionParameter[];
   input: any[];
   expected: any;
   isHidden?: boolean;
@@ -18,7 +19,13 @@ export interface TestResult {
   expected: any;
   passed: boolean;
   runtime?: number;
+  memory?: number;
   error?: string;
+  compilationOutput?: string;
+  statusDescription?: string;
+  statusId?: number;
+  exitCode?: number;
+  isCustom?: boolean;
 }
 
 /**
@@ -32,66 +39,66 @@ export interface CustomTestCase {
 }
 
 /**
- * Available programming languages for the code editor
+ * Function parameter definition
  */
-export const SUPPORTED_LANGUAGES = [
-  { value: 'javascript', label: 'JavaScript' },
-  { value: 'python', label: 'Python' },
-  { value: 'java', label: 'Java' },
-  { value: 'cpp', label: 'C++' },
-  { value: 'typescript', label: 'TypeScript' }
-] as const;
-
-export type SupportedLanguage = (typeof SUPPORTED_LANGUAGES)[number]['value'];
-
-/**
- * Language configuration for Monaco editor
- */
-export interface LanguageConfig {
-  language: SupportedLanguage;
-  label: string;
-  monacoLanguage: string;
-  fileExtension: string;
-  defaultCode: string;
+export interface FunctionParameter {
+  name: string;
+  type: string;
+  description?: string;
 }
 
 /**
- * Mapping of language to Monaco editor config
+ * Language configuration
  */
+export interface LanguageConfig {
+  label: string;
+  monacoLanguage: string;
+  defaultTemplate: string;
+}
+
+/**
+ * Language data structure
+ */
+export interface LanguageData {
+  enabled: boolean;
+  template: string;
+  reference: string;
+}
+
+// Supported language types
+export type SupportedLanguage = 'javascript' | 'python' | 'java' | 'cpp' | 'typescript';
+
+// Language configurations for the Monaco editor
 export const LANGUAGE_CONFIGS: Record<SupportedLanguage, LanguageConfig> = {
   javascript: {
-    language: 'javascript',
     label: 'JavaScript',
     monacoLanguage: 'javascript',
-    fileExtension: '.js',
-    defaultCode: 'function solution(args) {\n  // Your code here\n  return null;\n}'
+    defaultTemplate: 'function solution() {\n  // Write your code here\n}',
   },
   python: {
-    language: 'python',
     label: 'Python',
     monacoLanguage: 'python',
-    fileExtension: '.py',
-    defaultCode: 'def solution(args):\n    # Your code here\n    return None'
+    defaultTemplate: 'def solution():\n    # Write your code here\n    pass',
   },
   java: {
-    language: 'java',
     label: 'Java',
     monacoLanguage: 'java',
-    fileExtension: '.java',
-    defaultCode: 'class Solution {\n    public static Object solution(Object[] args) {\n        // Your code here\n        return null;\n    }\n}'
+    defaultTemplate: 'class Solution {\n    public static void solution() {\n        // Write your code here\n    }\n}',
   },
   cpp: {
-    language: 'cpp',
     label: 'C++',
     monacoLanguage: 'cpp',
-    fileExtension: '.cpp',
-    defaultCode: '#include <vector>\n\nauto solution(std::vector<void*> args) {\n    // Your code here\n    return nullptr;\n}'
+    defaultTemplate: '#include <iostream>\n\nvoid solution() {\n    // Write your code here\n}',
   },
   typescript: {
-    language: 'typescript',
     label: 'TypeScript',
     monacoLanguage: 'typescript',
-    fileExtension: '.ts',
-    defaultCode: 'function solution(args: any[]): any {\n  // Your code here\n  return null;\n}'
-  }
-}; 
+    defaultTemplate: 'function solution(): void {\n  // Write your code here\n}',
+  },
+};
+
+// List of supported languages for dropdown selection
+export const SUPPORTED_LANGUAGES = Object.entries(LANGUAGE_CONFIGS).map(([value, config]) => ({
+  value: value as SupportedLanguage,
+  label: config.label,
+})); 

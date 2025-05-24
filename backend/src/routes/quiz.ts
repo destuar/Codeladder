@@ -14,6 +14,13 @@ type QuizQuestionWithCodeProblem = Prisma.QuizQuestionGetPayload<{
   include: { codeProblem: true }
 }>;
 
+// Add an extended type for CodeProblem that includes the JSON fields
+type ExtendedCodeProblem = Prisma.CodeProblemGetPayload<{}> & {
+  return_type?: string;
+  params?: any;
+  test_cases?: any;
+};
+
 /**
  * @route POST /api/quizzes/validate
  * @desc Validate quiz or test data before saving
@@ -2234,7 +2241,7 @@ router.post('/', authenticateToken, authorizeRoles([Role.ADMIN, Role.DEVELOPER])
                     functionName: problem.functionName || null,
                     timeLimit: problem.timeLimit || 5000,
                     memoryLimit: problem.memoryLimit || null
-                  } as Prisma.CodeProblemUncheckedCreateWithoutQuizQuestionInput
+                  } as Prisma.CodeProblemCreateWithoutQuestionInput
                 }
               },
               include: {
@@ -2243,8 +2250,8 @@ router.post('/', authenticateToken, authorizeRoles([Role.ADMIN, Role.DEVELOPER])
             }) as QuizQuestionWithCodeProblem;
             
             // Create test cases
-            if (Array.isArray(problem.testCases) && question.codeProblem) {
-              const codeProblemId = question.codeProblem.questionId;
+            if (Array.isArray(problem.testCases) && question.codeProblem && question.codeProblem.questionId) {
+              const codeProblemId = question.codeProblem.id; // Use the new id field
               
               for (let j = 0; j < problem.testCases.length; j++) {
                 const testCase = problem.testCases[j];
@@ -2481,44 +2488,64 @@ router.post('/:quizId/questions', authenticateToken, authorizeRoles([Role.ADMIN,
       // Create CODE question with test cases
       createdQuestion = await prisma.$transaction(async (prisma) => {
         // Create base question with inline CodeProblem
-        const question = await prisma.quizQuestion.create({
-          data: {
-            quizId,
-            questionText: questionData.questionText,
-            questionType: questionData.questionType,
-            points: questionData.points || 1,
-            orderNum,
-            difficulty: questionData.difficulty || 'MEDIUM',
-            codeProblem: {
-              create: {
-                questionId: undefined as unknown as string, // Will be set by Prisma to match QuizQuestion.id
-                language: questionData.language || 'javascript',
-                codeTemplate: questionData.codeTemplate || null,
-                functionName: questionData.functionName || null,
-                timeLimit: questionData.timeLimit || 5000,
-                memoryLimit: questionData.memoryLimit || null
-              } satisfies Prisma.CodeProblemUncheckedCreateWithoutQuizQuestionInput
+        const questionCreateData: any = {
+          quiz: { connect: { id: quizId } },
+          questionText: questionData.questionText,
+          questionType: 'CODE',
+          points: questionData.points || 1,
+          orderNum: questionData.orderNum,
+          difficulty: questionData.difficulty,
+          codeProblem: {
+            create: {
+              codeTemplate: questionData.codeProblem?.codeTemplate || null,
+              language: questionData.codeProblem?.language || 'javascript',
+              functionName: questionData.codeProblem?.functionName || null,
+              timeLimit: questionData.codeProblem?.timeLimit || 5000,
+              memoryLimit: questionData.codeProblem?.memoryLimit || null,
             }
-          },
+          }
+        };
+        
+        // Add custom fields to the nested create outside the TypeScript type system
+        if (questionData.codeProblem?.return_type) {
+          (questionCreateData.codeProblem.create as any).return_type = questionData.codeProblem.return_type;
+        }
+        
+        if (questionData.codeProblem?.params) {
+          const paramsValue = typeof questionData.codeProblem.params === 'string' 
+            ? questionData.codeProblem.params 
+            : JSON.stringify(questionData.codeProblem.params);
+          (questionCreateData.codeProblem.create as any).params = paramsValue;
+        }
+        
+        if (Array.isArray(questionData.testCases)) {
+          (questionCreateData.codeProblem.create as any).test_cases = JSON.stringify(questionData.testCases);
+        }
+        
+        const question = await prisma.quizQuestion.create({
+          data: questionCreateData,
           include: {
             codeProblem: true
           }
         }) as QuizQuestionWithCodeProblem;
-
+        
         // Create test cases if we have them and codeProblem was created
         if (Array.isArray(questionData.testCases) && question.codeProblem) {
           const codeProblemId = question.codeProblem.questionId;
-          for (let i = 0; i < questionData.testCases.length; i++) {
-            const testCase = questionData.testCases[i];
-            await prisma.testCase.create({
-              data: {
-                codeProblemId,
-                input: testCase.input || '',
-                expectedOutput: testCase.expectedOutput || '',
-                isHidden: testCase.isHidden === true,
-                orderNum: testCase.orderNum || i + 1
-              }
-            });
+          // Only create test cases if we have a valid codeProblemId
+          if (codeProblemId) {
+            for (let i = 0; i < questionData.testCases.length; i++) {
+              const testCase = questionData.testCases[i];
+              await prisma.testCase.create({
+                data: {
+                  codeProblemId,
+                  input: testCase.input || '',
+                  expectedOutput: testCase.expectedOutput || '',
+                  isHidden: testCase.isHidden === true,
+                  orderNum: testCase.orderNum || i + 1
+                }
+              });
+            }
           }
         }
 
@@ -2695,13 +2722,15 @@ router.put('/questions/:questionId', authenticateToken, authorizeRoles([Role.ADM
         }
 
         // If there was a code problem, delete it
-        if (existingQuestion.codeProblem) {
+        if (existingQuestion.codeProblem && existingQuestion.codeProblem.id) {
           await prisma.testCase.deleteMany({
-            where: { codeProblemId: existingQuestion.codeProblem.questionId }
+            where: { codeProblemId: existingQuestion.codeProblem.id }
           });
 
           await prisma.codeProblem.delete({
-            where: { questionId: existingQuestion.codeProblem.questionId } // Use the ID from the relation
+            where: { id: existingQuestion.codeProblem.id }
+          }).catch(() => {
+            // Ignore if not found
           });
         }
 
@@ -2745,54 +2774,89 @@ router.put('/questions/:questionId', authenticateToken, authorizeRoles([Role.ADM
           if (!codeProblemData) {
             throw new Error("Cannot change question type to CODE without providing 'codeProblem' details.");
           }
+          // Prepare data for create with proper type handling
+          const codeProblemCreateData: any = {
+            questionId: questionId, // Now an optional field, not the primary key
+            language: codeProblemData.language || 'javascript',
+            codeTemplate: codeProblemData.codeTemplate || null,
+            functionName: codeProblemData.functionName || null,
+            timeLimit: codeProblemData.timeLimit || 5000,
+            memoryLimit: codeProblemData.memoryLimit || null,
+          };
+          
+          // Add custom fields outside the type system
+          if (codeProblemData.return_type) {
+            codeProblemCreateData.return_type = codeProblemData.return_type;
+          }
+          
+          if (codeProblemData.params) {
+            codeProblemCreateData.params = typeof codeProblemData.params === 'string'
+              ? codeProblemData.params
+              : JSON.stringify(codeProblemData.params);
+          }
+          
+          if (codeProblemData.test_cases) {
+            codeProblemCreateData.test_cases = typeof codeProblemData.test_cases === 'string'
+              ? codeProblemData.test_cases
+              : JSON.stringify(codeProblemData.test_cases);
+          }
+          
           const newCodeProblem = await prisma.codeProblem.create({
-            data: {
-              // questionId is the PK and must match QuizQuestion ID
-              questionId: questionId,
-              language: codeProblemData.language || 'javascript',
-              codeTemplate: codeProblemData.codeTemplate || null,
-              functionName: codeProblemData.functionName || null,
-              timeLimit: codeProblemData.timeLimit || 5000,
-              memoryLimit: codeProblemData.memoryLimit || null,
-              // We don't need to connect quizQuestion here as IDs match
-            }
+            data: codeProblemCreateData
           });
-          targetCodeProblemId = newCodeProblem.questionId; // Should be same as questionId
+          targetCodeProblemId = newCodeProblem.id; // Use the new id field
           console.log(`Created new CodeProblem ${targetCodeProblemId} for question ${questionId}`);
 
         } else {
           // --- Update existing CodeProblem ---
-          targetCodeProblemId = existingQuestion.codeProblem.questionId; // Use the existing ID
+          targetCodeProblemId = existingQuestion.codeProblem.id || existingQuestion.codeProblem.questionId || ''; // Use the id field or questionId as fallback, provide empty string as fallback
+          if (!targetCodeProblemId) {
+            throw new Error(`Cannot find a valid ID for CodeProblem associated with question ${questionId}`);
+          }
+          
           if (!codeProblemData) {
             console.warn(`Updating CODE question ${questionId} without providing 'codeProblem' details. Skipping CodeProblem update.`);
           } else {
+            // --- Update existing CodeProblem ---
+            const updateData: any = {
+              // Carefully preserve existing values if not provided in update
+              language: codeProblemData.language || existingQuestion.codeProblem.language || 'javascript',
+              codeTemplate: codeProblemData.codeTemplate !== undefined ? codeProblemData.codeTemplate : existingQuestion.codeProblem.codeTemplate,
+              functionName: codeProblemData.functionName !== undefined ? codeProblemData.functionName : existingQuestion.codeProblem.functionName,
+              timeLimit: codeProblemData.timeLimit !== undefined ? codeProblemData.timeLimit : existingQuestion.codeProblem.timeLimit || 5000,
+              memoryLimit: codeProblemData.memoryLimit !== undefined ? codeProblemData.memoryLimit : existingQuestion.codeProblem.memoryLimit,
+            };
+            
+            // Handle custom fields
+            if (codeProblemData.return_type !== undefined) {
+              updateData.return_type = codeProblemData.return_type;
+            }
+            
+            if (codeProblemData.params !== undefined) {
+              updateData.params = typeof codeProblemData.params === 'string'
+                ? codeProblemData.params
+                : JSON.stringify(codeProblemData.params);
+            }
+            
+            if (codeProblemData.test_cases !== undefined) {
+              updateData.test_cases = typeof codeProblemData.test_cases === 'string'
+                ? codeProblemData.test_cases
+                : JSON.stringify(codeProblemData.test_cases);
+            }
+            
             await prisma.codeProblem.update({
-              where: { questionId: targetCodeProblemId },
-              data: {
-                // Read nested data, falling back to existing values
-                language: codeProblemData.language || existingQuestion.codeProblem.language || 'javascript',
-                codeTemplate: codeProblemData.codeTemplate !== undefined ? codeProblemData.codeTemplate : existingQuestion.codeProblem.codeTemplate,
-                functionName: codeProblemData.functionName !== undefined ? codeProblemData.functionName : existingQuestion.codeProblem.functionName,
-                timeLimit: codeProblemData.timeLimit !== undefined ? codeProblemData.timeLimit : existingQuestion.codeProblem.timeLimit || 5000,
-                memoryLimit: codeProblemData.memoryLimit !== undefined ? codeProblemData.memoryLimit : existingQuestion.codeProblem.memoryLimit
-              }
+              where: { id: targetCodeProblemId },
+              data: updateData
             });
             console.log(`Updated existing CodeProblem ${targetCodeProblemId}`);
-          }
-          // Delete existing test cases before adding new ones (only if new ones are provided)
-          if (codeProblemData && Array.isArray(codeProblemData.testCases)) {
-             console.log(`Deleting existing test cases for CodeProblem ${targetCodeProblemId}`);
-             await prisma.testCase.deleteMany({
-               where: { codeProblemId: targetCodeProblemId }
-             });
           }
         }
 
         // 3. Create new TestCases (if provided)
-        if (codeProblemData && Array.isArray(codeProblemData.testCases)) {
-          console.log(`Creating ${codeProblemData.testCases.length} new test cases for CodeProblem ${targetCodeProblemId}`);
-          for (let i = 0; i < codeProblemData.testCases.length; i++) {
-            const testCase = codeProblemData.testCases[i];
+        if (codeProblemData && Array.isArray(codeProblemData.test_cases)) {
+          console.log(`Creating ${codeProblemData.test_cases.length} new test cases for CodeProblem ${targetCodeProblemId}`);
+          for (let i = 0; i < codeProblemData.test_cases.length; i++) {
+            const testCase = codeProblemData.test_cases[i];
             await prisma.testCase.create({
               data: {
                 codeProblemId: targetCodeProblemId, // Link to the correct CodeProblem ID
@@ -2922,17 +2986,35 @@ router.delete('/questions/:questionId', authenticateToken, authorizeRoles([Role.
           // Ignore if not found
         });
       } else if (question.questionType === 'CODE') {
-        // Delete test cases
-        await prisma.testCase.deleteMany({
-          where: { codeProblemId: questionId }
+        // First find the CodeProblem by questionId 
+        const codeProblem = await prisma.codeProblem.findFirst({
+          where: { questionId }
         });
         
-        // Delete code problem
-        await prisma.codeProblem.delete({
-          where: { questionId }
-        }).catch(() => {
-          // Ignore if not found
-        });
+        if (codeProblem) {
+          // Delete test cases using the codeProblem's id
+          await prisma.testCase.deleteMany({
+            where: { codeProblemId: codeProblem.id }
+          });
+          
+          // Delete code problem using its id
+          await prisma.codeProblem.delete({
+            where: { id: codeProblem.id }
+          }).catch(() => {
+            // Ignore if not found
+          });
+        } else {
+          // For backward compatibility, try deleting by questionId
+          await prisma.testCase.deleteMany({
+            where: { codeProblemId: questionId }
+          });
+          
+          await prisma.codeProblem.delete({
+            where: { questionId }
+          }).catch(() => {
+            // Ignore if not found
+          });
+        }
       }
       
       // Finally delete the question itself
@@ -2981,20 +3063,21 @@ async function transformQuestionForResponse(question: any) {
   }
   
   if (question.questionType === 'CODE' && question.codeProblem) {
+    const codeProblem = question.codeProblem as ExtendedCodeProblem;
     return {
       ...baseQuestion,
-      language: question.codeProblem.language,
-      codeTemplate: question.codeProblem.codeTemplate,
-      functionName: question.codeProblem.functionName,
-      timeLimit: question.codeProblem.timeLimit,
-      memoryLimit: question.codeProblem.memoryLimit,
-      testCases: question.codeProblem.testCases.map((tc: any) => ({
-        id: tc.id,
-        input: tc.input,
-        expectedOutput: tc.expectedOutput,
-        isHidden: tc.isHidden,
-        orderNum: tc.orderNum
-      }))
+      language: codeProblem.language,
+      codeTemplate: codeProblem.codeTemplate,
+      functionName: codeProblem.functionName,
+      timeLimit: codeProblem.timeLimit,
+      memoryLimit: codeProblem.memoryLimit,
+      return_type: codeProblem.return_type,
+      params: codeProblem.params,
+      testCases: (codeProblem.test_cases ? 
+        (typeof codeProblem.test_cases === 'string' ? 
+          JSON.parse(codeProblem.test_cases) : 
+          codeProblem.test_cases) : 
+        [])
     };
   }
   

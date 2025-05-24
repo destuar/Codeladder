@@ -14,15 +14,17 @@ interface CreateProblemBody {
   reqOrder?: number;
   problemType?: ProblemType;
   collectionIds?: string[];
-  codeTemplate?: string;
   testCases?: string;
   topicId?: string;
   estimatedTime?: string | number;
   slug?: string;
-  language?: string;
   functionName?: string;
   timeLimit?: number;
   memoryLimit?: number;
+  return_type?: string;
+  params?: string;
+  defaultLanguage?: string;
+  languageSupport?: string;
 }
 
 interface UpdateProblemBody {
@@ -33,17 +35,229 @@ interface UpdateProblemBody {
   reqOrder?: number;
   problemType?: ProblemType;
   collectionIds?: string[];
-  codeTemplate?: string;
   testCases?: string;
   estimatedTime?: string | number;
   slug?: string;
-  language?: string;
   functionName?: string;
   timeLimit?: number;
   memoryLimit?: number;
+  return_type?: string;
+  params?: string;
+  defaultLanguage?: string;
+  languageSupport?: string;
 }
 
 const router = express.Router();
+
+/**
+ * Safely parses a value that might be a string representation of JSON
+ * Removes multiple layers of escaping if present
+ * 
+ * @param value The value to parse
+ * @returns Parsed value or original value if parsing fails
+ */
+const safelyParseValue = (value: any): any => {
+  if (value === undefined || value === null) return value;
+  
+  // If it's not a string, we're already done
+  if (typeof value !== 'string') return value;
+  
+  // Attempt to handle excessive JSON escaping by repeatedly parsing
+  let result = value;
+  let iterations = 0;
+  const MAX_ITERATIONS = 5; // Limit iterations to avoid infinite loop
+  
+  while (typeof result === 'string' && 
+         (result.startsWith('"') && result.endsWith('"')) && 
+         result.includes('\\') && 
+         iterations < MAX_ITERATIONS) {
+    try {
+      result = JSON.parse(result);
+      iterations++;
+    } catch (e) {
+      break; // Stop if parsing fails
+    }
+  }
+  
+  // Try one more parse if it looks like JSON
+  if (typeof result === 'string' && 
+      ((result.startsWith('{') && result.endsWith('}')) || 
+       (result.startsWith('[') && result.endsWith(']')))) {
+    try {
+      return JSON.parse(result);
+    } catch (e) {
+      // Return the current result if this parse fails
+      return result;
+    }
+  }
+  
+  return result;
+};
+
+/**
+ * Normalizes a test case by ensuring proper data structures
+ * 
+ * @param testCase The input test case to normalize
+ * @returns A normalized test case ready for database storage
+ */
+const normalizeTestCase = (testCase: any, index: number): any => {
+  // Parse and clean the input
+  const parsedInput = safelyParseValue(testCase.input ?? testCase.input_args ?? '');
+  
+  // Parse and clean the expected output
+  const parsedExpected = safelyParseValue(testCase.expectedOutput ?? testCase.expected ?? testCase.expected_out ?? '');
+  
+  return {
+    input: JSON.stringify(parsedInput), // Store consistent JSON string
+    expectedOutput: JSON.stringify(parsedExpected), // Store consistent JSON string
+    isHidden: testCase.isHidden || (testCase.phase === 'hidden') || false,
+    orderNum: testCase.orderNum || testCase.case_id || index + 1
+  };
+};
+
+/**
+ * Prepares language support data for storage
+ * @param language Default language (e.g. 'python')
+ * @param codeTemplate Template for the default language
+ * @param languageSupportJson Optional JSON string with additional language templates
+ * @returns Structured language support JSON object
+ */
+const prepareLanguageSupport = (
+  language: string = 'python', 
+  codeTemplate?: string, 
+  languageSupportJson?: string
+): any => {
+  // Start with empty object
+  let languageSupport: any = {};
+  
+  // Parse languageSupport if provided
+  if (languageSupportJson) {
+    try {
+      languageSupport = JSON.parse(languageSupportJson);
+    } catch (e) {
+      console.warn('Error parsing languageSupport JSON:', e);
+    }
+  }
+  
+  // Add/update the default language template
+  if (codeTemplate) {
+    languageSupport[language] = {
+      ...(languageSupport[language] || {}),
+      template: codeTemplate
+    };
+  }
+  
+  return languageSupport;
+};
+
+// Get a specific problem by SLUG
+router.get('/slug/:slug', authenticateToken, (async (req, res) => {
+  try {
+    const { slug } = req.params;
+    const userId = req.user?.id;
+
+    if (!userId) {
+      return res.status(401).json({ error: 'User not authenticated' });
+    }
+
+    if (!slug) {
+      return res.status(400).json({ error: 'Slug parameter is required' });
+    }
+
+    const problem = await prisma.problem.findUnique({
+      where: { slug },
+      // Include same details as the ID route for consistency
+      include: {
+        completedBy: {
+          where: { id: userId },
+          select: { id: true }
+        },
+        progress: {
+          where: { userId },
+          select: { status: true }
+        },
+        topic: {
+          include: { level: true }
+        },
+        collections: {
+          select: {
+            collection: {
+              select: {
+                id: true,
+                name: true
+              }
+            }
+          }
+        },
+        codeProblem: {
+          include: {
+            testCases: {
+              orderBy: { orderNum: 'asc' }
+            }
+          }
+        }
+      }
+    });
+
+    // Ensure the problem exists (removed type check)
+    if (!problem) {
+      return res.status(404).json({ error: 'Problem not found' });
+    }
+
+    // --- Replicate logic from GET /:problemId to find next/prev --- 
+    const collectionIds = problem.collections 
+      ? problem.collections.map((pc: any) => pc.collectionId || (pc.collection && pc.collection.id))
+      : [];
+
+    let nextProblemId = null;
+    let prevProblemId = null;
+    let nextProblemSlug = null;
+    let prevProblemSlug = null;
+
+    if (problem.topicId) {
+      const topicProblems = await prisma.problem.findMany({
+        where: { topicId: problem.topicId },
+        orderBy: { reqOrder: 'asc' },
+        select: { id: true, reqOrder: true, slug: true }
+      });
+
+      const currentIndex = topicProblems.findIndex((p: { id: string }) => p.id === problem.id);
+      
+      if (currentIndex !== -1) {
+        if (currentIndex > 0) {
+          prevProblemId = topicProblems[currentIndex - 1].id;
+          prevProblemSlug = topicProblems[currentIndex - 1].slug;
+        }
+        if (currentIndex < topicProblems.length - 1) {
+          nextProblemId = topicProblems[currentIndex + 1].id;
+          nextProblemSlug = topicProblems[currentIndex + 1].slug;
+        }
+      }
+    }
+    // --- End of next/prev logic --- 
+
+    // Return full problem data, similar to GET /:problemId
+    const response = {
+      ...problem,
+      codeTemplate: undefined, // Remove legacy fields
+      testCases: undefined,
+      isCompleted: problem.completedBy.length > 0 || problem.progress.some((p: { status: ProgressStatus }) => p.status === 'COMPLETED'),
+      nextProblemId,
+      prevProblemId,
+      nextProblemSlug,
+      prevProblemSlug,
+      collectionIds,
+      completedBy: undefined, // Remove from response
+      progress: undefined,
+      collections: undefined // Remove raw collections data
+    };
+
+    res.json(response);
+  } catch (error) {
+    console.error('Error fetching problem by slug:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+}) as RequestHandler);
 
 // Get a specific problem
 router.get('/:problemId', authenticateToken, (async (req, res) => {
@@ -300,35 +514,23 @@ router.post('/', authenticateToken, authorizeRoles([Role.ADMIN, Role.DEVELOPER])
       reqOrder,
       problemType = 'INFO' as const,
       collectionIds = [],
-      codeTemplate,
-      testCases,
+      testCases: testCasesRaw,
       topicId,
       estimatedTime,
       slug,
-      language = 'javascript',
       functionName,
       timeLimit,
-      memoryLimit
+      memoryLimit,
+      return_type,
+      params,
+      defaultLanguage,
+      languageSupport: languageSupportRaw
     } = req.body as CreateProblemBody;
 
-    console.log('Creating problem with data:', {
-      name,
-      content: content ? `${content.substring(0, 20)}...` : undefined,
-      difficulty,
-      required,
-      reqOrder,
-      problemType,
-      collectionIds,
-      codeTemplate: codeTemplate ? 'Provided' : undefined,
-      testCases: testCases ? 'Provided' : undefined,
-      topicId,
-      estimatedTime,
-      slug: slug ? 'Provided' : undefined,
-      language: problemType === 'CODING' ? language : undefined,
-      functionName: problemType === 'CODING' ? functionName : undefined,
-      timeLimit: problemType === 'CODING' ? timeLimit : undefined,
-      memoryLimit: problemType === 'CODING' ? memoryLimit : undefined
-    });
+    // Validate required fields
+    if (!name) {
+      return res.status(400).json({ error: 'Name is required' });
+    }
 
     // Only validate topic if topicId is provided
     if (topicId) {
@@ -337,25 +539,18 @@ router.post('/', authenticateToken, authorizeRoles([Role.ADMIN, Role.DEVELOPER])
       });
 
       if (!topic) {
-        console.error('Topic not found:', topicId);
         return res.status(404).json({ error: 'Topic not found' });
       }
+    }
 
-      // Check for duplicate order number if reqOrder is provided
-      if (reqOrder) {
-        const existingProblem = await prisma.problem.findFirst({
-          where: {
-            topicId,
-            reqOrder,
-          }
-        });
-
-        if (existingProblem) {
-          return res.status(400).json({ 
-            error: 'Order number already exists',
-            details: `Problem "${existingProblem.name}" already has order number ${reqOrder}`
-          });
-        }
+    // Parse test cases if provided
+    let parsedTestCases: any[] = [];
+    if (testCasesRaw) {
+      try {
+        parsedTestCases = typeof testCasesRaw === 'string' ? JSON.parse(testCasesRaw) : testCasesRaw;
+      } catch (error) {
+        console.error('Error parsing testCases:', error);
+        return res.status(400).json({ error: 'Invalid test cases format' });
       }
     }
 
@@ -365,124 +560,89 @@ router.post('/', authenticateToken, authorizeRoles([Role.ADMIN, Role.DEVELOPER])
       return res.status(400).json({ error: 'Estimated time must be a valid number' });
     }
 
-    // Parse testCases if it's a string
-    let parsedTestCases = testCases;
-    if (typeof testCases === 'string') {
-      try {
-        parsedTestCases = JSON.parse(testCases);
-      } catch (e) {
-        console.error('Error parsing testCases:', e);
-        return res.status(400).json({ error: 'Invalid testCases JSON format' });
-      }
-    }
-
     // Use a transaction for the entire create process
-    const prismaAny = prisma as any;
-    
-    const newProblem = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
-      // Prepare data for related problem types (CodeProblem)
-      let codeProblemCreateData: Prisma.CodeProblemCreateNestedOneWithoutProblemInput | undefined;
+    const newProblem = await prisma.$transaction(async (tx) => {
+      // Prepare the problem create data
+      const createData: Prisma.ProblemCreateInput = {
+        name,
+        content: content || '',
+        difficulty,
+        required,
+        reqOrder: reqOrder || null,
+        problemType,
+        estimatedTime: parsedEstimatedTime,
+        slug: slug || undefined,
+        ...(topicId && {
+          topic: {
+            connect: { id: topicId }
+          }
+        })
+      };
 
-      // If problem type is CODING, prepare CodeProblem create data
+      // For coding problems, add the codeProblem relation
       if (problemType === 'CODING') {
-        // Parse testCases
-        let parsedTestCases: Record<string, any>[] = [];
-        try {
-          if (testCases) parsedTestCases = JSON.parse(testCases as string);
-        } catch (e) {
-          // Handle invalid JSON
-          console.error("Invalid testCases JSON:", e);
-          return res.status(400).json({ error: "Invalid testCases JSON" });
+        let parsedLanguageSupport: any = null;
+        if (languageSupportRaw) {
+          try {
+            parsedLanguageSupport = JSON.parse(languageSupportRaw);
+          } catch (e) {
+            console.warn('Failed to parse languageSupport JSON on create:', e);
+            // Potentially return error or use a default
+          }
         }
-        
-        // Create code problem with testCases data
-        codeProblemCreateData = {
+
+        createData.codeProblem = {
           create: {
-            codeTemplate: codeTemplate || '',
-            language: language || 'javascript',
-            functionName: functionName || 'solution',
+            defaultLanguage: defaultLanguage || 'python',
+            languageSupport: parsedLanguageSupport,
+            functionName: functionName || undefined,
             timeLimit: timeLimit ? Number(timeLimit) : 5000,
-            memoryLimit: memoryLimit ? Number(memoryLimit) : null,
+            memoryLimit: memoryLimit ? Number(memoryLimit) : undefined,
+            return_type: return_type || undefined,
+            params: params ? (typeof params === 'string' ? params : JSON.stringify(params)) : undefined,
             testCases: {
-              create: parsedTestCases.map((testCase) => ({
+              create: parsedTestCases.map((testCase, index) => ({
                 input: testCase.input,
-                expectedOutput: testCase.expected,
-                isHidden: testCase.isHidden || false
+                expectedOutput: testCase.expected || testCase.expectedOutput,
+                isHidden: testCase.isHidden || false,
+                orderNum: testCase.orderNum || index + 1
               }))
             }
           }
         };
       }
-      
-      // Create the base Problem record
+
+      // Create the problem with all relations
       const problem = await tx.problem.create({
-        data: {
-          name,
-          difficulty,
-          required,
-          reqOrder,
-          problemType, // Set the correct type
-          estimatedTime: parsedEstimatedTime,
-          content: content,
-          ...(topicId && {
-            topic: {
-              connect: { id: topicId }
-            }
-          }),
-          ...(slug && { slug }),
-          // Conditionally include create data for related models
-          ...(codeProblemCreateData && { codeProblem: codeProblemCreateData }),
-        },
-         // Include the created CodeProblem relation if it was created
-         // to get its generated ID for Test Case creation
-         include: {
-            codeProblem: problemType === 'CODING' // Only include if type is CODING
-         }
-      });
-      
-      // Associate with collections if collectionIds is provided
-      if (collectionIds && collectionIds.length > 0) {
-        await Promise.all(collectionIds.map((collectionId: string) => 
-          prisma.problemToCollection.create({
-            data: {
-              problem: { connect: { id: problem.id } },
-              collection: { connect: { id: collectionId } }
-            }
-          })
-        ));
-      }
-      
-      // Return the problem with collections and code/info problem details
-      return await tx.problem.findUnique({
-        where: { id: problem.id },
+        data: createData,
         include: {
-          collections: {
-            include: {
-              collection: true
-            }
-          },
           codeProblem: {
             include: {
               testCases: true
             }
-          },
+          }
         }
       });
+
+      // Associate with collections if provided
+      if (collectionIds.length > 0) {
+        await Promise.all(collectionIds.map(collectionId => 
+          tx.problemToCollection.create({
+            data: {
+              problemId: problem.id,
+              collectionId
+            }
+          })
+        ));
+      }
+
+      return problem;
     });
-    
-    if (!newProblem) {
-      throw new Error('Failed to retrieve created problem');
-    }
-    
-    // Transform the response to include collection IDs for frontend
-    // Use any type to work around TypeScript inference issues
-    const newProblemResult = newProblem as any;
+
+    // Transform the response for the frontend
     const responseData = {
-      ...newProblemResult,
-      collectionIds: newProblemResult.collections?.map((pc: any) => 
-        pc.collectionId || (pc.collection && pc.collection.id)
-      ).filter(Boolean) || [],
-      collections: undefined // Remove raw collections from response
+      ...newProblem,
+      collectionIds: collectionIds
     };
 
     res.status(201).json(responseData);
@@ -503,13 +663,15 @@ router.put('/:problemId', authenticateToken, authorizeRoles([Role.ADMIN, Role.DE
     reqOrder,
     problemType, // Type might be updated
     collectionIds,
-    codeTemplate,
-    testCases,
+    testCases: testCasesRaw,
     estimatedTime,
-    language,
     functionName,
     timeLimit,
-    memoryLimit
+    memoryLimit,
+    return_type,
+    params,
+    defaultLanguage,
+    languageSupport: languageSupportRaw
   } = req.body as UpdateProblemBody;
 
   try {
@@ -531,13 +693,15 @@ router.put('/:problemId', authenticateToken, authorizeRoles([Role.ADMIN, Role.DE
       reqOrder,
       problemType,
       collectionIds,
-      codeTemplate: codeTemplate ? 'Provided' : undefined,
-      testCases: testCases ? 'Provided' : undefined,
+      testCases: testCasesRaw ? 'Provided' : undefined,
       estimatedTime,
-      language: problemType === 'CODING' ? language : undefined,
       functionName: problemType === 'CODING' ? functionName : undefined,
       timeLimit: problemType === 'CODING' ? timeLimit : undefined,
-      memoryLimit: problemType === 'CODING' ? memoryLimit : undefined
+      memoryLimit: problemType === 'CODING' ? memoryLimit : undefined,
+      return_type: return_type ? 'Provided' : undefined,
+      params: params ? 'Provided' : undefined,
+      defaultLanguage: problemType === 'CODING' ? defaultLanguage : undefined,
+      languageSupport: problemType === 'CODING' ? languageSupportRaw : undefined
     });
 
     // Check for duplicate order number if reqOrder is provided and different from current
@@ -558,16 +722,23 @@ router.put('/:problemId', authenticateToken, authorizeRoles([Role.ADMIN, Role.DE
       }
     }
 
-    // Parse testCases if it's a string
-    let parsedTestCases = testCases;
-    if (typeof testCases === 'string') {
-      try {
-        parsedTestCases = JSON.parse(testCases);
-      } catch (e) {
-        console.error('Error parsing testCases:', e);
-        return res.status(400).json({ error: 'Invalid testCases JSON format' });
+    // Parse test cases if provided
+    let parsedTestCases: any[] = [];
+    if (testCasesRaw) {
+      if (typeof testCasesRaw === 'string') {
+        try {
+          parsedTestCases = JSON.parse(testCasesRaw);
+        } catch (error) {
+          console.error('Error parsing testCases in update:', error);
+          return res.status(400).json({ error: 'Invalid test cases format' });
+        }
+      } else if (Array.isArray(testCasesRaw)) {
+        parsedTestCases = testCasesRaw;
       }
     }
+
+    // Normalize each test case to ensure proper data structures
+    parsedTestCases = parsedTestCases.map(normalizeTestCase);
 
     // Convert estimatedTime to number if provided
     const parsedEstimatedTime = estimatedTime ? parseInt(estimatedTime.toString()) : null;
@@ -591,27 +762,47 @@ router.put('/:problemId', authenticateToken, authorizeRoles([Role.ADMIN, Role.DE
       if (effectiveProblemType === 'CODING') {
         existingCodeProblem = await tx.codeProblem.findUnique({ where: { problemId: problemId }});
         
+        let parsedLanguageSupportOnUpdate: any = null;
+        if (languageSupportRaw) {
+          try {
+            parsedLanguageSupportOnUpdate = JSON.parse(languageSupportRaw);
+          } catch (e) {
+            console.warn('Failed to parse languageSupport JSON on update:', e);
+             // Potentially return error or use a default
+          }
+        }
+
         if (existingCodeProblem) {
           // Update existing CodeProblem - handle different ID fields with type casting
           const codeProblemObj = existingCodeProblem as any;
-          const codeProblemId = codeProblemObj.questionId || codeProblemObj.id || codeProblemObj.problemId;
+          const codeProblemId = codeProblemObj.id; // Use the new id field as primary key
           finalCodeProblemId = codeProblemId;
           
           // Create where clause safely
-          const whereClause: any = {};
-          if (codeProblemObj.questionId) whereClause.questionId = codeProblemObj.questionId;
-          if (codeProblemObj.id) whereClause.id = codeProblemObj.id;
-          if (codeProblemObj.problemId) whereClause.problemId = codeProblemObj.problemId;
+          const whereClause: any = { id: codeProblemId };
+          
+          const updateData: any = {
+            ...(defaultLanguage !== undefined && { defaultLanguage }),
+            ...(parsedLanguageSupportOnUpdate !== null && { languageSupport: parsedLanguageSupportOnUpdate }),
+            ...(functionName !== undefined && { functionName }),
+            ...(timeLimit !== undefined && { timeLimit: parseInt(timeLimit.toString()) }),
+            ...(memoryLimit !== undefined && { memoryLimit: memoryLimit ? parseInt(memoryLimit.toString()) : null }),
+          };
+
+          // Add the new JSON fields with type assertion
+          if (return_type !== undefined) {
+            updateData.return_type = return_type;
+          }
+          if (params !== undefined) {
+            updateData.params = typeof params === 'string' ? params : JSON.stringify(params);
+          }
+          if (parsedTestCases) {
+            updateData.test_cases = JSON.stringify(parsedTestCases);
+          }
           
           await tx.codeProblem.update({
             where: whereClause,
-            data: {
-              ...(codeTemplate !== undefined && { codeTemplate }),
-              ...(language !== undefined && { language }),
-              ...(functionName !== undefined && { functionName }),
-              ...(timeLimit !== undefined && { timeLimit: parseInt(timeLimit.toString()) }),
-              ...(memoryLimit !== undefined && { memoryLimit: memoryLimit ? parseInt(memoryLimit.toString()) : null })
-            }
+            data: updateData
           });
           
           // For test case deletion
@@ -626,8 +817,8 @@ router.put('/:problemId', authenticateToken, authorizeRoles([Role.ADMIN, Role.DE
             if (parsedTestCases && Array.isArray(parsedTestCases) && parsedTestCases.length > 0) {
               const testCaseData = parsedTestCases.map((tc: any, index: number) => ({
                 codeProblemId: finalCodeProblemId!, 
-                input: JSON.stringify(tc.input ?? ''),
-                expectedOutput: JSON.stringify(tc.expectedOutput ?? ''),
+                input: tc.input,
+                expectedOutput: tc.expectedOutput,
                 isHidden: tc.isHidden || false,
                 orderNum: tc.orderNum || index + 1
               }));
@@ -636,23 +827,37 @@ router.put('/:problemId', authenticateToken, authorizeRoles([Role.ADMIN, Role.DE
           }
         } else {
           // Create new CodeProblem
-          const newCodeProblem = await tx.codeProblem.create({
-            data: {
-              problem: { connect: { id: problemId } },
-              codeTemplate: codeTemplate ?? null,
-              language: language ?? 'javascript',
-              functionName: functionName ?? null,
-              timeLimit: timeLimit ? parseInt(timeLimit.toString()) : 5000,
-              memoryLimit: memoryLimit ? parseInt(memoryLimit.toString()) : null,
-              testCases: {
-                create: Array.isArray(parsedTestCases) ? parsedTestCases.map((tc: any, index: number) => ({
-                  input: JSON.stringify(tc.input ?? ''),
-                  expectedOutput: JSON.stringify(tc.expectedOutput ?? ''),
-                  isHidden: tc.isHidden || false,
-                  orderNum: tc.orderNum || index + 1
-                })) : []
-              }
+          const codeProblemData: any = {
+            defaultLanguage: defaultLanguage ?? 'python',
+            languageSupport: parsedLanguageSupportOnUpdate,
+            functionName: functionName ?? null,
+            timeLimit: timeLimit ? parseInt(timeLimit.toString()) : 5000,
+            memoryLimit: memoryLimit ? parseInt(memoryLimit.toString()) : null,
+            // Use unchecked create to directly reference problemId without question relation
+            problemId: problemId,
+            testCases: {
+              create: parsedTestCases.map((tc: any, index: number) => ({
+                input: tc.input,
+                expectedOutput: tc.expectedOutput,
+                isHidden: tc.isHidden || false,
+                orderNum: tc.orderNum || index + 1
+              }))
             }
+          };
+
+          // Add the new JSON fields outside of the TypeScript type system
+          if (return_type) {
+            codeProblemData.return_type = return_type;
+          }
+          if (params) {
+            codeProblemData.params = typeof params === 'string' ? params : JSON.stringify(params);
+          }
+          if (parsedTestCases && parsedTestCases.length > 0) {
+            codeProblemData.test_cases = JSON.stringify(parsedTestCases);
+          }
+
+          const newCodeProblem = await tx.codeProblem.create({
+            data: codeProblemData
           });
           
           // Access ID safely with type casting
@@ -720,24 +925,10 @@ router.put('/:problemId', authenticateToken, authorizeRoles([Role.ADMIN, Role.DE
 
       // --- Handle Connections/Disconnections for Relations ---
       if (effectiveProblemType === 'CODING' && finalCodeProblemId) {
-        // Safe-build the connection clause based on available properties
-        const connectClause: any = {};
-        
-        // Type cast existingCodeProblem for safe property access 
-        const codeProblemObj = existingCodeProblem as any;
-        
-        if (codeProblemObj?.questionId) {
-          connectClause.questionId = finalCodeProblemId;
-        } else if (codeProblemObj?.id) {
-          connectClause.id = finalCodeProblemId;
-        } else if (codeProblemObj?.problemId) {
-          connectClause.problemId = finalCodeProblemId;
-        } else {
-          // Default if no identifying property found
-          connectClause.questionId = finalCodeProblemId;
-        }
-        
-        problemUpdateData.codeProblem = { connect: connectClause };
+        // Connect using the id field - use type assertion to work around TS errors
+        (problemUpdateData.codeProblem as any) = { 
+          connect: { id: finalCodeProblemId } 
+        };
       } else { 
         // Disconnect codeProblem if type is neither or related record wasn't created/found
         if (currentProblem.codeProblem) problemUpdateData.codeProblem = { disconnect: true };
@@ -1298,120 +1489,6 @@ router.get('/admin/dashboard', authenticateToken, authorizeRoles([Role.ADMIN, Ro
     res.json(transformedProblems);
   } catch (error) {
     console.error('Error fetching admin dashboard problems:', error);
-    res.status(500).json({ error: 'Internal server error' });
-  }
-}) as RequestHandler);
-
-// Get a specific problem by slug
-router.get('/slug/:slug', authenticateToken, (async (req, res) => {
-  try {
-    const { slug } = req.params;
-    const userId = req.user?.id;
-
-    if (!userId) {
-      return res.status(401).json({ error: 'User not authenticated' });
-    }
-
-    const problem = await prisma.problem.findUnique({
-      where: { slug },
-      include: {
-        completedBy: {
-          where: { id: userId },
-          select: { id: true }
-        },
-        progress: {
-          where: { userId },
-          select: { status: true }
-        },
-        topic: {
-          include: { level: true }
-        },
-        collections: {
-          select: {
-            collection: {
-              select: {
-                id: true,
-                name: true
-              }
-            }
-          }
-        },
-        codeProblem: {
-          include: { testCases: true }
-        }
-      }
-    });
-
-    if (!problem) {
-      return res.status(404).json({ error: 'Problem not found' });
-    }
-
-    // Get collection IDs from problem's collections
-    const collectionIds = problem.collections 
-      ? problem.collections.map((pc: any) => pc.collectionId || (pc.collection && pc.collection.id))
-      : [];
-
-    // Find next and previous problems if this problem belongs to a topic
-    let nextProblemId = null;
-    let prevProblemId = null;
-    let nextProblemSlug = null;
-    let prevProblemSlug = null;
-
-    if (problem.topicId) {
-      // Get all problems in the same topic, ordered by reqOrder
-      const topicProblems = await prisma.problem.findMany({
-        where: { 
-          topicId: problem.topicId 
-        },
-        orderBy: { 
-          reqOrder: 'asc' 
-        },
-        select: { 
-          id: true, 
-          reqOrder: true,
-          slug: true
-        }
-      });
-
-      // Find the current problem's index in the ordered list
-      const currentIndex = topicProblems.findIndex((p: { id: string }) => p.id === problem.id);
-      
-      if (currentIndex !== -1) {
-        // Get previous problem if not the first
-        if (currentIndex > 0) {
-          prevProblemId = topicProblems[currentIndex - 1].id;
-          prevProblemSlug = topicProblems[currentIndex - 1].slug;
-        }
-        
-        // Get next problem if not the last
-        if (currentIndex < topicProblems.length - 1) {
-          nextProblemId = topicProblems[currentIndex + 1].id;
-          nextProblemSlug = topicProblems[currentIndex + 1].slug;
-        }
-      }
-    }
-
-    // Transform the response to include isCompleted, navigation IDs, and collections
-    const response = {
-      ...problem,
-      // Remove legacy fields if they were included implicitly
-      codeTemplate: undefined,
-      testCases: undefined,
-      // Keep necessary fields
-      isCompleted: problem.completedBy.length > 0 || problem.progress.some((p: { status: ProgressStatus }) => p.status === 'COMPLETED'),
-      nextProblemId,
-      prevProblemId,
-      nextProblemSlug,
-      prevProblemSlug,
-      collectionIds,
-      completedBy: undefined, // Remove these from the response
-      progress: undefined,
-      collections: undefined // Remove raw collections data
-    };
-
-    res.json(response);
-  } catch (error) {
-    console.error('Error fetching problem by slug:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 }) as RequestHandler);

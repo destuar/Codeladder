@@ -101,6 +101,13 @@ interface TestCase {
   orderNum?: number;
 }
 
+// Add FunctionParameter interface after TestCase
+interface FunctionParameter {
+  name: string;
+  type: string;
+  description?: string;
+}
+
 interface CodeProblem extends QuizQuestionBase {
   questionType: 'CODE';
   language?: string;
@@ -109,6 +116,8 @@ interface CodeProblem extends QuizQuestionBase {
   timeLimit?: number;
   memoryLimit?: number | null;
   testCases: TestCase[];
+  return_type?: string; // Add return type field
+  params?: FunctionParameter[]; // Add params field
 }
 
 // Union type representing a question in the state
@@ -179,6 +188,10 @@ export function TestAdmin() {
   const [codeTestCases, setCodeTestCases] = useState<TestCase[]>([
     { input: '', expectedOutput: '', isHidden: false },
   ]);
+
+  // Add state for the new fields
+  const [codeReturnType, setCodeReturnType] = useState('');
+  const [codeFunctionParams, setCodeFunctionParams] = useState<FunctionParameter[]>([]);
 
   // DND Handler
   const handleOnDragEnd = useCallback((result: DropResult) => {
@@ -584,7 +597,9 @@ export function TestAdmin() {
                 expectedOutput: testCase.expectedOutput.trim() || '',
                 isHidden: Boolean(testCase.isHidden),
                 orderNum: testCase.orderNum || tcIndex + 1
-              }))
+              })),
+            return_type: codeProblem.return_type || undefined,
+            params: codeProblem.params ? [...codeProblem.params] : undefined
           };
         }
         
@@ -732,6 +747,8 @@ export function TestAdmin() {
     setCodeTestCases([
       { input: '', expectedOutput: '', isHidden: false }
     ]);
+    setCodeReturnType(''); // Reset return type
+    setCodeFunctionParams([]); // Reset params
     
     setShowProblemDialog(true);
   };
@@ -772,6 +789,8 @@ export function TestAdmin() {
       setCodeTimeLimit(problem.timeLimit || 5000);
       setCodeMemoryLimit(problem.memoryLimit || undefined); // Provide default undefined
       setCodeTestCases(problem.testCases.map(tc => ({ ...tc })) || [{ input: '', expectedOutput: '', isHidden: false }]);
+      setCodeReturnType(problem.return_type || ''); // Set return type
+      setCodeFunctionParams(problem.params ? [...problem.params] : []); // Set params
     }
 
     setShowProblemDialog(true);
@@ -855,11 +874,14 @@ export function TestAdmin() {
         questionType: 'CODE',
         points: problemPoints,
         language: codeLanguage,
-        codeTemplate: codeTemplate || undefined,
-        functionName: codeFunctionName || undefined,
+        codeTemplate: codeTemplate || null,
+        functionName: codeFunctionName || null,
         timeLimit: codeTimeLimit,
         memoryLimit: codeMemoryLimit,
-        testCases: validTestCases
+        testCases: validTestCases,
+        return_type: codeReturnType.trim() || undefined,
+        params: codeFunctionParams.length > 0 ? 
+          codeFunctionParams.filter(p => p.name.trim() || p.type.trim()) : undefined
       };
       
       // Add/update problem in test problems array
@@ -882,6 +904,23 @@ export function TestAdmin() {
       prevProblems.filter(p => p !== problem)
     );
     toast.success("Problem removed");
+  };
+
+  // Add helper functions for function parameters
+  const handleAddFunctionParam = () => {
+    setCodeFunctionParams([...codeFunctionParams, { name: '', type: '' }]);
+  };
+
+  const handleFunctionParamChange = (index: number, field: keyof FunctionParameter, value: string) => {
+    const newParams = [...codeFunctionParams];
+    newParams[index] = { ...newParams[index], [field]: value };
+    setCodeFunctionParams(newParams);
+  };
+
+  const handleRemoveFunctionParam = (index: number) => {
+    const newParams = [...codeFunctionParams];
+    newParams.splice(index, 1);
+    setCodeFunctionParams(newParams);
   };
 
   return (
@@ -1560,6 +1599,79 @@ export function TestAdmin() {
                         </div>
                       </div>
                     ))}
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="code-return-type">Return Type (Optional)</Label>
+                  <Input
+                    id="code-return-type"
+                    value={codeReturnType}
+                    onChange={(e) => setCodeReturnType(e.target.value)}
+                    placeholder="e.g., number, string, boolean, number[]"
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Specify the return type of the function (e.g., number, string, boolean)
+                  </p>
+                </div>
+                <div className="space-y-2">
+                  <Label>Function Parameters (Optional)</Label>
+                  <div className="border rounded-md p-4 space-y-4">
+                    {codeFunctionParams.length > 0 ? (
+                      <div className="space-y-4">
+                        {codeFunctionParams.map((param, index) => (
+                          <div key={index} className="flex gap-2 items-end">
+                            <div className="flex-1">
+                              <Label htmlFor={`param-name-${index}`} className="text-xs">Name</Label>
+                              <Input
+                                id={`param-name-${index}`}
+                                value={param.name}
+                                onChange={(e) => handleFunctionParamChange(index, 'name', e.target.value)}
+                                placeholder="param name"
+                              />
+                            </div>
+                            <div className="flex-1">
+                              <Label htmlFor={`param-type-${index}`} className="text-xs">Type</Label>
+                              <Input
+                                id={`param-type-${index}`}
+                                value={param.type}
+                                onChange={(e) => handleFunctionParamChange(index, 'type', e.target.value)}
+                                placeholder="param type"
+                              />
+                            </div>
+                            <div className="flex-1">
+                              <Label htmlFor={`param-description-${index}`} className="text-xs">Description (Optional)</Label>
+                              <Input
+                                id={`param-description-${index}`}
+                                value={param.description || ''}
+                                onChange={(e) => handleFunctionParamChange(index, 'description', e.target.value)}
+                                placeholder="description (optional)"
+                              />
+                            </div>
+                            <Button 
+                              type="button" 
+                              variant="ghost" 
+                              size="icon" 
+                              onClick={() => handleRemoveFunctionParam(index)}
+                            >
+                              <Trash className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-center text-muted-foreground py-2">No parameters defined</p>
+                    )}
+                    
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={handleAddFunctionParam}
+                      className="w-full mt-2"
+                    >
+                      <Plus className="h-4 w-4 mr-2" />
+                      Add Parameter
+                    </Button>
                   </div>
                 </div>
             </TabsContent>
