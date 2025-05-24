@@ -22,11 +22,20 @@ COPY package*.json ./
 RUN npm ci && \
     npm cache clean --force
 
+# <<< ADD THIS DEBUGGING BLOCK START >>>
+RUN echo "DEBUG: Listing build context root (/app which is the WORKDIR, context mapped here)" && \
+    ls -la /app && \
+    echo "DEBUG: Listing one level up from /app (should be image root, not context)" && \
+    ls -la / && \
+    echo "DEBUG: Attempting to list contents of where source files for COPY should be (from context's root, which is current WORKDIR /app)" && \
+    ls -la .
+# <<< ADD THIS DEBUGGING BLOCK END >>>
+
 # Copy source code and configuration files
 # These are separated from package files to optimize layer caching
-COPY tsconfig.json ./
-COPY prisma/ ./prisma/
-COPY src/ ./src/
+COPY ./tsconfig.json ./tsconfig.json
+COPY ./prisma/ ./prisma/
+COPY ./src/ ./src/
 
 # Debug: Verify file structure before build
 # This helps with troubleshooting build issues
