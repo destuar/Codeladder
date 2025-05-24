@@ -59,7 +59,8 @@ services:
       - VITE_NODE_ENV=production
     ports:
       # Expose frontend port
-      - "8085:8085"
+      - "80:80"
+      - "443:443"
     depends_on:
       # Ensure backend is available
       - backend
