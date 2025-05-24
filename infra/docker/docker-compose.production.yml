@@ -24,7 +24,7 @@ services:
       dockerfile: ../infra/docker/backend/Dockerfile.backend
     env_file:
       # Reference root .env file, path relative to this docker-compose.yml file
-      - ../../.env  
+      - ../../backend/.env  
     environment:
       # Force production mode
       - NODE_ENV=production
