@@ -18,13 +18,13 @@ services:
   # ============================= BACKEND SERVICE ==============================
   backend:
     build:
-      # Build context is the backend root directory
+      # Build context is the project root directory
       context: ../../
-      # Use production Dockerfile
+      # Use production Dockerfile for backend, path relative to context
       dockerfile: infra/docker/backend/Dockerfile.backend
     env_file:
-      # Load production environment variables
-      - ../../.env  # Reference root .env file
+      # Reference root .env file, path relative to this docker-compose.yml file
+      - ../../.env  
     environment:
       # Force production mode
       - NODE_ENV=production
@@ -47,13 +47,17 @@ services:
   # ============================= FRONTEND SERVICE ============================
   frontend:
     build:
-      # Build context is the frontend root directory
-      context: ./frontend
-      # Use production Dockerfile
-      dockerfile: Dockerfile.frontend
+      # Context: Relative to this docker-compose.yml file.
+      # If this file is in infra/docker/ and frontend source is in the project's frontend/ dir,
+      # context is ../../frontend (i.e. /home/ec2-user/codeladder/frontend)
+      context: ../../frontend
+      # Dockerfile: Relative to this docker-compose.yml file.
+      # If this file is in infra/docker/ and Dockerfile is infra/docker/frontend/Dockerfile.frontend,
+      # path is ./frontend/Dockerfile.frontend
+      dockerfile: ./frontend/Dockerfile.frontend
     env_file:
-      # Load production environment variables
-      - ../../.env  # Reference root .env file
+      # Reference root .env file, path relative to this docker-compose.yml file
+      - ../../.env  
     environment:
       # Production-specific environment variables
       - VITE_NODE_ENV=production
