@@ -61,7 +61,7 @@ services:
       - VITE_API_URL=http://localhost:8000/api
     ports:
       # Expose frontend port to host machine
-      - "8085:8085"
+      - "8085:80"
     volumes:
       # Exclude node_modules from bind mount for performance
       - /app/node_modules
