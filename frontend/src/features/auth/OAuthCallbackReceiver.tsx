@@ -65,9 +65,9 @@ const OAuthCallbackReceiver: React.FC = () => {
       
       // A small timeout before closing can help ensure postMessage/localStorage operations complete.
       setTimeout(() => {
-        console.log('[OAuthCallbackReceiver] Closing popup.');
-        window.close();
-      }, 200); // 200ms delay
+        console.log('[OAuthCallbackReceiver] Closing popup. (Temporarily disabled for debugging)');
+        // window.close(); // <<<< COMMENT THIS OUT
+      }, 200); // Or a longer timeout like 5000 to give you time
 
     } else {
       console.error('[OAuthCallbackReceiver] Missing token or essential user details in URL parameters.');
@@ -86,9 +86,9 @@ const OAuthCallbackReceiver: React.FC = () => {
       localStorage.setItem('oauth_callback_data', JSON.stringify({ ...errorPayload, timestamp: Date.now() }));
       
       setTimeout(() => {
-        console.log('[OAuthCallbackReceiver] Closing popup due to error.');
-        window.close();
-      }, 200);
+        console.log('[OAuthCallbackReceiver] Closing popup due to error. (Temporarily disabled for debugging)');
+        // window.close(); // <<<< COMMENT THIS OUT
+      }, 200); // Or a longer timeout
     }
 
   }, [navigate]); // navigate is stable, effect runs once on mount
