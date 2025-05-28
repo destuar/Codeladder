@@ -144,6 +144,7 @@ export const login = async (req: Request, res: Response) => {
     if (error instanceof z.ZodError) {
       return res.status(400).json({ error: error.errors });
     }
+    console.error('[Login Controller Error]', error); 
     res.status(500).json({ error: 'Internal server error' });
   }
 };
