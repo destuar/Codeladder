@@ -50,11 +50,11 @@ services:
       # Context: Relative to this docker-compose.yml file.
       # If this file is in infra/docker/ and frontend source is in the project's frontend/ dir,
       # context is ../../frontend (i.e. /home/ec2-user/codeladder/frontend)
-      context: ../../frontend
+      context: ../../  # Set context to /app (project root)
       # Dockerfile: Relative to this docker-compose.yml file.
       # If this file is in infra/docker/ and Dockerfile is infra/docker/frontend/Dockerfile.frontend,
       # path is ./frontend/Dockerfile.frontend
-      dockerfile: ../infra/docker/frontend/Dockerfile.frontend
+      dockerfile: ./infra/docker/frontend/Dockerfile.frontend # Path to Dockerfile is now relative to /app
     env_file:
       # Reference root .env file, path relative to this docker-compose.yml file
       - ../../.env  
