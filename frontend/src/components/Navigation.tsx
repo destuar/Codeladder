@@ -158,21 +158,35 @@ export function Navigation() {
                   </span>
                 </span>
               </Link>
-              <Dialog>
-                <DialogTrigger asChild>
-                  <span className="text-base font-medium text-muted-foreground hover:text-foreground cursor-pointer">
-                    Review
-                  </span>
-                </DialogTrigger>
-                <DialogContent className="sm:max-w-[425px]">
-                  <DialogHeader>
-                    <DialogTitle>Feature Coming Soon</DialogTitle>
-                    <DialogDescription>
-                      The 'Review' section, featuring a personalized spaced repetition dashboard to help you retain knowledge, is currently under development. Check back later!
-                    </DialogDescription>
-                  </DialogHeader>
-                </DialogContent>
-              </Dialog>
+              {!canAccessAdmin ? (
+                <Dialog>
+                  <DialogTrigger asChild>
+                    <span className="text-base font-medium text-muted-foreground hover:text-foreground cursor-pointer">
+                      Review
+                    </span>
+                  </DialogTrigger>
+                  <DialogContent className="sm:max-w-[425px]">
+                    <DialogHeader>
+                      <DialogTitle>Feature Coming Soon</DialogTitle>
+                      <DialogDescription>
+                        The 'Review' section, featuring a personalized spaced repetition dashboard to help you retain knowledge, is currently under development. Check back later!
+                      </DialogDescription>
+                    </DialogHeader>
+                  </DialogContent>
+                </Dialog>
+              ) : (
+                <Link
+                  to="/review"
+                  className="text-base font-medium text-muted-foreground hover:text-foreground"
+                  onClick={() => {
+                    if (isAdminView) {
+                      setIsAdminView(false);
+                    }
+                  }}
+                >
+                  Review
+                </Link>
+              )}
               <Dialog>
                 <DialogTrigger asChild>
                   <span className="text-base font-medium text-muted-foreground hover:text-foreground cursor-pointer">
@@ -323,21 +337,35 @@ export function Navigation() {
                       </Link>
                     </DialogClose>
                     <DialogClose asChild>
-                      <Dialog>
-                        <DialogTrigger asChild>
-                          <span className="text-base font-medium text-muted-foreground hover:text-foreground cursor-pointer">
-                            Review
-                          </span>
-                        </DialogTrigger>
-                        <DialogContent className="sm:max-w-[425px]">
-                          <DialogHeader>
-                            <DialogTitle>Feature Coming Soon</DialogTitle>
-                            <DialogDescription>
-                              The 'Review' section, featuring a personalized spaced repetition dashboard to help you retain knowledge, is currently under development. Check back later!
-                            </DialogDescription>
-                          </DialogHeader>
-                        </DialogContent>
-                      </Dialog>
+                      {!canAccessAdmin ? (
+                        <Dialog>
+                          <DialogTrigger asChild>
+                            <span className="text-base font-medium text-muted-foreground hover:text-foreground cursor-pointer">
+                              Review
+                            </span>
+                          </DialogTrigger>
+                          <DialogContent className="sm:max-w-[425px]">
+                            <DialogHeader>
+                              <DialogTitle>Feature Coming Soon</DialogTitle>
+                              <DialogDescription>
+                                The 'Review' section, featuring a personalized spaced repetition dashboard to help you retain knowledge, is currently under development. Check back later!
+                              </DialogDescription>
+                            </DialogHeader>
+                          </DialogContent>
+                        </Dialog>
+                      ) : (
+                        <Link
+                          to="/review"
+                          className="text-base font-medium text-muted-foreground hover:text-foreground"
+                          onClick={() => {
+                            if (isAdminView) {
+                              setIsAdminView(false);
+                            }
+                          }}
+                        >
+                          Review
+                        </Link>
+                      )}
                     </DialogClose>
                     <DialogClose asChild>
                       <Dialog>
