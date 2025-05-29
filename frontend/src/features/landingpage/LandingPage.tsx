@@ -227,14 +227,14 @@ export default function LandingPage() {
             <div className="flex flex-col sm:flex-row gap-4 mb-12 relative z-10">
               {user ? (
                 <Link to="/dashboard">
-                  <Button 
-                    size="lg" 
-                    className="gap-2 bg-[#5271FF] hover:bg-[#415ACC] text-white relative overflow-hidden group shadow-md shadow-[#5271FF]/5 w-full sm:w-auto py-6 px-8 text-lg font-medium transition-all duration-300 ease-in-out hover:scale-105"
+                  <Button
+                    size="lg"
+                    className="gap-2 bg-[#5271FF] hover:bg-[#415ACC] text-white relative overflow-hidden group shadow-md shadow-[#5271FF]/5 w-full sm:w-auto py-6 px-8 text-lg font-medium hover:scale-105"
                   >
                     <span className="relative z-10 flex items-center">
                       Start Climbing <ArrowRight className="h-5 w-5 ml-2" />
                     </span>
-                    <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+                    <div className="absolute inset-0 opacity-0 group-hover:opacity-100">
                       <div className="absolute inset-0 bg-[#415ACC]"></div>
                       <div className="absolute -inset-[1px] bg-gradient-to-r from-[#5271FF] via-[#6B8EFF] to-[#5271FF] opacity-50 group-hover:opacity-100 transition-opacity duration-500 blur-[2px]"></div>
                     </div>
@@ -243,27 +243,27 @@ export default function LandingPage() {
               ) : (
                 <div className="flex flex-col sm:flex-row gap-4 items-center relative">
                   {/* No glow effect */}
-                  
+
                   <div className="flex flex-col sm:flex-row gap-4 items-center relative z-10">
                     <Link to="/register" className="w-full sm:w-auto">
-                      <Button 
-                        size="lg" 
-                        className="gap-2 bg-[#5271FF] hover:bg-[#415ACC] text-white relative overflow-hidden group shadow-md shadow-[#5271FF]/5 w-full sm:w-auto py-6 px-8 text-lg font-medium transition-all duration-300 ease-in-out hover:scale-105"
+                      <Button
+                        size="lg"
+                        className="gap-2 bg-[#5271FF] hover:bg-[#415ACC] text-white relative overflow-hidden group shadow-md shadow-[#5271FF]/5 w-full sm:w-auto py-6 px-8 text-lg font-medium hover:scale-105"
                       >
                         <span className="relative z-10 flex items-center">
                           Get Started Free <ArrowRight className="h-5 w-5 ml-2" />
                         </span>
-                        <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+                        <div className="absolute inset-0 opacity-0 group-hover:opacity-100">
                           <div className="absolute inset-0 bg-[#415ACC]"></div>
                           <div className="absolute -inset-[1px] bg-gradient-to-r from-[#5271FF] via-[#6B8EFF] to-[#5271FF] opacity-50 group-hover:opacity-100 transition-opacity duration-500 blur-[2px]"></div>
                         </div>
                       </Button>
                     </Link>
                     <Link to="/login" className="w-full sm:w-auto">
-                      <Button 
-                        size="lg" 
+                      <Button
+                        size="lg"
                         variant="outline"
-                        className="border-[#5271FF]/50 border-2 text-[#5271FF] hover:text-[#5271FF] hover:bg-white dark:hover:bg-[#5271FF]/10 w-full sm:w-auto py-6 px-8 text-lg font-medium transition-all duration-300 ease-in-out hover:scale-105 shadow-none"
+                        className="border-[#5271FF]/50 border-2 text-[#5271FF] hover:text-[#5271FF] hover:bg-white dark:hover:bg-[#5271FF]/10 w-full sm:w-auto py-6 px-8 text-lg font-medium hover:scale-105 shadow-none"
                       >
                         Log In
                       </Button>

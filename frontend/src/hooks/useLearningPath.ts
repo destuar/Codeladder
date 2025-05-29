@@ -6,7 +6,7 @@ export interface Problem {
   id: string;
   name: string;
   slug?: string;
-  difficulty: 'EASY_IIII' | 'EASY_III' | 'EASY_II' | 'EASY_I' | 'MEDIUM' | 'HARD';
+  difficulty: 'BEGINNER' | 'EASY' | 'MEDIUM' | 'HARD';
   required: boolean;
   reqOrder?: number;
   content?: string;

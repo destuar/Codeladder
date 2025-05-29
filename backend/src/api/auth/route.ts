@@ -78,6 +78,7 @@ const oauthUrlHandler: ExpressRequestHandler = (req: Request, res: Response): vo
     res.status(400).json({ error: 'Unsupported OAuth provider' });
     return;
   }
+  console.log(`[OAuth Debug] GitHub Auth URL generated: ${authUrl}`);
   res.json({ url: authUrl });
 };
 

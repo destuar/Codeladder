@@ -66,8 +66,8 @@ const OAuthCallbackReceiver: React.FC = () => {
       // A small timeout before closing can help ensure postMessage/localStorage operations complete.
       setTimeout(() => {
         console.log('[OAuthCallbackReceiver] Closing popup.');
-        window.close();
-      }, 200); // 200ms delay
+        window.close(); // Re-enabled
+      }, 200);
 
     } else {
       console.error('[OAuthCallbackReceiver] Missing token or essential user details in URL parameters.');
@@ -87,7 +87,7 @@ const OAuthCallbackReceiver: React.FC = () => {
       
       setTimeout(() => {
         console.log('[OAuthCallbackReceiver] Closing popup due to error.');
-        window.close();
+        window.close(); // Re-enabled
       }, 200);
     }
 

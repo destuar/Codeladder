@@ -247,21 +247,30 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     setError(null);
     oauthInProgress = false; // Reset flag at the start of a new OAuth attempt
 
+    // 1. Open the popup immediately with a blank target or a loading page within your site
+    const width = 500, height = 600;
+    const left = window.screenX + (window.outerWidth - width) / 2;
+    const top = window.screenY + (window.outerHeight - height) / 2;
+    
+    // Open a blank window or a placeholder page on your own origin first
+    // Using 'about:blank' is common, or a simple loading indicator page if you have one.
+    const popup = window.open('about:blank', `Login with ${provider}`, `width=${width},height=${height},left=${left},top=${top},noopener=false,noreferrer=false`);
+
+    if (!popup) {
+      // If even opening 'about:blank' fails, it's a very aggressive blocker or popups are fully disabled.
+      setError('Popup blocked. Please ensure popups are enabled for this site.');
+      setIsLoading(false);
+      throw new Error('Popup blocked. Please allow popups for this site.');
+    }
+
     try {
+      // 2. Fetch the actual OAuth URL
       const response = await api.get(`/auth/${provider}/url`);
       const { url } = response;
       localStorage.setItem('auth_redirect', window.location.pathname);
 
-      const width = 500, height = 600;
-      const left = window.screenX + (window.outerWidth - width) / 2;
-      const top = window.screenY + (window.outerHeight - height) / 2;
-      
-      const popup = window.open(url, `Login with ${provider}`, `width=${width},height=${height},left=${left},top=${top},noopener=false,noreferrer=false`);
-
-      if (!popup) {
-        oauthInProgress = false;
-        throw new Error('Popup blocked. Please allow popups for this site.');
-      }
+      // 3. Navigate the already opened popup to the OAuth URL
+      popup.location.href = url;
 
       // The Promise setup for postMessage and popup close detection is still useful
       // as a direct communication channel if available, or for cancellation detection.
@@ -313,15 +322,33 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
         window.addEventListener('message', handleMessage);
 
         const checkClosed = setInterval(async () => {
-          if (popup.closed) {
-            clearInterval(checkClosed);
-            window.removeEventListener('message', handleMessage);
-            if (!oauthInProgress) {
-              console.log('[AuthContext] Popup closed and OAuth not handled, setting error.');
-              setError('Authentication cancelled or popup closed.');
-              // No explicit reject here needed if the main function is void and error is set globally.
-              // reject(new Error('Authentication cancelled or popup closed'));
-              oauthInProgress = false; // Reset if popup closed before completion
+          try {
+            if (popup && popup.closed) { // Check if popup exists before accessing .closed
+              clearInterval(checkClosed);
+              window.removeEventListener('message', handleMessage);
+              if (!oauthInProgress) {
+                console.log('[AuthContext] Popup closed and OAuth not (yet) handled by message/storage. Setting cancelled error.');
+                setError('Authentication cancelled or popup closed.');
+                oauthInProgress = false; // Reset if popup closed before completion
+              }
+            }
+          } catch (e: any) {
+            // Check if it's a COOP-related error (this check is basic, might need refinement)
+            if (e.message && e.message.includes('Cross-Origin-Opener-Policy')) {
+              console.warn('[AuthContext] COOP policy prevented checking popup.closed. Relying on message/storage for OAuth completion.', e.message);
+              // Don't necessarily set error here, as message/storage might still come through.
+              // If it's essential to know about manual closure even with COOP, this strategy needs rethinking.
+              // For now, we just log and let the other mechanisms (postMessage, localStorage) try to complete.
+              // If after a longer timeout OAuth is still not in progress, then it might be an actual cancellation.
+            } else {
+              // Different error while checking popup.closed
+              console.error('[AuthContext] Error checking popup state:', e);
+              clearInterval(checkClosed); // Stop interval on other errors too
+              window.removeEventListener('message', handleMessage);
+              if (!oauthInProgress) {
+                setError('Error during OAuth process.'); // Generic error
+                oauthInProgress = false;
+              }
             }
           }
         }, 500);

@@ -131,7 +131,7 @@ export function StandaloneInfoAdmin() {
         estimatedTime: formData.estimatedTime,
         slug: formData.slug.trim(),
         problemType: "STANDALONE_INFO",
-        difficulty: "EASY_I",
+        difficulty: "EASY",
         required: false
       }, token);
       toast.success("Info page created successfully");
@@ -171,7 +171,7 @@ export function StandaloneInfoAdmin() {
         description: formData.description.trim(),
         estimatedTime: formData.estimatedTime,
         problemType: "STANDALONE_INFO",
-        difficulty: "EASY_I",
+        difficulty: "EASY",
       }, token);
       toast.success("Info page updated successfully");
       setIsFormDialogOpen(false);

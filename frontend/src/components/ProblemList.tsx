@@ -15,6 +15,7 @@ import { cn } from '@/lib/utils';
 import { Problem, Topic } from '@/hooks/useLearningPath';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Difficulty, SortField, SortDirection, ProblemListProps, DIFFICULTY_ORDER } from '@/features/problems/types';
+import { DifficultyBadge } from '@/features/problems/components/DifficultyBadge';
 
 const formatEstimatedTime = (time?: number) => {
   if (!time) return null;
@@ -22,30 +23,6 @@ const formatEstimatedTime = (time?: number) => {
   const hours = Math.floor(time / 60);
   const minutes = time % 60;
   return minutes ? `${hours}h ${minutes}m` : `${hours}h`;
-};
-
-const DifficultyBadge = ({ difficulty }: { difficulty: Difficulty }) => {
-  const getColor = () => {
-    switch (difficulty) {
-      case 'EASY_IIII':
-      case 'EASY_III':
-      case 'EASY_II':
-      case 'EASY_I':
-        return 'bg-emerald-500/15 text-emerald-600 hover:bg-emerald-500/25 border-emerald-500/20';
-      case 'MEDIUM':
-        return 'bg-amber-500/15 text-amber-600 hover:bg-amber-500/25 border-amber-500/20';
-      case 'HARD':
-        return 'bg-rose-500/15 text-rose-600 hover:bg-rose-500/25 border-rose-500/20';
-      default:
-        return '';
-    }
-  };
-
-  return (
-    <Badge variant="outline" className={cn("font-medium transition-colors", getColor())}>
-      {difficulty.replace(/_/g, ' ')}
-    </Badge>
-  );
 };
 
 // Helper function to convert estimatedTime to number when needed
@@ -119,7 +96,7 @@ export function ProblemList({
           const bOrder = b.reqOrder || Infinity;
           return direction * (aOrder - bOrder);
         case 'completed':
-          return direction * (Number(a.completed) - Number(b.completed));
+          return direction * (Number(a.isCompleted) - Number(b.isCompleted));
         default:
           return 0;
       }
@@ -324,7 +301,7 @@ export function ProblemList({
                 )}
               >
                 <TableCell className="pl-6 py-3">
-                  {problem.completed ? (
+                  {problem.isCompleted ? (
                     <CheckCircle2 className={cn("h-5 w-5 text-green-500", isLocked && "text-muted-foreground")} />
                   ) : (
                     <Circle className="h-5 w-5 text-muted-foreground/40" />
@@ -383,7 +360,7 @@ export function ProblemList({
                     {problem.estimatedTime && (
                       <span className="flex items-center gap-1 px-2 py-0.5 rounded text-muted-foreground">
                         <Timer className="h-3.5 w-3.5" />
-                        <span className="text-xs">
+                        <span className="text-xs whitespace-nowrap">
                           {formatEstimatedTime(parseEstimatedTime(problem.estimatedTime))}
                         </span>
                       </span>

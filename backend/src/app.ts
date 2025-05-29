@@ -187,7 +187,7 @@ app.use(helmet({
 const corsOptions = {
   origin: (origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) => {
     const allowedOrigins = env.NODE_ENV === 'production'
-      ? [env.CORS_ORIGIN] 
+      ? [env.CORS_ORIGIN, 'https://www.codeladder.io']
       : ['http://localhost:5173', 'http://localhost:8085', env.CORS_ORIGIN].filter(Boolean) as string[];
         
     if (!origin || (allowedOrigins && allowedOrigins.includes(origin))) {

@@ -16,6 +16,7 @@ import { cn } from "@/lib/utils";
 import { Topic, Level } from "@/hooks/useLearningPath";
 import { PlusCircle, Trash } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Difficulty as ProblemDifficulty } from '@/features/problems/types';
 
 // Define Collection interface within this file
 interface Collection {
@@ -46,7 +47,6 @@ interface ProblemCache {
   };
 }
 
-type ProblemDifficulty = 'EASY_IIII' | 'EASY_III' | 'EASY_II' | 'EASY_I' | 'MEDIUM' | 'HARD';
 type ProblemType = 'INFO' | 'CODING';
 
 // Add TestCase interface near the top with other types
@@ -212,7 +212,7 @@ export function ProblemCollectionAdmin() {
   const [newProblem, setNewProblem] = useState<NewProblem>({
     name: "",
     content: "",
-    difficulty: "EASY_I",
+    difficulty: "EASY",
     required: false,
     reqOrder: 1,
     problemType: "INFO",
@@ -760,7 +760,7 @@ export function ProblemCollectionAdmin() {
       setNewProblem({
         name: "",
         content: "",
-        difficulty: "EASY_I",
+        difficulty: "EASY",
         required: false,
         reqOrder: 1,
         problemType: "INFO",
@@ -1239,10 +1239,8 @@ export function ProblemCollectionAdmin() {
                   <SelectValue placeholder="Select difficulty" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="EASY_I">Easy I</SelectItem>
-                  <SelectItem value="EASY_II">Easy II</SelectItem>
-                  <SelectItem value="EASY_III">Easy III</SelectItem>
-                  <SelectItem value="EASY_IIII">Easy IIII</SelectItem>
+                  <SelectItem value="BEGINNER">Beginner</SelectItem>
+                  <SelectItem value="EASY">Easy</SelectItem>
                   <SelectItem value="MEDIUM">Medium</SelectItem>
                   <SelectItem value="HARD">Hard</SelectItem>
                 </SelectContent>
@@ -1555,10 +1553,8 @@ export function ProblemCollectionAdmin() {
                   <SelectValue placeholder="Select difficulty" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="EASY_IIII">Easy IIII</SelectItem>
-                  <SelectItem value="EASY_III">Easy III</SelectItem>
-                  <SelectItem value="EASY_II">Easy II</SelectItem>
-                  <SelectItem value="EASY_I">Easy I</SelectItem>
+                  <SelectItem value="BEGINNER">Beginner</SelectItem>
+                  <SelectItem value="EASY">Easy</SelectItem>
                   <SelectItem value="MEDIUM">Medium</SelectItem>
                   <SelectItem value="HARD">Hard</SelectItem>
                 </SelectContent>

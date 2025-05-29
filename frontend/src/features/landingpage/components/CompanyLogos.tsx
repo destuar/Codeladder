@@ -42,19 +42,24 @@ export function CompanyLogos() {
 
   // Updated createLogoTransforms for a single grid
   const createLogoTransforms = (index: number) => {
-    const numColumns = 5;
-    const isSecondRow = index >= numColumns;
-    const rowIndexInGrid = isSecondRow ? index - numColumns : index;
+    const NUM_LOGOS = allLogos.length;
+    const ANIMATION_START_SCROLL_PROGRESS = 0.0; // Start animations from the beginning of scrollYProgress
+    const TOTAL_SCROLL_PROGRESS_FOR_ANIMATION_STARTS = 0.6; // Spread out logo animation start times over this portion of scrollYProgress
+    
+    // Calculate stagger ensuring it's valid even if NUM_LOGOS is 0 or 1 (though NUM_LOGOS is 10 here)
+    const STAGGER_PER_LOGO = NUM_LOGOS > 1 
+      ? TOTAL_SCROLL_PROGRESS_FOR_ANIMATION_STARTS / (NUM_LOGOS - 1)
+      : TOTAL_SCROLL_PROGRESS_FOR_ANIMATION_STARTS;
+      
+    const DURATION_OF_INDIVIDUAL_LOGO_ANIMATION_SCROLL = 0.2; // Each logo animates over this duration of scroll progress
 
-    // Adjust baseStart and totalProgressSpan if needed for desired animation feel
-    const baseStart = isSecondRow ? 0.4 : 0.1; // Slightly adjusted for potentially different row appearance
-    const totalProgressSpan = isSecondRow ? 0.5 : 0.5;
-    const progressPerLogo = totalProgressSpan / numColumns;
-    const start = baseStart + rowIndexInGrid * progressPerLogo;
-    const end = start + progressPerLogo * 1.5; // Adjusted end for a slightly different effect
+    const start = ANIMATION_START_SCROLL_PROGRESS + index * STAGGER_PER_LOGO;
+    const end = start + DURATION_OF_INDIVIDUAL_LOGO_ANIMATION_SCROLL;
 
-    const clampedStart = Math.max(0, Math.min(1, start));
-    const clampedEnd = Math.max(0, Math.min(1, end));
+    // Clamp values to ensure they are within [0, 1] and start < end
+    const clampedStart = Math.max(0, Math.min(1 - 0.001, start)); // Ensure start is not 1
+    const clampedEnd = Math.max(clampedStart + 0.001, Math.min(1, end)); // Ensure end is > start and not > 1
+    
     const inputRange = [clampedStart, clampedEnd];
 
     const grayscale = useTransform(scrollYProgress, inputRange, [100, 0]);
@@ -76,7 +81,7 @@ export function CompanyLogos() {
             <div className="h-0.5 w-16 bg-[#5b5bf7]/30 mx-auto"></div>
           </div>
           {/* Single grid for all logos - 4 cols on mobile, 5 on sm+ */}
-          <div className="grid grid-cols-4 sm:grid-cols-5 items-center justify-items-center gap-x-4 gap-y-6 sm:gap-x-8 sm:gap-y-6 md:gap-x-12 lg:gap-x-16 md:gap-y-8 w-full">
+          <div className="grid grid-cols-4 sm:grid-cols-5 items-center justify-items-center gap-x-4 gap-y-6 sm:gap-x-8 sm:gap-y-4 md:gap-x-2 md:gap-y-16 lg:gap-x-4 w-full">
             {allLogos.map((logo, index) => {
               const { filter, opacity } = createLogoTransforms(index);
               // Determine if this logo should be hidden on mobile
