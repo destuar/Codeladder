@@ -440,10 +440,8 @@ enum Role {
 }
 
 enum Difficulty {
-  EASY_IIII
-  EASY_III
-  EASY_II
-  EASY_I
+  EASY
+  BEGINNER
   MEDIUM
   HARD
 }

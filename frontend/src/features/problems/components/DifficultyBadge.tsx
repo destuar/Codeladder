@@ -12,10 +12,9 @@ interface DifficultyBadgeProps {
 export function DifficultyBadge({ difficulty }: DifficultyBadgeProps) {
   const getColor = () => {
     switch (difficulty) {
-      case 'EASY_IIII':
-      case 'EASY_III':
-      case 'EASY_II':
-      case 'EASY_I':
+      case 'BEGINNER':
+        return 'bg-emerald-500/15 text-emerald-600 hover:bg-emerald-500/25 border-emerald-500/20';
+      case 'EASY':
         return 'bg-emerald-500/15 text-emerald-600 hover:bg-emerald-500/25 border-emerald-500/20';
       case 'MEDIUM':
         return 'bg-amber-500/15 text-amber-600 hover:bg-amber-500/25 border-amber-500/20';

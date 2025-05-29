@@ -106,7 +106,7 @@ export default function CollectionsPage() {
     });
     
     // Define the order for difficulties
-    const difficultyOrder: ProblemDifficulty[] = ['EASY_IIII', 'EASY_III', 'EASY_II', 'EASY_I', 'MEDIUM', 'HARD'];
+    const difficultyOrder: ProblemDifficulty[] = ['BEGINNER', 'EASY', 'MEDIUM', 'HARD'];
     
     return difficultyOrder.filter(d => difficultySet.has(d));
   }, [problems]);

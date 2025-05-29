@@ -3,7 +3,7 @@ import { Topic } from '@/hooks/useLearningPath';
 /**
  * Problem difficulty levels in order from easiest to hardest
  */
-export type Difficulty = 'EASY_IIII' | 'EASY_III' | 'EASY_II' | 'EASY_I' | 'MEDIUM' | 'HARD';
+export type Difficulty = 'BEGINNER' | 'EASY' | 'MEDIUM' | 'HARD';
 
 /**
  * Available problem types
@@ -94,12 +94,10 @@ export interface ProblemListProps {
  * Difficulty order mapping for sorting
  */
 export const DIFFICULTY_ORDER: Record<Difficulty, number> = {
-  'EASY_IIII': 1,
-  'EASY_III': 2,
-  'EASY_II': 3,
-  'EASY_I': 4,
-  'MEDIUM': 5,
-  'HARD': 6
+  'BEGINNER': 1,
+  'EASY': 2,
+  'MEDIUM': 3,
+  'HARD': 4
 };
 
 /**

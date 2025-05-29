@@ -22,8 +22,11 @@ import { ArrowUpDown, ChevronDown, ChevronUp, CheckCircle2, Circle, Book, Code2,
 import { cn } from '@/lib/utils';
 import { ProblemList } from '@/components/ProblemList';
 import { useToast } from '@/components/ui/use-toast';
+import { Difficulty, DIFFICULTY_ORDER } from '@/features/problems/types';
+import { DifficultyBadge } from '@/features/problems/components/DifficultyBadge';
 
-type Difficulty = 'EASY_IIII' | 'EASY_III' | 'EASY_II' | 'EASY_I' | 'MEDIUM' | 'HARD';
+type SortField = 'name' | 'difficulty' | 'order' | 'completed';
+type SortDirection = 'asc' | 'desc';
 
 function formatEstimatedTime(minutes: number | null | undefined): string | null {
   if (!minutes) return null;
@@ -40,42 +43,6 @@ function formatEstimatedTime(minutes: number | null | undefined): string | null 
     return `${hours}h`;
   }
   return `${hours}h ${remainingMinutes}m`;
-}
-
-const DIFFICULTY_ORDER: Record<Difficulty, number> = {
-  'EASY_IIII': 1,
-  'EASY_III': 2,
-  'EASY_II': 3,
-  'EASY_I': 4,
-  'MEDIUM': 5,
-  'HARD': 6
-};
-
-type SortField = 'name' | 'difficulty' | 'order' | 'completed';
-type SortDirection = 'asc' | 'desc';
-
-function DifficultyBadge({ difficulty }: { difficulty: Difficulty }) {
-  const getColor = () => {
-    switch (difficulty) {
-      case 'EASY_IIII':
-      case 'EASY_III':
-      case 'EASY_II':
-      case 'EASY_I':
-        return 'bg-green-100 text-green-800';
-      case 'MEDIUM':
-        return 'bg-yellow-100 text-yellow-800';
-      case 'HARD':
-        return 'bg-red-100 text-red-800';
-      default:
-        return 'bg-secondary text-secondary-foreground';
-    }
-  };
-
-  return (
-    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getColor()}`}>
-      {difficulty.replace(/_/g, ' ')}
-    </span>
-  );
 }
 
 export default function TopicPage() {

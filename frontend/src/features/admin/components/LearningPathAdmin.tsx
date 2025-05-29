@@ -25,8 +25,8 @@ import {
   type SupportedLanguage,
   type LanguageData
 } from '@/features/languages/components/LanguageSupport';
+import { Difficulty as ProblemDifficulty } from '@/features/problems/types'; // Import ProblemDifficulty
 
-type ProblemDifficulty = 'EASY_IIII' | 'EASY_III' | 'EASY_II' | 'EASY_I' | 'MEDIUM' | 'HARD';
 type ProblemType = 'INFO' | 'CODING';
 
 type NewLevel = {
@@ -353,7 +353,7 @@ export function LearningPathAdmin() {
   const [newProblem, setNewProblem] = useState<NewProblem>({
     name: "",
     content: "",
-    difficulty: "EASY_I",
+    difficulty: "EASY", // Changed default from EASY_I
     required: false,
     reqOrder: 1,
     problemType: "INFO",
@@ -680,7 +680,7 @@ export function LearningPathAdmin() {
       setNewProblem({
         name: "",
         content: "",
-        difficulty: "EASY_I",
+        difficulty: "EASY", // Changed default from EASY_I
         required: false,
         reqOrder: 1,
         problemType: "INFO",
@@ -1456,9 +1456,9 @@ export function LearningPathAdmin() {
         setEditProblemData({
             id: problem.id,
             name: problem.name || '',
-            difficulty: problem.difficulty,
+            difficulty: (problem.difficulty as ProblemDifficulty) || 'EASY', // Changed default/fallback
             required: problem.required || false,
-            problemType: problem.problemType,
+            problemType: (problem.problemType as ProblemType) || 'INFO',
             slug: problem.slug,
             content: problem.content,
             estimatedTime: problem.estimatedTime,
@@ -2011,10 +2011,8 @@ export function LearningPathAdmin() {
                   <SelectValue placeholder="Select difficulty" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="EASY_I">Easy I</SelectItem>
-                  <SelectItem value="EASY_II">Easy II</SelectItem>
-                  <SelectItem value="EASY_III">Easy III</SelectItem>
-                  <SelectItem value="EASY_IIII">Easy IIII</SelectItem>
+                  <SelectItem value="BEGINNER">Beginner</SelectItem>
+                  <SelectItem value="EASY">Easy</SelectItem>
                   <SelectItem value="MEDIUM">Medium</SelectItem>
                   <SelectItem value="HARD">Hard</SelectItem>
                 </SelectContent>
@@ -2416,10 +2414,8 @@ export function LearningPathAdmin() {
                   <SelectValue placeholder="Select difficulty" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="EASY_IIII">Easy IIII</SelectItem>
-                  <SelectItem value="EASY_III">Easy III</SelectItem>
-                  <SelectItem value="EASY_II">Easy II</SelectItem>
-                  <SelectItem value="EASY_I">Easy I</SelectItem>
+                  <SelectItem value="BEGINNER">Beginner</SelectItem>
+                  <SelectItem value="EASY">Easy</SelectItem>
                   <SelectItem value="MEDIUM">Medium</SelectItem>
                   <SelectItem value="HARD">Hard</SelectItem>
                 </SelectContent>
