@@ -8,7 +8,9 @@
  */
 
 import app from './app';
+import { logger } from './shared/logger.service';
 import env from './config/env';
+import './jobs/scheduler'; // Import to initialize the scheduler
 
 // Parse port from environment configuration, defaulting to base-10 integer
 const PORT = parseInt(env.PORT, 10);
@@ -20,5 +22,11 @@ const PORT = parseInt(env.PORT, 10);
  * - Environment mode (development/production)
  */
 app.listen(PORT, () => {
-  console.log(`Server is running on port ${PORT} in ${env.NODE_ENV} mode`);
+  logger.log(`Server is running on port ${PORT} in ${env.NODE_ENV} mode`);
+  logger.log(`Access the API at http://localhost:${PORT}`);
+  logger.log(`Builtin.com jobs endpoint: http://localhost:${PORT}/api/jobs/builtin`);
+  logger.log(`Health check: http://localhost:${PORT}/health`);
+}).on('error', (err: Error) => {
+  logger.error('Failed to start server:', err);
+  process.exit(1);
 }); 

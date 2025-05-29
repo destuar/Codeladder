@@ -465,3 +465,28 @@ enum AssessmentType {
   QUIZ
   TEST
 }
+
+model Job {
+  id                String    @id @default(cuid())
+  externalId        String    @unique
+  url               String    @unique
+  title             String
+  company           String
+  companyUrl        String?
+  companyLogoUrl    String?   @db.Text
+  location          String
+  rawLocationHtml   String?   @db.Text
+  modality          String?
+  salary            String?
+  datePostedRaw     String?
+  parsedDatePosted  DateTime?
+  description       String?   @db.Text
+  skills            String[]
+  source            String    // e.g., "builtin.com"
+  createdAt         DateTime  @default(now()) // Indicates when it was added in the last scrape
+
+  @@index([parsedDatePosted])
+  @@index([modality])
+  @@index([location])
+  @@map("jobs")
+}

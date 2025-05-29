@@ -20,6 +20,8 @@ import { User as PrismaUser, Role as PrismaRole, Prisma } from '@prisma/client';
 import { errorHandler } from './middleware/errorHandler';
 import { apiLimiter, authLimiter, registerLimiter, adminApiLimiter } from './middleware/rateLimit';
 import { requestDebugger } from './middleware/debugger';
+import { jobsRouter } from './jobs/jobs.controller';
+import { logger } from './shared/logger.service';
 
 // Define PassportUser aligning with Express.User and PrismaUser
 interface PassportUser {
@@ -234,6 +236,9 @@ app.use('/api/learning', adminApiLimiter as RequestHandler);
 // Mount all API routes under the /api prefix
 app.use('/api', apiRouter);
 
+// Routes
+app.use('/api/jobs', jobsRouter);
+
 /**
  * Root Endpoint
  * Provides basic API information and available endpoints
@@ -253,9 +258,9 @@ app.get('/', rootHandler);
  * Used for monitoring and load balancer checks
  */
 const healthHandler: RequestHandler = (req, res) => {
-  res.status(200).json({ status: 'ok' });
+  res.status(200).json({ status: 'UP', message: 'Backend is healthy' });
 };
-app.get('/api/health', healthHandler);
+app.get('/health', healthHandler);
 
 /**
  * Global Error Handler
@@ -268,5 +273,10 @@ const finalErrorHandler: express.ErrorRequestHandler = (err, req, res, next) => 
   errorHandler(err, typedReq, res, next);
 };
 app.use(finalErrorHandler);
+
+// Handle 404 for routes not found
+app.use((req: Request, res: Response) => {
+  res.status(404).json({ message: 'Resource not found' });
+});
 
 export default app; 

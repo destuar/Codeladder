@@ -187,21 +187,30 @@ export function Navigation() {
                   Review
                 </Link>
               )}
-              <Dialog>
-                <DialogTrigger asChild>
-                  <span className="text-base font-medium text-muted-foreground hover:text-foreground cursor-pointer">
-                    Apply
-                  </span>
-                </DialogTrigger>
-                <DialogContent className="sm:max-w-[425px]">
-                  <DialogHeader>
-                    <DialogTitle>Feature Coming Soon</DialogTitle>
-                    <DialogDescription>
-                      The 'Apply' section featuring projects and challenges is currently under development. Check back later!
-                    </DialogDescription>
-                  </DialogHeader>
-                </DialogContent>
-              </Dialog>
+              {!canAccessAdmin ? (
+                <Dialog>
+                  <DialogTrigger asChild>
+                    <span className="text-base font-medium text-muted-foreground hover:text-foreground cursor-pointer">
+                      Apply
+                    </span>
+                  </DialogTrigger>
+                  <DialogContent className="sm:max-w-[425px]">
+                    <DialogHeader>
+                      <DialogTitle>Feature Access</DialogTitle>
+                      <DialogDescription>
+                        The 'Apply' section with job listings is currently available for admin users. Other users will see curated projects and challenges here in the future.
+                      </DialogDescription>
+                    </DialogHeader>
+                  </DialogContent>
+                </Dialog>
+              ) : (
+                <Link
+                  to="/apply"
+                  className="text-base font-medium text-muted-foreground hover:text-foreground"
+                >
+                  Apply
+                </Link>
+              )}
             </div>
 
             <div 
@@ -367,23 +376,34 @@ export function Navigation() {
                         </Link>
                       )}
                     </DialogClose>
-                    <DialogClose asChild>
-                      <Dialog>
-                        <DialogTrigger asChild>
-                          <span className="text-base font-medium text-muted-foreground hover:text-foreground cursor-pointer">
-                            Apply
-                          </span>
-                        </DialogTrigger>
-                        <DialogContent className="sm:max-w-[425px]">
-                          <DialogHeader>
-                            <DialogTitle>Feature Coming Soon</DialogTitle>
-                            <DialogDescription>
-                              The 'Apply' section featuring projects and challenges is currently under development. Check back later!
-                            </DialogDescription>
-                          </DialogHeader>
-                        </DialogContent>
-                      </Dialog>
-                    </DialogClose>
+                    {!canAccessAdmin ? (
+                      <DialogClose asChild>
+                        <Dialog>
+                          <DialogTrigger asChild>
+                            <span className="text-base font-medium text-muted-foreground hover:text-foreground cursor-pointer">
+                              Apply
+                            </span>
+                          </DialogTrigger>
+                          <DialogContent className="sm:max-w-[425px]">
+                            <DialogHeader>
+                              <DialogTitle>Feature Access</DialogTitle>
+                              <DialogDescription>
+                                The 'Apply' section with job listings is currently available for admin users. Other users will see curated projects and challenges here in the future.
+                              </DialogDescription>
+                            </DialogHeader>
+                          </DialogContent>
+                        </Dialog>
+                      </DialogClose>
+                    ) : (
+                      <DialogClose asChild>
+                        <Link
+                          to="/apply"
+                          className="text-base font-medium text-muted-foreground hover:text-foreground"
+                        >
+                          Apply
+                        </Link>
+                      </DialogClose>
+                    )}
                     <hr className="border-divider" />
                     {/* User/Auth Controls (Main List - Only Profile) */}
                     {user && (

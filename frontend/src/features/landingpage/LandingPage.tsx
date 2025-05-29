@@ -226,7 +226,7 @@ export default function LandingPage() {
             </div>
             <div className="flex flex-col sm:flex-row gap-4 mb-12 relative z-10">
               {user ? (
-                <Link to="/dashboard">
+                <Link to={user.role === 'ADMIN' ? "/dashboard" : "/collections"}>
                   <Button
                     size="lg"
                     className="gap-2 bg-[#5271FF] hover:bg-[#415ACC] text-white relative overflow-hidden group shadow-md shadow-[#5271FF]/5 w-full sm:w-auto py-6 px-8 text-lg font-medium hover:scale-105"
