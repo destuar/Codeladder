@@ -73,8 +73,14 @@ export function ApplyPage() {
     <div className="font-mono relative bg-background min-h-screen container mx-auto py-8 px-4 sm:px-6 lg:px-8">
       <div className="absolute inset-0 z-0 bg-dot-[#5271FF]/[0.2] [mask-image:radial-gradient(ellipse_at_center,transparent_20%,black)]" />
       <div className="relative z-10"> {/* Wrapper for content to be above the dot pattern */}
-        <h1 className="text-3xl font-bold mb-4 text-center">Our Top Software Engineering Jobs</h1>
-        <p className="text-center text-muted-foreground mb-6">Updated by the minute. Powered by Built In.</p>
+        <h1 className="text-3xl font-bold mb-4 text-center">
+          <span className="block sm:hidden">New Software Roles</span>
+          <span className="hidden sm:block">New Software Engineering Roles</span>
+        </h1>
+        <p className="text-center text-muted-foreground mb-6">
+          Updated by the minute.
+          <br className="sm:hidden" /> Powered by Built In.
+        </p>
 
 
         {isLoading && (
@@ -118,7 +124,7 @@ export function ApplyPage() {
                   {/* New Header div to contain all always-visible content */}
                   <div className="relative pb-6"> {/* pb-12 is to ensure space for the absolute positioned button at the bottom */}
                     {/* Top-right absolutely positioned date and salary (relative to this new header div) */}
-                    <div className="absolute top-0 right-0 text-sm text-right space-y-1">
+                    <div className="absolute top-0 right-0 text-xs sm:text-sm text-right space-y-1">
                       {job.datePosted && (
                         <p className="text-muted-foreground">{job.datePosted}</p>
                       )}
@@ -133,7 +139,7 @@ export function ApplyPage() {
                         href={job.url} 
                         target="_blank" 
                         rel="noopener noreferrer"
-                        className="font-sans antialiased bg-[#5271FF] text-white hover:bg-[#415ACC] px-4 py-2 rounded-md text-sm font-medium transition-colors duration-200 whitespace-nowrap"
+                        className="font-sans antialiased bg-[#5271FF] text-white hover:bg-[#415ACC] px-4 py-2 rounded-md text-xs sm:text-sm font-medium transition-colors duration-200 whitespace-nowrap"
                         onClick={(e) => e.stopPropagation()} // Prevent tile click when button is clicked
                       >
                         View or Apply
@@ -151,13 +157,13 @@ export function ApplyPage() {
                           />
                         )}
                         <div>
-                          <h2 className="text-xl font-semibold text-primary mb-1">{job.title}</h2>
+                          <h2 className="text-lg sm:text-xl font-semibold text-primary mb-1">{job.title}</h2>
                           {job.companyUrl ? (
-                            <a href={job.companyUrl} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">{job.company}</a>
+                            <a href={job.companyUrl} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline text-sm sm:text-base">{job.company}</a>
                           ) : (
-                            <p className="text-muted-foreground">{job.company}</p>
+                            <p className="text-muted-foreground text-sm sm:text-base">{job.company}</p>
                           )}
-                          <div className="text-muted-foreground text-sm">
+                          <div className="text-muted-foreground text-xs sm:text-sm">
                             {job.rawLocationHtml ? (
                               <TooltipProvider>
                                 <Tooltip>
@@ -205,8 +211,8 @@ export function ApplyPage() {
                     <div className="p-4 border-t border-border">
                       {job.description && (
                         <div className="mb-4">
-                          <h4 className="text-sm font-semibold mb-1 text-foreground">Description:</h4>
-                          <p className="text-sm text-foreground/80">
+                          <h4 className="text-xs sm:text-sm font-semibold mb-1 text-foreground">Description:</h4>
+                          <p className="text-xs sm:text-sm text-foreground/80">
                             {job.description}
                           </p>
                         </div>
@@ -214,7 +220,7 @@ export function ApplyPage() {
 
                       {job.skills && job.skills.length > 0 && (
                         <div>
-                          <h4 className="text-sm font-semibold mb-1 text-foreground">Top Skills:</h4>
+                          <h4 className="text-xs sm:text-sm font-semibold mb-1 text-foreground">Top Skills:</h4>
                           <div className="flex flex-wrap gap-2">
                             {job.skills.map((skill, index) => (
                               <span key={index} className="bg-secondary text-secondary-foreground px-2 py-1 rounded-full text-xs">

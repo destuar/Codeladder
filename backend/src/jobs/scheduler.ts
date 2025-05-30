@@ -6,9 +6,9 @@ import { logger } from '../shared/logger.service';
 // For a multi-instance deployment, a distributed lock (e.g., using Redis) would be necessary.
 let isBuiltinScrapeJobRunning = false;
 
-// Schedule to run every 30 minutes (e.g., at 0, 15, 30, 45 minutes past the hour)
+// Schedule to run every 15 minutes (e.g., at 0, 15, 30, 45 minutes past the hour)
 // For testing, you might use '*/1 * * * *' (every minute)
-const CRON_SCHEDULE = '*/15 * * * *'; // Every 15 minutes
+const CRON_SCHEDULE = '*/15 * * * *'; // Every 5 minutes
 
 logger.log(`Initializing job scheduler for builtin.com with schedule: ${CRON_SCHEDULE}`);
 

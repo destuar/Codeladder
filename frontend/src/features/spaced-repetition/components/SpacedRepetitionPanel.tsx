@@ -4,13 +4,11 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { format, formatDistanceToNow, isSameDay, isToday, addDays, isWithinInterval, startOfDay, endOfDay, isAfter } from 'date-fns';
-import { MemoryStrengthIndicator } from './MemoryStrengthIndicator';
 import { ReviewCalendar } from './ReviewCalendar';
 import { ReviewProblem } from '../api/spacedRepetitionApi';
 import { CalendarIcon, Clock, Calendar, ClockIcon, RefreshCw, ChevronDown, ChevronUp, ArrowLeft, Dumbbell, Check, Brain, Shuffle, Trash2, Edit2, Save, X, Plus, CalendarDays, HelpCircle, Lightbulb, LockIcon } from 'lucide-react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
-import { MemoryProgressionJourney } from './MemoryProgressionJourney';
 import { 
   Tooltip,
   TooltipContent,
@@ -30,78 +28,6 @@ import {
 } from "@/components/ui/alert-dialog";
 import { AddProblemsModal } from './AddProblemsModal';
 import { cn } from '@/lib/utils';
-import { useAuth } from '@/features/auth/AuthContext';
-
-/**
- * A component to handle the memory journey button and state
- */
-function MemoryJourneyButton({ problem }: { problem: ReviewProblem }) {
-  const [showMemoryJourney, setShowMemoryJourney] = useState(false);
-  
-  // Get previous review data from localStorage if available
-  const storageKey = `review-level-${problem.id}`;
-  let previousLevel = null;
-  
-  // Check if we have a stored previous level
-  try {
-    const storedData = localStorage.getItem(storageKey);
-    if (storedData) {
-      previousLevel = parseInt(storedData, 10);
-      // If current level is different, update storage after a delay
-      if (previousLevel !== problem.reviewLevel) {
-        setTimeout(() => {
-          localStorage.setItem(storageKey, problem.reviewLevel.toString());
-        }, 5000); // Update after animation completes
-      }
-    } else {
-      // Store current level for future reference
-      localStorage.setItem(storageKey, problem.reviewLevel.toString());
-    }
-  } catch (e) {
-    console.error('Error accessing localStorage:', e);
-  }
-  
-  // Get color based on strength level
-  const getStrengthColor = () => {
-    if (problem.reviewLevel <= 1) return 'text-blue-500 dark:text-blue-400';
-    if (problem.reviewLevel <= 3) return 'text-indigo-500 dark:text-indigo-400';
-    if (problem.reviewLevel <= 5) return 'text-violet-500 dark:text-violet-400';
-    return 'text-purple-500 dark:text-purple-400';
-  };
-  
-  // Get background color based on strength
-  const getStrengthBgColor = () => {
-    if (problem.reviewLevel <= 1) return 'bg-blue-50 border-blue-200 hover:bg-blue-100 dark:bg-blue-900/20 dark:border-blue-800 dark:hover:bg-blue-900/30';
-    if (problem.reviewLevel <= 3) return 'bg-indigo-50 border-indigo-200 hover:bg-indigo-100 dark:bg-indigo-900/20 dark:border-indigo-800 dark:hover:bg-indigo-900/30';
-    if (problem.reviewLevel <= 5) return 'bg-violet-50 border-violet-200 hover:bg-violet-100 dark:bg-violet-900/20 dark:border-violet-800 dark:hover:bg-violet-900/30';
-    return 'bg-purple-50 border-purple-200 hover:bg-purple-100 dark:bg-purple-900/20 dark:border-purple-800 dark:hover:bg-purple-900/30';
-  };
-  
-  return (
-    <>
-      <div 
-        className="cursor-pointer" 
-        onClick={() => setShowMemoryJourney(true)}
-        title="View memory progression"
-      >
-        <div className={`flex items-center justify-center w-6 h-6 rounded-full border transition-colors hover:shadow-sm ${getStrengthBgColor()}`}>
-          <Lightbulb className={`h-3 w-3 ${getStrengthColor()}`} />
-        </div>
-      </div>
-      
-      {/* Memory progression journey modal */}
-      {showMemoryJourney && (
-        <MemoryProgressionJourney
-          problemId={problem.id}
-          problemSlug={problem.slug}
-          currentLevel={problem.reviewLevel}
-          reviewHistory={[]}
-          onClose={() => setShowMemoryJourney(false)}
-        />
-      )}
-    </>
-  );
-}
 
 /**
  * Panel component that displays problems due for review and allows users to start reviews
@@ -109,7 +35,6 @@ function MemoryJourneyButton({ problem }: { problem: ReviewProblem }) {
 export function SpacedRepetitionPanel() {
   const location = useLocation();
   const navigate = useNavigate();
-  const { user } = useAuth();
   const { 
     dueReviews, 
     allScheduledReviews,
@@ -132,7 +57,7 @@ export function SpacedRepetitionPanel() {
   const [isCalendarDateSelected, setIsCalendarDateSelected] = useState(false);
   
   // Expansion states for each section
-  const [isTodayOpen, setIsTodayOpen] = useState(true);
+  const [isTodayOpen, setIsTodayOpen] = useState(false);
   const [isThisWeekOpen, setIsThisWeekOpen] = useState(false);
   const [isThisMonthOpen, setIsThisMonthOpen] = useState(false);
   const [isLaterOpen, setIsLaterOpen] = useState(false);
@@ -178,6 +103,19 @@ export function SpacedRepetitionPanel() {
       navigate(newPath, { replace: true });
     }
   }, [location.search, handleRefresh, location.pathname, navigate]);
+  
+  // Effect to set isTodayOpen based on screen size on mount
+  useEffect(() => {
+    const checkScreenSize = () => {
+      if (window.innerWidth >= 1024) { // Tailwind 'lg' breakpoint is 1024px
+        setIsTodayOpen(true);
+      }
+    };
+    checkScreenSize(); // Check on initial mount
+    // Optional: Add resize listener if needed, and cleanup
+    // window.addEventListener('resize', checkScreenSize);
+    // return () => window.removeEventListener('resize', checkScreenSize);
+  }, []); // Empty dependency array ensures this runs only once on mount
   
   const getDifficultyColor = (difficulty: string) => {
     if (difficulty.includes('EASY')) return 'bg-emerald-500/15 text-emerald-600 border-emerald-500/20';
@@ -255,7 +193,7 @@ export function SpacedRepetitionPanel() {
     return (
     <div 
       key={problem.id} 
-      className={`flex items-center justify-between p-3 border-b border-border/10 ${
+      className={`font-sans flex items-center justify-between p-3 border-b border-border/10 ${
         isEditMode 
           ? selectedProblems.has(problem.id)
             ? 'bg-primary/10' 
@@ -296,8 +234,6 @@ export function SpacedRepetitionPanel() {
         </div>
       </div>
       <div className="flex items-center gap-2">
-        <MemoryJourneyButton problem={problem} />
-        
         {!isEditMode && (
           <Button 
             size="sm" 
@@ -314,7 +250,7 @@ export function SpacedRepetitionPanel() {
                 } : undefined
               );
             }}
-            className="bg-[#5271FF]/10 text-[#5271FF] hover:bg-[#5271FF] hover:text-white dark:bg-[#6B8EFF]/10 dark:text-[#6B8EFF] dark:hover:bg-[#6B8EFF] dark:hover:text-white transition-colors duration-150"
+            className="bg-[#5271FF] text-white hover:bg-[#415ACC] dark:bg-[#5271FF] dark:text-white dark:hover:bg-[#6B8EFF] transition-colors duration-150"
           >
             Review
           </Button>
@@ -357,15 +293,15 @@ export function SpacedRepetitionPanel() {
     <Collapsible 
       open={isOpen} 
       onOpenChange={setIsOpen}
-      className="space-y-2"
+      className="space-y-2 font-sans"
     >
-      <div className="mb-4 overflow-hidden border border-border rounded-md">
+      <div className="mb-4 overflow-hidden rounded-md shadow-md hover:shadow-lg transition-shadow duration-300 dark:shadow-[0_4px_6px_-1px_rgba(82,113,255,0.15),_0_2px_4px_-2px_rgba(82,113,255,0.15)] bg-background/80 dark:bg-background backdrop-blur-md dark:border dark:border-[#5271FF]/15">
         <div className="flex w-full">
           <CollapsibleTrigger asChild className="flex-1">
             <Button 
               variant="ghost" 
               size="sm" 
-              className="w-full justify-between text-left h-10 p-0 hover:bg-muted/30 rounded-none group"
+              className="font-sans w-full justify-between text-left h-10 p-0 hover:bg-muted/30 rounded-none group"
             >
               <div className="flex items-center gap-2 text-sm font-medium pl-3">
                 {icon}
@@ -373,7 +309,7 @@ export function SpacedRepetitionPanel() {
                 <Badge
                   variant="outline"
                   className={cn(
-                    "ml-1",
+                    "ml-1 font-sans",
                     isActiveSection
                       ? [
                           "bg-white text-primary border-border",
@@ -397,7 +333,7 @@ export function SpacedRepetitionPanel() {
             <Button 
               variant="ghost" 
               size="sm" 
-              className="h-10 px-3 text-xs font-normal rounded-none hover:bg-muted/30 border-l border-border"
+              className="font-sans h-10 px-3 text-xs font-normal rounded-none hover:bg-muted/30 border-l border-border"
               onClick={(e) => {
                 e.stopPropagation();
                 handleShufflePractice(problems, isActiveSection);
@@ -416,7 +352,7 @@ export function SpacedRepetitionPanel() {
             {problems.map((problem, index) => renderProblemCard(problem, isActiveSection, index))}
           </div>
         ) : (
-          <div className="text-center py-3 text-muted-foreground/60">
+          <div className="text-center py-3 text-muted-foreground/60 font-sans">
             <p className="text-xs">No problems in this section.</p>
           </div>
         )}
@@ -508,7 +444,7 @@ export function SpacedRepetitionPanel() {
     
     if (totalProblems === 0) {
       return (
-        <div className="text-center py-6 text-muted-foreground">
+        <div className="font-sans text-center py-6 text-muted-foreground">
           <p>No problems due for review at the moment.</p>
           <p className="text-sm mt-2">Great job! Your queue is clear.</p>
         </div>
@@ -560,255 +496,188 @@ export function SpacedRepetitionPanel() {
     );
   };
   
-  if (!user || (user.role !== 'ADMIN' && user.role !== 'DEVELOPER')) {
-    return (
-      <div className="font-mono relative bg-background min-h-screen flex flex-col items-center justify-center p-4">
-        <div className="absolute inset-0 z-0 bg-dot-[#5271FF]/[0.2] [mask-image:radial-gradient(ellipse_at_center,transparent_20%,black)]"></div>
-        <Card className="relative z-10 w-full max-w-md p-6 text-center bg-background/80 dark:bg-neutral-900/80 backdrop-blur-md border border-destructive/50 shadow-2xl shadow-destructive/10">
-          <CardHeader>
-            <CardTitle className="text-2xl font-bold text-destructive flex items-center justify-center">
-              <LockIcon className="h-6 w-6 mr-2" />
-              Access Denied
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-muted-foreground">
-              You do not have permission to view this page. Please contact an administrator if you believe this is an error.
-            </p>
-            <Button 
-              onClick={() => navigate('/collections')} 
-              className="mt-6 bg-destructive hover:bg-destructive/90 text-destructive-foreground"
-            >
-              Go to Collections
-            </Button>
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
-
   return (
     <div className="font-mono relative bg-background min-h-screen">
       <div className="absolute inset-0 z-0 bg-dot-[#5271FF]/[0.2] [mask-image:radial-gradient(ellipse_at_center,transparent_20%,black)]"></div>
       
-      <div className="pt-6 pb-8 relative z-10 px-6">
-        <div className="grid grid-cols-1 lg:grid-cols-7 gap-8 items-start">
-          {/* Problems Card - now on the left, without card border */}
-          <div className="lg:col-span-5 relative" data-section="problems-card">
-            <div className="mb-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h1 className="text-2xl sm:text-3xl font-bold flex items-center gap-2 text-foreground">
-                    {isCalendarDateSelected && !isToday(selectedDate)
-                      ? `Reviews for ${format(selectedDate, 'MMMM d, yyyy')}`
-                      : "Review Dashboard"
-                    }
-                  </h1>
-                  <p className="text-sm text-muted-foreground mt-1">
-                    {isCalendarDateSelected && !isToday(selectedDate)
-                      ? "Reviews scheduled for the selected date"
-                      : "Select questions from your schedule for review"
-                    }
-                  </p>
-                </div>
-                <div className="flex items-center gap-2">
-              {isEditMode ? (
-                <>
-                  <TooltipProvider delayDuration={300}>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Button 
-                          variant="destructive" 
-                          size="sm"
-                          onClick={handleRemoveSelectedProblems}
-                          disabled={selectedProblems.size === 0 || isRemoving}
-                          className="px-2"
-                        >
-                          {isRemoving ? (
-                            <div className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent mr-1" />
-                          ) : (
-                            <Trash2 className="h-4 w-4 mr-1" />
-                          )}
-                          {selectedProblems.size > 0 ? selectedProblems.size : ''}
-                        </Button>
-                      </TooltipTrigger>
-                      <TooltipContent side="bottom" className="px-3 py-1.5 text-sm font-medium bg-popover text-popover-foreground">
-                        <p className="whitespace-nowrap">Remove selected problems from your review schedule</p>
-                      </TooltipContent>
-                    </Tooltip>
-                  </TooltipProvider>
+      <div className="py-0 relative z-10 px-4 sm:px-6 lg:px-8">
+        <div className="max-w-5xl mx-auto">
+          {/* Centered Title and Description (Top of the "T") */}
+          <div className="text-center mb-6">
+            <h1 className="text-3xl font-bold mb-4 text-center text-foreground">
+              {isCalendarDateSelected && !isToday(selectedDate)
+                ? `Reviews for ${format(selectedDate, 'MMMM d, yyyy')}`
+                : "The Review Dashboard"
+              }
+            </h1>
+            <p className="text-center text-muted-foreground">
+              {isCalendarDateSelected && !isToday(selectedDate)
+                ? "Reviews scheduled for the selected date"
+                : "Remember what you've learned."
+              }
+            </p>
+          </div>
 
-                  <TooltipProvider delayDuration={300}>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Button 
-                          variant="ghost" 
-                          size="icon"
-                          onClick={toggleEditMode}
-                          className="bg-transparent dark:bg-transparent text-[#5271FF] hover:text-white hover:bg-[#5271FF]/80 dark:text-[#6B8EFF] dark:hover:text-white dark:hover:bg-[#6B8EFF]/80 transition-colors duration-150"
-                        >
-                          <X className="h-4 w-4" />
-                        </Button>
-                      </TooltipTrigger>
-                      <TooltipContent side="bottom" className="px-3 py-1.5 text-sm font-medium bg-popover text-popover-foreground">
-                        <p className="whitespace-nowrap">Cancel selection and exit edit mode</p>
-                      </TooltipContent>
-                    </Tooltip>
-                  </TooltipProvider>
-                </>
-              ) : (
-                <>
-                  <TooltipProvider delayDuration={300}>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                                              <Button 
-                        variant="ghost" 
-                        size="icon"
-                        onClick={() => setIsAddProblemsModalOpen(true)}
-                        className="bg-transparent dark:bg-transparent text-[#5271FF] hover:text-white hover:bg-[#5271FF]/80 dark:text-[#6B8EFF] dark:hover:text-white dark:hover:bg-[#6B8EFF]/80 transition-colors duration-150"
-                      >
-                        <Plus className="h-4 w-4" />
-                      </Button>
-                      </TooltipTrigger>
-                      <TooltipContent side="bottom" className="px-3 py-1.5 text-sm font-medium bg-popover text-popover-foreground">
-                        <p className="whitespace-nowrap">Add new problems to your spaced repetition schedule</p>
-                      </TooltipContent>
-                    </Tooltip>
-                  </TooltipProvider>
+          {/* New Two-Column Grid (Cross-bar of the "T") */}
+          <div className="grid grid-cols-1 lg:grid-cols-9 gap-8 items-start mt-8">
+            {/* Left Column: Problems Area */}
+            <div className="lg:col-span-6">
+              {/* Problem List Content - Action buttons moved to the right */}
+              <div>
+                {isCalendarDateSelected ? (
+                  <div>
+                    {selectedDayProblems.length > 0 ? (
+                      <div className="space-y-3">
+                        {selectedDayProblems.map((problem, index) => renderProblemCard(problem, false, index))}
+                      </div>
+                    ) : (
+                      <div className="text-center py-6 text-muted-foreground">
+                        No reviews scheduled for this day
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <>
+                    {isEditMode && (
+                      <div className="mb-4 text-sm text-muted-foreground bg-muted/20 p-3 rounded-md border border-muted">
+                        <p>The problems will remain marked as completed, but won't appear in your review schedule.</p>
+                      </div>
+                    )}
+                    <div className="overflow-y-auto">
+                      {renderProblemsSection()}
+                    </div>
+                  </>
+                )}
+              </div>
+            </div>
 
-                  <TooltipProvider delayDuration={300}>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                                              <Button 
-                        variant="ghost" 
-                        size="icon"
-                        onClick={toggleEditMode}
-                        className="bg-transparent dark:bg-transparent text-[#5271FF] hover:text-white hover:bg-[#5271FF]/80 dark:text-[#6B8EFF] dark:hover:text-white dark:hover:bg-[#6B8EFF]/80 transition-colors duration-150"
-                      >
-                        <Edit2 className="h-4 w-4" />
-                      </Button>
-                      </TooltipTrigger>
-                      <TooltipContent side="bottom" className="px-3 py-1.5 text-sm font-medium bg-popover text-popover-foreground">
-                        <p className="whitespace-nowrap">Edit your review dashboard</p>
-                      </TooltipContent>
-                    </Tooltip>
-                  </TooltipProvider>
+            {/* Right Column: Action Buttons and Calendar */}
+            <div className="lg:col-span-3 lg:-mt-14">
+              {/* Action Buttons - Moved Here */}
+              <div className="flex items-center justify-end gap-2 mb-4">
+                {isEditMode ? (
+                  <>
+                    <TooltipProvider delayDuration={300}>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button 
+                            variant="destructive" 
+                            size="sm"
+                            onClick={handleRemoveSelectedProblems}
+                            disabled={selectedProblems.size === 0 || isRemoving}
+                            className="px-2"
+                          >
+                            {isRemoving ? (
+                              <div className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent mr-1" />
+                            ) : (
+                              <Trash2 className="h-4 w-4 mr-1" />
+                            )}
+                            {selectedProblems.size > 0 ? selectedProblems.size : ''}
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent side="bottom" className="px-3 py-1.5 text-sm font-medium bg-popover text-popover-foreground">
+                          <p className="whitespace-nowrap">Remove selected problems from your review schedule</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
 
-                  <TooltipProvider delayDuration={300}>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Button 
-                          variant="ghost" 
-                          size="icon"
-                          onClick={handleRefresh} 
-                          disabled={isRefreshing}
-                          className="bg-transparent dark:bg-transparent text-[#5271FF] hover:text-white hover:bg-[#5271FF]/80 dark:text-[#6B8EFF] dark:hover:text-white dark:hover:bg-[#6B8EFF]/80 transition-colors duration-150"
-                        >
-                          <RefreshCw className={`h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`} />
-                        </Button>
-                      </TooltipTrigger>
-                      <TooltipContent side="bottom" className="px-3 py-1.5 text-sm font-medium bg-popover text-popover-foreground">
-                        <p className="whitespace-nowrap">Refresh your review schedule</p>
-                      </TooltipContent>
-                    </Tooltip>
-                  </TooltipProvider>
-                </>
-              )}
+                    <TooltipProvider delayDuration={300}>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button 
+                            variant="ghost" 
+                            size="icon"
+                            onClick={toggleEditMode}
+                            className="bg-transparent dark:bg-transparent text-[#5271FF] hover:text-white hover:bg-[#5271FF]/80 dark:text-[#6B8EFF] dark:hover:text-white dark:hover:bg-[#6B8EFF]/80 transition-colors duration-150"
+                          >
+                            <X className="h-4 w-4" />
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent side="bottom" className="px-3 py-1.5 text-sm font-medium bg-popover text-popover-foreground">
+                          <p className="whitespace-nowrap">Cancel selection and exit edit mode</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                  </>
+                ) : (
+                  <>
+                    <TooltipProvider delayDuration={300}>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button 
+                            variant="ghost" 
+                            size="icon"
+                            onClick={() => setIsAddProblemsModalOpen(true)}
+                            className="bg-transparent dark:bg-transparent text-[#5271FF] hover:text-white hover:bg-[#5271FF]/80 dark:text-[#6B8EFF] dark:hover:text-white dark:hover:bg-[#6B8EFF]/80 transition-colors duration-150"
+                          >
+                            <Plus className="h-4 w-4" />
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent side="bottom" className="px-3 py-1.5 text-sm font-medium bg-popover text-popover-foreground">
+                          <p className="whitespace-nowrap">Add new problems</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+
+                    <TooltipProvider delayDuration={300}>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button 
+                            variant="ghost" 
+                            size="icon"
+                            onClick={toggleEditMode}
+                            className="bg-transparent dark:bg-transparent text-[#5271FF] hover:text-white hover:bg-[#5271FF]/80 dark:text-[#6B8EFF] dark:hover:text-white dark:hover:bg-[#6B8EFF]/80 transition-colors duration-150"
+                          >
+                            <Edit2 className="h-4 w-4" />
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent side="bottom" className="px-3 py-1.5 text-sm font-medium bg-popover text-popover-foreground">
+                          <p className="whitespace-nowrap">Edit your review dashboard</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+
+                    <TooltipProvider delayDuration={300}>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button 
+                            variant="ghost" 
+                            size="icon"
+                            onClick={handleRefresh} 
+                            disabled={isRefreshing}
+                            className="bg-transparent dark:bg-transparent text-[#5271FF] hover:text-white hover:bg-[#5271FF]/80 dark:text-[#6B8EFF] dark:hover:text-white dark:hover:bg-[#6B8EFF]/80 transition-colors duration-150"
+                          >
+                            <RefreshCw className={`h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`} />
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent side="bottom" className="px-3 py-1.5 text-sm font-medium bg-popover text-popover-foreground">
+                          <p className="whitespace-nowrap">Refresh your review schedule</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                  </>
+                )}
+              </div>
+              
+              {/* Calendar Card */}
+              <Card className="bg-background/80 dark:bg-background backdrop-blur-md rounded-xl shadow-md hover:shadow-lg transition-shadow duration-300 dark:shadow-[0_4px_6px_-1px_rgba(82,113,255,0.15),_0_2px_4px_-2px_rgba(82,113,255,0.15)] overflow-hidden dark:border dark:border-[#5271FF]/15">
+                <CardContent className="p-4 font-sans">
+                  <div className="border-border rounded-lg font-sans">
+                    <ReviewCalendar 
+                      stats={stats} 
+                      problems={allScheduledReviews ? allScheduledReviews.all : dueReviews} 
+                      onDaySelect={handleDaySelect}
+                      selectedDate={isCalendarDateSelected ? selectedDate : null}
+                      isCalendarDateSelected={isCalendarDateSelected}
+                    />
+                  </div>
+                </CardContent>
+              </Card>
             </div>
           </div>
-        </div>
-        <div>
-          {isCalendarDateSelected ? (
-            <div>
-              {selectedDayProblems.length > 0 ? (
-                <div className="space-y-3">
-                  {selectedDayProblems.map((problem, index) => renderProblemCard(problem, false, index))}
-                </div>
-              ) : (
-                <div className="text-center py-6 text-muted-foreground">
-                  No reviews scheduled for this day
-                </div>
-              )}
-            </div>
-          ) : (
-            <>
-              {isEditMode && (
-                <div className="mb-4 text-sm text-muted-foreground bg-muted/20 p-3 rounded-md border border-muted">
-                  <p>The problems will remain marked as completed, but won't appear in your review schedule.</p>
-                </div>
-              )}
-              <div className="overflow-y-auto">
-                {renderProblemsSection()}
-              </div>
-            </>
-          )}
         </div>
       </div>
 
-      {/* Calendar Card - now on the right */}
-      <Card className="lg:col-span-2 bg-background/80 dark:bg-neutral-900/80 backdrop-blur-md rounded-xl border border-[#5271FF]/30 shadow-2xl shadow-[#5271FF]/10 dark:shadow-[#5271FF]/20 overflow-hidden h-fit sticky top-4">
-        <CardHeader className="pb-2 bg-transparent">
-          <div className="flex justify-between items-center mb-3">
-            <TooltipProvider delayDuration={300}>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button 
-                    variant="ghost" 
-                    size="sm" 
-                    className="flex items-center gap-2 w-full justify-center bg-[#5271FF]/10 hover:bg-[#5271FF]/20 text-[#5271FF] dark:bg-[#6B8EFF]/10 dark:text-[#6B8EFF] dark:hover:bg-[#6B8EFF]/20 rounded-md py-2.5"
-                    onClick={() => setShowMemoryInfo(true)}
-                  >
-                    <span className="flex items-center text-xs font-semibold">
-                      <Brain className="h-4 w-4 text-blue-500 dark:text-blue-400 mr-1.5" />
-                      About Your Memory
-                    </span>
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent side="bottom" className="px-3 py-1.5 text-sm font-medium bg-popover text-popover-foreground">
-                  <p className="whitespace-nowrap">Learn how spaced repetition helps your memory</p>
-                </TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
-          </div>
-          <CardTitle className="text-xl text-foreground flex items-center gap-2">
-            Your Review Stats
-          </CardTitle>
-          <CardDescription>
-            Track your completed problems using spaced repetition— keep climbing the CodeLadder!
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="p-4">
-          <div className="space-y-5">
-            {stats && (
-              <div className="grid grid-cols-3 gap-3 text-center">
-                <div className="p-2 rounded-lg bg-background/50 dark:bg-neutral-800/40 border border-border/20 dark:border-neutral-700/50 transition-all duration-200 hover:bg-[#5271FF]/5 dark:hover:bg-[#6B8EFF]/5 transform hover:-translate-y-0.5 cursor-pointer">
-                  <div className="text-xl font-bold text-foreground">{stats.completedToday || 0}</div>
-                  <div className="text-xs font-medium text-muted-foreground">Today</div>
-                </div>
-                <div className="p-2 rounded-lg bg-background/50 dark:bg-neutral-800/40 border border-border/20 dark:border-neutral-700/50 transition-all duration-200 hover:bg-[#5271FF]/5 dark:hover:bg-[#6B8EFF]/5 transform hover:-translate-y-0.5 cursor-pointer">
-                  <div className="text-xl font-bold text-foreground">{stats.completedThisWeek || 0}</div>
-                  <div className="text-xs font-medium text-muted-foreground">Weekly</div>
-                </div>
-                <div className="p-2 rounded-lg bg-background/50 dark:bg-neutral-800/40 border border-border/20 dark:border-neutral-700/50 transition-all duration-200 hover:bg-[#5271FF]/5 dark:hover:bg-[#6B8EFF]/5 transform hover:-translate-y-0.5 cursor-pointer">
-                  <div className="text-xl font-bold text-foreground">{stats.totalReviewed || 0}</div>
-                  <div className="text-xs font-medium text-muted-foreground">All Time</div>
-                </div>
-              </div>
-            )}
-             
-            <div className="border-border rounded-lg">
-              <ReviewCalendar 
-                stats={stats} 
-                problems={allScheduledReviews ? allScheduledReviews.all : dueReviews} 
-                onDaySelect={handleDaySelect}
-                selectedDate={isCalendarDateSelected ? selectedDate : null}
-                isCalendarDateSelected={isCalendarDateSelected}
-              />
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-      
       {/* Memory strengthening info modal - only render when visible */}
       {showMemoryInfo && (
         <div className="fixed inset-0 flex items-center justify-center z-50 bg-background/80 backdrop-blur-sm p-4">
@@ -987,8 +856,6 @@ export function SpacedRepetitionPanel() {
         isOpen={isAddProblemsModalOpen}
         onClose={() => setIsAddProblemsModalOpen(false)}
       />
-        </div>
-      </div>
     </div>
   );
 }

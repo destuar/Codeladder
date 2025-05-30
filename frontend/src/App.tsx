@@ -124,11 +124,9 @@ function MainLayout() {
           <Route
             path="/review"
             element={
-              <ProtectedRoute>
                 <AdminViewWrapper>
                   <ReviewPage />
                 </AdminViewWrapper>
-              </ProtectedRoute>
             }
           />
           <Route
@@ -234,21 +232,17 @@ function MainLayout() {
           <Route
             path="/spaced-repetition"
             element={
-              <ProtectedRoute>
                 <AdminViewWrapper>
                   <ReviewPage />
                 </AdminViewWrapper>
-              </ProtectedRoute>
             }
           />
           <Route
             path="/apply"
             element={
-              <ProtectedRoute allowedRoles={['ADMIN']}>
                 <AdminViewWrapper>
                   <ApplyPage />
                 </AdminViewWrapper>
-              </ProtectedRoute>
             }
           />
 
