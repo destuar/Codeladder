@@ -4,12 +4,13 @@ import { Difficulty } from '../types';
 
 interface DifficultyBadgeProps {
   difficulty: Difficulty;
+  size?: 'small' | 'normal';
 }
 
 /**
  * Displays a badge indicating problem difficulty with appropriate styling
  */
-export function DifficultyBadge({ difficulty }: DifficultyBadgeProps) {
+export function DifficultyBadge({ difficulty, size = 'normal' }: DifficultyBadgeProps) {
   const getColor = () => {
     switch (difficulty) {
       case 'BEGINNER':
@@ -25,8 +26,12 @@ export function DifficultyBadge({ difficulty }: DifficultyBadgeProps) {
     }
   };
 
+  const sizeClasses = size === 'small' 
+    ? 'px-1.5 py-0.5 text-xs'
+    : 'px-2.5 py-0.5 text-sm';
+
   return (
-    <Badge variant="outline" className={cn("font-medium transition-colors", getColor())}>
+    <Badge variant="outline" className={cn("font-medium transition-colors", getColor(), sizeClasses)}>
       {difficulty.replace(/_/g, ' ')}
     </Badge>
   );

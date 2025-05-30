@@ -246,7 +246,7 @@ export function ProblemList({
             {showOrder && (
               <TableHead 
                 className={cn(
-                  "cursor-pointer group hover:text-foreground transition-colors pl-4",
+                  "cursor-pointer group hover:text-foreground transition-colors pl-4 text-xs sm:text-sm",
                   isLocked && "text-muted-foreground"
                 )}
                 onClick={() => handleSort('order')}
@@ -255,19 +255,19 @@ export function ProblemList({
                   <span className="group-hover:font-medium transition-colors">Order</span>
                   {sortField === 'order' ? (
                     sortDirection === 'asc' ? (
-                      <ChevronUp className="h-4 w-4 ml-1 text-blue-500 dark:text-blue-400" />
+                      <ChevronUp className="h-3 w-3 sm:h-4 sm:w-4 ml-1 text-blue-500 dark:text-blue-400" />
                     ) : (
-                      <ChevronDown className="h-4 w-4 ml-1 text-blue-500 dark:text-blue-400" />
+                      <ChevronDown className="h-3 w-3 sm:h-4 sm:w-4 ml-1 text-blue-500 dark:text-blue-400" />
                     )
                   ) : (
-                    <ArrowUpDown className="h-4 w-4 ml-1 text-muted-foreground/70 group-hover:text-foreground transition-colors" />
+                    <ArrowUpDown className="h-3 w-3 sm:h-4 sm:w-4 ml-1 text-muted-foreground/70 group-hover:text-foreground transition-colors" />
                   )}
                 </div>
               </TableHead>
             )}
             <TableHead 
               className={cn(
-                "cursor-pointer group hover:text-foreground transition-colors",
+                "cursor-pointer group hover:text-foreground transition-colors text-xs sm:text-sm",
                 isLocked && "text-muted-foreground"
               )}
               onClick={() => handleSort('name')}
@@ -276,21 +276,21 @@ export function ProblemList({
                 <span className="group-hover:font-medium transition-colors">Name</span>
                 {sortField === 'name' ? (
                   sortDirection === 'asc' ? (
-                    <ChevronUp className="h-4 w-4 ml-1 text-blue-500 dark:text-blue-400" />
+                    <ChevronUp className="h-3 w-3 sm:h-4 sm:w-4 ml-1 text-blue-500 dark:text-blue-400" />
                   ) : (
-                    <ChevronDown className="h-4 w-4 ml-1 text-blue-500 dark:text-blue-400" />
+                    <ChevronDown className="h-3 w-3 sm:h-4 sm:w-4 ml-1 text-blue-500 dark:text-blue-400" />
                   )
                 ) : (
-                  <ArrowUpDown className="h-4 w-4 ml-1 text-muted-foreground/70 group-hover:text-foreground transition-colors" />
+                  <ArrowUpDown className="h-3 w-3 sm:h-4 sm:w-4 ml-1 text-muted-foreground/70 group-hover:text-foreground transition-colors" />
                 )}
               </div>
             </TableHead>
             {showTopicName && (
-              <TableHead className={cn(isLocked && "text-muted-foreground")}>Topic</TableHead>
+              <TableHead className={cn("text-xs sm:text-sm py-2 sm:py-3", isLocked && "text-muted-foreground")}>Topic</TableHead>
             )}
             <TableHead 
               className={cn(
-                "cursor-pointer group hover:text-foreground transition-colors",
+                "cursor-pointer group hover:text-foreground transition-colors text-xs sm:text-sm py-2 sm:py-3",
                 isLocked && "text-muted-foreground"
               )}
               onClick={() => handleSort('difficulty')}
@@ -299,22 +299,22 @@ export function ProblemList({
                 <span className="group-hover:font-medium transition-colors">Difficulty</span>
                 {sortField === 'difficulty' ? (
                   sortDirection === 'asc' ? (
-                    <ChevronUp className="h-4 w-4 ml-1 text-blue-500 dark:text-blue-400" />
+                    <ChevronUp className="h-3 w-3 sm:h-4 sm:w-4 ml-1 text-blue-500 dark:text-blue-400" />
                   ) : (
-                    <ChevronDown className="h-4 w-4 ml-1 text-blue-500 dark:text-blue-400" />
+                    <ChevronDown className="h-3 w-3 sm:h-4 sm:w-4 ml-1 text-blue-500 dark:text-blue-400" />
                   )
                 ) : (
-                  <ArrowUpDown className="h-4 w-4 ml-1 text-muted-foreground/70 group-hover:text-foreground transition-colors" />
+                  <ArrowUpDown className="h-3 w-3 sm:h-4 sm:w-4 ml-1 text-muted-foreground/70 group-hover:text-foreground transition-colors" />
                 )}
               </div>
             </TableHead>
-            <TableHead className={cn("w-[120px] pr-6", isLocked && "text-muted-foreground")}>Action</TableHead>
+            <TableHead className={cn("w-[100px] sm:w-[120px] text-xs sm:text-sm pl-2 pr-2 sm:pl-0 sm:pr-6 py-2 sm:py-3", isLocked && "text-muted-foreground")}>Action</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody className={cn(isLocked && "opacity-50")}>
           {paginatedProblems.length === 0 ? (
             <TableRow>
-              <TableCell colSpan={showOrder ? 5 : 4} className="text-center py-10 text-muted-foreground">
+              <TableCell colSpan={showOrder ? 5 : 4} className="text-center py-10 text-muted-foreground text-xs sm:text-sm">
                 No problems available
               </TableCell>
             </TableRow>
@@ -328,51 +328,51 @@ export function ProblemList({
                   index % 2 === 0 ? "bg-muted/10 dark:bg-muted/15" : ""
                 )}
               >
-                <TableCell className="pl-6 py-3">
+                <TableCell className="pl-2 sm:pl-6 py-2 sm:py-3">
                   {problem.isCompleted ? (
-                    <CheckCircle2 className={cn("h-5 w-5 text-green-500", isLocked && "text-muted-foreground")} />
+                    <CheckCircle2 className={cn("h-4 w-4 sm:h-5 sm:w-5 text-green-500", isLocked && "text-muted-foreground")} />
                   ) : (
-                    <Circle className="h-5 w-5 text-muted-foreground/40" />
+                    <Circle className="h-4 w-4 sm:h-5 sm:w-5 text-muted-foreground/40" />
                   )}
                 </TableCell>
                 {showOrder && (
-                  <TableCell className="pl-4">
+                  <TableCell className="pl-2 sm:pl-4 py-2 sm:py-3 text-xs sm:text-sm">
                     {problem.required ? (
-                      <Badge variant="outline" className={cn("bg-blue-50/50 dark:bg-blue-900/20", isLocked && "text-muted-foreground")}>
+                      <Badge variant="outline" className={cn("bg-blue-50/50 dark:bg-blue-900/20 text-xs sm:text-sm", isLocked && "text-muted-foreground")}>
                         REQ {problem.reqOrder}
                       </Badge>
                     ) : (
-                      <Badge variant="secondary" className={cn("bg-muted/50", isLocked && "bg-muted text-muted-foreground")}>
+                      <Badge variant="secondary" className={cn("bg-muted/50 text-xs sm:text-sm", isLocked && "bg-muted text-muted-foreground")}>
                         {problem.reqOrder ? `OPT ${problem.reqOrder}` : 'STANDALONE'}
                       </Badge>
                     )}
                   </TableCell>
                 )}
-                <TableCell className={cn("font-medium", isLocked && "text-muted-foreground")}>
-                  <span className="flex items-center gap-2">
+                <TableCell className={cn("font-medium py-2 sm:py-3 text-xs sm:text-sm", isLocked && "text-muted-foreground")}>
+                  <span className="flex items-center gap-1 sm:gap-2">
                     {problem.problemType === 'INFO' ? (
-                      <Book className={cn("h-4 w-4", "text-amber-500 dark:text-amber-400")} />
+                      <Book className={cn("h-3 w-3 sm:h-4 sm:w-4", "text-amber-500 dark:text-amber-400")} />
                     ) : (
-                      <Code2 className={cn("h-4 w-4", "text-indigo-500 dark:text-indigo-400")} />
+                      <Code2 className={cn("h-3 w-3 sm:h-4 sm:w-4", "text-indigo-500 dark:text-indigo-400")} />
                     )}
                     <span className="line-clamp-1">{problem.name}</span>
                   </span>
                 </TableCell>
                 {showTopicName && (
-                  <TableCell className={cn(isLocked && "text-muted-foreground")}>
+                  <TableCell className={cn("py-2 sm:py-3 text-xs sm:text-sm", isLocked && "text-muted-foreground")}>
                     {problem.topic?.name || 'Standalone'}
                   </TableCell>
                 )}
-                <TableCell>
-                  <DifficultyBadge difficulty={problem.difficulty || 'MEDIUM' as Difficulty} />
+                <TableCell className="py-2 sm:py-3">
+                  <DifficultyBadge difficulty={problem.difficulty || 'MEDIUM' as Difficulty} size="small" />
                 </TableCell>
-                <TableCell className="pr-6">
-                  <div className="flex items-center gap-2">
+                <TableCell className={cn("py-2 sm:py-3 pl-2 pr-2 sm:pl-0 sm:pr-6", isLocked && "text-muted-foreground")}>
+                  <div className="flex items-center gap-1 sm:gap-2">
                     <Button 
                       variant="outline" 
                       size="sm"
                       className={cn(
-                        "px-3 py-1 h-8 transition-all",
+                        "px-2 py-1 h-7 sm:px-3 sm:py-1 sm:h-8 transition-all text-xs sm:text-sm",
                         "bg-transparent hover:bg-blue-50/70 text-blue-600 border border-blue-200/70",
                         "dark:border-blue-800/50 dark:text-blue-400 dark:hover:bg-blue-900/20",
                         isLocked && !canAccessAdmin && "text-muted-foreground border-muted/50",
@@ -386,8 +386,8 @@ export function ProblemList({
                       {isLocked && canAccessAdmin ? "Start (Admin)" : "Start"}
                     </Button>
                     {problem.estimatedTime && (
-                      <span className="flex items-center gap-1 px-2 py-0.5 rounded text-muted-foreground">
-                        <Timer className="h-3.5 w-3.5" />
+                      <span className="hidden md:flex items-center gap-1 px-2 py-0.5 rounded text-muted-foreground">
+                        <Timer className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
                         <span className="text-xs whitespace-nowrap">
                           {formatEstimatedTime(parseEstimatedTime(problem.estimatedTime))}
                         </span>

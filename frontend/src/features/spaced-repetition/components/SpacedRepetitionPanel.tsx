@@ -508,13 +508,16 @@ export function SpacedRepetitionPanel() {
             <h1 className="text-3xl font-bold mb-4 text-center text-foreground">
               {isCalendarDateSelected && !isToday(selectedDate)
                 ? `Reviews for ${format(selectedDate, 'MMMM d, yyyy')}`
-                : "The Review Dashboard"
+                : <>
+                    <span className="sm:hidden">The Review Calendar</span>
+                    <span className="hidden sm:inline">The Review Calendar</span>
+                  </>
               }
             </h1>
             <p className="text-center text-muted-foreground">
               {isCalendarDateSelected && !isToday(selectedDate)
                 ? "Reviews scheduled for the selected date"
-                : "Remembering what you've learned."
+                : "Remember what you've learned."
               }
             </p>
           </div>
