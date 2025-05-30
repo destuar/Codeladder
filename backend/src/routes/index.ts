@@ -11,6 +11,7 @@ import collectionsRouter from './collections';
 import spacedRepetitionRoutes from './spacedRepetition';
 import codeExecutionRouter from './codeExecution';
 import quizRouter from './quiz';
+import statsRouter from './stats';
 
 const router = express.Router();
 
@@ -27,5 +28,6 @@ router.use('/collections', collectionsRouter);
 router.use('/spaced-repetition', spacedRepetitionRoutes);
 router.use('/code', codeExecutionRouter);
 router.use('/quizzes', quizRouter);
+router.use('/stats', statsRouter);
 
 export default router; 

@@ -75,7 +75,7 @@ export function CompanyLogos() {
       <div className="max-w-7xl mx-auto px-4 md:px-6 lg:px-8">
         <div className="flex flex-col items-center">
           <div className="mb-12 text-center pt-8">
-            <h3 className="text-xl font-medium text-foreground mb-1">
+            <h3 className="mt-3 text-lg md:text-xl text-muted-foreground max-w-2xl lg:max-w-none mx-auto">
               Learn interview questions from the largest technology companies
             </h3>
             <div className="h-0.5 w-16 bg-[#5b5bf7]/30 mx-auto"></div>
