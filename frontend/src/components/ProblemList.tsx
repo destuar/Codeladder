@@ -10,12 +10,13 @@ import {
 } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { ArrowUpDown, ChevronDown, ChevronUp, CheckCircle2, Circle, Book, Code2, Timer, Lock, X } from "lucide-react";
+import { ArrowUpDown, ChevronDown, ChevronUp, CheckCircle2, Circle, Book, Code2, Timer, Lock, X, Shuffle, Loader2 } from "lucide-react";
 import { cn } from '@/lib/utils';
 import { Problem, Topic } from '@/hooks/useLearningPath';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Difficulty, SortField, SortDirection, ProblemListProps, DIFFICULTY_ORDER } from '@/features/problems/types';
 import { DifficultyBadge } from '@/features/problems/components/DifficultyBadge';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
 const formatEstimatedTime = (time?: number) => {
   if (!time) return null;
@@ -47,6 +48,9 @@ interface EnhancedProblemListProps extends ProblemListProps {
   resetFilters?: () => void;
   formatDifficultyLabel?: (difficulty: string) => string;
   hideHeader?: boolean;
+  onShuffleClick?: () => void;
+  isShuffling?: boolean;
+  shuffleDisabled?: boolean;
 }
 
 export function ProblemList({
@@ -66,6 +70,9 @@ export function ProblemList({
   resetFilters,
   formatDifficultyLabel = (d: string) => String(d).replace(/_/g, ' '),
   hideHeader = false,
+  onShuffleClick,
+  isShuffling,
+  shuffleDisabled,
 }: EnhancedProblemListProps) {
   const [sortField, setSortField] = useState<SortField>('order');
   const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
@@ -125,7 +132,28 @@ export function ProblemList({
           )}
           
           {/* Filters */}
-          <div className="flex flex-wrap items-center gap-3">
+          <div className="w-full flex flex-wrap items-center gap-3">
+            {onShuffleClick && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={onShuffleClick}
+                className="h-8 px-3 bg-background hover:bg-muted/20 disabled:opacity-50 shadow-md flex items-center gap-1.5"
+                disabled={shuffleDisabled || isShuffling}
+              >
+                {isShuffling ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    <span>Shuffling...</span>
+                  </>
+                ) : (
+                  <>
+                    <span>Shuffle</span>
+                    <Shuffle className="h-4 w-4" />
+                  </>
+                )}
+              </Button>
+            )}
             {collections?.length > 0 && onCollectionChange && (
               <>
                 <div className="flex items-center">
@@ -189,11 +217,11 @@ export function ProblemList({
                   size="sm"
                   onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
                   disabled={currentPage === 1}
-                  className="h-8 px-3 bg-background border border-border/40 hover:bg-muted/20 disabled:opacity-50"
+                  className="h-8 px-3 bg-background hover:bg-muted/20 disabled:opacity-50 shadow-md"
                 >
                   Previous
                 </Button>
-                <span className="text-sm px-3 py-1 bg-background border border-border/40 rounded-md">
+                <span className="text-sm px-3 py-1 bg-background rounded-md">
                   {currentPage} / {totalPages}
                 </span>
                 <Button
@@ -201,7 +229,7 @@ export function ProblemList({
                   size="sm"
                   onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
                   disabled={currentPage === totalPages}
-                  className="h-8 px-3 bg-background border border-border/40 hover:bg-muted/20 disabled:opacity-50"
+                  className="h-8 px-3 bg-background hover:bg-muted/20 disabled:opacity-50 shadow-md"
                 >
                   Next
                 </Button>

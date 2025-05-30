@@ -8,7 +8,7 @@ import { ProblemList } from '@/components/ProblemList';
 import { Problem, Difficulty as ProblemDifficulty } from '@/features/problems/types';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from '@/components/ui/button';
-import { X, ListFilter, Loader2, Check, Filter, CheckCircle2, PenSquare, BookOpen, Hash, ChevronDown, ChevronUp, Shuffle } from 'lucide-react';
+import { X, ListFilter, Loader2, Check, SlidersHorizontal, CheckCircle2, PenSquare, BookOpen, Hash, ChevronDown, ChevronUp, Shuffle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { toast } from '@/components/ui/use-toast';
 import { Badge } from '@/components/ui/badge';
@@ -31,6 +31,37 @@ interface ExtendedProblem extends Problem {
 
 // Type for difficulty filter - adds 'all' to the available difficulties
 type DifficultyFilter = ProblemDifficulty | 'all';
+
+// Shuffle Button Component
+const ShuffleButton = ({ onClick, disabled, isShuffling, problemCount }: {
+  onClick: () => void;
+  disabled: boolean;
+  isShuffling: boolean;
+  problemCount: number;
+}) => (
+  <TooltipProvider>
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={onClick}
+          className="h-9 w-9 rounded-full bg-transparent dark:bg-transparent text-[#5271FF] hover:text-white hover:bg-[#5271FF]/80 dark:text-[#6B8EFF] dark:hover:text-white dark:hover:bg-[#6B8EFF]/80 transition-colors duration-150"
+          disabled={disabled || isShuffling}
+        >
+          {isShuffling ? (
+            <Loader2 className="h-4 w-4 animate-spin" />
+          ) : (
+            <Shuffle className={cn("h-4 w-4", disabled && "opacity-50")} />
+          )}
+        </Button>
+      </TooltipTrigger>
+      <TooltipContent side="bottom" className="bg-popover text-popover-foreground border shadow-md">
+        <p>Shuffle Problems</p>
+      </TooltipContent>
+    </Tooltip>
+  </TooltipProvider>
+);
 
 export default function CollectionsPage() {
   const navigate = useNavigate();
@@ -429,49 +460,93 @@ export default function CollectionsPage() {
       {/* Title and Subtitle Block */}
       <div className="text-center mb-8">
         <h1 className="text-3xl font-bold mb-4 text-center text-foreground">
-          Interview Practice Questions
+          <span className="sm:hidden">Interview Questions</span>
+          <span className="hidden sm:inline">Company Interview Questions</span>
         </h1>
         <p className="text-center text-muted-foreground">
-          It's not cheating. It's practicing smart.
+          <span className="sm:hidden">It's not cheating to practice.</span>
+          <span className="hidden sm:inline">It's not cheating. It's practicing smarter.</span>
         </p>
       </div>
 
-      <div className="grid grid-cols-12 gap-6">
-        <div className="col-span-12 lg:col-span-3">
-          <div className="sticky top-20 space-y-4">
-            <div className="flex items-center justify-between mt-12 lg:mt-2">
-              <div>
-                <h1 className="text-xl sm:text-2xl font-bold leading-tight text-foreground">{currentCollectionName}</h1>
-              </div>
-              <TooltipProvider>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button 
-                      variant="ghost" 
-                      size="icon" 
-                      onClick={shuffleProblems}
-                      className="h-9 w-9 rounded-full bg-transparent dark:bg-transparent text-[#5271FF] hover:text-white hover:bg-[#5271FF]/80 dark:text-[#6B8EFF] dark:hover:text-white dark:hover:bg-[#6B8EFF]/80 transition-colors duration-150"
-                      disabled={filteredProblems.length === 0 || isShuffling}
-                    >
-                      {isShuffling ? (
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                      ) : (
-                        <Shuffle className={cn("h-4 w-4", filteredProblems.length === 0 && "opacity-50")} />
-                      )}
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent side="bottom" className="bg-popover text-popover-foreground border shadow-md">
-                    <p>Shuffle Problems</p>
-                  </TooltipContent>
-                </Tooltip>
-              </TooltipProvider>
-            </div>
+      {/* Sidebar for Small Screens (Stacked) - MOVED AND MODIFIED */}
+      <div className="xl:hidden mb-8"> {/* MODIFIED: Was 2xl:hidden */}
+        <div className="max-w-xl mx-auto space-y-4 rounded-md shadow-md hover:shadow-lg transition-shadow duration-300 dark:shadow-[0_4px_6px_-1px_rgba(82,113,255,0.15),_0_2px_4px_-2px_rgba(82,113,255,0.15)] bg-background/80 dark:bg-background backdrop-blur-md overflow-hidden p-4 border border-border/40 dark:border dark:border-[#5271FF]/15"> {/* Added max-w-xl mx-auto, this is the inner styled div */}
+          {/* Collections Sidebar Content (Title, Shuffle, Buttons) - Duplicated for stacking */}
+          <div className="flex items-center gap-2">
+            <h1 className="text-xl sm:text-2xl font-bold leading-tight text-foreground font-sans">{currentCollectionName}</h1>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <button 
+              onClick={() => handleCollectionChange("all")}
+              className={cn(
+                "flex items-center px-3 py-1.5 rounded-full text-sm font-medium transition-colors duration-150 font-sans",
+                selectedCollection === "all" 
+                  ? "bg-[#5271FF] text-white hover:bg-[#415ACC] dark:bg-[#5271FF] dark:hover:bg-[#415ACC]"
+                  : "bg-[#5271FF]/10 text-[#5271FF] hover:bg-[#5271FF]/20 dark:bg-[#6B8EFF]/10 dark:text-[#6B8EFF] dark:hover:bg-[#6B8EFF]/20"
+              )}
+            >
+              All Collections
+              <span className={cn(
+                "ml-2 px-2 py-0.5 text-xs rounded-full font-semibold",
+                selectedCollection === "all"
+                  ? "bg-white/20 text-white"
+                  : "bg-[#5271FF]/20 text-[#5271FF] dark:bg-[#6B8EFF]/20 dark:text-[#6B8EFF]"
+              )}>
+                {collectionProblemCounts["all"] || 0}
+              </span>
+            </button>
+            {collections.map(collection => (
+              <button
+                key={collection.id}
+                onClick={() => handleCollectionChange(collection.id)}
+                className={cn(
+                  "flex items-center px-3 py-1.5 rounded-full text-sm font-medium transition-colors duration-150 font-sans",
+                  selectedCollection === collection.id 
+                    ? "bg-[#5271FF] text-white hover:bg-[#415ACC] dark:bg-[#5271FF] dark:hover:bg-[#415ACC]"
+                    : "bg-[#5271FF]/10 text-[#5271FF] hover:bg-[#5271FF]/20 dark:bg-[#6B8EFF]/10 dark:text-[#6B8EFF] dark:hover:bg-[#6B8EFF]/20"
+                )}
+              >
+                {collection.name}
+                <span className={cn(
+                  "ml-2 px-2 py-0.5 text-xs rounded-full font-semibold",
+                  selectedCollection === collection.id
+                    ? "bg-white/20 text-white"
+                    : "bg-[#5271FF]/20 text-[#5271FF] dark:bg-[#6B8EFF]/20 dark:text-[#6B8EFF]"
+                )}>
+                  {collectionProblemCounts[collection.id] || 0}
+                </span>
+              </button>
+            ))}
+          </div>
+          {selectedCollection !== 'all' && (
+            <Button
+              variant="ghost" 
+              size="sm"
+              onClick={resetFilters}
+              className="w-full text-[#5271FF] dark:text-[#6B8EFF] hover:bg-[#5271FF]/10 dark:hover:bg-[#6B8EFF]/10 hover:text-[#5271FF] dark:hover:text-white"
+            >
+              <X className="h-4 w-4 mr-2" />
+              Reset Selection
+            </Button>
+          )}
+        </div>
+      </div>
 
+      {/* New layout: Centered Problem Area with Sidebar to its left */}
+      <div className="relative max-w-4xl mx-auto mt-8"> {/* Changed max-w-3xl to max-w-4xl */} 
+        {/* Sidebar for Medium+ Screens (Absolutely Positioned) */}
+        <div className="hidden xl:block xl:absolute xl:right-full xl:top-0 xl:mr-8 xl:w-60"> 
+          <div className="xl:sticky xl:top-20 space-y-4 rounded-xl shadow-md hover:shadow-lg transition-shadow duration-300 dark:shadow-[0_4px_6px_-1px_rgba(82,113,255,0.15),_0_2px_4px_-2px_rgba(82,113,255,0.15)] bg-background/80 dark:bg-background backdrop-blur-md overflow-hidden p-4 border border-border/40 dark:border dark:border-[#5271FF]/15">
+            {/* Collections Sidebar Content (Title, Shuffle, Buttons) */}
+            <div className="flex items-center gap-2">
+              <h1 className="text-xl sm:text-2xl font-bold leading-tight text-foreground font-sans">{currentCollectionName}</h1>
+            </div>
             <div className="flex flex-wrap gap-2">
               <button 
                 onClick={() => handleCollectionChange("all")}
                 className={cn(
-                  "flex items-center px-3 py-1.5 rounded-full text-sm font-medium transition-colors duration-150",
+                  "flex items-center px-3 py-1.5 rounded-full text-sm font-medium transition-colors duration-150 font-sans",
                   selectedCollection === "all" 
                     ? "bg-[#5271FF] text-white hover:bg-[#415ACC] dark:bg-[#5271FF] dark:hover:bg-[#415ACC]"
                     : "bg-[#5271FF]/10 text-[#5271FF] hover:bg-[#5271FF]/20 dark:bg-[#6B8EFF]/10 dark:text-[#6B8EFF] dark:hover:bg-[#6B8EFF]/20"
@@ -487,18 +562,18 @@ export default function CollectionsPage() {
                   {collectionProblemCounts["all"] || 0}
                 </span>
               </button>
-                {collections.map(collection => (
+              {collections.map(collection => (
                 <button
                   key={collection.id}
                   onClick={() => handleCollectionChange(collection.id)}
                   className={cn(
-                    "flex items-center px-3 py-1.5 rounded-full text-sm font-medium transition-colors duration-150",
+                    "flex items-center px-3 py-1.5 rounded-full text-sm font-medium transition-colors duration-150 font-sans",
                     selectedCollection === collection.id 
                       ? "bg-[#5271FF] text-white hover:bg-[#415ACC] dark:bg-[#5271FF] dark:hover:bg-[#415ACC]"
                       : "bg-[#5271FF]/10 text-[#5271FF] hover:bg-[#5271FF]/20 dark:bg-[#6B8EFF]/10 dark:text-[#6B8EFF] dark:hover:bg-[#6B8EFF]/20"
                   )}
                 >
-                    {collection.name}
+                  {collection.name}
                   <span className={cn(
                     "ml-2 px-2 py-0.5 text-xs rounded-full font-semibold",
                     selectedCollection === collection.id
@@ -510,7 +585,6 @@ export default function CollectionsPage() {
                 </button>
               ))}
             </div>
-
             {selectedCollection !== 'all' && (
               <Button
                 variant="ghost" 
@@ -525,18 +599,19 @@ export default function CollectionsPage() {
           </div>
         </div>
 
-        <div className="col-span-12 lg:col-span-9">
+        {/* Problem Filters and List (This is the content of the centered block) */}
+        <div>
           <Collapsible 
             open={isFiltersOpen} 
             onOpenChange={setIsFiltersOpen}
-            className="mb-1"
+            className="mb-2 font-sans"
           >
-            <div className="bg-background border border-border/40 rounded-md shadow-sm">
+            <div className="bg-background/80 dark:bg-background backdrop-blur-md overflow-hidden rounded-md shadow-md hover:shadow-lg transition-shadow duration-300 dark:shadow-[0_4px_6px_-1px_rgba(82,113,255,0.15),_0_2px_4px_-2px_rgba(82,113,255,0.15)] dark:border dark:border-[#5271FF]/15">
               <CollapsibleTrigger asChild>
-                <div className="px-4 py-3 cursor-pointer hover:bg-secondary/20 transition-colors rounded-t-md">
-                  <div className="text-lg flex items-center gap-2 justify-between">
+                <div className="px-3 py-2 cursor-pointer hover:bg-secondary/20 transition-colors rounded-t-md">
+                  <div className="text-base flex items-center gap-2 justify-between">
                     <div className="flex items-center">
-                      <Filter className="h-4 w-4 mr-2" />
+                      <SlidersHorizontal className="h-4 w-4 mr-2" />
                       Problem Filters
                       {hasAdvancedFilters && (
                         <Badge variant="default" className="ml-2 bg-primary/90">
@@ -555,9 +630,8 @@ export default function CollectionsPage() {
                   </div>
                 </div>
               </CollapsibleTrigger>
-              
-              <CollapsibleContent>
-                <div className="px-4 pb-4 space-y-4 border-t border-border/40">
+              <CollapsibleContent className="border-t border-border/40 pt-3 px-3 pb-3 space-y-4">
+                <div>
                   <div className="grid grid-cols-2 gap-4 pt-4">
                     <div className="space-y-2">
                       <div className="flex items-center">
@@ -776,12 +850,19 @@ export default function CollectionsPage() {
             </div>
           </Collapsible>
 
-          <div className="custom-problem-list">
-            <ProblemList
-              problems={filteredProblems}
-              onProblemStart={handleProblemStart}
-              hideHeader={true}
-            />
+          <div className="mt-2">
+            {filteredProblems.length > 0 ? (
+              <ProblemList 
+                problems={filteredProblems} 
+                onProblemStart={handleProblemStart} 
+                hideHeader={true} 
+                onShuffleClick={shuffleProblems}
+                isShuffling={isShuffling}
+                shuffleDisabled={filteredProblems.length === 0}
+              />
+            ) : (
+              <p className="text-center text-muted-foreground">No problems found.</p>
+            )}
           </div>
         </div>
       </div>

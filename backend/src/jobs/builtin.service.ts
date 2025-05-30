@@ -122,20 +122,8 @@ export class BuiltinService {
     let errorCount = 0;
     let createdJobsCount = 0;
 
-    // --- Stage 0: Delete existing builtin.com jobs ---
-    try {
-      const deleteResult = await prisma.job.deleteMany({
-        where: { source: 'builtin.com' },
-      });
-      logger.log(`Deleted ${deleteResult.count} existing builtin.com jobs from DB.`);
-    } catch (deleteError) {
-      logger.error('Error deleting existing builtin.com jobs from DB:', deleteError);
-      // Decide if we should proceed if deletion fails. For now, we'll proceed but log heavily.
-      errorCount++; 
-    }
-
     // --- Stage 1: Scrape data from builtin.com (Sitemap + Page scraping) ---
-    // (Existing scraping logic to populate scrapedJobsData - remains largely the same)
+    // This stage is now first
     try {
       const sitemapXml = await httpService.get(BUILTIN_SITEMAP_URL);
       const sitemap = this.xmlParser.parse(sitemapXml);
@@ -152,7 +140,7 @@ export class BuiltinService {
             const jobDetailHtml = await httpService.get(jobEntry.loc as string);
             const job = this.parseJobDetailPage(jobDetailHtml, jobEntry.loc as string, jobEntry['@_lastmod'] as string | undefined);
             if (job) scrapedJobsData.push(job);
-            await new Promise(resolve => setTimeout(resolve, 200));
+            await new Promise(resolve => setTimeout(resolve, 200)); // Be mindful of rate limiting
           } catch (e) { errorCount++; logger.error(`Sitemap: Error parsing detail page ${jobEntry.loc}`, e); }
         }
       }
@@ -169,14 +157,42 @@ export class BuiltinService {
           const jobsFromPage = this.parseJobListingsPage(html);
           if (jobsFromPage.length === 0 && i > 1) { logger.log('No more jobs on page, stopping.'); break; }
           scrapedJobsData.push(...jobsFromPage);
-          if (i < pageLimit) await new Promise(resolve => setTimeout(resolve, 500));
+          if (i < pageLimit) await new Promise(resolve => setTimeout(resolve, 500)); // Be mindful of rate limiting
         } catch (e) { errorCount++; logger.error(`Error scraping page ${url}`, e); break; }
       }
     }
     const uniqueScrapedJobs = Array.from(new Map(scrapedJobsData.map(job => [job.externalId, job])).values());
     logger.log(`Total unique jobs scraped: ${uniqueScrapedJobs.length}`);
 
-    // --- Stage 2: Create new job records in Database ---
+    // If scraping itself resulted in significant issues (e.g., no jobs scraped), 
+    // we might reconsider proceeding with delete and create.
+    // For now, proceeding as per requested logic.
+
+    // --- Stage 0 (now Stage 2): Delete existing builtin.com jobs ---
+    // This stage is now second, happening *after* scraping is complete
+    try {
+      // --- Enhanced Logging Pre-Delete --- 
+      const jobsToDeleteCount = await prisma.job.count({
+        where: { source: 'builtin.com' },
+      });
+      logger.log(`Attempting to delete. Found ${jobsToDeleteCount} existing builtin.com jobs in DB before delete operation.`);
+
+      const deleteResult = await prisma.job.deleteMany({
+        where: { source: 'builtin.com' },
+      });
+      // --- Enhanced Logging Post-Delete --- 
+      logger.log(`Deletion result: ${JSON.stringify(deleteResult)}. Deleted ${deleteResult.count} existing builtin.com jobs from DB.`);
+    } catch (deleteError) {
+      logger.error('Error deleting existing builtin.com jobs from DB:', deleteError);
+      // If deletion fails, we have a problem: we might insert duplicates or fail to insert new ones if IDs are truly unique.
+      // For now, we increment error count and proceed, but this is a critical failure point.
+      errorCount++; 
+      // Consider whether to return early if deletion fails catastrophically.
+      // return { newJobs: 0, errors: errorCount, processedScrapedJobs: uniqueScrapedJobs.length };
+    }
+
+    // --- Stage 2 (now Stage 3): Create new job records in Database ---
+    // This stage is now third
     for (const jobData of uniqueScrapedJobs) {
       try {
         const parsedDate = parseRelativeDate(jobData.datePosted);
@@ -277,12 +293,18 @@ export class BuiltinService {
         let modality: string | undefined = undefined;
         const hybridIcon = jobCard.find('i.fa-house-building');
         if (hybridIcon.length > 0) {
-            modality = hybridIcon.parent().next('span.font-barlow.text-gray-04').text().trim();
+            const modalityContainer = hybridIcon.closest('.d-flex.align-items-start.gap-sm');
+            if (modalityContainer.length > 0) {
+                modality = modalityContainer.find('span.font-barlow.text-gray-04').text().trim();
+            }
         }
         if (!modality) {
             const remoteIcon = jobCard.find('i.fa-signal-stream');
             if (remoteIcon.length > 0) {
-                modality = remoteIcon.parent().next('span.font-barlow.text-gray-04').text().trim();
+                const modalityContainer = remoteIcon.closest('.d-flex.align-items-start.gap-sm');
+                if (modalityContainer.length > 0) {
+                    modality = modalityContainer.find('span.font-barlow.text-gray-04').text().trim();
+                }
             }
         }
         // Add more checks for other modality icons/texts if needed
@@ -292,11 +314,15 @@ export class BuiltinService {
         const salaryIcons = jobCard.find('i.fa-sack-dollar');
         if (salaryIcons.length > 0) {
             const firstIcon = salaryIcons.first(); // Process only the first matched icon
-            const salarySpan = firstIcon.parent().next('span.font-barlow.text-gray-04');
-            if (salarySpan.length > 0) {
-                const salaryText = salarySpan.text().trim();
-                if (salaryText) { // Ensure it's not an empty string after trimming
-                    salary = salaryText;
+            // Find the common ancestor div that holds the icon and the text
+            const salaryContainer = firstIcon.closest('.d-flex.align-items-start.gap-sm');
+            if (salaryContainer.length > 0) {
+                const salarySpan = salaryContainer.find('span.font-barlow.text-gray-04');
+                if (salarySpan.length > 0) {
+                    const salaryText = salarySpan.text().trim();
+                    if (salaryText) { // Ensure it's not an empty string after trimming
+                        salary = salaryText;
+                    }
                 }
             }
         }
