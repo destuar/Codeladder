@@ -509,7 +509,7 @@ export function SpacedRepetitionPanel() {
               {isCalendarDateSelected && !isToday(selectedDate)
                 ? `Reviews for ${format(selectedDate, 'MMMM d, yyyy')}`
                 : <>
-                    <span className="sm:hidden">The Review Calendar</span>
+                    <span className="sm:hidden">Review Calendar</span>
                     <span className="hidden sm:inline">The Review Calendar</span>
                   </>
               }
