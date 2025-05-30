@@ -1,6 +1,16 @@
 import React from 'react';
 import { cn } from '@/lib/utils';
 
+// Import feature images
+import learnLightImg from '../images/landing_ss/Learn (Light).svg';
+import learnDarkImg from '../images/landing_ss/Learn (Dark).svg';
+import practiceLightImg from '../images/landing_ss/Practice (Light).svg';
+import practiceDarkImg from '../images/landing_ss/Practice (Dark).svg';
+import reviewLightImg from '../images/landing_ss/Review (Light).svg';
+import reviewDarkImg from '../images/landing_ss/Review (Dark).svg';
+import applyLightImg from '../images/landing_ss/Apply (Light).svg';
+import applyDarkImg from '../images/landing_ss/Apply (Dark).svg';
+
 interface FeatureItem {
   title: string;
   description: string;
@@ -13,29 +23,29 @@ const features: FeatureItem[] = [
   {
     title: 'Learn',
     description: 'Begin your DSA learning journey as an Intern—progresssing through modules, quizzes, and leveling exams at your own pace. When you reach L7, you\'ll be prepared for interviews at any level.',
-    imageLight: '/src/features/landingpage/images/landing_ss/Learn (Light).svg',
-    imageDark: '/src/features/landingpage/images/landing_ss/Learn (Dark).svg',
+    imageLight: learnLightImg, // Use imported variable
+    imageDark: learnDarkImg,   // Use imported variable
     imageAlt: 'Learn feature illustration'
   },
   {
     title: 'Practice',
     description: 'Once you are ready, start working through a vast library of hundreds of coding problems. Prepare with the company-specific problems that you are most likely to encounter during your interviews.',
-    imageLight: '/src/features/landingpage/images/landing_ss/Practice (Light).svg',
-    imageDark: '/src/features/landingpage/images/landing_ss/Practice (Dark).svg',
+    imageLight: practiceLightImg, // Use imported variable
+    imageDark: practiceDarkImg,   // Use imported variable
     imageAlt: 'Practice feature illustration'
   },
   {
     title: 'Review',
     description: 'The latest memory research shows us that you forget roughly 50% of newly learned information within an hour, and 70–80% within the first 24 hours. Instead, review concepts at optimal intervals to retain knowledge long-term.',
-    imageLight: '/src/features/landingpage/images/landing_ss/Review (Light).svg',
-    imageDark: '/src/features/landingpage/images/landing_ss/Review (Dark).svg',
+    imageLight: reviewLightImg, // Use imported variable
+    imageDark: reviewDarkImg,   // Use imported variable
     imageAlt: 'Review feature illustration'
   },
   {
     title: 'Apply',
     description: 'After all your preparation, you can be the first to apply. Discover your curated list of relevant job opportunities and apply directly through your integrated job feed. Powered by Built In, this list is updated by the minute.',
-    imageLight: '/src/features/landingpage/images/landing_ss/Apply (Light).svg',
-    imageDark: '/src/features/landingpage/images/landing_ss/Apply (Dark).svg',
+    imageLight: applyLightImg, // Use imported variable
+    imageDark: applyDarkImg,   // Use imported variable
     imageAlt: 'Apply feature illustration'
   }
 ];
