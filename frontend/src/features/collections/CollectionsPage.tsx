@@ -464,7 +464,7 @@ export default function CollectionsPage() {
           <span className="hidden sm:inline">Company Interview Questions</span>
         </h1>
         <p className="text-center text-muted-foreground">
-          <span className="sm:hidden">It's not cheating to practice.</span>
+          <span className="sm:hidden">It's practicing smarter.</span>
           <span className="hidden sm:inline">It's not cheating. It's practicing smarter.</span>
         </p>
       </div>
