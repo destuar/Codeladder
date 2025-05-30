@@ -142,9 +142,9 @@ export default function LandingPage() {
         />
 
         {/* 1. Hero Section */}
-        <section className="flex items-center justify-center min-h-[calc(100vh-4rem)] px-4 md:px-6 lg:px-8 max-w-7xl mx-auto relative pt-8">
+        <section className="flex items-center justify-center min-h-[calc(100vh-4rem)] px-4 md:px-6 lg:px-8 max-w-7xl mx-auto relative pt-0 md:pt-8 -mt-8 md:mt-0">
           {/* This div becomes the two-column container - adjusted padding for mobile */}
-          <div className="flex flex-col md:flex-row items-center md:items-start md:justify-between w-full pt-8 pb-16 md:py-16 gap-8 lg:gap-16">
+          <div className="flex flex-col md:flex-row items-center md:items-start md:justify-between w-full pt-0 pb-16 md:py-16 gap-8 lg:gap-16">
 
             {/* Left Column - Slightly adjusted vertical alignment and added social proof */}
             <div className="relative flex flex-col items-center md:items-start text-center md:text-left md:w-5/12 lg:w-1/2 justify-center space-y-6 md:space-y-8 order-1 md:-mt-4 lg:-mt-6">

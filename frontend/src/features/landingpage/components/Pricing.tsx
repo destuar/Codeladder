@@ -20,7 +20,7 @@ interface PricingTierProps {
 const PricingTier = ({ title, subtitle, price, priceDetail, features, buttonText, isPopular = false, isComingSoon = false, linkTo }: PricingTierProps) => (
   // Use brand blue for border, add glow effect via shadow
   <Card className={cn(
-    "flex flex-col h-full min-h-[30rem] md:min-h-0",
+    "flex flex-col h-full min-h-[26rem] md:min-h-0",
     isPopular 
       ? "border-[#5271FF]/50 border-2 shadow-lg shadow-[#5271FF]/30 relative dark:shadow-lg dark:shadow-[#5271FF]/50" 
       : "shadow-lg border-border/30 dark:shadow-lg dark:shadow-[#5271FF]/50 dark:border-[#5271FF]/30"
