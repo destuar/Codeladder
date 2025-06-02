@@ -273,6 +273,11 @@ export default function CollectionsPage() {
   // Filter problems based on all selected filters
   const filteredProblems = useMemo(() => {
     return problems?.filter(problem => {
+      // Exclude STANDALONE_INFO problems upfront - THIS MUST BE PRESENT
+      if (problem.problemType === 'STANDALONE_INFO') {
+        return false;
+      }
+
       // Collection filter
       const passesCollectionFilter = 
         selectedCollection === 'all' || 
@@ -289,11 +294,11 @@ export default function CollectionsPage() {
         (selectedStatus === 'completed' && problem.completed) ||
         (selectedStatus === 'incomplete' && !problem.completed);
       
-      // Type filter - fixing the mapping between selectedType and actual problemType
+      // Type filter - STANDALONE_INFO is already excluded above
       const passesTypeFilter = 
         selectedType === 'all' || 
         (selectedType === 'coding' && problem.problemType === 'CODING') ||
-        (selectedType === 'info' && (problem.problemType === 'INFO' || problem.problemType === 'STANDALONE_INFO' || !problem.problemType));
+        (selectedType === 'info' && (problem.problemType === 'INFO' || !problem.problemType));
       
       // Topic filter (multi-select)
       const passesTopicFilter = 
@@ -322,11 +327,16 @@ export default function CollectionsPage() {
   const collectionProblemCounts = useMemo(() => {
     if (!problems) return {};
     
-    const counts: Record<string, number> = { all: problems.length };
+    const counts: Record<string, number> = { 
+      all: problems.filter(p => p.problemType !== 'STANDALONE_INFO').length 
+    };
     
     collections.forEach(collection => {
       counts[collection.id] = problems.filter(
-        problem => problem.collectionIds && problem.collectionIds.includes(collection.id)
+        problem => 
+          problem.problemType !== 'STANDALONE_INFO' &&
+          problem.collectionIds && 
+          problem.collectionIds.includes(collection.id)
       ).length;
     });
     
@@ -337,11 +347,15 @@ export default function CollectionsPage() {
   const difficultyProblemCounts = useMemo(() => {
     if (!problems) return {};
     
-    const counts: Record<string, number> = { all: problems.length };
+    const counts: Record<string, number> = { 
+      all: problems.filter(p => p.problemType !== 'STANDALONE_INFO').length 
+    };
     
     difficulties.forEach(difficulty => {
       counts[difficulty] = problems.filter(
-        problem => problem.difficulty === difficulty
+        problem => 
+          problem.problemType !== 'STANDALONE_INFO' && 
+          problem.difficulty === difficulty
       ).length;
     });
     
