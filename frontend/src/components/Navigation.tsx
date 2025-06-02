@@ -116,23 +116,7 @@ export function Navigation() {
                 "hidden lg:flex items-center justify-center gap-12 transition-opacity duration-200 ease-in-out"
               )}
             >
-              {!canAccessAdmin ? (
-                <Dialog>
-                  <DialogTrigger asChild>
-                    <span className="text-base font-medium text-muted-foreground hover:text-foreground cursor-pointer">
-                      Learn
-                    </span>
-                  </DialogTrigger>
-                  <DialogContent className="sm:max-w-[425px]">
-                    <DialogHeader>
-                      <DialogTitle>Feature Coming Soon</DialogTitle>
-                      <DialogDescription>
-                        The full 'Learn' section featuring the mastery-based learning dashboard is currently under development. Check back later!
-                      </DialogDescription>
-                    </DialogHeader>
-                  </DialogContent>
-                </Dialog>
-              ) : (
+              {user ? (
                 <Link 
                   to="/dashboard" 
                   className="text-base font-medium text-muted-foreground hover:text-foreground"
@@ -141,6 +125,13 @@ export function Navigation() {
                       setIsAdminView(false);
                     }
                   }}
+                >
+                  Learn
+                </Link>
+              ) : (
+                <Link 
+                  to="/login" 
+                  className="text-base font-medium text-muted-foreground hover:text-foreground"
                 >
                   Learn
                 </Link>
@@ -258,25 +249,7 @@ export function Navigation() {
                     <hr className="border-divider" />
 
                     {/* Navigation Links */}
-                    {!canAccessAdmin ? (
-                      <DialogClose asChild>
-                        <Dialog>
-                          <DialogTrigger asChild>
-                            <span className="text-base font-medium text-muted-foreground hover:text-foreground cursor-pointer">
-                              Learn
-                            </span>
-                          </DialogTrigger>
-                          <DialogContent className="sm:max-w-[425px]">
-                            <DialogHeader>
-                              <DialogTitle>Feature Coming Soon</DialogTitle>
-                              <DialogDescription>
-                                The full 'Learn' section featuring the mastery-based learning dashboard is currently under development. Check back later!
-                              </DialogDescription>
-                            </DialogHeader>
-                          </DialogContent>
-                        </Dialog>
-                      </DialogClose>
-                    ) : (
+                    {user ? (
                       <DialogClose asChild>
                         <Link
                           to="/dashboard"
@@ -284,6 +257,15 @@ export function Navigation() {
                           onClick={() => {
                             if (isAdminView) setIsAdminView(false);
                           }}
+                        >
+                          Learn
+                        </Link>
+                      </DialogClose>
+                    ) : (
+                      <DialogClose asChild>
+                        <Link
+                          to="/login"
+                          className="text-base font-medium text-muted-foreground hover:text-foreground"
                         >
                           Learn
                         </Link>
