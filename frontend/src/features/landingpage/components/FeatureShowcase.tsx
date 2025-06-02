@@ -66,13 +66,14 @@ export function FeatureShowcase() {
             <div
               key={feature.title}
               className={cn(
-                'grid md:grid-cols-2 gap-8 md:gap-12 items-center',
+                'flex flex-col md:grid md:grid-cols-2 gap-8 md:gap-12 items-center',
               )}
             >
               {/* Image Container */}
               <div
                 className={cn(
                   'rounded-lg aspect-video flex items-center justify-center p-0 overflow-hidden', // Changed padding to p-0 and added overflow-hidden
+                  'order-2', // Image is second on mobile
                   index % 2 === 0 ? 'md:order-1' : 'md:order-2' // Image on left for even, right for odd on md+
                 )}
               >
@@ -92,6 +93,7 @@ export function FeatureShowcase() {
               <div
                 className={cn(
                   'space-y-4 text-center',
+                  'order-1', // Text is first on mobile
                   index % 2 === 0 ? 'md:order-2' : 'md:order-1' // Text on right for even, left for odd on md+
                 )}
               >

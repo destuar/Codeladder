@@ -1,1817 +1,884 @@
-import { useState, useEffect, useRef } from "react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Label } from "@/components/ui/label";
-import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Link, useNavigate } from "react-router-dom";
-import { useAuth } from "@/features/auth/AuthContext";
-import { useAdmin } from "@/features/admin/AdminContext";
-import { api } from "@/lib/api";
-import { toast } from "sonner";
-import { cn } from "@/lib/utils";
-import { Topic, Level } from "@/hooks/useLearningPath";
-import { PlusCircle, Trash } from "lucide-react";
-import { Checkbox } from "@/components/ui/checkbox";
-import { Difficulty as ProblemDifficulty } from '@/features/problems/types';
+import React, { useState, useEffect, useCallback } from 'react';
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogTrigger,
+} from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
+import { Label } from '@/components/ui/label';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Badge } from '@/components/ui/badge';
+import { toast } from 'sonner';
+import { api } from '@/lib/api';
+import { useAuth } from '@/features/auth/AuthContext';
+import { Problem, Difficulty as ProblemDifficulty, ProblemType, CodeProblemType as AdminCodeProblemType, TestCase as AdminTestCase, Collection } from '@/features/problems/types';
+import {
+  LanguageSupport,
+  defaultSupportedLanguages,
+  prepareLanguageSupport,
+  SupportedLanguage,
+  LanguageData,
+} from '@/features/languages/components/LanguageSupport';
+import { PlusCircle, Trash, Edit, RefreshCw } from 'lucide-react';
+import { cn } from '@/lib/utils';
 
-// Define Collection interface within this file
-interface Collection {
-  id: string;
-  name: string;
-  description: string | null;
-}
-
-// Add global type declaration to fix TypeScript error
-declare global {
-  interface Window {
-    addProblemToCollection?: (problemId: string, collectionId: string) => Promise<boolean>;
-  }
-}
-
-// Types
-interface DynamicCollection {
-  id: string;
-  name: string;
-  description: string | null;
-}
-
-// Define cache types
-interface ProblemCache {
-  [problemId: string]: {
-    data: Problem;
-    timestamp: number;
-  };
-}
-
-type ProblemType = 'INFO' | 'CODING';
-
-// Add TestCase interface near the top with other types
-type TestCase = {
-  input: string;
-  expected: string;
+// Local type for managing test cases in the form
+interface FormTestCase {
+  id?: string; 
+  input: string; // Stringified JSON
+  expected: string; // Stringified JSON
   isHidden: boolean;
+}
+
+// Type for what the API expects for a test case (part of overall problem payload, not directly AdminCodeProblemType)
+interface ApiSubmittedTestCase {
+  input: string; 
+  expectedOutput: string; 
+  isHidden: boolean;
+}
+
+type FunctionParameter = {
+  id?: string;
+  name: string;
+  type: string;
+  description?: string;
 };
 
-// Update NewProblem type to use TestCase[] instead of string
-type NewProblem = {
+// State for the 'codeProblem' part of the form, aligned with AdminCodeProblemType
+type FormCodeProblemState = Omit<AdminCodeProblemType, 'testCases'> & {
+  testCases?: FormTestCase[]; // UI uses FormTestCase
+};
+
+type NewProblemFormState = {
   name: string;
   content: string;
   difficulty: ProblemDifficulty;
-  required: boolean;
-  reqOrder: number;
   problemType: ProblemType;
-  codeTemplate: string;
-  testCases: TestCase[]; // Changed from string to TestCase[]
+  codeProblem?: FormCodeProblemState; // Uses the new FormCodeProblemState
+  // Fields not in AdminCodeProblemType but part of general problem create/update
+  return_type?: string;
+  params?: FunctionParameter[];
   estimatedTime?: number;
-  topicId: string;
-  collectionIds: string[];
   slug?: string;
-  language: string;
-  functionName: string;
-  timeLimit: number;
-  memoryLimit?: number;
 };
 
-interface DragData {
-  type: 'problem';
-  problemId: string;
-  sourceType: 'collection' | 'topic';
-  sourceId: string;
-  problem: Problem;
-}
-
-// Add type definition for topics with level information
-interface TopicWithLevel extends Topic {
-  levelName: string;
-  levelOrder: number;
-}
-
-// Update the Problem type to include collectionIds
-type Problem = {
+type EditProblemFormState = NewProblemFormState & {
   id: string;
-  name: string;
-  slug?: string;
-  difficulty: ProblemDifficulty;
-  required: boolean;
-  reqOrder?: number;
-  content?: string;
-  problemType: ProblemType;
-  codeTemplate?: string;
-  testCases: TestCase[] | string; // Allow both string and TestCase[] for compatibility
-  functionName?: string;
-  language?: string;
-  timeLimit?: number;
-  memoryLimit?: number;
-  topic?: Topic;
-  collectionIds?: string[]; // Add this property
-  estimatedTime?: number; // Add this property too for completeness
+  collectionIds: string[];
 };
 
-// Add a function to handle parsing testCases from string to TestCase[]
-const parseTestCases = (testCases: string | TestCase[] | undefined): TestCase[] => {
-  if (!testCases) return [];
-  if (Array.isArray(testCases)) return testCases;
+const difficultyLevels: ProblemDifficulty[] = ['BEGINNER', 'EASY', 'MEDIUM', 'HARD'];
+
+// Converts API AdminTestCase (any[] input, any expected) to FormTestCase (stringified)
+const normalizeAdminTestCaseToFormTestCase = (adminTC: AdminTestCase): FormTestCase => {
+  return {
+    // id: adminTC.id, // if AdminTestCase had an ID
+    input: JSON.stringify(adminTC.input),
+    expected: JSON.stringify(adminTC.expected),
+    isHidden: (adminTC as any).isHidden || false, // If isHidden comes from backend (not in type)
+  };
+};
+
+// Converts FormTestCase (stringified) to AdminTestCase (any[] input, any expected)
+// This is used when constructing the AdminCodeProblemType object for the problem state
+const prepareFormTestCaseForAdminCodeProblemType = (formTC: FormTestCase): AdminTestCase => {
   try {
-    return JSON.parse(testCases);
+    return {
+      input: JSON.parse(formTC.input),
+      expected: JSON.parse(formTC.expected),
+      // isHidden is not part of AdminTestCase, so it's omitted here
+    };
   } catch (e) {
-    console.error("Failed to parse test cases:", e);
-    return [];
+    console.error("Error parsing FormTestCase input/expected:", e);
+    // Return a default/empty AdminTestCase or handle error appropriately
+    return { input: [], expected: null }; 
   }
 };
 
-/**
- * Displays a badge for a problem collection with appropriate styling
- */
-function CollectionBadge({ 
-  collectionId, 
-  collectionsData 
-}: { 
-  collectionId: string; 
-  collectionsData: DynamicCollection[] 
-}) {
-  // Get collection info based on ID
-  const collectionInfo = collectionsData.find(c => c.id === collectionId);
-    
-  if (!collectionInfo) return null;
-  
-  // Generate a consistent color based on the collection name
-  const getColorFromName = (name: string) => {
-    // Simple hash function to derive a number from a string
-    const hash = name.split('').reduce((acc, char) => {
-      return acc + char.charCodeAt(0);
-    }, 0);
-    
-    // Use the hash to select from a predefined set of colors
-    const colors = [
-      'bg-blue-500/15 text-blue-600 hover:bg-blue-500/25 border-blue-500/20',
-      'bg-purple-500/15 text-purple-600 hover:bg-purple-500/25 border-purple-500/20',
-      'bg-orange-500/15 text-orange-600 hover:bg-orange-500/25 border-orange-500/20',
-      'bg-green-500/15 text-green-600 hover:bg-green-500/25 border-green-500/20',
-      'bg-red-500/15 text-red-600 hover:bg-red-500/25 border-red-500/20',
-      'bg-teal-500/15 text-teal-600 hover:bg-teal-500/25 border-teal-500/20',
-      'bg-indigo-500/15 text-indigo-600 hover:bg-indigo-500/25 border-indigo-500/20',
-      'bg-pink-500/15 text-pink-600 hover:bg-pink-500/25 border-pink-500/20',
-    ];
-    
-    return colors[hash % colors.length];
+// Converts FormTestCase to what the API submission expects for a test case (stringified + isHidden)
+const prepareFormTestCaseForApiSubmission = (formTC: FormTestCase): ApiSubmittedTestCase => {
+  return {
+    input: formTC.input, // Already stringified
+    expectedOutput: formTC.expected, // Already stringified
+    isHidden: formTC.isHidden,
   };
+};
 
-  // Generate a short label (first letter of each word or first 2-3 letters)
-  const getShortLabel = (name: string) => {
-    const words = name.split(' ');
-    if (words.length > 1) {
-      // Use first letter of each word for multi-word names
-      return words.map(word => word[0]).join('').toUpperCase();
-    } else {
-      // Use first 2-3 letters for single-word names
-      return name.slice(0, Math.min(3, name.length)).toUpperCase();
+
+const parseParams = (params: any): FunctionParameter[] => {
+  if (!params) return [];
+  if (typeof params === 'string') {
+    try {
+      const parsed = JSON.parse(params);
+      return Array.isArray(parsed) ? parsed.map(p => ({id: p.id, name: p.name, type: p.type, description: p.description})) : [];
+    } catch (error) {
+      console.error("Error parsing params:", error);
+      return [];
     }
-  };
-
-  return (
-    <Badge 
-      variant="outline" 
-      className={cn("font-medium transition-colors text-xs ml-1", getColorFromName(collectionInfo.name))}
-      title={collectionInfo.name} // Add title for full name on hover
-    >
-      {getShortLabel(collectionInfo.name)}
-    </Badge>
-  );
-}
+  }
+  return Array.isArray(params) ? params.map(p => ({id: p.id, name: p.name, type: p.type, description: p.description})) : [];
+};
 
 export function ProblemCollectionAdmin() {
   const { token } = useAuth();
-  const { setIsAdminView } = useAdmin();
-  const navigate = useNavigate();
-  const [collections, setCollections] = useState<DynamicCollection[]>([]);
-  const [loadingCollections, setLoadingCollections] = useState(false);
-  const [selectedCollection, setSelectedCollection] = useState<string | null>(null);
-  const [problems, setProblems] = useState<Problem[]>([]);
-  const [loadingProblems, setLoadingProblems] = useState(false);
-  const [isAddingProblem, setIsAddingProblem] = useState(false);
-  const [isEditingProblem, setIsEditingProblem] = useState(false);
-  const [selectedProblem, setSelectedProblem] = useState<Problem | null>(null);
-  const [isDragging, setIsDragging] = useState(false);
-  const [dragOverHighlight, setDragOverHighlight] = useState(false);
-  const [topics, setTopics] = useState<TopicWithLevel[]>([]);
-  const [loadingTopics, setLoadingTopics] = useState(false);
-  const [selectedTopicId, setSelectedTopicId] = useState<string | null>(null);
-  
-  // Problem cache with 5 minute expiration
-  const problemCacheRef = useRef<ProblemCache>({});
-  const CACHE_EXPIRY = 5 * 60 * 1000; // 5 minutes in milliseconds
-  
-  // Collection problems cache
-  const collectionProblemsCache = useRef<{[collectionId: string]: {problems: Problem[], timestamp: number}}>({});
+  const [collections, setCollections] = useState<Collection[]>([]);
+  const [selectedCollectionId, setSelectedCollectionId] = useState<string | null>(null);
+  const [problemsInView, setProblemsInView] = useState<Problem[]>([]);
+  const [allProblems, setAllProblems] = useState<Problem[]>([]); 
 
-  // Update the initialization of newProblem state to use TestCase array
-  const [newProblem, setNewProblem] = useState<NewProblem>({
-    name: "",
-    content: "",
-    difficulty: "EASY",
-    required: false,
-    reqOrder: 1,
-    problemType: "INFO",
-    codeTemplate: "",
-    testCases: [{ input: '', expected: '', isHidden: false }], // Initialize with empty test case
-    estimatedTime: undefined,
-    topicId: "",
-    collectionIds: [],
-    slug: "",
-    language: "javascript",
-    functionName: "",
-    timeLimit: 5000,
-    memoryLimit: undefined
+  const [isLoadingCollections, setIsLoadingCollections] = useState(false);
+  const [isLoadingProblems, setIsLoadingProblems] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const [isAddProblemDialogOpen, setIsAddProblemDialogOpen] = useState(false);
+  const [isEditProblemDialogOpen, setIsEditProblemDialogOpen] = useState(false);
+  
+  const [newProblemData, setNewProblemData] = useState<NewProblemFormState>({
+    name: '',
+    content: '',
+    difficulty: 'EASY',
+    problemType: 'INFO',
   });
+  const [editProblemData, setEditProblemData] = useState<EditProblemFormState | null>(null);
 
-  // Function to handle drag start
-  const handleDragStart = (e: React.DragEvent, problem: Problem) => {
-    if (!selectedCollection) return;
-    
-    setIsDragging(true);
-    
-    // Create drag data payload
-    const dragData: DragData = {
-      type: 'problem',
-      problemId: problem.id,
-      sourceType: 'collection',
-      sourceId: selectedCollection,
-      problem: problem
-    };
-    
-    // Set drag data
-    e.dataTransfer.setData('application/json', JSON.stringify(dragData));
-    e.dataTransfer.effectAllowed = 'move';
-    
-    // Set a ghost image with the problem name and make it visible during drag
-    const ghostElement = document.createElement('div');
-    ghostElement.classList.add('fixed', 'bg-background', 'border', 'rounded-md', 'p-2', 'opacity-90', 'text-foreground', 'text-sm', 'font-medium', 'shadow-md', 'z-50');
-    ghostElement.innerText = problem.name;
-    document.body.appendChild(ghostElement);
-    
-    // Position the ghost element near the cursor but not directly under it
-    ghostElement.style.position = 'absolute';
-    ghostElement.style.top = `${e.clientY - 10}px`;
-    ghostElement.style.left = `${e.clientX + 15}px`;
-    e.dataTransfer.setDragImage(ghostElement, 10, 10);
-    
-    // Store the ghost element in a dataset attribute for later removal
-    const target = e.target as HTMLElement;
-    target.dataset.ghostElementId = Date.now().toString();
-    
-    // Clean up ghost element after drag
-    setTimeout(() => {
-      try {
-        document.body.removeChild(ghostElement);
-      } catch (err) {
-        console.log('Ghost element already removed');
-      }
-    }, 100);
-  };
+  const [currentSupportedLanguages, setCurrentSupportedLanguages] = useState<Record<SupportedLanguage, LanguageData>>(
+    JSON.parse(JSON.stringify(defaultSupportedLanguages))
+  );
+  const [currentDefaultLanguage, setCurrentDefaultLanguage] = useState<string>('python');
 
-  // Function to handle drag over
-  const handleDragOver = (e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    
-    // Make the drop effect more visible to users
-    const target = e.currentTarget;
-    target.classList.add('border-primary', 'border-2', 'bg-primary/10');
-    
-    // Add pulsing animation for better visibility
-    if (!target.classList.contains('animate-pulse')) {
-      target.classList.add('animate-pulse');
-    }
-    
-    let canDrop = false;
-    
-    try {
-      const dataString = e.dataTransfer.getData('application/json');
-      if (!dataString) {
-        // If we can't get the data yet, assume it's a valid drag operation
-        e.dataTransfer.dropEffect = 'move';
-        setDragOverHighlight(true);
-        return;
-      }
-      
-      const dragData = JSON.parse(dataString) as DragData;
-      
-      if (selectedCollection === "no-collection") {
-        // When over the "No Collection" area, only accept drags from collections
-        if (dragData.type === 'problem' && dragData.sourceType === 'collection') {
-          canDrop = true;
-        }
-      } else {
-        // Normal collection behavior
-        // Only accept problem drags from topics or other collections
-        if (dragData.type === 'problem' && 
-            (dragData.sourceType === 'topic' || 
-             (dragData.sourceType === 'collection' && dragData.sourceId !== selectedCollection))) {
-          canDrop = true;
-        }
-      }
-      
-      if (canDrop) {
-        e.dataTransfer.dropEffect = 'move';
-        setDragOverHighlight(true);
-      } else {
-        e.dataTransfer.dropEffect = 'none';
-        // Remove highlights if we can't drop
-        target.classList.remove('border-primary', 'border-2', 'bg-primary/10', 'animate-pulse');
-      }
-    } catch (err) {
-      // Handle case where drag data might not be available yet
-      // This is a normal part of drag operations, not an error
-      e.dataTransfer.dropEffect = 'move';
-      setDragOverHighlight(true);
-    }
-  };
-
-  // Function to handle drag leave
-  const handleDragLeave = (e: React.DragEvent) => {
-    e.preventDefault();
-    const target = e.currentTarget;
-    target.classList.remove('border-primary', 'border-2', 'bg-primary/10', 'animate-pulse');
-    setDragOverHighlight(false);
-  };
-
-  // Function to handle drop from other components
-  const handleDrop = async (e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    
-    // Remove visual indicator
-    const target = e.currentTarget;
-    target.classList.remove('border-primary', 'border-2', 'bg-primary/10', 'animate-pulse');
-    setDragOverHighlight(false);
-    
-    try {
-      // Get drag data
-      const dragDataString = e.dataTransfer.getData('application/json');
-      if (!dragDataString) {
-        console.log("No drag data found");
-        return;
-      }
-      
-      const dragData = JSON.parse(dragDataString) as DragData;
-      console.log("Processing drop with data:", dragData);
-      
-      // Only handle problem drag from topics or other collections
-      if (dragData.type !== 'problem') {
-        console.log("Not a problem drag, ignoring");
-        return;
-      }
-      
-      // Check if we have a valid selected collection
-      if (!selectedCollection) {
-        console.log("No collection selected, cannot process drop");
-        toast.error("Please select a collection first");
-        return;
-      }
-      
-      // Fetch the latest version of the problem to ensure we have up-to-date data
-      const problem = await getProblem(dragData.problemId);
-      console.log("Got updated problem data:", problem);
-      
-      // Handle different scenarios based on source type and destination
-      if (selectedCollection === "no-collection") {
-        // SCENARIO 1: Dropping into "No Collection" area
-        console.log("Processing drop to No Collection area - remove from topic and all collections");
-        
-        // If coming from a topic, first remove from topic
-        if (dragData.sourceType === 'topic' || problem.topic) {
-          try {
-            console.log("Removing problem from topic:", problem.topic?.id);
-            // First try to use the dedicated endpoint
-            await api.put(`/problems/${dragData.problemId}/remove-topic`, {}, token);
-            toast.success("Problem removed from topic");
-            
-            // Dispatch a custom event to notify LearningPathAdmin that a problem was removed from a topic
-            if (dragData.sourceType === 'topic' && dragData.sourceId) {
-              const event = new CustomEvent('problem-removed-from-topic', { 
-                detail: { 
-                  problemId: dragData.problemId,
-                  topicId: dragData.sourceId 
-                } 
-              });
-              window.dispatchEvent(event);
-            }
-          } catch (topicError) {
-            console.error("Error removing from topic:", topicError);
-            // Fallback to direct update
-            try {
-              await api.put(`/problems/${dragData.problemId}`, {
-                topicId: null,
-                reqOrder: null
-              }, token);
-              toast.success("Problem removed from topic");
-              
-              // Dispatch a custom event to notify LearningPathAdmin that a problem was removed from a topic
-              if (dragData.sourceType === 'topic' && dragData.sourceId) {
-                const event = new CustomEvent('problem-removed-from-topic', { 
-                  detail: { 
-                    problemId: dragData.problemId,
-                    topicId: dragData.sourceId 
-                  } 
-                });
-                window.dispatchEvent(event);
-              }
-            } catch (err) {
-              console.error("Failed to remove problem from topic:", err);
-              toast.error("Failed to remove problem from topic");
-              return;
-            }
-          }
-        }
-        
-        // Now remove from all collections
-        if (problem.collectionIds && problem.collectionIds.length > 0) {
-          console.log("Removing problem from all collections:", problem.collectionIds);
-          
-          try {
-            // Loop through all collections and remove the problem from each
-            for (const collectionId of problem.collectionIds) {
-              await api.delete(`/admin/collections/${collectionId}/problems/${dragData.problemId}`, token);
-              console.log(`Removed problem from collection: ${collectionId}`);
-            }
-            toast.success("Problem removed from all collections");
-          } catch (err) {
-            console.error("Error removing problem from collections:", err);
-            toast.error("Failed to remove problem from some collections");
-          }
-        }
-        
-        // Refresh the problem list to show our newly orphaned problem
-        await refreshNoCollectionProblems();
-      } else {
-        // SCENARIO 2: Dropping into a specific collection
-        console.log("Processing drop to collection:", selectedCollection);
-        
-        // If coming from a topic, first remove from topic
-        if (dragData.sourceType === 'topic' || problem.topic) {
-          try {
-            console.log("Removing problem from topic:", problem.topic?.id);
-            // First try to use the dedicated endpoint
-            await api.put(`/problems/${dragData.problemId}/remove-topic`, {}, token);
-            toast.success("Problem removed from topic");
-            
-            // Dispatch a custom event to notify LearningPathAdmin that a problem was removed from a topic
-            if (dragData.sourceType === 'topic' && dragData.sourceId) {
-              const event = new CustomEvent('problem-removed-from-topic', { 
-                detail: { 
-                  problemId: dragData.problemId,
-                  topicId: dragData.sourceId 
-                } 
-              });
-              window.dispatchEvent(event);
-            }
-          } catch (topicError) {
-            console.error("Error removing from topic:", topicError);
-            // Fallback to direct update
-            try {
-              await api.put(`/problems/${dragData.problemId}`, {
-                topicId: null,
-                reqOrder: null
-              }, token);
-              toast.success("Problem removed from topic");
-              
-              // Dispatch a custom event to notify LearningPathAdmin that a problem was removed from a topic
-              if (dragData.sourceType === 'topic' && dragData.sourceId) {
-                const event = new CustomEvent('problem-removed-from-topic', { 
-                  detail: { 
-                    problemId: dragData.problemId,
-                    topicId: dragData.sourceId 
-                  } 
-                });
-                window.dispatchEvent(event);
-              }
-            } catch (err) {
-              console.error("Failed to remove problem from topic:", err);
-              toast.error("Failed to remove problem from topic");
-              return;
-            }
-          }
-        }
-        
-        // Check if the problem is already in the selected collection
-        if (problem.collectionIds && problem.collectionIds.includes(selectedCollection)) {
-          console.log("Problem already in this collection, skipping add");
-        } else {
-          // Add to the selected collection
-          try {
-            await api.post(`/admin/collections/${selectedCollection}/problems`, { problemId: dragData.problemId }, token);
-            console.log(`Added problem to collection: ${selectedCollection}`);
-            toast.success(`Problem added to ${collections.find(c => c.id === selectedCollection)?.name}`);
-            
-            // If the added problem belongs to the currently selected collection, refresh
-            if (selectedCollection === selectedCollection) {
-              await refreshCollectionProblems(selectedCollection);
-            }
-          } catch (err) {
-            console.error("Error adding problem to collection:", err);
-            toast.error("Failed to add problem to collection");
-          }
-        }
-        
-        // Refresh the problems in the current collection
-        if (selectedCollection) {
-          await refreshCollectionProblems(selectedCollection);
-        }
-      }
-      
-      // Invalidate cache for affected collections
-      if (selectedCollection && selectedCollection !== "no-collection") {
-        invalidateCollectionCache(selectedCollection);
-      }
-      
-      // If the problem was in other collections, invalidate their caches too
-      if (problem.collectionIds) {
-        for (const collectionId of problem.collectionIds) {
-          invalidateCollectionCache(collectionId);
-        }
-      }
-    } catch (error) {
-      console.error("Error handling drop:", error);
-      toast.error("Failed to process drag and drop operation");
-    }
-  };
-
-  // Helper function to get a problem from cache or fetch it
-  const getProblem = async (problemId: string): Promise<Problem> => {
-    const now = Date.now();
-    const cached = problemCacheRef.current[problemId];
-    
-    // If we have a valid cached version, use it
-    if (cached && now - cached.timestamp < CACHE_EXPIRY) {
-      return cached.data;
-    }
-    
-    // Otherwise fetch and cache the problem
-    try {
-      const problem = await api.get(`/problems/${problemId}`, token) as Problem;
-      problemCacheRef.current[problemId] = {
-        data: problem,
-        timestamp: now
-      };
-      return problem;
-    } catch (error) {
-      console.error(`Error fetching problem ${problemId}:`, error);
-      throw error;
-    }
-  };
-
-  // Add a dedicated function to refresh the "No Collection" view
-  const refreshNoCollectionProblems = async () => {
-    setLoadingProblems(true);
-    try {
-      // Use the new admin dashboard endpoint to fetch all needed data in one request
-      const problems = await api.get("/problems/admin/dashboard?collection=no-collection&withTopics=false", token);
-      console.log(`Found ${problems.length} problems without collections and without topics`);
-      setProblems(problems);
-    } catch (error) {
-      console.error("Error fetching problems without collections:", error);
-      toast.error("Failed to fetch problems without collections");
-      setProblems([]);
-    } finally {
-      setLoadingProblems(false);
-    }
-  };
-
-  // Helper function to refresh collection problems with filtering and caching
-  const refreshCollectionProblems = async (collectionId: string) => {
-    try {
-      const now = Date.now();
-      const cached = collectionProblemsCache.current[collectionId];
-      
-      // If we have recently cached collection problems, use them
-      if (cached && now - cached.timestamp < CACHE_EXPIRY) {
-        console.log(`Using cached problems for collection ${collectionId}`);
-        setProblems(cached.problems);
-        return;
-      }
-      
-      // Use the new comprehensive endpoint to get all data in one request
-      const problems = await api.get(
-        `/problems/admin/dashboard?collection=${collectionId}&withTopics=false`, 
-        token
-      );
-      
-      // Cache the filtered problems
-      collectionProblemsCache.current[collectionId] = {
-        problems,
-        timestamp: now
-      };
-      
-      setProblems(problems);
-    } catch (error) {
-      console.error("Error refreshing collection problems:", error);
-      toast.error("Failed to refresh problems");
-    }
-  };
-  
-  // Clear collection cache when certain actions are performed
-  const invalidateCollectionCache = (collectionId: string) => {
-    if (collectionProblemsCache.current[collectionId]) {
-      delete collectionProblemsCache.current[collectionId];
-    }
-  };
-
-  // Fetch collections on component mount
   useEffect(() => {
+    if (!token) return;
     const fetchCollections = async () => {
-      if (!token) return;
-      
-      setLoadingCollections(true);
+      setIsLoadingCollections(true);
       try {
-        const data = await api.get("/admin/collections", token);
-        setCollections(data);
-        
-        // Select the first collection by default
-        if (data.length > 0 && !selectedCollection) {
-          setSelectedCollection(data[0].id);
-        }
-      } catch (error) {
-        console.error("Error fetching collections:", error);
-        toast.error("Failed to fetch collections");
+        const data = await api.get('/admin/collections', token) as Collection[];
+        setCollections(data || []);
+        setError(null);
+      } catch (err) {
+        console.error('Error fetching collections:', err);
+        setError('Failed to fetch collections.');
+        toast.error('Failed to fetch collections.');
       } finally {
-        setLoadingCollections(false);
+        setIsLoadingCollections(false);
       }
     };
-    
     fetchCollections();
   }, [token]);
 
-  // Fetch problems for the selected collection
   useEffect(() => {
-    const fetchProblems = async () => {
-      if (!token || !selectedCollection) return;
-      
-      setLoadingProblems(true);
+    if (!token) return;
+    const fetchAllProblems = async () => {
+      setIsLoadingProblems(true);
       try {
-        await refreshCollectionProblems(selectedCollection);
-      } catch (error) {
-        console.error("Error fetching problems:", error);
-        toast.error("Failed to fetch problems for this collection");
-        setProblems([]);
+        const data = await api.get('/problems', token) as Problem[];
+        setAllProblems(data || []);
+        setError(null);
+    } catch (err) {
+        console.error('Error fetching all problems:', err);
+        toast.error('Failed to fetch problems data.');
       } finally {
-        setLoadingProblems(false);
+        setIsLoadingProblems(false);
       }
     };
-    
-    fetchProblems();
-  }, [token, selectedCollection]);
-
-  // Fetch all topics for the dropdown
-  useEffect(() => {
-    const fetchTopics = async () => {
-      if (!token) return;
-      
-      setLoadingTopics(true);
-      try {
-        // Fetch all levels to get all topics
-        const levels = await api.get("/learning/levels", token);
-        
-        // Extract all topics from all levels
-        const allTopics = levels.flatMap((level: Level) => 
-          level.topics.map((topic: Topic) => ({
-            ...topic,
-            levelName: level.name, // Include level name for better context
-            levelOrder: level.order
-          }))
-        );
-        
-        // Sort topics by level order then topic order
-        const sortedTopics = allTopics.sort((a: TopicWithLevel, b: TopicWithLevel) => {
-          if (a.levelOrder !== b.levelOrder) {
-            return a.levelOrder - b.levelOrder;
-          }
-          return a.order - b.order;
-        });
-        
-        setTopics(sortedTopics);
-      } catch (error) {
-        console.error("Error fetching topics:", error);
-        toast.error("Failed to fetch topics");
-      } finally {
-        setLoadingTopics(false);
-      }
-    };
-    
-    fetchTopics();
+    fetchAllProblems();
   }, [token]);
 
-  // Modify the collection change handler to use our new refresh function
-  const handleCollectionChange = (value: string) => {
-    setSelectedCollection(value);
-    
-    // Handle the special "no-collection" case
-    if (value === "no-collection") {
-      refreshNoCollectionProblems();
+  useEffect(() => {
+    if (selectedCollectionId === '__ALL_PROBLEMS_VIEW__') {
+      setProblemsInView(allProblems);
+    } else if (selectedCollectionId) {
+      const filteredProblems = allProblems.filter(problem =>
+        problem.collectionIds?.includes(selectedCollectionId)
+      );
+      setProblemsInView(filteredProblems);
+    } else {
+      setProblemsInView([]);
+    }
+  }, [selectedCollectionId, allProblems]);
+
+  const refreshProblems = async () => {
+    if (!token) return;
+    setIsLoadingProblems(true);
+    try {
+      const data = await api.get('/problems', token) as Problem[];
+      setAllProblems(data || []);
+      toast.success("Problems refreshed");
+            } catch (err) {
+      toast.error("Failed to refresh problems");
+    } finally {
+      setIsLoadingProblems(false);
     }
   };
 
-  // Update the handleAddProblem to stringify testCases
-  const handleAddProblem = async () => {
-    try {
-      // Make sure the selected collection is included in collectionIds
-      if (selectedCollection && !newProblem.collectionIds.includes(selectedCollection)) {
-        newProblem.collectionIds.push(selectedCollection);
+  const handleProblemInputChange = (
+    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>,
+    formType: 'add' | 'edit'
+  ) => {
+    const { name, value, type } = e.target;
+    const val = type === 'number' ? (value === '' ? undefined : parseInt(value)) : value;
+
+    const updater = (prev: NewProblemFormState | EditProblemFormState | null) => {
+        if (!prev) return null;
+        // Check if the field is part of codeProblem or top-level
+        if (['language', 'functionName', 'timeLimit', 'memoryLimit', 'codeTemplate'].includes(name) && prev.codeProblem) {
+             return {
+                ...prev,
+                codeProblem: {
+                    ...(prev.codeProblem),
+                    [name]: val,
+                } as FormCodeProblemState,
+            };
+        }
+        // Check for params or return_type (top-level on form state)
+        if (name === 'params' || name === 'return_type') {
+            return { ...prev, [name]: val };
+        }
+        return { ...prev, [name]: val };
+    };
+    
+    if (formType === 'add') {
+      setNewProblemData(updater as any);
+    } else if (editProblemData) {
+      setEditProblemData(updater as any);
+    }
+  };
+  
+  const handleProblemSelectChange = (
+    name: keyof NewProblemFormState | keyof FormCodeProblemState,
+    value: any,
+    formType: 'add' | 'edit'
+  ) => {
+    const updater = (prev: NewProblemFormState | EditProblemFormState | null) => {
+      if (!prev) return null;
+      if (name === 'problemType' && value === 'CODING' && !prev.codeProblem) {
+        return {
+          ...prev,
+          problemType: value as ProblemType,
+          codeProblem: { 
+            language: currentDefaultLanguage,
+            functionName: 'solution',
+            timeLimit: 5000,
+            memoryLimit: 256, // Initialize required field
+            codeTemplate: '', // Initialize required field
+            testCases: [{ input: '[]', expected: 'null', isHidden: false }],
+          },
+        };
+      }
+      if (name === 'problemType' && value === 'INFO' && prev.codeProblem) {
+         const { codeProblem, ...rest } = prev;
+        return { ...rest, problemType: value as ProblemType };
+      }
+
+      if (['language', 'timeLimit', 'memoryLimit', 'functionName', 'codeTemplate'].includes(name as string) && prev.problemType === 'CODING' && prev.codeProblem) {
+        return {
+          ...prev,
+          codeProblem: { ...(prev.codeProblem), [name]: value } as FormCodeProblemState,
+        };
+      }
+      return { ...prev, [name]: value };
+    };
+
+    if (formType === 'add') {
+      setNewProblemData(updater as any);
+    } else if (editProblemData) {
+      setEditProblemData(updater as any);
+    }
+  };
+  
+  const handleTestCaseChange = (index: number, field: keyof FormTestCase, value: string | boolean, formType: 'add' | 'edit') => {
+    const updater = (prev: NewProblemFormState | EditProblemFormState | null) => {
+      if (!prev || prev.problemType !== 'CODING' || !prev.codeProblem || !prev.codeProblem.testCases) return prev;
+      const testCases = [...prev.codeProblem.testCases];
+      if (testCases[index]) {
+        (testCases[index] as any)[field] = value;
+      }
+      return { ...prev, codeProblem: { ...prev.codeProblem, testCases } };
+    };
+    if (formType === 'add') setNewProblemData(updater as any);
+    else if (editProblemData) setEditProblemData(updater as any);
+  };
+
+  const handleAddTestCase = (formType: 'add' | 'edit') => {
+    const updater = (prev: NewProblemFormState | EditProblemFormState | null) => {
+      if (!prev || prev.problemType !== 'CODING' || !prev.codeProblem) return prev;
+      const testCases = [...(prev.codeProblem.testCases || []), { input: '[]', expected: 'null', isHidden: false }];
+      return { ...prev, codeProblem: { ...prev.codeProblem, testCases } };
+    };
+    if (formType === 'add') setNewProblemData(updater as any);
+    else if (editProblemData) setEditProblemData(updater as any);
+  };
+
+  const handleRemoveTestCase = (index: number, formType: 'add' | 'edit') => {
+    const updater = (prev: NewProblemFormState | EditProblemFormState | null) => {
+      if (!prev || prev.problemType !== 'CODING' || !prev.codeProblem || !prev.codeProblem.testCases || prev.codeProblem.testCases.length <= 1) return prev;
+      const testCases = prev.codeProblem.testCases.filter((_, i) => i !== index);
+      return { ...prev, codeProblem: { ...prev.codeProblem, testCases } };
+    };
+    if (formType === 'add') setNewProblemData(updater as any);
+    else if (editProblemData) setEditProblemData(updater as any);
+  };
+
+ const handleParamChange = (index: number, field: keyof FunctionParameter, value: string, formType: 'add' | 'edit') => {
+    const updater = (prev: NewProblemFormState | EditProblemFormState | null) => {
+      if (!prev || prev.problemType !== 'CODING') return prev;
+      const params = [...(prev.params || [])]; // Params are top-level on form state
+      if (!params[index]) params[index] = { name: '', type: '' };
+      (params[index] as any)[field] = value;
+      return { ...prev, params };
+    };
+    if (formType === 'add') setNewProblemData(updater as any);
+    else if (editProblemData) setEditProblemData(updater as any);
+  };
+
+  const handleAddParam = (formType: 'add' | 'edit') => {
+    const updater = (prev: NewProblemFormState | EditProblemFormState | null) => {
+      if (!prev || prev.problemType !== 'CODING') return prev;
+      const params = [...(prev.params || []), { name: '', type: '' }];
+      return { ...prev, params };
+    };
+    if (formType === 'add') setNewProblemData(updater as any);
+    else if (editProblemData) setEditProblemData(updater as any);
+  };
+
+  const handleRemoveParam = (index: number, formType: 'add' | 'edit') => {
+    const updater = (prev: NewProblemFormState | EditProblemFormState | null) => {
+      if (!prev || prev.problemType !== 'CODING' || !prev.params || prev.params.length === 0) return prev;
+      const params = prev.params.filter((_, i) => i !== index);
+      return { ...prev, params };
+    };
+    if (formType === 'add') setNewProblemData(updater as any);
+    else if (editProblemData) setEditProblemData(updater as any);
+  };
+
+  const handleAddProblemToCollection = async () => {
+    if (!token || !selectedCollectionId) {
+      toast.error('A collection must be selected to add a problem.');
+        return;
       }
       
-      // Create base problem data (fields shared by all types)
-      const problemData = {
-        name: newProblem.name,
-        difficulty: newProblem.difficulty,
-        required: newProblem.required,
-        reqOrder: newProblem.reqOrder,
-        problemType: newProblem.problemType,
-        topicId: newProblem.topicId,
-        collectionIds: newProblem.collectionIds,
-        slug: newProblem.slug,
-        estimatedTime: newProblem.estimatedTime,
-        content: newProblem.content || ""
+    let apiPayload: any = {
+      name: newProblemData.name,
+      content: newProblemData.content,
+      difficulty: newProblemData.difficulty,
+      problemType: newProblemData.problemType,
+      slug: newProblemData.slug,
+      estimatedTime: newProblemData.estimatedTime,
+      collectionIds: [selectedCollectionId],
+      // Add fields not in AdminCodeProblemType
+      return_type: newProblemData.return_type,
+      params: JSON.stringify(newProblemData.params || []),
+      defaultLanguage: currentDefaultLanguage, // Add defaultLanguage to payload
+      languageSupport: JSON.stringify( // Add languageSupport to payload
+        prepareLanguageSupport(currentDefaultLanguage, currentSupportedLanguages)
+      ),
+    };
+
+    if (newProblemData.problemType === 'CODING' && newProblemData.codeProblem) {
+      const { testCases, ...restOfCodeProblem } = newProblemData.codeProblem;
+      apiPayload.codeProblem = {
+        ...restOfCodeProblem,
+        testCases: (testCases || []).map(prepareFormTestCaseForAdminCodeProblemType),
+      };
+      // For API submission, testCases are often a separate top-level field, stringified.
+      // The backend PRISMA schema has Problem.testCases as Json?
+      // And CodeProblem.testCases as relation to TestCase[]
+      // Let's assume backend's /problems endpoint expects stringified testCases at top level for simplicity of creation.
+      // If it expects it inside codeProblem, then the previous line is fine.
+      // If backend handles test case creation via relation inside codeProblem creation, that's more complex.
+      // For now, sending prepared (stringified + isHidden) FormTestCases at top-level.
+      apiPayload.testCases = JSON.stringify(
+        (newProblemData.codeProblem.testCases || []).map(prepareFormTestCaseForApiSubmission)
+      );
+    }
+
+
+    try {
+      await api.post('/problems', apiPayload, token);
+      toast.success('Problem added successfully to collection.');
+      setIsAddProblemDialogOpen(false);
+      setNewProblemData({ name: '', content: '', difficulty: 'EASY', problemType: 'INFO', params: [], return_type: '' });
+      setCurrentSupportedLanguages(JSON.parse(JSON.stringify(defaultSupportedLanguages)));
+      setCurrentDefaultLanguage('python');
+      refreshProblems();
+    } catch (err) {
+      console.error('Error adding problem:', err);
+      toast.error('Failed to add problem.');
+    }
+  };
+
+  const openEditProblemDialog = (problem: Problem) => {
+    if (!problem) return;
+    
+    const problemDetails = problem; 
+    let formCodeProblem: FormCodeProblemState | undefined = undefined;
+
+    if (problemDetails.problemType === 'CODING' && problemDetails.codeProblem) {
+      const { testCases, ...restAdminCodeProblem } = problemDetails.codeProblem;
+      formCodeProblem = {
+        ...restAdminCodeProblem,
+        testCases: problemDetails.codeProblem.testCases?.map(normalizeAdminTestCaseToFormTestCase) || [],
       };
       
-      // For CODING problems, include coding specific fields
-      if (newProblem.problemType === 'CODING') {
-        Object.assign(problemData, {
-          codeTemplate: newProblem.codeTemplate,
-          testCases: JSON.stringify(newProblem.testCases),
-          language: newProblem.language,
-          functionName: newProblem.functionName,
-          timeLimit: Number(newProblem.timeLimit),
-          memoryLimit: newProblem.memoryLimit ? Number(newProblem.memoryLimit) : undefined
-        });
-      } 
-      // For INFO problems, the content is already included above.
-      // We might add other INFO-specific fields here later if needed.
-      else if (newProblem.problemType === 'INFO') {
-        // Currently no INFO-specific fields other than content
-      }
-      
-      await api.post("/problems", problemData, token);
-      setIsAddingProblem(false);
-      
-      // Reset form state
-      setNewProblem({
-        name: "",
-        content: "",
-        difficulty: "EASY",
-        required: false,
-        reqOrder: 1,
-        problemType: "INFO",
-        codeTemplate: "",
-        testCases: [{ input: '', expected: '', isHidden: false }],
-        estimatedTime: undefined,
-        topicId: "",
-        collectionIds: [],
-        slug: "",
-        language: "javascript",
-        functionName: "",
-        timeLimit: 5000,
-        memoryLimit: undefined
-      });
-      
-      toast.success("Problem added to collection successfully");
-      
-      // Refresh problems list with filtering
-      if (selectedCollection) {
-        await refreshCollectionProblems(selectedCollection);
-      }
-    } catch (err) {
-      console.error("Error adding problem:", err);
-      if (err instanceof Error) {
-        toast.error(`Failed to add problem: ${err.message}`);
+      // Language support handling (assuming languageSupport and defaultLanguage are on main Problem object from API)
+      const langSupportFromApi = (problemDetails as any).languageSupport;
+      const defaultLangFromApi = (problemDetails as any).defaultLanguage;
+
+      if (langSupportFromApi && typeof langSupportFromApi === 'object') {
+        try {
+            const initialLangState = JSON.parse(JSON.stringify(defaultSupportedLanguages));
+            Object.entries(langSupportFromApi).forEach(([lang, data]: [string, any]) => {
+                if (lang in initialLangState) {
+                    initialLangState[lang as SupportedLanguage] = {
+                        enabled: true, // If present, it was enabled
+                        template: data.template || '',
+                        reference: data.reference || ''
+                    };
+                }
+            });
+            setCurrentSupportedLanguages(initialLangState);
+            setCurrentDefaultLanguage(defaultLangFromApi || 'python');
+        } catch (e) {
+             console.error("Error processing language support for edit:", e);
+            setCurrentSupportedLanguages(JSON.parse(JSON.stringify(defaultSupportedLanguages)));
+            setCurrentDefaultLanguage('python');
+        }
+      } else if (problemDetails.codeProblem.codeTemplate) { // Fallback for older problems
+          const initialLangState = JSON.parse(JSON.stringify(defaultSupportedLanguages));
+          const legacyLang = (defaultLangFromApi || problemDetails.codeProblem.language || 'python') as SupportedLanguage;
+          if (legacyLang in initialLangState) {
+              initialLangState[legacyLang] = { ...initialLangState[legacyLang], enabled: true, template: problemDetails.codeProblem.codeTemplate };
+          }
+          setCurrentSupportedLanguages(initialLangState);
+          setCurrentDefaultLanguage(legacyLang);
       } else {
-        toast.error("Failed to add problem");
+        setCurrentSupportedLanguages(JSON.parse(JSON.stringify(defaultSupportedLanguages)));
+        setCurrentDefaultLanguage('python');
       }
+      } else {
+        setCurrentSupportedLanguages(JSON.parse(JSON.stringify(defaultSupportedLanguages)));
+        setCurrentDefaultLanguage('python');
+    }
+
+    setEditProblemData({
+      id: problemDetails.id,
+      name: problemDetails.name || '',
+      content: problemDetails.content || '',
+      difficulty: problemDetails.difficulty as ProblemDifficulty || 'EASY',
+      problemType: problemDetails.problemType as ProblemType || 'INFO',
+      slug: problemDetails.slug,
+      estimatedTime: problemDetails.estimatedTime,
+      collectionIds: problemDetails.collectionIds || [],
+      codeProblem: formCodeProblem,
+      // Populate params and return_type from the main problem object if they exist
+      params: parseParams((problemDetails as any).params),
+      return_type: (problemDetails as any).return_type,
+    });
+    setIsEditProblemDialogOpen(true);
+  };
+
+  const handleUpdateProblem = async () => {
+    if (!token || !editProblemData) {
+      toast.error('No problem data to update.');
+          return;
+    }
+
+    let apiPayload: any = {
+      name: editProblemData.name,
+      content: editProblemData.content,
+      difficulty: editProblemData.difficulty,
+      problemType: editProblemData.problemType,
+      slug: editProblemData.slug,
+      estimatedTime: editProblemData.estimatedTime,
+      collectionIds: editProblemData.collectionIds,
+      return_type: editProblemData.return_type,
+      params: JSON.stringify(editProblemData.params || []),
+      defaultLanguage: currentDefaultLanguage,
+      languageSupport: JSON.stringify(
+        prepareLanguageSupport(currentDefaultLanguage, currentSupportedLanguages)
+      ),
+    };
+
+    if (editProblemData.problemType === 'CODING' && editProblemData.codeProblem) {
+      const { testCases, ...restOfCodeProblem } = editProblemData.codeProblem; // testCases here are FormTestCase[]
+      apiPayload.codeProblem = {
+        ...restOfCodeProblem,
+        // Convert FormTestCase[] back to AdminTestCase[] for the codeProblem object if API expects that structure
+        testCases: (testCases || []).map(prepareFormTestCaseForAdminCodeProblemType), 
+      };
+      // And also prepare stringified FormTestCases for top-level API submission
+       apiPayload.testCases = JSON.stringify(
+        (editProblemData.codeProblem.testCases || []).map(prepareFormTestCaseForApiSubmission)
+      );
+    }
+    
+    try {
+      await api.put(`/problems/${editProblemData.id}`, apiPayload, token);
+      toast.success('Problem updated successfully.');
+      setIsEditProblemDialogOpen(false);
+      setEditProblemData(null);
+      refreshProblems();
+    } catch (err) {
+      console.error('Error updating problem:', err);
+      toast.error('Failed to update problem.');
     }
   };
 
   const handleDeleteProblem = async (problemId: string) => {
-    if (!confirm("Are you sure you want to delete this problem? This will remove it completely from the system.")) {
+    if (!token) return;
+    if (!confirm('Are you sure you want to delete this problem? This action cannot be undone.')) {
       return;
     }
-    
     try {
-      await api.delete(`/learning/problems/${problemId}`, token);
-      toast.success("Problem deleted successfully");
-      
-      // Refresh problems list with filtering
-      if (selectedCollection) {
-        await refreshCollectionProblems(selectedCollection);
-      }
+      await api.delete(`/learning/problems/${problemId}`, token); // Ensure this endpoint is correct
+      toast.success('Problem deleted successfully.');
+      refreshProblems();
     } catch (err) {
-      console.error("Error deleting problem:", err);
-      if (err instanceof Error) {
-        toast.error(`Failed to delete problem: ${err.message}`);
-      } else {
-        toast.error("Failed to delete problem");
-      }
+      console.error('Error deleting problem:', err);
+      toast.error('Failed to delete problem.');
     }
-  };
-
-  const handleProblemChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
-    const { name, value } = e.target;
-    setNewProblem(prev => ({
-      ...prev,
-      [name]: name === 'reqOrder' ? (value === '' ? 1 : Math.max(1, parseInt(value) || 1)) : value
-    }));
   };
   
-  // Update handleProblemTypeChange to reset testCases properly
-  const handleProblemTypeChange = (value: string) => {
-    setNewProblem(prev => ({
-      ...prev,
-      problemType: value as ProblemType,
-      // Reset coding-specific fields when switching to INFO type
-      ...(value === 'INFO' ? {
-        codeTemplate: '',
-        testCases: [{ input: '', expected: '', isHidden: false }],
-        language: "javascript",
-        functionName: "",
-        timeLimit: 5000,
-        memoryLimit: undefined
-      } : {})
-    }));
-  };
-
-  const handleRemoveFromCollection = async (problemId: string) => {
-    if (!selectedCollection) return;
+  const renderProblemFormFields = (formType: 'add' | 'edit') => {
+    const data = formType === 'add' ? newProblemData : editProblemData;
+    if (!data && formType === 'edit') return null;
     
-    try {
-      // Retrieve the current problem to check if it's in multiple collections
-      const problem = problems.find(p => p.id === problemId);
-      if (!problem) return;
-      
-      // If the problem is only in this collection and no others, confirm if the user wants to remove it
-      // This effectively creates the "no collection" bucket
-      const isInMultipleCollections = problem.collectionIds && problem.collectionIds.length > 1;
-      
-      if (!isInMultipleCollections) {
-        if (!window.confirm("This problem is only in this collection. Removing it will leave it without any collection. Continue?")) {
-          return;
-        }
-      }
-      
-      // Remove the problem from the collection
-      await api.delete(`/admin/collections/${selectedCollection}/problems/${problemId}`, token);
-      console.log(`Removed problem from collection: ${selectedCollection}`);
-      toast.success(`Problem removed from collection`);
-      
-      // Invalidate the cache for this collection
-      invalidateCollectionCache(selectedCollection);
-      
-      // Refresh the problems in the current collection
-      if (selectedCollection) {
-        await refreshCollectionProblems(selectedCollection);
-      }
-    } catch (err) {
-      console.error("Error removing problem from collection:", err);
-      toast.error("Failed to remove problem from collection");
-    }
-  };
+    const currentData = data as NewProblemFormState | EditProblemFormState;
 
-  const handleEditProblemChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
-    if (!selectedProblem) return;
-    const { name, value } = e.target;
-    const updatedValue = name === 'reqOrder' ? (value === '' ? 1 : Math.max(1, parseInt(value) || 1)) : value;
-    setSelectedProblem(prev => prev ? {...prev, [name]: updatedValue} : null);
-  };
-
-  const handleEditProblemTypeChange = (value: string) => {
-    if (!selectedProblem) return;
-    setSelectedProblem(prev => prev ? {
-      ...prev,
-      problemType: value as ProblemType,
-      // Reset coding-specific fields when switching to INFO type
-      ...(value === 'INFO' ? { codeTemplate: '', testCases: [] } : {})
-    } : null);
-  };
-
-  const handleEditProblem = async () => {
-    if (!selectedProblem) return;
-
-    try {
-      // Prepare the problem data
-      const problemData = {
-        id: selectedProblem.id,
-        name: selectedProblem.name,
-        difficulty: selectedProblem.difficulty,
-        required: selectedProblem.required,
-        reqOrder: selectedProblem.reqOrder,
-        problemType: selectedProblem.problemType,
-        content: selectedProblem.content || "",
-        // Add topic ID if present
-        ...(selectedProblem.topic ? { topicId: selectedProblem.topic.id } : {})
-      };
-
-      // For CODING problems, include coding fields
-      if (selectedProblem.problemType === 'CODING') {
-        Object.assign(problemData, {
-          codeTemplate: selectedProblem.codeTemplate,
-          testCases: JSON.stringify(
-            typeof selectedProblem.testCases === 'string'
-              ? parseTestCases(selectedProblem.testCases)
-              : selectedProblem.testCases
-          ),
-          functionName: selectedProblem.functionName,
-          language: selectedProblem.language,
-          timeLimit: selectedProblem.timeLimit ? Number(selectedProblem.timeLimit) : undefined,
-          memoryLimit: selectedProblem.memoryLimit ? Number(selectedProblem.memoryLimit) : undefined
-        });
-      }
-      // For INFO problems, the content is already included above.
-      else if (selectedProblem.problemType === 'INFO') {
-        // Currently no INFO-specific fields other than content
-      }
-
-      await api.put(`/problems/${selectedProblem.id}`, problemData, token);
-      console.log(`Problem updated: ${selectedProblem.id}`);
-      toast.success('Problem updated successfully');
-      setIsEditingProblem(false);
-      setSelectedProblem(null);
-      
-      // Refresh collections to reflect the changes
-      if (selectedCollection) {
-        await refreshCollectionProblems(selectedCollection);
-      }
-    } catch (err) {
-      console.error('Error updating problem:', err);
-      if (err instanceof Error) {
-        toast.error(`Failed to update problem: ${err.message}`);
-      } else {
-        toast.error('Failed to update problem');
-      }
-    }
-  };
-
-  // Update handleDragEnd to reset state
-  const handleDragEnd = () => {
-    setIsDragging(false);
-    // No reordering needed for collections, they don't have an explicit order
-  };
-
-  // Update the window.addProblemToCollection function with proper types
-  window.addProblemToCollection = async (problemId: string, collectionId: string): Promise<boolean> => {
-    try {
-      const token = localStorage.getItem('token');
-      if (!token) {
-        console.error("No token found, cannot add problem to collection");
-        toast.error("Authentication error");
-        return false;
-      }
-      
-      console.log(`Adding problem ${problemId} to collection ${collectionId}`);
-      
-      // Fetch the problem to check its current status
-      const problem = await getProblem(problemId);
-      
-      // Check if the problem has a topic and try to remove it
-      if (problem.topic) {
-        console.log("Problem has a topic, attempting to remove before adding to collection");
-        
-        try {
-          // Try the dedicated endpoint for removing a problem from its topic
-          await api.delete(`/learning/topics/problems/${problem.id}`, token);
-          console.log("Problem removed from topic using delete endpoint");
-        } catch (topicRemoveError) {
-          console.error("Failed to remove problem from topic using delete endpoint:", topicRemoveError);
-          
-          // Fallback: Try the problem-specific endpoint for removing a topic
-          try {
-            await api.put(`/problems/${problem.id}/remove-topic`, {}, token);
-            console.log("Problem removed from topic using remove-topic endpoint");
-          } catch (fallbackError) {
-            console.error("Failed to remove problem from topic using fallback endpoint:", fallbackError);
-            
-            // Last resort: Update the problem directly with topicId: null
-            try {
-              const problemUpdate = {
-                ...problem,
-                topic: undefined,
-                topicId: null  // This is passed to the API but not included in the Problem type
-              };
-              await api.put(`/problems/${problem.id}`, problemUpdate, token);
-              console.log("Problem removed from topic using direct update with null topicId");
-            } catch (directUpdateError) {
-              console.error("All attempts to remove problem from topic failed:", directUpdateError);
-              toast.error("Could not remove problem from its topic");
-              return false; // Abort the operation if we can't remove from topic
-            }
-          }
-        }
-      }
-      
-      // Add problem to the specified collection
-      await api.post(`/admin/collections/${collectionId}/problems`, { problemId }, token);
-      console.log(`Added problem to collection: ${collectionId}`);
-      toast.success(`Problem added to ${collections.find(c => c.id === collectionId)?.name}`);
-      
-      // Invalidate the cache for this collection
-      invalidateCollectionCache(collectionId);
-      
-      // If the added problem belongs to the currently selected collection, refresh
-      if (selectedCollection === collectionId) {
-        await refreshCollectionProblems(selectedCollection);
-      }
-      
-      return true;
-    } catch (err) {
-      console.error("Error adding problem to collection:", err);
-      toast.error("Failed to add problem to collection");
-      return false;
-    }
-  };
-
-  // Function to handle View button click - exit admin view and navigate to problem
-  const handleViewProblem = (problemId: string) => {
-    // Exit admin view
-    setIsAdminView(false);
-    // Navigate to the problem
-    navigate(`/problems/${problemId}`);
-  };
-
-  if (loadingCollections) {
     return (
-      <div className="flex items-center justify-center p-8">
-        <div className="animate-spin rounded-full h-8 w-8 border-2 border-primary border-t-transparent" />
-      </div>
-    );
-  }
-
-  return (
-    <div>
-      <div className="flex gap-2 justify-end mb-4">
-        <Select value={selectedCollection || ""} onValueChange={handleCollectionChange}>
-          <SelectTrigger className="w-[250px]">
-            <SelectValue placeholder="Select a collection" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="no-collection">No Collection</SelectItem>
-            {collections.map((collection) => (
-              <SelectItem key={collection.id} value={collection.id}>
-                {collection.name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        <Button 
-          variant="outline" 
-          size="sm"
-          onClick={() => {
-            if (selectedCollection && selectedCollection !== "no-collection") {
-              setIsAddingProblem(true);
-              // Pre-select the current collection
-              setNewProblem(prev => ({
-                ...prev,
-                collectionIds: [selectedCollection]
-              }));
-            } else if (selectedCollection === "no-collection") {
-              setIsAddingProblem(true);
-              // No collection pre-selected
-              setNewProblem(prev => ({
-                ...prev,
-                collectionIds: []
-              }));
-            } else {
-              toast.error("Please select a collection first");
-            }
-          }}
-        >
-          Add Problem{selectedCollection === "no-collection" ? "" : " to Collection"}
-        </Button>
-      </div>
-      
-      <div className="bg-muted/30 border rounded-md p-4 mb-4 text-sm text-muted-foreground">
-        <p className="font-medium">Note:</p>
-        <p>Problems can be part of both the learning path (assigned to topics) AND in collections.</p>
-        <p>However, for easier management, only problems that are not assigned to any topic will appear in this view.</p>
-        <p>To add a problem that's in a topic to a collection, use the "Edit" button in the Learning Path view.</p>
-      </div>
-      
-      <div 
-        className={cn(
-          "space-y-4 p-4 border-2 border-dashed rounded-lg transition-colors min-h-[200px]",
-          dragOverHighlight ? "border-primary bg-primary/5" : "border-border",
-          isDragging ? "opacity-75" : ""
-        )}
-        onDragOver={handleDragOver}
-        onDragLeave={handleDragLeave}
-        onDrop={(e) => {
-          e.preventDefault();
-          e.stopPropagation();
-          const target = e.currentTarget;
-          target.classList.remove('border-primary', 'border-2', 'bg-primary/10', 'animate-pulse');
-          handleDrop(e);
-        }}
-      >
-        {loadingProblems ? (
-          <div className="flex items-center justify-center p-8">
-            <div className="animate-spin rounded-full h-8 w-8 border-2 border-primary border-t-transparent" />
+      <div className="grid gap-4 py-4 max-h-[70vh] overflow-y-auto pr-2">
+        <div className="grid gap-2">
+          <Label htmlFor={`${formType}-name`}>Name <span className="text-destructive">*</span></Label>
+          <Input id={`${formType}-name`} name="name" value={currentData.name} onChange={(e) => handleProblemInputChange(e, formType)} />
+        </div>
+        <div className="grid gap-2">
+          <Label htmlFor={`${formType}-slug`}>Slug (URL-friendly)</Label>
+          <Input id={`${formType}-slug`} name="slug" value={currentData.slug || ''} onChange={(e) => handleProblemInputChange(e, formType)} />
+        </div>
+        <div className="grid gap-2">
+          <Label htmlFor={`${formType}-content`}>Content (Markdown) <span className="text-destructive">*</span></Label>
+          <Textarea id={`${formType}-content`} name="content" value={currentData.content} onChange={(e) => handleProblemInputChange(e, formType)} className="min-h-[100px]" />
+        </div>
+        <div className="grid grid-cols-2 gap-4">
+          <div className="grid gap-2">
+            <Label htmlFor={`${formType}-difficulty`}>Difficulty <span className="text-destructive">*</span></Label>
+            <Select value={currentData.difficulty} onValueChange={(val) => handleProblemSelectChange('difficulty', val as ProblemDifficulty, formType)}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                {difficultyLevels.map(level => (
+                  <SelectItem key={level} value={level}>{level.charAt(0) + level.slice(1).toLowerCase()}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
-        ) : problems.length === 0 ? (
-          <div className="text-center p-8 text-muted-foreground">
-            {selectedCollection 
-              ? selectedCollection === "no-collection"
-                ? "No problems without a collection. Drag problems here to remove them from all collections."
-                : "No problems in this collection. Add one using the button above or drag problems here."
-              : "Please select a collection from the dropdown."}
+          <div className="grid gap-2">
+            <Label htmlFor={`${formType}-problemType`}>Problem Type <span className="text-destructive">*</span></Label>
+            <Select 
+              value={currentData.problemType} 
+              onValueChange={(val) => handleProblemSelectChange('problemType', val as ProblemType, formType)}
+              disabled={formType === 'edit'}
+            >
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="INFO">Info</SelectItem>
+                <SelectItem value="CODING">Coding</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
-        ) : (
-          <div className="space-y-2">
-            {problems.map((problem) => (
-              <div 
-                key={problem.id} 
-                className="flex items-center justify-between p-2 rounded-lg border"
-                draggable
-                onDragStart={(e) => handleDragStart(e, problem)}
-                onDragEnd={handleDragEnd}
-              >
-                <div className="flex items-center gap-2">
-                  <div className="text-muted-foreground cursor-move select-none" aria-label="Drag handle">
-                    ⣿
-                  </div>
-                  <div>
-                    <div className="font-medium">{problem.name}</div>
-                    <div className="text-sm text-muted-foreground">
-                      <span className="inline-flex items-center">
-                        <Badge variant={problem.required ? "outline" : "secondary"} className="mr-2 w-[4.5rem] justify-center">
-                          {problem.required ? `REQ ${problem.reqOrder || 1}` : "OPTIONAL"}
-                        </Badge>
-                        {problem.difficulty} • {problem.problemType}
-                      </span>
-                      {/* Display all collection badges */}
-                      <span className="ml-2 inline-flex items-center">
-                        {problem.collectionIds && problem.collectionIds.length > 0 && (
-                          problem.collectionIds.map((colId) => (
-                            <CollectionBadge 
-                              key={`collection-${colId}`} 
-                              collectionId={colId} 
-                              collectionsData={collections}
-                            />
-                          ))
-                        )}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-                <div className="flex gap-2">
-                  <Button 
-                    variant="ghost" 
-                    size="sm"
-                    onClick={() => handleViewProblem(problem.id)}
-                  >
-                    View
-                  </Button>
-                  <Button 
-                    variant="ghost" 
-                    size="sm"
-                    onClick={() => {
-                      setSelectedProblem(problem);
-                      setIsEditingProblem(true);
-                    }}
-                  >
-                    Edit
-                  </Button>
-                  <Button 
-                    variant="outline" 
-                    size="sm"
-                    onClick={() => handleRemoveFromCollection(problem.id)}
-                  >
-                    Remove
-                  </Button>
-                  <Button 
-                    variant="destructive" 
-                    size="sm"
-                    onClick={() => handleDeleteProblem(problem.id)}
-                  >
-                    Delete
-                  </Button>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-
-      {/* Add Problem Dialog */}
-      <Dialog open={isAddingProblem} onOpenChange={setIsAddingProblem}>
-        <DialogContent className="max-h-[95vh] overflow-hidden">
-          <DialogHeader>
-            <DialogTitle>Add New Problem to Collection</DialogTitle>
-            <DialogDescription>
-              Create a new problem and add it to the selected collection.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="grid gap-4 py-4 overflow-y-auto pr-6 max-h-[75vh]">
-            <div className="grid gap-2">
-              <Label htmlFor="name">Name</Label>
-              <Input
-                id="name"
-                name="name"
-                value={newProblem.name}
-                onChange={handleProblemChange}
-              />
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="content">Content (Markdown)</Label>
-              <Textarea
-                id="content"
-                name="content"
-                value={newProblem.content}
-                onChange={handleProblemChange}
-                className="min-h-[100px]"
-              />
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="difficulty">Difficulty</Label>
-              <Select 
-                name="difficulty" 
-                value={newProblem.difficulty}
-                onValueChange={(value: string) => setNewProblem(prev => ({ ...prev, difficulty: value as ProblemDifficulty }))}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select difficulty" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="BEGINNER">Beginner</SelectItem>
-                  <SelectItem value="EASY">Easy</SelectItem>
-                  <SelectItem value="MEDIUM">Medium</SelectItem>
-                  <SelectItem value="HARD">Hard</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="problemType">Problem Type</Label>
-              <Select 
-                name="problemType" 
-                value={newProblem.problemType}
-                onValueChange={handleProblemTypeChange}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select problem type" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="INFO">Info</SelectItem>
-                  <SelectItem value="CODING">Coding</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
+        </div>
             
+        {currentData.problemType === 'CODING' && (
+          <>
+            <h4 className="font-semibold mt-2 pt-2 border-t">Coding Details</h4>
             <div className="grid gap-2">
-              <Label htmlFor="collectionIds">Additional Collections (Optional)</Label>
-              <div className="space-y-2 border rounded-md p-3">
-                {loadingCollections ? (
-                  <div className="py-2 text-center text-muted-foreground">Loading collections...</div>
-                ) : collections.length === 0 ? (
-                  <div className="py-2 text-center text-muted-foreground">No collections found</div>
-                ) : (
-                  collections
-                    .filter(collection => collection.id !== selectedCollection) // Filter out currently selected collection
-                    .map(collection => (
-                      <div key={collection.id} className="flex items-center gap-2">
-                        <input
-                          type="checkbox"
-                          id={`collection-${collection.id}`}
-                          checked={newProblem.collectionIds?.includes(collection.id) || false}
-                          onChange={(e) => {
-                            if (e.target.checked) {
-                              setNewProblem(prev => ({
-                                ...prev,
-                                collectionIds: [...(prev.collectionIds || []), collection.id]
-                              }));
-                            } else {
-                              setNewProblem(prev => ({
-                                ...prev,
-                                collectionIds: (prev.collectionIds || []).filter(id => id !== collection.id)
-                              }));
-                            }
-                          }}
-                        />
-                        <Label htmlFor={`collection-${collection.id}`}>{collection.name}</Label>
-                      </div>
-                    ))
-                )}
-              </div>
-            </div>
-            
-            {newProblem.problemType === 'CODING' && (
-              <>
-                <div className="grid gap-2">
-                  <Label htmlFor="language">Programming Language</Label>
-                  <Select 
-                    name="language" 
-                    value={newProblem.language}
-                    onValueChange={(value: string) => setNewProblem(prev => ({ ...prev, language: value }))}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select language" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="javascript">JavaScript</SelectItem>
-                      <SelectItem value="python">Python</SelectItem>
-                      <SelectItem value="java">Java</SelectItem>
-                      <SelectItem value="cpp">C++</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                
-                <div className="grid gap-2">
-                  <Label htmlFor="functionName">Function Name</Label>
-                  <Input
-                    id="functionName"
-                    name="functionName"
-                    value={newProblem.functionName}
-                    onChange={handleProblemChange}
-                    placeholder="solution"
-                  />
-                </div>
-                
-                <div className="grid gap-2">
-                  <Label htmlFor="timeLimit">Time Limit (ms)</Label>
-                  <Input
-                    id="timeLimit"
-                    name="timeLimit"
-                    type="number"
-                    value={newProblem.timeLimit}
-                    onChange={handleProblemChange}
-                    placeholder="5000"
-                  />
-                </div>
-                
-                <div className="grid gap-2">
-                  <Label htmlFor="memoryLimit">Memory Limit (MB, optional)</Label>
-                  <Input
-                    id="memoryLimit"
-                    name="memoryLimit"
-                    type="number"
-                    value={newProblem.memoryLimit || ''}
-                    onChange={handleProblemChange}
-                    placeholder="256"
-                  />
-                </div>
-                
-                <div className="grid gap-2">
-                  <Label htmlFor="codeTemplate">Code Template</Label>
-                  <Textarea
-                    id="codeTemplate"
-                    name="codeTemplate"
-                    value={newProblem.codeTemplate}
-                    onChange={handleProblemChange}
-                    className="min-h-[150px] max-h-[300px] overflow-y-auto font-mono"
-                    placeholder="function solution() {\n  // Write your code here\n}"
-                  />
-                </div>
-                
-                <div className="grid gap-2">
-                  <Label>Test Cases</Label>
-                  <div className="space-y-4 border rounded-md p-4">
-                    {newProblem.testCases.map((testCase, index) => (
-                      <div key={index} className="pb-4 border-b last:border-b-0 last:pb-0 space-y-3">
-                        <div className="flex items-center justify-between">
-                          <h4 className="text-sm font-medium">Test Case {index + 1}</h4>
-                          {newProblem.testCases.length > 1 && (
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => {
-                                const newTestCases = [...newProblem.testCases];
-                                newTestCases.splice(index, 1);
-                                setNewProblem(prev => ({ ...prev, testCases: newTestCases }));
-                              }}
-                            >
-                              <Trash className="h-4 w-4" />
-                            </Button>
-                          )}
-                        </div>
-                        
-                        <div className="grid grid-cols-2 gap-4">
-                          <div className="space-y-2">
-                            <Label htmlFor={`test-input-${index}`} className="text-xs">
-                              Input <span className="text-destructive">*</span>
-                            </Label>
-                            <Textarea
-                              id={`test-input-${index}`}
-                              value={testCase.input}
-                              onChange={(e) => {
-                                const newTestCases = [...newProblem.testCases];
-                                newTestCases[index].input = e.target.value;
-                                setNewProblem(prev => ({ ...prev, testCases: newTestCases }));
-                              }}
-                              placeholder="Test input"
-                              className="font-mono text-sm"
-                              required
-                            />
-                          </div>
-                          <div className="space-y-2">
-                            <Label htmlFor={`test-output-${index}`} className="text-xs">
-                              Expected Output <span className="text-destructive">*</span>
-                            </Label>
-                            <Textarea
-                              id={`test-output-${index}`}
-                              value={testCase.expected}
-                              onChange={(e) => {
-                                const newTestCases = [...newProblem.testCases];
-                                newTestCases[index].expected = e.target.value;
-                                setNewProblem(prev => ({ ...prev, testCases: newTestCases }));
-                              }}
-                              placeholder="Expected output"
-                              className="font-mono text-sm"
-                              required
-                            />
-                          </div>
-                        </div>
-                        
-                        <div className="flex items-center gap-2">
-                          <Checkbox
-                            id={`test-hidden-${index}`}
-                            checked={testCase.isHidden}
-                            onCheckedChange={(checked) => {
-                              const newTestCases = [...newProblem.testCases];
-                              newTestCases[index].isHidden = !!checked;
-                              setNewProblem(prev => ({ ...prev, testCases: newTestCases }));
-                            }}
-                          />
-                          <Label htmlFor={`test-hidden-${index}`} className="text-sm">
-                            Hidden test case (not shown to user)
-                          </Label>
-                        </div>
-                      </div>
-                    ))}
-                    
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setNewProblem(prev => ({ 
-                        ...prev, 
-                        testCases: [...prev.testCases, { input: '', expected: '', isHidden: false }] 
-                      }))}
-                      className="w-full"
-                    >
-                      <PlusCircle className="h-4 w-4 mr-2" />
-                      Add Test Case
-                    </Button>
-                  </div>
-                </div>
-              </>
-            )}
-            <div className="grid gap-2">
-              <Label htmlFor="reqOrder">Order (if required)</Label>
-              <Input
-                id="reqOrder"
-                name="reqOrder"
-                type="number"
-                value={newProblem.reqOrder}
-                onChange={handleProblemChange}
-                min={1}
+              <Label>Language Support <span className="text-destructive">*</span></Label>
+              <LanguageSupport
+                supportedLanguages={currentSupportedLanguages}
+                setSupportedLanguages={setCurrentSupportedLanguages}
+                defaultLanguage={currentDefaultLanguage}
+                setDefaultLanguage={setCurrentDefaultLanguage}
               />
             </div>
             <div className="grid gap-2">
-              <Label htmlFor="estimatedTime">Estimated Time (minutes)</Label>
-              <Input
-                id="estimatedTime"
-                name="estimatedTime"
-                type="number"
-                value={newProblem.estimatedTime || ''}
-                onChange={(e) => {
-                  const value = e.target.value ? parseInt(e.target.value) : undefined;
-                  setNewProblem(prev => ({ ...prev, estimatedTime: value }));
-                }}
-                min={1}
-                placeholder="Leave empty for no estimate"
-              />
-            </div>
-            <div className="flex items-center gap-2 py-2">
-              <div className="flex items-center space-x-2">
-                <input
-                  type="checkbox"
-                  id="required"
-                  checked={newProblem.required}
-                  onChange={(e) => setNewProblem(prev => ({ ...prev, required: e.target.checked }))}
-                  className="rounded border-gray-300 text-primary focus:ring-primary"
-                />
-                <Label htmlFor="required">Required</Label>
-              </div>
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setIsAddingProblem(false)}>
-              Cancel
-            </Button>
-            <Button onClick={handleAddProblem}>Add Problem</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Edit Problem Dialog */}
-      <Dialog open={isEditingProblem} onOpenChange={setIsEditingProblem}>
-        <DialogContent className="max-h-[95vh] overflow-hidden">
-          <DialogHeader>
-            <DialogTitle>Edit Problem</DialogTitle>
-            <DialogDescription>
-              Modify the problem details.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="grid gap-4 py-4 overflow-y-auto pr-6 max-h-[75vh]">
-            <div className="grid gap-2">
-              <Label htmlFor="edit-problem-name">Name</Label>
-              <Input
-                id="edit-problem-name"
-                name="name"
-                value={selectedProblem?.name || ""}
-                onChange={handleEditProblemChange}
-              />
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="edit-problem-content">Content</Label>
-              <Textarea
-                id="edit-problem-content"
-                name="content"
-                value={selectedProblem?.content || ""}
-                onChange={handleEditProblemChange}
-                className="min-h-[100px]"
-              />
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="edit-problem-difficulty">Difficulty</Label>
-              <Select 
-                value={selectedProblem?.difficulty} 
-                onValueChange={(value: ProblemDifficulty) => 
-                  setSelectedProblem(prev => 
-                    prev ? {...prev, difficulty: value} : null
-                  )
-                }
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select difficulty" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="BEGINNER">Beginner</SelectItem>
-                  <SelectItem value="EASY">Easy</SelectItem>
-                  <SelectItem value="MEDIUM">Medium</SelectItem>
-                  <SelectItem value="HARD">Hard</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="edit-problem-problemType">Problem Type</Label>
-              <Select 
-                value={selectedProblem?.problemType}
-                onValueChange={handleEditProblemTypeChange}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select problem type" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="INFO">Info</SelectItem>
-                  <SelectItem value="CODING">Coding</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            
-            {selectedProblem?.problemType === 'CODING' && (
-              <>
-                <div className="grid gap-2">
-                  <Label htmlFor="edit-problem-codeTemplate">Code Template</Label>
-                  <Textarea
-                    id="edit-problem-codeTemplate"
-                    name="codeTemplate"
-                    value={selectedProblem?.codeTemplate || ""}
-                    onChange={handleEditProblemChange}
-                    className="min-h-[150px] max-h-[300px] overflow-y-auto font-mono"
-                    placeholder="function solution() {\n  // Write your code here\n}"
-                  />
-                </div>
-                <div className="grid gap-2">
-                  <Label>Test Cases</Label>
-                  <div className="space-y-4 border rounded-md p-4">
-                    {parseTestCases(selectedProblem?.testCases).map((testCase, index) => (
-                      <div key={index} className="pb-4 border-b last:border-b-0 last:pb-0 space-y-3">
-                        <div className="flex items-center justify-between">
-                          <h4 className="text-sm font-medium">Test Case {index + 1}</h4>
-                          {parseTestCases(selectedProblem?.testCases).length > 1 && (
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => {
-                                const newTestCases = [...parseTestCases(selectedProblem?.testCases)];
-                                newTestCases.splice(index, 1);
-                                setSelectedProblem(prev => prev ? ({
-                                  ...prev,
-                                  testCases: newTestCases
-                                }) : null);
-                              }}
-                            >
-                              <Trash className="h-4 w-4" />
-                            </Button>
-                          )}
-                        </div>
-                        
-                        <div className="grid grid-cols-2 gap-4">
-                          <div className="space-y-2">
-                            <Label htmlFor={`edit-test-input-${index}`} className="text-xs">
-                              Input <span className="text-destructive">*</span>
-                            </Label>
-                            <Textarea
-                              id={`edit-test-input-${index}`}
-                              value={testCase.input}
-                              onChange={(e) => {
-                                const newTestCases = [...parseTestCases(selectedProblem?.testCases)];
-                                newTestCases[index].input = e.target.value;
-                                setSelectedProblem(prev => prev ? ({
-                                  ...prev,
-                                  testCases: newTestCases
-                                }) : null);
-                              }}
-                              placeholder="Test input"
-                              className="font-mono text-sm"
-                              required
-                            />
-                          </div>
-                          <div className="space-y-2">
-                            <Label htmlFor={`edit-test-output-${index}`} className="text-xs">
-                              Expected Output <span className="text-destructive">*</span>
-                            </Label>
-                            <Textarea
-                              id={`edit-test-output-${index}`}
-                              value={testCase.expected}
-                              onChange={(e) => {
-                                const newTestCases = [...parseTestCases(selectedProblem?.testCases)];
-                                newTestCases[index].expected = e.target.value;
-                                setSelectedProblem(prev => prev ? ({
-                                  ...prev,
-                                  testCases: newTestCases
-                                }) : null);
-                              }}
-                              placeholder="Expected output"
-                              className="font-mono text-sm"
-                              required
-                            />
-                          </div>
-                        </div>
-                        
-                        <div className="flex items-center gap-2">
-                          <Checkbox
-                            id={`edit-test-hidden-${index}`}
-                            checked={testCase.isHidden}
-                            onCheckedChange={(checked) => {
-                              const newTestCases = [...parseTestCases(selectedProblem?.testCases)];
-                              newTestCases[index].isHidden = !!checked;
-                              setSelectedProblem(prev => prev ? ({
-                                ...prev,
-                                testCases: newTestCases
-                              }) : null);
-                            }}
-                          />
-                          <Label htmlFor={`edit-test-hidden-${index}`} className="text-sm">
-                            Hidden test case (not shown to user)
-                          </Label>
-                        </div>
-                      </div>
-                    ))}
-                    
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setSelectedProblem(prev => prev ? ({
-                        ...prev,
-                        testCases: [
-                          ...parseTestCases(prev.testCases),
-                          { input: '', expected: '', isHidden: false }
-                        ]
-                      }) : null)}
-                      className="w-full"
-                    >
-                      <PlusCircle className="h-4 w-4 mr-2" />
-                      Add Test Case
-                    </Button>
-                  </div>
-                </div>
-              </>
-            )}
-            
-            <div className="grid gap-2">
-              <Label htmlFor="edit-problem-collectionIds">Collections (Optional)</Label>
-              <div className="space-y-2 border rounded-md p-3">
-                {loadingCollections ? (
-                  <div className="py-2 text-center text-muted-foreground">Loading collections...</div>
-                ) : collections.length === 0 ? (
-                  <div className="py-2 text-center text-muted-foreground">No collections found</div>
-                ) : (
-                  collections.map(collection => (
-                    <div key={collection.id} className="flex items-center gap-2">
-                      <input
-                        type="checkbox"
-                        id={`edit-collection-${collection.id}`}
-                        checked={selectedProblem?.collectionIds?.includes(collection.id) || false}
-                        onChange={(e) => {
-                          if (!selectedProblem) return;
-                          
-                          const currentCollectionIds = selectedProblem.collectionIds || [];
-                          let newCollectionIds: string[];
-                          
-                          if (e.target.checked) {
-                            newCollectionIds = [...currentCollectionIds, collection.id];
-                          } else {
-                            newCollectionIds = currentCollectionIds.filter(id => id !== collection.id);
-                          }
-                          
-                          setSelectedProblem(prev => 
-                            prev ? {...prev, collectionIds: newCollectionIds} : null
-                          );
-                        }}
-                      />
-                      <Label htmlFor={`edit-collection-${collection.id}`}>{collection.name}</Label>
-                    </div>
-                  ))
-                )}
-              </div>
-            </div>
-            
-            <div className="grid gap-2">
-              <Label htmlFor="edit-problem-reqOrder">Order (if required)</Label>
-              <Input
-                id="edit-problem-reqOrder"
-                name="reqOrder"
-                type="number"
-                value={selectedProblem?.reqOrder || 1}
-                onChange={handleEditProblemChange}
-                min={1}
-              />
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="edit-problem-estimatedTime">Estimated Time (minutes)</Label>
-              <Input
-                id="edit-problem-estimatedTime"
-                name="estimatedTime"
-                type="number"
-                value={selectedProblem?.estimatedTime || ''}
-                onChange={(e) => {
-                  const value = e.target.value ? parseInt(e.target.value) : undefined;
-                  setSelectedProblem(prev => 
-                    prev ? {...prev, estimatedTime: value} : null
-                  );
-                }}
-                min={1}
-                placeholder="Leave empty for no estimate"
-              />
-            </div>
-            <div className="flex items-center gap-2 py-2">
-              <div className="flex items-center space-x-2">
-                <input
-                  type="checkbox"
-                  id="edit-problem-required"
-                  checked={selectedProblem?.required || false}
-                  onChange={(e) => 
-                    setSelectedProblem(prev => 
-                      prev ? {...prev, required: e.target.checked} : null
-                    )
-                  }
-                  className="rounded border-gray-300 text-primary focus:ring-primary"
-                />
-                <Label htmlFor="edit-problem-required">Required</Label>
-              </div>
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="edit-problem-topic">Topic (Optional)</Label>
-              <Select 
-                value={selectedTopicId || ''} 
-                onValueChange={(value) => setSelectedTopicId(value === 'none' ? null : value)}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select a topic or none" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">None (No Topic)</SelectItem>
-                  {topics.map(topic => (
-                    <SelectItem key={topic.id} value={topic.id}>
-                      {topic.levelName} - {topic.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <p className="text-xs text-muted-foreground mt-1">
-                Assigning a topic will remove this problem from all collections and move it to the learning path.
+              <Label htmlFor={`${formType}-codeTemplate`}>Base Code Template</Label>
+              <Textarea id={`${formType}-codeTemplate`} name="codeTemplate" value={currentData.codeProblem?.codeTemplate || ''} onChange={(e) => handleProblemInputChange(e, formType)} className="font-mono text-sm min-h-[80px]" />
+              <p className="text-xs text-muted-foreground">
+                This template is part of the language support settings above. Changing it here updates the current default language template.
               </p>
             </div>
+            <div className="grid gap-2">
+              <Label htmlFor={`${formType}-functionName`}>Function Name</Label>
+              <Input id={`${formType}-functionName`} name="functionName" value={currentData.codeProblem?.functionName || ''} onChange={(e) => handleProblemInputChange(e, formType)} />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="grid gap-2">
+                <Label htmlFor={`${formType}-return_type`}>Return Type (e.g., string, int[])</Label>
+                <Input id={`${formType}-return_type`} name="return_type" value={currentData.return_type || ''} onChange={(e) => handleProblemInputChange(e, formType)} />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="grid gap-2">
+                <Label htmlFor={`${formType}-timeLimit`}>Time Limit (ms)</Label>
+                <Input id={`${formType}-timeLimit`} name="timeLimit" type="number" value={currentData.codeProblem?.timeLimit || ''} onChange={(e) => handleProblemInputChange(e, formType)} />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor={`${formType}-memoryLimit`}>Memory Limit (MB)</Label>
+                <Input id={`${formType}-memoryLimit`} name="memoryLimit" type="number" value={currentData.codeProblem?.memoryLimit || ''} onChange={(e) => handleProblemInputChange(e, formType)} />
+              </div>
+            </div>
+            <div className="grid gap-2">
+              <Label>Function Parameters</Label>
+              <div className="space-y-2 border rounded p-3">
+                {currentData.params?.map((param, index) => (
+                  <div key={param.id || index} className="grid grid-cols-3 gap-2 items-end">
+                    <Input placeholder="Name (e.g., nums)" value={param.name} onChange={(e) => handleParamChange(index, 'name', e.target.value, formType)} />
+                    <Input placeholder="Type (e.g., int[])" value={param.type} onChange={(e) => handleParamChange(index, 'type', e.target.value, formType)} />
+                    <Button variant="ghost" size="icon" onClick={() => handleRemoveParam(index, formType)}><Trash className="h-4 w-4" /></Button>
+                  </div>
+                ))}
+                <Button variant="outline" size="sm" onClick={() => handleAddParam(formType)}>Add Parameter</Button>
+              </div>
+            </div>
+            <div className="grid gap-2">
+              <Label>Test Cases <span className="text-destructive">*</span></Label>
+              <div className="space-y-3 border rounded p-3 max-h-[300px] overflow-y-auto">
+                {currentData.codeProblem?.testCases?.map((tc, index) => (
+                  <div key={tc.id || index} className="space-y-2 border-b pb-2 last:border-b-0 last:pb-0">
+                    <div className="flex justify-between items-center">
+                      <Label className="text-sm">Test Case {index + 1}</Label>
+                      { (currentData.codeProblem?.testCases?.length || 0) > 1 &&
+                        <Button variant="ghost" size="icon" onClick={() => handleRemoveTestCase(index, formType)}><Trash className="h-4 w-4" /></Button>
+                      }
+                    </div>
+                    <Textarea placeholder='Input (e.g., [1,2,3] or {"key":"value"})' value={tc.input} onChange={(e) => handleTestCaseChange(index, 'input', e.target.value, formType)} className="font-mono text-xs" />
+                    <Textarea placeholder='Expected Output (e.g., 6 or "hello")' value={tc.expected} onChange={(e) => handleTestCaseChange(index, 'expected', e.target.value, formType)} className="font-mono text-xs" />
+                    <div className="flex items-center gap-2">
+                      <Checkbox id={`${formType}-tc-hidden-${index}`} checked={tc.isHidden} onCheckedChange={(checked) => handleTestCaseChange(index, 'isHidden', !!checked, formType)} />
+                      <Label htmlFor={`${formType}-tc-hidden-${index}`} className="text-xs">Hidden</Label>
+                    </div>
+                  </div>
+                ))}
+                <Button variant="outline" size="sm" onClick={() => handleAddTestCase(formType)}>Add Test Case</Button>
+              </div>
+            </div>
+          </> 
+        )}
+            
+        <div className="grid gap-2">
+        <Label htmlFor={`${formType}-estimatedTime`}>Estimated Time (minutes)</Label>
+        <Input id={`${formType}-estimatedTime`} name="estimatedTime" type="number" value={currentData.estimatedTime || ''} onChange={(e) => handleProblemInputChange(e, formType)} />
+        </div>
+
+        {/* Collections Selector - Conditional Render for Edit Mode */}
+        {formType === 'edit' && (
+          <div className="grid gap-2">
+            <Label htmlFor={`${formType}-collectionIds`}>Collections</Label>
+            <div className="space-y-2 border rounded-md p-3 max-h-[150px] overflow-y-auto">
+              {isLoadingCollections ? (
+                <p className="text-sm text-muted-foreground">Loading collections...</p>
+              ) : collections.length === 0 ? (
+                <p className="text-sm text-muted-foreground">No collections available.</p>
+              ) : (
+                collections.map(collection => (
+                  <div key={collection.id} className="flex items-center gap-2">
+                    <Checkbox
+                      id={`${formType}-collection-${collection.id}`}
+                      checked={(currentData as EditProblemFormState).collectionIds?.includes(collection.id) || false}
+                      onCheckedChange={(checked) => {
+                        const problemDataToUpdate = currentData as EditProblemFormState;
+                        const currentCollectionIds = problemDataToUpdate.collectionIds || [];
+                        let newCollectionIds: string[];
+                        if (checked) {
+                          newCollectionIds = [...currentCollectionIds, collection.id];
+                        } else {
+                          newCollectionIds = currentCollectionIds.filter(id => id !== collection.id);
+                        }
+                        if (formType === 'edit') { 
+                          setEditProblemData(prev => prev ? ({ ...prev, collectionIds: newCollectionIds }) : null);
+                        } 
+                      }}
+                    />
+                    <Label htmlFor={`${formType}-collection-${collection.id}`} className="font-normal">
+                      {collection.name}
+                    </Label>
+                  </div>
+                ))
+              )}
+            </div>
           </div>
+        )} {/* End Collections Selector Conditional Render */}
+      </div>
+    );
+  };
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-2xl font-bold">Problem Collection Management</CardTitle>
+        <CardDescription>Organize problems by collection/category.</CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-6">
+        <div className="flex flex-col md:flex-row gap-6">
+          <div className="w-full md:w-1/4 lg:w-1/5 border-r pr-4">
+            <h4 className="text-lg font-semibold mb-3">Collections</h4>
+            <div className="space-y-2 flex flex-col items-stretch">
+              <Button 
+                variant={!selectedCollectionId ? "secondary" : "ghost"}
+                onClick={() => setSelectedCollectionId(null)}
+                className="w-full justify-start text-left"
+                disabled={isLoadingCollections}
+              >
+                Clear Filter / Show None
+              </Button>
+              <Button 
+                variant={selectedCollectionId === '__ALL_PROBLEMS_VIEW__' ? "secondary" : "ghost"}
+                onClick={() => setSelectedCollectionId('__ALL_PROBLEMS_VIEW__')}
+                className="w-full justify-start text-left mt-1 mb-3 pt-2 pb-2 border-t border-b"
+                disabled={isLoadingCollections || isLoadingProblems}
+              >
+                View All Problems
+              </Button>
+              {isLoadingCollections && <p className="text-sm text-muted-foreground">Loading collections...</p>}
+              {collections.map((collection) => (
+                            <Button
+                  key={collection.id}
+                  variant={selectedCollectionId === collection.id ? "secondary" : "ghost"}
+                  onClick={() => setSelectedCollectionId(collection.id)}
+                  className="w-full justify-start text-left truncate"
+                  title={collection.name}
+                >
+                  {collection.name}
+                            </Button>
+              ))}
+                          </div>
+                        </div>
+                        
+          <div className="w-full md:w-3/4 lg:w-4/5">
+            <div className="flex flex-col sm:flex-row gap-4 justify-between items-center mb-4">
+              <div>
+                <h5 className="text-xl font-semibold">
+                  {selectedCollectionId === '__ALL_PROBLEMS_VIEW__' 
+                    ? 'All Problems' 
+                    : selectedCollectionId 
+                      ? collections.find(c => c.id === selectedCollectionId)?.name || 'Selected Collection' 
+                      : 'No Collection Selected'}
+                  {selectedCollectionId !== '__ALL_PROBLEMS_VIEW__' && selectedCollectionId && " Problems"}
+                </h5>
+                        </div>
+              <div className="flex gap-2">
+                <Button onClick={refreshProblems} variant="outline" size="icon" disabled={isLoadingProblems || isLoadingCollections}>
+                    <RefreshCw className={cn("h-4 w-4", (isLoadingProblems || isLoadingCollections) && "animate-spin")} />
+                    </Button>
+                <Dialog open={isAddProblemDialogOpen} onOpenChange={setIsAddProblemDialogOpen}>
+                  <DialogTrigger asChild>
+                    <Button disabled={!selectedCollectionId || selectedCollectionId === '__ALL_PROBLEMS_VIEW__' || isLoadingCollections}>
+                      <PlusCircle className="mr-2 h-4 w-4" /> Add New Problem to Collection
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent className="max-w-3xl">
+                    <DialogHeader>
+                      <DialogTitle>Add New Problem to '{collections.find(c => c.id === selectedCollectionId)?.name || 'Selected Collection'}'</DialogTitle>
+                      <DialogDescription>
+                        Create a new problem and add it to this collection.
+                      </DialogDescription>
+                    </DialogHeader>
+                    {renderProblemFormFields('add')}
+                    <DialogFooter>
+                      <Button variant="outline" onClick={() => setIsAddProblemDialogOpen(false)}>Cancel</Button>
+                      <Button onClick={handleAddProblemToCollection}>Add Problem</Button>
+                    </DialogFooter>
+                  </DialogContent>
+                </Dialog>
+                  </div>
+                </div>
+
+            <p className="text-sm text-muted-foreground mb-4">
+              Note: To manage a problem's association with topics or other collections, use the "Edit" button for that problem (here or in the Learning Path view).
+            </p>
+
+            {isLoadingProblems && <p className="text-center py-4">Loading problems...</p>}
+            {!isLoadingProblems && error && <p className="text-destructive text-center py-4">{error}</p>}
+            
+            {!isLoadingProblems && !error && selectedCollectionId && selectedCollectionId !== '__ALL_PROBLEMS_VIEW__' && problemsInView.length === 0 && (
+              <p className="text-center text-muted-foreground py-4">
+                No problems in this collection. Add one using the button above.
+              </p>
+            )}
+            {!isLoadingProblems && !error && !selectedCollectionId && (
+                <p className="text-center text-muted-foreground py-4">
+                    Please select a collection from the list to view its problems, or choose 'View All Problems'.
+                </p>
+            )}
+            {selectedCollectionId === '__ALL_PROBLEMS_VIEW__' && problemsInView.length === 0 && (
+                <p className="text-center text-muted-foreground py-4">
+                    No problems found in the system.
+                </p>
+            )}
+
+            {!isLoadingProblems && problemsInView.length > 0 && (
+              <div className="space-y-3">
+                {problemsInView.map((problem) => (
+                  <Card key={problem.id} className="p-4">
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <h4 className="font-semibold">{problem.name}</h4>
+                        <p className="text-xs text-muted-foreground">ID: {problem.id} | Slug: {problem.slug || 'N/A'}</p>
+                        <div className="mt-1">
+                          <Badge variant="outline" className="mr-2">{problem.difficulty}</Badge>
+                          <Badge variant="secondary">{problem.problemType}</Badge>
+            </div>
+            </div>
+                      <div className="flex gap-2 flex-shrink-0">
+                        <Button variant="ghost" size="sm" onClick={() => openEditProblemDialog(problem)}>
+                          <Edit className="mr-1 h-4 w-4" /> Edit
+                        </Button>
+                        <Button variant="destructive" size="sm" onClick={() => handleDeleteProblem(problem.id)}>
+                          <Trash className="mr-1 h-4 w-4" /> Delete
+                        </Button>
+              </div>
+            </div>
+                  </Card>
+                ))}
+            </div>
+            )}
+            
+            <Dialog open={isEditProblemDialogOpen} onOpenChange={setIsEditProblemDialogOpen}>
+                <DialogContent className="max-w-3xl">
+                    <DialogHeader>
+                        <DialogTitle>Edit Problem: {editProblemData?.name}</DialogTitle>
+                        <DialogDescription>Modify the problem details.</DialogDescription>
+                    </DialogHeader>
+                    {renderProblemFormFields('edit')}
           <DialogFooter>
-            <Button variant="outline" onClick={() => setIsEditingProblem(false)}>
-              Cancel
-            </Button>
-            <Button onClick={handleEditProblem}>Save Changes</Button>
+                        <Button variant="outline" onClick={() => setIsEditProblemDialogOpen(false)}>Cancel</Button>
+                        <Button onClick={handleUpdateProblem}>Save Changes</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
     </div>
+        </div>
+
+      </CardContent>
+    </Card>
   );
 } 

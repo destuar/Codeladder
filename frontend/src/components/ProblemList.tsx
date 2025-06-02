@@ -136,20 +136,20 @@ export function ProblemList({
             {onShuffleClick && (
               <Button
                 variant="ghost"
-                size="sm"
                 onClick={onShuffleClick}
-                className="h-8 px-3 bg-background hover:bg-muted/20 disabled:opacity-50 shadow-md flex items-center gap-1.5"
+                className="h-9 px-3 bg-background hover:bg-muted/20 disabled:opacity-50 shadow-md flex items-center gap-1.5 font-sans text-sm font-normal"
                 disabled={shuffleDisabled || isShuffling}
               >
                 {isShuffling ? (
                   <>
                     <Loader2 className="h-4 w-4 animate-spin" />
-                    <span>Shuffling...</span>
+                    <span className="text-sm">Shuffling...</span>
                   </>
                 ) : (
                   <>
-                    <span>Shuffle</span>
                     <Shuffle className="h-4 w-4" />
+                    <span className="sm:hidden text-sm">Shuffle</span>
+                    <span className="hidden sm:inline text-sm">Shuffle</span>
                   </>
                 )}
               </Button>
@@ -246,7 +246,7 @@ export function ProblemList({
             {showOrder && (
               <TableHead 
                 className={cn(
-                  "cursor-pointer group hover:text-foreground transition-colors pl-4 text-xs sm:text-sm",
+                  "cursor-pointer group hover:text-foreground transition-colors pl-4 text-xs sm:text-sm font-sans",
                   isLocked && "text-muted-foreground"
                 )}
                 onClick={() => handleSort('order')}
@@ -267,7 +267,7 @@ export function ProblemList({
             )}
             <TableHead 
               className={cn(
-                "cursor-pointer group hover:text-foreground transition-colors text-xs sm:text-sm",
+                "cursor-pointer group hover:text-foreground transition-colors text-xs sm:text-sm font-sans",
                 isLocked && "text-muted-foreground"
               )}
               onClick={() => handleSort('name')}
@@ -290,7 +290,7 @@ export function ProblemList({
             )}
             <TableHead 
               className={cn(
-                "cursor-pointer group hover:text-foreground transition-colors text-xs sm:text-sm py-2 sm:py-3",
+                "cursor-pointer group hover:text-foreground transition-colors text-xs sm:text-sm py-2 sm:py-3 font-sans",
                 isLocked && "text-muted-foreground"
               )}
               onClick={() => handleSort('difficulty')}
@@ -308,7 +308,7 @@ export function ProblemList({
                 )}
               </div>
             </TableHead>
-            <TableHead className={cn("w-[100px] sm:w-[120px] text-xs sm:text-sm pl-2 pr-2 sm:pl-0 sm:pr-6 py-2 sm:py-3", isLocked && "text-muted-foreground")}>Action</TableHead>
+            <TableHead className={cn("w-[100px] sm:w-[120px] text-xs sm:text-sm pl-2 pr-2 sm:pl-0 sm:pr-6 py-2 sm:py-3", isLocked && "text-muted-foreground")}></TableHead>
           </TableRow>
         </TableHeader>
         <TableBody className={cn(isLocked && "opacity-50")}>
@@ -319,84 +319,94 @@ export function ProblemList({
               </TableCell>
             </TableRow>
           ) : (
-            paginatedProblems.map((problem, index) => (
-              <TableRow 
-                key={problem.id} 
-                className={cn(
-                  "transition-colors border-b border-border/10",
-                  "hover:bg-blue-50/20 dark:hover:bg-blue-900/5",
-                  index % 2 === 0 ? "bg-muted/10 dark:bg-muted/15" : ""
-                )}
-              >
-                <TableCell className="pl-2 sm:pl-6 py-2 sm:py-3">
-                  {problem.isCompleted ? (
-                    <CheckCircle2 className={cn("h-4 w-4 sm:h-5 sm:w-5 text-green-500", isLocked && "text-muted-foreground")} />
-                  ) : (
-                    <Circle className="h-4 w-4 sm:h-5 sm:w-5 text-muted-foreground/40" />
+            paginatedProblems.map((problem, index) => {
+              const isProblemLocked = isLocked && !problem.isCompleted;
+              const problemEstimatedTime = formatEstimatedTime(parseEstimatedTime(problem.estimatedTime));
+
+              return (
+                <TableRow 
+                  key={problem.id} 
+                  className={cn(
+                    "font-sans border-0 border-b border-border/10",
+                    isProblemLocked 
+                      ? "bg-muted/20 hover:bg-muted/30 text-muted-foreground/60 cursor-not-allowed" 
+                      : "hover:bg-muted/20",
+                    index % 2 !== 0 && !isProblemLocked ? "bg-muted/10 dark:bg-muted/15" : "",
+                    {
+                      "transition-colors hover:bg-blue-50/20 dark:hover:bg-blue-900/5": !isProblemLocked,
+                    }
                   )}
-                </TableCell>
-                {showOrder && (
-                  <TableCell className="pl-2 sm:pl-4 py-2 sm:py-3 text-xs sm:text-sm">
-                    {problem.required ? (
-                      <Badge variant="outline" className={cn("bg-blue-50/50 dark:bg-blue-900/20 text-xs sm:text-sm", isLocked && "text-muted-foreground")}>
-                        REQ {problem.reqOrder}
-                      </Badge>
+                >
+                  <TableCell className="w-4 pl-6 py-3">
+                    {problem.isCompleted ? (
+                      <CheckCircle2 className={cn("h-4 w-4 sm:h-5 sm:w-5 text-green-500", isProblemLocked && "text-muted-foreground")} />
                     ) : (
-                      <Badge variant="secondary" className={cn("bg-muted/50 text-xs sm:text-sm", isLocked && "bg-muted text-muted-foreground")}>
-                        {problem.reqOrder ? `OPT ${problem.reqOrder}` : 'STANDALONE'}
-                      </Badge>
+                      <Circle className={cn("h-4 w-4 sm:h-5 sm:w-5 text-muted-foreground/40")} />
                     )}
                   </TableCell>
-                )}
-                <TableCell className={cn("font-medium py-2 sm:py-3 text-xs sm:text-sm", isLocked && "text-muted-foreground")}>
-                  <span className="flex items-center gap-1 sm:gap-2">
-                    {problem.problemType === 'INFO' ? (
-                      <Book className={cn("h-3 w-3 sm:h-4 sm:w-4", "text-amber-500 dark:text-amber-400")} />
-                    ) : (
-                      <Code2 className={cn("h-3 w-3 sm:h-4 sm:w-4", "text-indigo-500 dark:text-indigo-400")} />
-                    )}
-                    <span className="line-clamp-1">{problem.name}</span>
-                  </span>
-                </TableCell>
-                {showTopicName && (
-                  <TableCell className={cn("py-2 sm:py-3 text-xs sm:text-sm", isLocked && "text-muted-foreground")}>
-                    {problem.topic?.name || 'Standalone'}
-                  </TableCell>
-                )}
-                <TableCell className="py-2 sm:py-3">
-                  <DifficultyBadge difficulty={problem.difficulty || 'MEDIUM' as Difficulty} size="small" />
-                </TableCell>
-                <TableCell className={cn("py-2 sm:py-3 pl-2 pr-2 sm:pl-0 sm:pr-6", isLocked && "text-muted-foreground")}>
-                  <div className="flex items-center gap-1 sm:gap-2">
-                    <Button 
-                      variant="outline" 
-                      size="sm"
-                      className={cn(
-                        "px-2 py-1 h-7 sm:px-3 sm:py-1 sm:h-8 transition-all text-xs sm:text-sm",
-                        "bg-transparent hover:bg-blue-50/70 text-blue-600 border border-blue-200/70",
-                        "dark:border-blue-800/50 dark:text-blue-400 dark:hover:bg-blue-900/20",
-                        isLocked && !canAccessAdmin && "text-muted-foreground border-muted/50",
-                        isLocked && canAccessAdmin && "text-yellow-500 border-yellow-200 hover:bg-yellow-50/20 dark:border-yellow-800/50"
+                  {showOrder && (
+                    <TableCell className="pl-2 sm:pl-4 py-2 sm:py-3 text-xs sm:text-sm">
+                      {problem.required ? (
+                        <Badge variant="outline" className={cn("bg-blue-50/50 dark:bg-blue-900/20 text-xs sm:text-sm border-transparent dark:border-transparent", isLocked && "text-muted-foreground")}>
+                          REQ {problem.reqOrder}
+                        </Badge>
+                      ) : (
+                        <Badge variant="secondary" className={cn("bg-muted/50 text-xs sm:text-sm text-slate-400 dark:text-slate-500", isLocked && "bg-muted text-muted-foreground")}>
+                          {problem.reqOrder ? `OPT ${problem.reqOrder}` : 'STANDALONE'}
+                        </Badge>
                       )}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onProblemStart(problem.id, problem.slug);
-                      }}
-                    >
-                      {isLocked && canAccessAdmin ? "Start (Admin)" : "Start"}
-                    </Button>
-                    {problem.estimatedTime && (
-                      <span className="hidden md:flex items-center gap-1 px-2 py-0.5 rounded text-muted-foreground">
-                        <Timer className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
-                        <span className="text-xs whitespace-nowrap">
-                          {formatEstimatedTime(parseEstimatedTime(problem.estimatedTime))}
+                    </TableCell>
+                  )}
+                  <TableCell className={cn("font-medium py-2 sm:py-3 text-xs sm:text-sm", isLocked && "text-muted-foreground")}>
+                    <span className="flex items-center gap-1 sm:gap-2">
+                      {problem.problemType === 'INFO' ? (
+                        <Book className={cn("h-3 w-3 sm:h-4 sm:w-4", "text-amber-500 dark:text-amber-400")} />
+                      ) : (
+                        <Code2 className={cn("h-3 w-3 sm:h-4 sm:w-4", "text-indigo-500 dark:text-indigo-400")} />
+                      )}
+                      <span className="line-clamp-1">{problem.name}</span>
+                    </span>
+                  </TableCell>
+                  {showTopicName && (
+                    <TableCell className={cn("py-2 sm:py-3 text-xs sm:text-sm", isLocked && "text-muted-foreground")}>
+                      {problem.topic?.name || 'Standalone'}
+                    </TableCell>
+                  )}
+                  <TableCell className="py-2 sm:py-3">
+                    <DifficultyBadge difficulty={problem.difficulty || 'MEDIUM' as Difficulty} size="small" />
+                  </TableCell>
+                  <TableCell className={cn("py-2 sm:py-3 pl-2 pr-2 sm:pl-0 sm:pr-6", isLocked && "text-muted-foreground")}>
+                    <div className="flex items-center gap-1 sm:gap-2">
+                      <Button 
+                        variant="outline" 
+                        size="sm"
+                        className={cn(
+                          "px-2 py-1 h-7 sm:px-3 sm:py-1 sm:h-8 transition-all text-xs sm:text-sm",
+                          "bg-transparent hover:bg-blue-50/70 text-blue-600 border border-blue-200/70",
+                          "dark:border-blue-800/50 dark:text-blue-400 dark:hover:bg-blue-900/20",
+                          isLocked && !canAccessAdmin && "text-muted-foreground border-muted/50",
+                          isLocked && canAccessAdmin && "text-yellow-500 border-yellow-200 hover:bg-yellow-50/20 dark:border-yellow-800/50"
+                        )}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onProblemStart(problem.id, problem.slug);
+                        }}
+                      >
+                        {isLocked && canAccessAdmin ? "Start (Admin)" : "Start"}
+                      </Button>
+                      {problem.estimatedTime && (
+                        <span className="hidden md:flex items-center gap-1 px-2 py-0.5 rounded text-muted-foreground">
+                          <Timer className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
+                          <span className="text-xs whitespace-nowrap">
+                            {formatEstimatedTime(parseEstimatedTime(problem.estimatedTime))}
+                          </span>
                         </span>
-                      </span>
-                    )}
-                  </div>
-                </TableCell>
-              </TableRow>
-            ))
+                      )}
+                    </div>
+                  </TableCell>
+                </TableRow>
+              )
+            })
           )}
         </TableBody>
       </Table>

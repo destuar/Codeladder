@@ -44,19 +44,26 @@ const ShuffleButton = ({ onClick, disabled, isShuffling, problemCount }: {
       <TooltipTrigger asChild>
         <Button
           variant="ghost"
-          size="icon"
+          // size="icon" // Use explicit padding for consistent height with text
           onClick={onClick}
-          className="h-9 w-9 rounded-full bg-transparent dark:bg-transparent text-[#5271FF] hover:text-white hover:bg-[#5271FF]/80 dark:text-[#6B8EFF] dark:hover:text-white dark:hover:bg-[#6B8EFF]/80 transition-colors duration-150"
+          className="h-9 px-3 rounded-md bg-transparent dark:bg-transparent text-[#5271FF] hover:text-white hover:bg-[#5271FF]/80 dark:text-[#6B8EFF] dark:hover:text-white dark:hover:bg-[#6B8EFF]/80 transition-colors duration-150 flex items-center gap-1.5 font-sans text-sm" // Added font-sans, text-sm, h-9, px-3
           disabled={disabled || isShuffling}
         >
           {isShuffling ? (
-            <Loader2 className="h-4 w-4 animate-spin" />
+            <>
+              <Loader2 className="h-4 w-4 animate-spin" />
+              <span>Shuffling...</span>
+            </>
           ) : (
-            <Shuffle className={cn("h-4 w-4", disabled && "opacity-50")} />
+            <>
+              <Shuffle className={cn("h-4 w-4", disabled && "opacity-50")} />
+              <span className="sm:hidden">Shuffle</span> {/* Hidden on sm and up if icon only is preferred on larger mobile */} 
+              <span className="hidden sm:inline">Shuffle Problems</span> {/* More descriptive on larger screens */} 
+            </>
           )}
         </Button>
       </TooltipTrigger>
-      <TooltipContent side="bottom" className="bg-popover text-popover-foreground border shadow-md">
+      <TooltipContent side="bottom" className="bg-popover text-popover-foreground border shadow-md font-sans">
         <p>Shuffle Problems</p>
       </TooltipContent>
     </Tooltip>
@@ -306,6 +313,11 @@ export default function CollectionsPage() {
     selectedTopics
   ]);
 
+  // Create a new memoized list for problems that can be shuffled (excluding STANDALONE_INFO)
+  const shuffleableFilteredProblems = useMemo(() => {
+    return filteredProblems.filter(problem => problem.problemType !== 'STANDALONE_INFO');
+  }, [filteredProblems]);
+
   // Get problem counts for each collection
   const collectionProblemCounts = useMemo(() => {
     if (!problems) return {};
@@ -427,14 +439,14 @@ export default function CollectionsPage() {
 
   // Add shuffle function
   const shuffleProblems = () => {
-    // Only proceed if we have problems to shuffle
-    if (filteredProblems.length > 0) {
+    // Only proceed if we have shuffleable problems
+    if (shuffleableFilteredProblems.length > 0) {
       // Show loading state
       setIsShuffling(true);
       
-      // Get a random problem from the filtered problems
-      const randomIndex = Math.floor(Math.random() * filteredProblems.length);
-      const randomProblem = filteredProblems[randomIndex];
+      // Get a random problem from the shuffleable filtered problems
+      const randomIndex = Math.floor(Math.random() * shuffleableFilteredProblems.length);
+      const randomProblem = shuffleableFilteredProblems[randomIndex];
       
       toast({
         title: "Random problem selected",
@@ -480,7 +492,7 @@ export default function CollectionsPage() {
             <button 
               onClick={() => handleCollectionChange("all")}
               className={cn(
-                "flex items-center px-3 py-1.5 rounded-full text-sm font-medium transition-colors duration-150 font-sans",
+                "flex items-center px-3 py-1.5 rounded-full text-sm transition-colors duration-150 font-sans",
                 selectedCollection === "all" 
                   ? "bg-[#5271FF] text-white hover:bg-[#415ACC] dark:bg-[#5271FF] dark:hover:bg-[#415ACC]"
                   : "bg-[#5271FF]/10 text-[#5271FF] hover:bg-[#5271FF]/20 dark:bg-[#6B8EFF]/10 dark:text-[#6B8EFF] dark:hover:bg-[#6B8EFF]/20"
@@ -501,7 +513,7 @@ export default function CollectionsPage() {
                 key={collection.id}
                 onClick={() => handleCollectionChange(collection.id)}
                 className={cn(
-                  "flex items-center px-3 py-1.5 rounded-full text-sm font-medium transition-colors duration-150 font-sans",
+                  "flex items-center px-3 py-1.5 rounded-full text-sm transition-colors duration-150 font-sans",
                   selectedCollection === collection.id 
                     ? "bg-[#5271FF] text-white hover:bg-[#415ACC] dark:bg-[#5271FF] dark:hover:bg-[#415ACC]"
                     : "bg-[#5271FF]/10 text-[#5271FF] hover:bg-[#5271FF]/20 dark:bg-[#6B8EFF]/10 dark:text-[#6B8EFF] dark:hover:bg-[#6B8EFF]/20"
@@ -524,7 +536,7 @@ export default function CollectionsPage() {
               variant="ghost" 
               size="sm"
               onClick={resetFilters}
-              className="w-full text-[#5271FF] dark:text-[#6B8EFF] hover:bg-[#5271FF]/10 dark:hover:bg-[#6B8EFF]/10 hover:text-[#5271FF] dark:hover:text-white"
+              className="w-full text-[#5271FF] dark:text-[#6B8EFF] hover:bg-[#5271FF]/10 dark:hover:bg-[#6B8EFF]/10 hover:text-[#5271FF] dark:hover:text-white font-sans text-sm"
             >
               <X className="h-4 w-4 mr-2" />
               Reset Selection
@@ -546,7 +558,7 @@ export default function CollectionsPage() {
               <button 
                 onClick={() => handleCollectionChange("all")}
                 className={cn(
-                  "flex items-center px-3 py-1.5 rounded-full text-sm font-medium transition-colors duration-150 font-sans",
+                  "flex items-center px-3 py-1.5 rounded-full text-sm transition-colors duration-150 font-sans",
                   selectedCollection === "all" 
                     ? "bg-[#5271FF] text-white hover:bg-[#415ACC] dark:bg-[#5271FF] dark:hover:bg-[#415ACC]"
                     : "bg-[#5271FF]/10 text-[#5271FF] hover:bg-[#5271FF]/20 dark:bg-[#6B8EFF]/10 dark:text-[#6B8EFF] dark:hover:bg-[#6B8EFF]/20"
@@ -567,7 +579,7 @@ export default function CollectionsPage() {
                   key={collection.id}
                   onClick={() => handleCollectionChange(collection.id)}
                   className={cn(
-                    "flex items-center px-3 py-1.5 rounded-full text-sm font-medium transition-colors duration-150 font-sans",
+                    "flex items-center px-3 py-1.5 rounded-full text-sm transition-colors duration-150 font-sans",
                     selectedCollection === collection.id 
                       ? "bg-[#5271FF] text-white hover:bg-[#415ACC] dark:bg-[#5271FF] dark:hover:bg-[#415ACC]"
                       : "bg-[#5271FF]/10 text-[#5271FF] hover:bg-[#5271FF]/20 dark:bg-[#6B8EFF]/10 dark:text-[#6B8EFF] dark:hover:bg-[#6B8EFF]/20"
@@ -590,7 +602,7 @@ export default function CollectionsPage() {
                 variant="ghost" 
                 size="sm"
                 onClick={resetFilters}
-                className="w-full text-[#5271FF] dark:text-[#6B8EFF] hover:bg-[#5271FF]/10 dark:hover:bg-[#6B8EFF]/10 hover:text-[#5271FF] dark:hover:text-white"
+                className="w-full text-[#5271FF] dark:text-[#6B8EFF] hover:bg-[#5271FF]/10 dark:hover:bg-[#6B8EFF]/10 hover:text-[#5271FF] dark:hover:text-white font-sans text-sm"
               >
                 <X className="h-4 w-4 mr-2" />
                 Reset Selection
@@ -609,12 +621,15 @@ export default function CollectionsPage() {
             <div className="bg-background/80 dark:bg-background backdrop-blur-md overflow-hidden rounded-md shadow-md hover:shadow-lg transition-shadow duration-300 dark:shadow-[0_4px_6px_-1px_rgba(82,113,255,0.15),_0_2px_4px_-2px_rgba(82,113,255,0.15)] dark:border dark:border-[#5271FF]/15">
               <CollapsibleTrigger asChild>
                 <div className="px-3 py-2 cursor-pointer hover:bg-secondary/20 transition-colors rounded-t-md">
-                  <div className="text-base flex items-center gap-2 justify-between">
+                  <div className="text-sm flex items-center gap-2 justify-between">
                     <div className="flex items-center">
                       <SlidersHorizontal className="h-4 w-4 mr-2" />
                       Problem Filters
                       {hasAdvancedFilters && (
-                        <Badge variant="default" className="ml-2 bg-primary/90">
+                        <Badge 
+                          variant="outline" 
+                          className="ml-2 font-sans bg-white text-primary border-border dark:bg-muted dark:text-muted-foreground dark:border-muted"
+                        >
                           {selectedDifficulties.length + 
                            (selectedStatus !== 'all' ? 1 : 0) + 
                            (selectedType !== 'all' ? 1 : 0) + 
@@ -630,13 +645,13 @@ export default function CollectionsPage() {
                   </div>
                 </div>
               </CollapsibleTrigger>
-              <CollapsibleContent className="border-t border-border/40 pt-3 px-3 pb-3 space-y-4">
+              <CollapsibleContent className="border-t border-border/40 pt-2 px-3 pb-4 space-y-4">
                 <div>
-                  <div className="grid grid-cols-2 gap-4 pt-4">
+                  <div className="grid grid-cols-2 gap-4 pt-2">
                     <div className="space-y-2">
                       <div className="flex items-center">
                         <Hash className="h-4 w-4 mr-2 text-indigo-500" />
-                        <span className="text-sm font-medium">Difficulty</span>
+                        <span className="text-sm font-medium font-sans">Difficulty</span>
                       </div>
                       <div className="flex flex-wrap gap-2">
                         {difficulties.map(difficulty => (
@@ -644,7 +659,7 @@ export default function CollectionsPage() {
                             key={difficulty}
                             onClick={() => toggleDifficulty(difficulty as ProblemDifficulty)}
                             className={cn(
-                              "flex items-center px-3 py-1 rounded-full text-xs",
+                              "flex items-center px-3 py-1 rounded-full text-sm font-sans",
                               selectedDifficulties.includes(difficulty as ProblemDifficulty)
                                 ? "bg-indigo-500 text-white" 
                                 : "bg-indigo-100 text-indigo-800 hover:bg-indigo-200 dark:bg-indigo-950 dark:text-indigo-200 dark:hover:bg-indigo-900"
@@ -662,13 +677,13 @@ export default function CollectionsPage() {
                     <div className="space-y-2">
                       <div className="flex items-center">
                         <CheckCircle2 className="h-4 w-4 mr-2 text-emerald-500" />
-                        <span className="text-sm font-medium">Status</span>
+                        <span className="text-sm font-medium font-sans">Status</span>
                       </div>
                       <div className="flex gap-2">
                         <button
                           onClick={() => setSelectedStatus("all")}
                           className={cn(
-                            "flex items-center px-3 py-1 rounded-full text-xs",
+                            "flex items-center px-3 py-1 rounded-full text-sm font-sans",
                             selectedStatus === "all"
                               ? "bg-emerald-500 text-white" 
                               : "bg-emerald-100 text-emerald-800 hover:bg-emerald-200 dark:bg-emerald-950 dark:text-emerald-200 dark:hover:bg-emerald-900"
@@ -680,7 +695,7 @@ export default function CollectionsPage() {
                         <button
                           onClick={() => setSelectedStatus("completed")}
                           className={cn(
-                            "flex items-center px-3 py-1 rounded-full text-xs",
+                            "flex items-center px-3 py-1 rounded-full text-sm font-sans",
                             selectedStatus === "completed"
                               ? "bg-emerald-500 text-white" 
                               : "bg-emerald-100 text-emerald-800 hover:bg-emerald-200 dark:bg-emerald-950 dark:text-emerald-200 dark:hover:bg-emerald-900"
@@ -692,7 +707,7 @@ export default function CollectionsPage() {
                         <button
                           onClick={() => setSelectedStatus("incomplete")}
                           className={cn(
-                            "flex items-center px-3 py-1 rounded-full text-xs",
+                            "flex items-center px-3 py-1 rounded-full text-sm font-sans",
                             selectedStatus === "incomplete"
                               ? "bg-emerald-500 text-white" 
                               : "bg-emerald-100 text-emerald-800 hover:bg-emerald-200 dark:bg-emerald-950 dark:text-emerald-200 dark:hover:bg-emerald-900"
@@ -707,13 +722,13 @@ export default function CollectionsPage() {
                     <div className="space-y-2">
                       <div className="flex items-center">
                         <PenSquare className="h-4 w-4 mr-2 text-amber-500" />
-                        <span className="text-sm font-medium">Type</span>
+                        <span className="text-sm font-medium font-sans">Type</span>
                       </div>
                       <div className="flex gap-2">
                         <button
                           onClick={() => setSelectedType("all")}
                           className={cn(
-                            "flex items-center px-3 py-1 rounded-full text-xs",
+                            "flex items-center px-3 py-1 rounded-full text-sm font-sans",
                             selectedType === "all"
                               ? "bg-amber-500 text-white" 
                               : "bg-amber-100 text-amber-800 hover:bg-amber-200 dark:bg-amber-950 dark:text-amber-200 dark:hover:bg-amber-900"
@@ -725,7 +740,7 @@ export default function CollectionsPage() {
                         <button
                           onClick={() => setSelectedType("coding")}
                           className={cn(
-                            "flex items-center px-3 py-1 rounded-full text-xs",
+                            "flex items-center px-3 py-1 rounded-full text-sm font-sans",
                             selectedType === "coding"
                               ? "bg-amber-500 text-white" 
                               : "bg-amber-100 text-amber-800 hover:bg-amber-200 dark:bg-amber-950 dark:text-amber-200 dark:hover:bg-amber-900"
@@ -737,7 +752,7 @@ export default function CollectionsPage() {
                         <button
                           onClick={() => setSelectedType("info")}
                           className={cn(
-                            "flex items-center px-3 py-1 rounded-full text-xs",
+                            "flex items-center px-3 py-1 rounded-full text-sm font-sans",
                             selectedType === "info"
                               ? "bg-amber-500 text-white" 
                               : "bg-amber-100 text-amber-800 hover:bg-amber-200 dark:bg-amber-950 dark:text-amber-200 dark:hover:bg-amber-900"
@@ -752,7 +767,7 @@ export default function CollectionsPage() {
                     <div className="space-y-2">
                       <div className="flex items-center">
                         <BookOpen className="h-4 w-4 mr-2 text-rose-500" />
-                        <span className="text-sm font-medium">Topics</span>
+                        <span className="text-sm font-medium font-sans">Topics</span>
                       </div>
                       <div className="flex flex-wrap gap-2 max-h-24 overflow-y-auto pr-2">
                         {topics.map(topic => (
@@ -760,7 +775,7 @@ export default function CollectionsPage() {
                             key={topic}
                             onClick={() => toggleTopic(topic)}
                             className={cn(
-                              "flex items-center px-3 py-1 rounded-full text-xs",
+                              "flex items-center px-3 py-1 rounded-full text-sm font-sans",
                               selectedTopics.includes(topic)
                                 ? "bg-rose-500 text-white" 
                                 : "bg-rose-100 text-rose-800 hover:bg-rose-200 dark:bg-rose-950 dark:text-rose-200 dark:hover:bg-rose-900"
@@ -781,7 +796,7 @@ export default function CollectionsPage() {
                       variant="outline"
                       size="sm"
                       onClick={resetAdvancedFilters}
-                      className="mt-2"
+                      className="mt-2 font-sans text-sm"
                     >
                       <X className="h-4 w-4 mr-2" />
                       Reset Filters
@@ -858,10 +873,10 @@ export default function CollectionsPage() {
                 hideHeader={true} 
                 onShuffleClick={shuffleProblems}
                 isShuffling={isShuffling}
-                shuffleDisabled={filteredProblems.length === 0}
+                shuffleDisabled={shuffleableFilteredProblems.length === 0}
               />
             ) : (
-              <p className="text-center text-muted-foreground">No problems found.</p>
+              <p className="text-center text-muted-foreground font-sans">No problems found.</p>
             )}
           </div>
         </div>

@@ -215,12 +215,18 @@ export function SpacedRepetitionPanel() {
         <div>
           <div className="font-medium text-foreground">{problem.name}</div>
           <div className="text-sm text-muted-foreground flex items-center gap-2 mt-1">
-              {typeof problem.topic === 'string' ? (
-                <span>{problem.topic}</span>
-              ) : problem.topic && typeof problem.topic === 'object' && 'name' in problem.topic ? (
-            <span>{problem.topic.name}</span>
+              {(problem.topic && typeof problem.topic === 'object' && problem.topic.name) ? (
+                <span>{problem.topic.name}</span>
+              ) : (problem as any).collectionName ? (
+                <span>{(problem as any).collectionName}</span>
+              ) : ((problem as any).collections && Array.isArray((problem as any).collections) && (problem as any).collections.length > 0 && (problem as any).collections[0].name) ? (
+                <span>{(problem as any).collections[0].name}</span>
               ) : null}
-            <span>•</span>
+              
+              {((problem.topic && typeof problem.topic === 'object' && problem.topic.name) || (problem as any).collectionName || ((problem as any).collections && Array.isArray((problem as any).collections) && (problem as any).collections.length > 0 && (problem as any).collections[0].name)) && (
+                <span>•</span>
+              )}
+
             <Badge variant="outline" className={getDifficultyColor(problem.difficulty)}>
               {problem.difficulty.replace(/_/g, ' ')}
             </Badge>
@@ -237,7 +243,13 @@ export function SpacedRepetitionPanel() {
         {!isEditMode && (
           <Button 
             size="sm" 
-            variant="ghost"
+            variant="outline"
+            className={cn(
+              "px-2 py-1 h-7 sm:px-3 sm:py-1 sm:h-8 transition-all text-xs sm:text-sm",
+              "bg-transparent hover:bg-blue-50/70 text-blue-600 border border-blue-200/70",
+              "dark:border-blue-800/50 dark:text-blue-400 dark:hover:bg-blue-900/20",
+              !isActiveDay && "opacity-70 hover:opacity-100"
+            )}
             onClick={(e) => {
               e.stopPropagation();
               startReview(
@@ -251,9 +263,10 @@ export function SpacedRepetitionPanel() {
                 } : undefined
               );
             }}
-            className="text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 hover:bg-blue-500/10 dark:hover:bg-blue-400/10 py-2 px-3 h-auto"
+            disabled={isLoading || isAddingProblem}
           >
-            {isActiveDay ? "Review" : "Review Early"} 
+            Start
+            {!isActiveDay && <Lightbulb className="ml-1.5 h-3.5 w-3.5 text-yellow-500" />}
           </Button>
         )}
       </div>
@@ -349,7 +362,7 @@ export function SpacedRepetitionPanel() {
       
       <CollapsibleContent className="space-y-2 border-t border-border mx-0.5 pt-2 px-0.5 pb-0.5">
         {problems.length > 0 ? (
-          <div className="max-h-96 overflow-y-auto pr-1 space-y-2">
+          <div className="max-h-96 overflow-y-auto pr-1 space-y-2 dark-scrollbar">
             {problems.map((problem, index) => renderProblemCard(problem, isActiveSection, index))}
           </div>
         ) : (
@@ -398,7 +411,7 @@ export function SpacedRepetitionPanel() {
           </div>
           
           {selectedDayProblems.length > 0 ? (
-            <div className="grid gap-2 max-h-[500px] overflow-y-auto pr-1">
+            <div className="grid gap-2 max-h-[500px] overflow-y-auto pr-1 dark-scrollbar">
               {selectedDayProblems.map((problem, index) => renderProblemCard(problem, false, index))}
             </div>
           ) : (
@@ -502,7 +515,7 @@ export function SpacedRepetitionPanel() {
       <div className="absolute inset-0 z-0 bg-dot-[#5271FF]/[0.2] [mask-image:radial-gradient(ellipse_at_center,transparent_20%,black)]"></div>
       
       <div className="py-0 relative z-10 px-4 sm:px-6 lg:px-8">
-        <div className="max-w-5xl mx-auto">
+        <div className="max-w-8xl mx-auto">
           {/* Centered Title and Description (Top of the "T") */}
           <div className="text-center mb-6">
             <h1 className="text-3xl font-bold mb-4 text-center text-foreground">
@@ -517,15 +530,15 @@ export function SpacedRepetitionPanel() {
             <p className="text-center text-muted-foreground">
               {isCalendarDateSelected && !isToday(selectedDate)
                 ? "Reviews scheduled for the selected date"
-                : "Remember what you've learned."
+                : "Strengthen your memory."
               }
             </p>
           </div>
 
           {/* New Two-Column Grid (Cross-bar of the "T") */}
-          <div className="grid grid-cols-1 lg:grid-cols-9 gap-8 items-start mt-8">
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start mt-8">
             {/* Left Column: Problems Area */}
-            <div className="lg:col-span-6">
+            <div className="lg:col-span-8">
               {/* Problem List Content - Action buttons moved to the right */}
               <div>
                 {isCalendarDateSelected ? (
@@ -556,7 +569,7 @@ export function SpacedRepetitionPanel() {
             </div>
 
             {/* Right Column: Action Buttons and Calendar */}
-            <div className="lg:col-span-3 lg:-mt-14">
+            <div className="lg:col-span-4 lg:-mt-14">
               {/* Action Buttons - Moved Here */}
               <div className="flex items-center justify-end gap-2 mb-4">
                 {isEditMode ? (

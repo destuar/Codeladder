@@ -18,12 +18,13 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { ArrowUpDown, ChevronDown, ChevronUp, CheckCircle2, Circle, Book, Code2, Timer, Lock, AlertCircle, BookOpen, History, Settings, Loader2 } from "lucide-react";
+import { ArrowUpDown, ChevronDown, ChevronUp, CheckCircle2, Circle, Book, Code2, Timer, Lock, AlertCircle, BookOpen, History, Settings, Loader2, ArrowLeft } from "lucide-react";
 import { cn } from '@/lib/utils';
 import { ProblemList } from '@/components/ProblemList';
 import { useToast } from '@/components/ui/use-toast';
 import { Difficulty, DIFFICULTY_ORDER } from '@/features/problems/types';
 import { DifficultyBadge } from '@/features/problems/components/DifficultyBadge';
+import { useMediaQuery } from "@/hooks/useMediaQuery";
 
 type SortField = 'name' | 'difficulty' | 'order' | 'completed';
 type SortDirection = 'asc' | 'desc';
@@ -54,6 +55,7 @@ export default function TopicPage() {
   const [showWarning, setShowWarning] = useState(false);
   const [warningMessage, setWarningMessage] = useState('');
   const [isTakingQuiz, setIsTakingQuiz] = useState(false);
+  const isDesktop = useMediaQuery("(min-width: 768px)");
 
   const { data: topic, isLoading: loading, error } = useQuery<any>({
     queryKey: ['topic', topicId, slug],
@@ -108,6 +110,15 @@ export default function TopicPage() {
     // Therefore, it is locked if levelIndex > maxPassedIndex + 1
     return levelIndex > maxPassedIndex + 1;
   })();
+
+  // Transform problems to include isCompleted property
+  const transformedProblems = useMemo(() => {
+    if (!topic?.problems) return [];
+    return topic.problems.map((problem: any) => ({
+      ...problem,
+      isCompleted: problem.completed, // Map 'completed' to 'isCompleted'
+    }));
+  }, [topic]);
 
   const handleProblemStart = (problemId: string, slug?: string) => {
     if (isLocked && !canAccessAdmin) {
@@ -246,23 +257,32 @@ export default function TopicPage() {
   }
 
   return (
-    <div className="container pt-10 pb-8 space-y-2 relative">
+    <div className="container px-5 sm:px-4 md:px-6 lg:px-8 pt-10 pb-8 space-y-2 relative">
       <div className="mb-0">
         <div className="flex items-center gap-3 mb-1">
+          <Button 
+            variant="ghost" 
+            size="icon"
+            onClick={() => navigate(-1)}
+            className="mr-1 text-muted-foreground hover:text-foreground h-8 w-8"
+            aria-label="Go back"
+          >
+            <ArrowLeft className="h-5 w-5" />
+          </Button>
           <h1 className="text-2xl font-semibold flex items-center gap-2">
-            <div className="h-6 w-1.5 rounded-full bg-blue-500 dark:bg-blue-400"></div>
             {topic.name}
           </h1>
-          <Badge variant="outline" className="bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400">
+          <Badge variant="outline" className="bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400 dark:border-transparent">
             {topic.level.name}
           </Badge>
 
-          <div className="ml-auto flex items-center gap-2">
+          {/* Desktop Buttons: Take Quiz, Quiz History, Admin Edit */}
+          <div className="ml-auto hidden md:flex items-center gap-2">
             <Button 
               onClick={handleTakeQuizClick}
               size="sm"
               variant="ghost"
-              className="border border-border/60 text-foreground hover:bg-secondary/30 hover:text-foreground transition-colors"
+              className="shadow-md hover:shadow-lg dark:shadow-[0_4px_6px_-1px_rgba(82,113,255,0.15),_0_2px_4px_-2px_rgba(82,113,255,0.15)] border border-border/60 dark:border-[#5271FF]/15 text-foreground hover:bg-secondary/30 hover:text-foreground transition-all duration-300"
               disabled={isTakingQuiz || isLocked}
               title={isLocked ? "Complete previous level exam to unlock" : "Take the next available quiz"}
             >
@@ -277,7 +297,7 @@ export default function TopicPage() {
               onClick={() => navigate(`/quizzes/history/${topicId || topic?.id}`)}
               size="sm"
               variant="ghost"
-              className="border border-border/60 text-muted-foreground hover:text-foreground hover:bg-secondary/30 transition-colors"
+              className="shadow-md hover:shadow-lg dark:shadow-[0_4px_6px_-1px_rgba(82,113,255,0.15),_0_2px_4px_-2px_rgba(82,113,255,0.15)] border border-border/60 dark:border-[#5271FF]/15 text-muted-foreground hover:text-foreground hover:bg-secondary/30 transition-all duration-300"
             >
               <History className="w-4 h-4 mr-2 text-amber-500" />
               Quiz History
@@ -294,9 +314,39 @@ export default function TopicPage() {
             )}
           </div>
         </div>
-        <p className="text-sm text-muted-foreground ml-3 mb-0">
+        <p className="text-sm text-muted-foreground mb-0">
           {topic.description || 'In this topic, you will learn fundamental approaches to solving programming problems.'}
         </p>
+
+        {/* Mobile Buttons: Take Quiz, Quiz History (Right Aligned) */}
+        {!isDesktop && (
+          <div className="flex justify-end items-center gap-2 mt-2">
+            <Button 
+              onClick={handleTakeQuizClick}
+              size="sm"
+              variant="ghost"
+              className="shadow-md hover:shadow-lg dark:shadow-[0_4px_6px_-1px_rgba(82,113,255,0.15),_0_2px_4px_-2px_rgba(82,113,255,0.15)] border border-border/60 dark:border-[#5271FF]/15 text-foreground hover:bg-secondary/30 hover:text-foreground transition-all duration-300"
+              disabled={isTakingQuiz || isLocked}
+              title={isLocked ? "Complete previous level exam to unlock" : "Take the next available quiz"}
+            >
+              {isTakingQuiz ? (
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+              ) : (
+                <BookOpen className="w-4 h-4 mr-2 text-blue-500" />
+              )}
+              {isTakingQuiz ? 'Finding...' : 'Take Quiz'}
+            </Button>
+            <Button 
+              onClick={() => navigate(`/quizzes/history/${topicId || topic?.id}`)}
+              size="sm"
+              variant="ghost"
+              className="shadow-md hover:shadow-lg dark:shadow-[0_4px_6px_-1px_rgba(82,113,255,0.15),_0_2px_4px_-2px_rgba(82,113,255,0.15)] border border-border/60 dark:border-[#5271FF]/15 text-muted-foreground hover:text-foreground hover:bg-secondary/30 transition-all duration-300"
+            >
+              <History className="w-4 h-4 mr-2 text-amber-500" />
+              Quiz History
+            </Button>
+          </div>
+        )}
       </div>
 
       {/* Warning message for locked content */}
@@ -308,7 +358,7 @@ export default function TopicPage() {
       )}
 
       {/* Problems Section */}
-      {topic.problems && topic.problems.length > 0 && (
+      {transformedProblems && transformedProblems.length > 0 && (
         <div className={cn("mt-0", isLocked && "opacity-90")}>
           {isLocked && (
             <div className="flex justify-end mb-4">
@@ -324,12 +374,12 @@ export default function TopicPage() {
           )}>
             <CardContent className="p-0">
               <ProblemList
-                problems={topic.problems}
+                problems={transformedProblems}
                 isLocked={isLocked}
                 canAccessAdmin={canAccessAdmin}
                 onProblemStart={handleProblemStart}
                 itemsPerPage={50}
-                showOrder={true}
+                showOrder={isDesktop}
                 hideHeader={true}
               />
             </CardContent>
