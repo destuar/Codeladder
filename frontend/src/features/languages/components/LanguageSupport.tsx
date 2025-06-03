@@ -196,7 +196,7 @@ export const LanguageSupport: React.FC<LanguageSupportProps> = ({
             onValueChange={setDefaultLanguage}
             className="w-full"
           >
-            <TabsList className="mb-2 grid w-full grid-cols-none justify-start sm:grid-cols-auto">
+            <TabsList className="mb-2 flex flex-wrap border-b">
               {enabledLanguages.map(lang => (
                 <TabsTrigger key={lang} value={lang}>
                   {languageNames[lang as SupportedLanguage]}

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useImperativeHandle, forwardRef } from 'react';
 import {
   Card,
   CardContent,
@@ -39,22 +39,23 @@ import {
   SupportedLanguage,
   LanguageData,
 } from '@/features/languages/components/LanguageSupport';
-import { PlusCircle, Trash, Edit, RefreshCw } from 'lucide-react';
+import { PlusCircle, Trash, Edit, RefreshCw, FileJson, Pencil, Trash2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { LoadingSpinner } from '@/components/ui/loading-spinner';
+import { LoadingSpinner, LoadingCard } from '@/components/ui/loading-spinner';
+import { validateAndParseProblemJSON, ValidationResult, ProblemJSONImport } from '../utils/problemJSONParser';
 
 // Local type for managing test cases in the form
 interface FormTestCase {
   id?: string; 
   input: string; // Stringified JSON
-  expected: string; // Stringified JSON
+  expected: string; // Stringified JSON for the form
   isHidden: boolean;
 }
 
 // Type for what the API expects for a test case (part of overall problem payload, not directly AdminCodeProblemType)
 interface ApiSubmittedTestCase {
   input: string; 
-  expectedOutput: string; 
+  expectedOutput: string; // API expects 'expectedOutput'
   isHidden: boolean;
 }
 
@@ -75,12 +76,12 @@ type NewProblemFormState = {
   content: string;
   difficulty: ProblemDifficulty;
   problemType: ProblemType;
-  codeProblem?: FormCodeProblemState; // Uses the new FormCodeProblemState
-  // Fields not in AdminCodeProblemType but part of general problem create/update
+  codeProblem?: FormCodeProblemState;
   return_type?: string;
   params?: FunctionParameter[];
   estimatedTime?: number;
   slug?: string;
+  collectionIds?: string[];
 };
 
 type EditProblemFormState = NewProblemFormState & {
@@ -90,37 +91,51 @@ type EditProblemFormState = NewProblemFormState & {
 
 const difficultyLevels: ProblemDifficulty[] = ['BEGINNER', 'EASY', 'MEDIUM', 'HARD'];
 
-// Converts API AdminTestCase (any[] input, any expected) to FormTestCase (stringified)
-const normalizeAdminTestCaseToFormTestCase = (adminTC: AdminTestCase): FormTestCase => {
+// Converts API AdminTestCase to FormTestCase
+// AdminTestCase (from problems/types) has { input: any[], expected: any }
+// Fetched problemDetails.codeProblem.testCases might have { input: ..., expectedOutput: ..., isHidden: ... }
+const normalizeAdminTestCaseToFormTestCase = (apiTestCase: any): FormTestCase => {
+  const inputStr = typeof apiTestCase.input === 'string' 
+    ? apiTestCase.input 
+    : JSON.stringify(apiTestCase.input);
+
+  // CRITICAL CHANGE HERE: Check for apiTestCase.expectedOutput first, then apiTestCase.expected
+  const expectedStr = 
+    apiTestCase.expectedOutput !== undefined 
+      ? (typeof apiTestCase.expectedOutput === 'string' ? apiTestCase.expectedOutput : JSON.stringify(apiTestCase.expectedOutput))
+      : apiTestCase.expected !== undefined 
+        ? (typeof apiTestCase.expected === 'string' ? apiTestCase.expected : JSON.stringify(apiTestCase.expected))
+        : ''; // Default to empty string if neither is found
+
   return {
-    // id: adminTC.id, // if AdminTestCase had an ID
-    input: JSON.stringify(adminTC.input),
-    expected: JSON.stringify(adminTC.expected),
-    isHidden: (adminTC as any).isHidden || false, // If isHidden comes from backend (not in type)
+    id: apiTestCase.id, // if present from API
+    input: inputStr,
+    expected: expectedStr, // This will be used by the form's Textarea
+    isHidden: !!apiTestCase.isHidden, // Ensure boolean
   };
 };
 
 // Converts FormTestCase (stringified) to AdminTestCase (any[] input, any expected)
-// This is used when constructing the AdminCodeProblemType object for the problem state
+// This is used when constructing the AdminCodeProblemType object for the problem state (if needed for internal state before API submission)
+// The AdminTestCase type from problems/types has `expected` not `expectedOutput`.
 const prepareFormTestCaseForAdminCodeProblemType = (formTC: FormTestCase): AdminTestCase => {
   try {
     return {
       input: JSON.parse(formTC.input),
-      expected: JSON.parse(formTC.expected),
-      // isHidden is not part of AdminTestCase, so it's omitted here
+      expected: JSON.parse(formTC.expected), // Maps form's 'expected' to AdminTestCase's 'expected'
     };
   } catch (e) {
-    console.error("Error parsing FormTestCase input/expected:", e);
-    // Return a default/empty AdminTestCase or handle error appropriately
+    console.error("Error parsing FormTestCase input/expected for AdminCodeProblemType:", e);
     return { input: [], expected: null }; 
   }
 };
 
 // Converts FormTestCase to what the API submission expects for a test case (stringified + isHidden)
+// This function seems correct as it maps form's 'expected' to 'expectedOutput' for the API.
 const prepareFormTestCaseForApiSubmission = (formTC: FormTestCase): ApiSubmittedTestCase => {
   return {
-    input: formTC.input, // Already stringified
-    expectedOutput: formTC.expected, // Already stringified
+    input: formTC.input, 
+    expectedOutput: formTC.expected, // Correctly maps form's 'expected' to 'expectedOutput'
     isHidden: formTC.isHidden,
   };
 };
@@ -140,10 +155,26 @@ const parseParams = (params: any): FunctionParameter[] => {
   return Array.isArray(params) ? params.map(p => ({id: p.id, name: p.name, type: p.type, description: p.description})) : [];
 };
 
-export function ProblemCollectionAdmin() {
+// Collection type (assuming it has id, name, description)
+// This might already be defined in problems/types if Collection is exported from there
+interface CollectionItem {
+  id: string;
+  name: string;
+  description: string | null; // Matching what `api.get('/admin/collections')` might return
+  // Add other fields if necessary, e.g., problemCount, createdAt
+}
+
+// Define the type for the imperative methods that can be called on ProblemCollectionAdmin via a ref
+export interface ProblemCollectionAdminRef {
+  openAddCollectionDialog: () => void;
+  handleJsonImport: (jsonString: string, defaults?: { defaultTopicId?: string; defaultCollectionIds?: string[] }) => Promise<void>;
+}
+
+// Use forwardRef to allow parent component (LearningPathAdmin) to call methods on this component
+export const ProblemCollectionAdmin = forwardRef<ProblemCollectionAdminRef, {}>((props, ref) => {
   const { token } = useAuth();
-  const [collections, setCollections] = useState<Collection[]>([]);
-  const [selectedCollectionId, setSelectedCollectionId] = useState<string | null>(null);
+  const [collections, setCollections] = useState<CollectionItem[]>([]);
+  const [selectedCollectionId, setSelectedCollectionId] = useState<string | null>('__ALL_PROBLEMS_VIEW__');
   const [problemsInView, setProblemsInView] = useState<Problem[]>([]);
   const [allProblems, setAllProblems] = useState<Problem[]>([]); 
 
@@ -154,11 +185,19 @@ export function ProblemCollectionAdmin() {
   const [isAddProblemDialogOpen, setIsAddProblemDialogOpen] = useState(false);
   const [isEditProblemDialogOpen, setIsEditProblemDialogOpen] = useState(false);
   
+  // State for JSON Import Dialog
+  const [isAddProblemJsonDialogOpen, setIsAddProblemJsonDialogOpen] = useState(false);
+  const [jsonInput, setJsonInput] = useState("");
+  const [jsonParseResult, setJsonParseResult] = useState<ValidationResult | null>(null);
+
   const [newProblemData, setNewProblemData] = useState<NewProblemFormState>({
     name: '',
     content: '',
     difficulty: 'EASY',
     problemType: 'INFO',
+    collectionIds: [],
+    params: [],
+    return_type: '',
   });
   const [editProblemData, setEditProblemData] = useState<EditProblemFormState | null>(null);
 
@@ -167,24 +206,42 @@ export function ProblemCollectionAdmin() {
   );
   const [currentDefaultLanguage, setCurrentDefaultLanguage] = useState<string>('python');
 
-  useEffect(() => {
+  const [isLoadingProblemDetails, setIsLoadingProblemDetails] = useState(false);
+
+  // State for Add/Edit Collection Dialogs
+  const [isAddCollectionDialogOpen, setIsAddCollectionDialogOpen] = useState(false);
+  const [newCollectionData, setNewCollectionData] = useState({ name: '', description: '' });
+  const [isEditCollectionDialogOpen, setIsEditCollectionDialogOpen] = useState(false);
+  const [editingCollection, setEditingCollection] = useState<CollectionItem | null>(null);
+
+  // Expose a function to open the Add Collection dialog via ref
+  useImperativeHandle(ref, () => ({
+    openAddCollectionDialog: () => {
+      setNewCollectionData({ name: '', description: '' });
+      setIsAddCollectionDialogOpen(true);
+    },
+    handleJsonImport: handleParseAndAddProblemFromJson
+  }));
+
+  const fetchCollections = useCallback(async () => {
     if (!token) return;
-    const fetchCollections = async () => {
-      setIsLoadingCollections(true);
-      try {
-        const data = await api.get('/admin/collections', token) as Collection[];
-        setCollections(data || []);
-        setError(null);
-      } catch (err) {
-        console.error('Error fetching collections:', err);
-        setError('Failed to fetch collections.');
-        toast.error('Failed to fetch collections.');
-      } finally {
-        setIsLoadingCollections(false);
-      }
-    };
-    fetchCollections();
+    setIsLoadingCollections(true);
+    try {
+      const data = await api.get('/admin/collections', token) as CollectionItem[];
+      setCollections(data || []);
+      setError(null);
+            } catch (err) {
+      console.error('Error fetching collections:', err);
+      setError('Failed to fetch collections.');
+      toast.error('Failed to fetch collections.');
+    } finally {
+      setIsLoadingCollections(false);
+    }
   }, [token]);
+
+  useEffect(() => {
+    fetchCollections();
+  }, [fetchCollections]);
 
   useEffect(() => {
     if (!token) return;
@@ -194,7 +251,7 @@ export function ProblemCollectionAdmin() {
         const data = await api.get('/problems', token) as Problem[];
         setAllProblems(data || []);
         setError(null);
-    } catch (err) {
+      } catch (err) {
         console.error('Error fetching all problems:', err);
         toast.error('Failed to fetch problems data.');
       } finally {
@@ -203,17 +260,21 @@ export function ProblemCollectionAdmin() {
     };
     fetchAllProblems();
   }, [token]);
-
+    
   useEffect(() => {
     if (selectedCollectionId === '__ALL_PROBLEMS_VIEW__') {
-      setProblemsInView(allProblems);
+      // Filter out STANDALONE_INFO problems from the 'All Problems' view
+      const filteredAllProblems = allProblems.filter(problem => problem.problemType !== 'STANDALONE_INFO');
+      setProblemsInView(filteredAllProblems);
     } else if (selectedCollectionId) {
       const filteredProblems = allProblems.filter(problem =>
-        problem.collectionIds?.includes(selectedCollectionId)
+        problem.collectionIds?.includes(selectedCollectionId) && problem.problemType !== 'STANDALONE_INFO'
       );
       setProblemsInView(filteredProblems);
-    } else {
-      setProblemsInView([]);
+      } else {
+      // This case should ideally not be reached. Fallback to all non-STANDALONE_INFO problems.
+      const filteredAllProblems = allProblems.filter(problem => problem.problemType !== 'STANDALONE_INFO');
+      setProblemsInView(filteredAllProblems); 
     }
   }, [selectedCollectionId, allProblems]);
 
@@ -226,7 +287,7 @@ export function ProblemCollectionAdmin() {
       toast.success("Problems refreshed");
             } catch (err) {
       toast.error("Failed to refresh problems");
-    } finally {
+      } finally {
       setIsLoadingProblems(false);
     }
   };
@@ -372,11 +433,18 @@ export function ProblemCollectionAdmin() {
   };
 
   const handleAddProblemToCollection = async () => {
-    if (!token || !selectedCollectionId) {
-      toast.error('A collection must be selected to add a problem.');
-        return;
-      }
+      if (!token) return;
       
+    let problemApiCollectionIds: string[] = newProblemData.collectionIds || [];
+
+    // If a specific collection was targeted when opening the dialog (and it's not 'All Problems'),
+    // ensure that collectionId is included.
+    if (selectedCollectionId && selectedCollectionId !== '__ALL_PROBLEMS_VIEW__') {
+      if (!problemApiCollectionIds.includes(selectedCollectionId)) {
+        problemApiCollectionIds = [...problemApiCollectionIds, selectedCollectionId];
+      }
+    }
+
     let apiPayload: any = {
       name: newProblemData.name,
       content: newProblemData.content,
@@ -384,12 +452,11 @@ export function ProblemCollectionAdmin() {
       problemType: newProblemData.problemType,
       slug: newProblemData.slug,
       estimatedTime: newProblemData.estimatedTime,
-      collectionIds: [selectedCollectionId],
-      // Add fields not in AdminCodeProblemType
+      collectionIds: problemApiCollectionIds, // Use the processed collection IDs
       return_type: newProblemData.return_type,
       params: JSON.stringify(newProblemData.params || []),
-      defaultLanguage: currentDefaultLanguage, // Add defaultLanguage to payload
-      languageSupport: JSON.stringify( // Add languageSupport to payload
+      defaultLanguage: currentDefaultLanguage,
+      languageSupport: JSON.stringify(
         prepareLanguageSupport(currentDefaultLanguage, currentSupportedLanguages)
       ),
     };
@@ -400,109 +467,144 @@ export function ProblemCollectionAdmin() {
         ...restOfCodeProblem,
         testCases: (testCases || []).map(prepareFormTestCaseForAdminCodeProblemType),
       };
-      // For API submission, testCases are often a separate top-level field, stringified.
-      // The backend PRISMA schema has Problem.testCases as Json?
-      // And CodeProblem.testCases as relation to TestCase[]
-      // Let's assume backend's /problems endpoint expects stringified testCases at top level for simplicity of creation.
-      // If it expects it inside codeProblem, then the previous line is fine.
-      // If backend handles test case creation via relation inside codeProblem creation, that's more complex.
-      // For now, sending prepared (stringified + isHidden) FormTestCases at top-level.
       apiPayload.testCases = JSON.stringify(
         (newProblemData.codeProblem.testCases || []).map(prepareFormTestCaseForApiSubmission)
       );
+      // Ensure functionName etc. are included if they are part of codeProblem in newProblemData
+      apiPayload.functionName = newProblemData.codeProblem.functionName;
+      apiPayload.timeLimit = newProblemData.codeProblem.timeLimit;
+      apiPayload.memoryLimit = newProblemData.codeProblem.memoryLimit;
     }
-
 
     try {
       await api.post('/problems', apiPayload, token);
-      toast.success('Problem added successfully to collection.');
+      toast.success('Problem added successfully.');
       setIsAddProblemDialogOpen(false);
-      setNewProblemData({ name: '', content: '', difficulty: 'EASY', problemType: 'INFO', params: [], return_type: '' });
+      setNewProblemData({ 
+        name: '', content: '', difficulty: 'EASY', problemType: 'INFO', 
+        params: [], return_type: '', collectionIds: [] 
+      });
       setCurrentSupportedLanguages(JSON.parse(JSON.stringify(defaultSupportedLanguages)));
       setCurrentDefaultLanguage('python');
       refreshProblems();
-    } catch (err) {
+            } catch (err) {
       console.error('Error adding problem:', err);
-      toast.error('Failed to add problem.');
+      toast.error('Failed to add problem. ' + ((err as Error).message || ''));
     }
   };
 
   const openEditProblemDialog = (problem: Problem) => {
-    if (!problem) return;
-    
-    const problemDetails = problem; 
-    let formCodeProblem: FormCodeProblemState | undefined = undefined;
+    if (!problem || !problem.id) {
+        toast.error("Problem ID is missing, cannot fetch details.");
+              return;
+            }
+    setIsLoadingProblemDetails(true);
+    setEditProblemData(null); 
+    setCurrentSupportedLanguages(JSON.parse(JSON.stringify(defaultSupportedLanguages)));
+    setCurrentDefaultLanguage('python');
 
-    if (problemDetails.problemType === 'CODING' && problemDetails.codeProblem) {
-      const { testCases, ...restAdminCodeProblem } = problemDetails.codeProblem;
-      formCodeProblem = {
-        ...restAdminCodeProblem,
-        testCases: problemDetails.codeProblem.testCases?.map(normalizeAdminTestCaseToFormTestCase) || [],
-      };
-      
-      // Language support handling (assuming languageSupport and defaultLanguage are on main Problem object from API)
-      const langSupportFromApi = (problemDetails as any).languageSupport;
-      const defaultLangFromApi = (problemDetails as any).defaultLanguage;
-
-      if (langSupportFromApi && typeof langSupportFromApi === 'object') {
-        try {
-            const initialLangState = JSON.parse(JSON.stringify(defaultSupportedLanguages));
-            Object.entries(langSupportFromApi).forEach(([lang, data]: [string, any]) => {
-                if (lang in initialLangState) {
-                    initialLangState[lang as SupportedLanguage] = {
-                        enabled: true, // If present, it was enabled
-                        template: data.template || '',
-                        reference: data.reference || ''
-                    };
-                }
-            });
-            setCurrentSupportedLanguages(initialLangState);
-            setCurrentDefaultLanguage(defaultLangFromApi || 'python');
-        } catch (e) {
-             console.error("Error processing language support for edit:", e);
-            setCurrentSupportedLanguages(JSON.parse(JSON.stringify(defaultSupportedLanguages)));
-            setCurrentDefaultLanguage('python');
+    api.get(`/problems/${problem.id}`, token)
+      .then(problemDetailsFull => {
+        if (!problemDetailsFull) {
+            toast.error("Failed to fetch problem details.");
+            setIsLoadingProblemDetails(false);
+            return;
         }
-      } else if (problemDetails.codeProblem.codeTemplate) { // Fallback for older problems
-          const initialLangState = JSON.parse(JSON.stringify(defaultSupportedLanguages));
-          const legacyLang = (defaultLangFromApi || problemDetails.codeProblem.language || 'python') as SupportedLanguage;
-          if (legacyLang in initialLangState) {
-              initialLangState[legacyLang] = { ...initialLangState[legacyLang], enabled: true, template: problemDetails.codeProblem.codeTemplate };
-          }
-          setCurrentSupportedLanguages(initialLangState);
-          setCurrentDefaultLanguage(legacyLang);
-      } else {
-        setCurrentSupportedLanguages(JSON.parse(JSON.stringify(defaultSupportedLanguages)));
-        setCurrentDefaultLanguage('python');
-      }
-      } else {
-        setCurrentSupportedLanguages(JSON.parse(JSON.stringify(defaultSupportedLanguages)));
-        setCurrentDefaultLanguage('python');
-    }
+        const problemDetails = problemDetailsFull as Problem;
+        // console.log("[ProblemCollectionAdmin] Fetched problemDetails:", problemDetails);
+        // console.log("[ProblemCollectionAdmin] Fetched problemDetails.codeProblem.params:", (problemDetails as any).codeProblem?.params);
 
-    setEditProblemData({
-      id: problemDetails.id,
-      name: problemDetails.name || '',
-      content: problemDetails.content || '',
-      difficulty: problemDetails.difficulty as ProblemDifficulty || 'EASY',
-      problemType: problemDetails.problemType as ProblemType || 'INFO',
-      slug: problemDetails.slug,
-      estimatedTime: problemDetails.estimatedTime,
-      collectionIds: problemDetails.collectionIds || [],
-      codeProblem: formCodeProblem,
-      // Populate params and return_type from the main problem object if they exist
-      params: parseParams((problemDetails as any).params),
-      return_type: (problemDetails as any).return_type,
-    });
-    setIsEditProblemDialogOpen(true);
+        let formCodeProblem: FormCodeProblemState | undefined = undefined;
+        let problemParams: FunctionParameter[] = [];
+        let problemReturnType: string | undefined = undefined;
+        
+        if (problemDetails.problemType === 'CODING' && problemDetails.codeProblem) {
+            const codeProblemDetails = problemDetails.codeProblem as any; // Use any for easier access to potentially dynamic fields
+            try {
+                const languageSupportData = codeProblemDetails.languageSupport;
+                const defaultLangFromApi = codeProblemDetails.defaultLanguage;
+
+                if (languageSupportData && typeof languageSupportData === 'object' && Object.keys(languageSupportData).length > 0) {
+                    const initialLangState = JSON.parse(JSON.stringify(defaultSupportedLanguages));
+                    Object.entries(languageSupportData).forEach(([lang, data]: [string, any]) => {
+                        if (lang in initialLangState && data) {
+                            initialLangState[lang as SupportedLanguage] = {
+                                enabled: data.enabled !== undefined ? data.enabled : true,
+                                template: data.template || '',
+                                reference: data.reference || ''
+                            };
+                        }
+                    });
+                    setCurrentSupportedLanguages(initialLangState);
+                    setCurrentDefaultLanguage(defaultLangFromApi || 'python');
+                } else if (codeProblemDetails.codeTemplate) { 
+                    const initialLangState = JSON.parse(JSON.stringify(defaultSupportedLanguages));
+                    const legacyLang = (defaultLangFromApi || codeProblemDetails.language || 'python') as SupportedLanguage;
+                    if (legacyLang in initialLangState) {
+                        initialLangState[legacyLang] = { ...initialLangState[legacyLang], enabled: true, template: codeProblemDetails.codeTemplate, reference: '' };
+                    }
+                    setCurrentSupportedLanguages(initialLangState);
+                    setCurrentDefaultLanguage(legacyLang);
+        } else {
+                    setCurrentSupportedLanguages(JSON.parse(JSON.stringify(defaultSupportedLanguages)));
+                    setCurrentDefaultLanguage('python');
+            }
+          } catch (err) {
+                console.error("Error processing language support for edit:", err);
+                toast.error("Error setting up language support from fetched data.");
+                setCurrentSupportedLanguages(JSON.parse(JSON.stringify(defaultSupportedLanguages)));
+                setCurrentDefaultLanguage('python');
+            }
+
+            const normalizedTestCases = (codeProblemDetails.testCases || []).map(normalizeAdminTestCaseToFormTestCase);
+
+            formCodeProblem = {
+                language: codeProblemDetails.language || currentDefaultLanguage,
+                functionName: codeProblemDetails.functionName || '',
+                timeLimit: codeProblemDetails.timeLimit || 5000,
+                memoryLimit: codeProblemDetails.memoryLimit,
+                codeTemplate: codeProblemDetails.codeTemplate || '',
+                testCases: normalizedTestCases,
+            };
+
+            // Get params and return_type from codeProblem
+            problemParams = parseParams(codeProblemDetails.params);
+            problemReturnType = codeProblemDetails.return_type;
+            // console.log("[ProblemCollectionAdmin] Parsed params from codeProblem:", problemParams);
+        }
+
+        const finalEditData = {
+            id: problemDetails.id,
+            name: problemDetails.name || '',
+            content: problemDetails.content || '',
+            difficulty: problemDetails.difficulty as ProblemDifficulty || 'EASY',
+            problemType: problemDetails.problemType as ProblemType || 'INFO',
+            slug: problemDetails.slug || '',
+            estimatedTime: problemDetails.estimatedTime,
+            collectionIds: problemDetails.collectionIds || [],
+            codeProblem: formCodeProblem, 
+            params: problemParams, // Use params extracted from codeProblem
+            return_type: problemReturnType, // Use return_type extracted from codeProblem
+        };
+        setEditProblemData(finalEditData);
+        // console.log("[ProblemCollectionAdmin] Set editProblemData:", finalEditData);
+        setIsEditProblemDialogOpen(true);
+      })
+      .catch(err => {
+        console.error("Error fetching problem details for edit:", err);
+        toast.error("Failed to fetch problem details. " + ((err as Error).message || ''));
+      })
+      .finally(() => {
+        setIsLoadingProblemDetails(false);
+      });
   };
 
   const handleUpdateProblem = async () => {
     if (!token || !editProblemData) {
       toast.error('No problem data to update.');
-          return;
-    }
-
+        return;
+      }
+      
     let apiPayload: any = {
       name: editProblemData.name,
       content: editProblemData.content,
@@ -545,7 +647,7 @@ export function ProblemCollectionAdmin() {
   };
 
   const handleDeleteProblem = async (problemId: string) => {
-    if (!token) return;
+      if (!token) return;
     if (!confirm('Are you sure you want to delete this problem? This action cannot be undone.')) {
       return;
     }
@@ -565,52 +667,52 @@ export function ProblemCollectionAdmin() {
     
     const currentData = data as NewProblemFormState | EditProblemFormState;
 
-    return (
+  return (
       <div className="grid gap-4 py-4 max-h-[70vh] overflow-y-auto pr-2">
         <div className="grid gap-2">
           <Label htmlFor={`${formType}-name`}>Name <span className="text-destructive">*</span></Label>
           <Input id={`${formType}-name`} name="name" value={currentData.name} onChange={(e) => handleProblemInputChange(e, formType)} />
-        </div>
-        <div className="grid gap-2">
+      </div>
+            <div className="grid gap-2">
           <Label htmlFor={`${formType}-slug`}>Slug (URL-friendly)</Label>
           <Input id={`${formType}-slug`} name="slug" value={currentData.slug || ''} onChange={(e) => handleProblemInputChange(e, formType)} />
-        </div>
-        <div className="grid gap-2">
+            </div>
+            <div className="grid gap-2">
           <Label htmlFor={`${formType}-content`}>Content (Markdown) <span className="text-destructive">*</span></Label>
           <Textarea id={`${formType}-content`} name="content" value={currentData.content} onChange={(e) => handleProblemInputChange(e, formType)} className="min-h-[100px]" />
-        </div>
+            </div>
         <div className="grid grid-cols-2 gap-4">
-          <div className="grid gap-2">
+            <div className="grid gap-2">
             <Label htmlFor={`${formType}-difficulty`}>Difficulty <span className="text-destructive">*</span></Label>
             <Select value={currentData.difficulty} onValueChange={(val) => handleProblemSelectChange('difficulty', val as ProblemDifficulty, formType)}>
               <SelectTrigger><SelectValue /></SelectTrigger>
-              <SelectContent>
+          <SelectContent>
                 {difficultyLevels.map(level => (
                   <SelectItem key={level} value={level}>{level.charAt(0) + level.slice(1).toLowerCase()}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="grid gap-2">
+            ))}
+          </SelectContent>
+        </Select>
+            </div>
+            <div className="grid gap-2">
             <Label htmlFor={`${formType}-problemType`}>Problem Type <span className="text-destructive">*</span></Label>
-            <Select 
+              <Select 
               value={currentData.problemType} 
               onValueChange={(val) => handleProblemSelectChange('problemType', val as ProblemType, formType)}
               disabled={formType === 'edit'}
             >
               <SelectTrigger><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="INFO">Info</SelectItem>
-                <SelectItem value="CODING">Coding</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-        </div>
-            
+                <SelectContent>
+                  <SelectItem value="INFO">Info</SelectItem>
+                  <SelectItem value="CODING">Coding</SelectItem>
+                </SelectContent>
+              </Select>
+              </div>
+      </div>
+      
         {currentData.problemType === 'CODING' && (
-          <>
+              <>
             <h4 className="font-semibold mt-2 pt-2 border-t">Coding Details</h4>
-            <div className="grid gap-2">
+                <div className="grid gap-2">
               <Label>Language Support <span className="text-destructive">*</span></Label>
               <LanguageSupport
                 supportedLanguages={currentSupportedLanguages}
@@ -618,47 +720,61 @@ export function ProblemCollectionAdmin() {
                 defaultLanguage={currentDefaultLanguage}
                 setDefaultLanguage={setCurrentDefaultLanguage}
               />
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor={`${formType}-codeTemplate`}>Base Code Template</Label>
-              <Textarea id={`${formType}-codeTemplate`} name="codeTemplate" value={currentData.codeProblem?.codeTemplate || ''} onChange={(e) => handleProblemInputChange(e, formType)} className="font-mono text-sm min-h-[80px]" />
-              <p className="text-xs text-muted-foreground">
-                This template is part of the language support settings above. Changing it here updates the current default language template.
-              </p>
-            </div>
-            <div className="grid gap-2">
+                </div>
+                <div className="grid gap-2">
               <Label htmlFor={`${formType}-functionName`}>Function Name</Label>
               <Input id={`${formType}-functionName`} name="functionName" value={currentData.codeProblem?.functionName || ''} onChange={(e) => handleProblemInputChange(e, formType)} />
-            </div>
+      </div>
+      
             <div className="grid grid-cols-2 gap-4">
-              <div className="grid gap-2">
-                <Label htmlFor={`${formType}-return_type`}>Return Type (e.g., string, int[])</Label>
-                <Input id={`${formType}-return_type`} name="return_type" value={currentData.return_type || ''} onChange={(e) => handleProblemInputChange(e, formType)} />
-              </div>
-            </div>
+                <div className="grid gap-2">
+                  <Label htmlFor={`${formType}-return_type`}>Return Type (e.g., string, int[])</Label>
+                  <Input id={`${formType}-return_type`} name="return_type" value={currentData.return_type || ''} onChange={(e) => handleProblemInputChange(e, formType)} />
+          </div>
+          </div>
+                
             <div className="grid grid-cols-2 gap-4">
-              <div className="grid gap-2">
-                <Label htmlFor={`${formType}-timeLimit`}>Time Limit (ms)</Label>
-                <Input id={`${formType}-timeLimit`} name="timeLimit" type="number" value={currentData.codeProblem?.timeLimit || ''} onChange={(e) => handleProblemInputChange(e, formType)} />
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor={`${formType}-memoryLimit`}>Memory Limit (MB)</Label>
-                <Input id={`${formType}-memoryLimit`} name="memoryLimit" type="number" value={currentData.codeProblem?.memoryLimit || ''} onChange={(e) => handleProblemInputChange(e, formType)} />
-              </div>
-            </div>
-            <div className="grid gap-2">
-              <Label>Function Parameters</Label>
-              <div className="space-y-2 border rounded p-3">
-                {currentData.params?.map((param, index) => (
-                  <div key={param.id || index} className="grid grid-cols-3 gap-2 items-end">
-                    <Input placeholder="Name (e.g., nums)" value={param.name} onChange={(e) => handleParamChange(index, 'name', e.target.value, formType)} />
-                    <Input placeholder="Type (e.g., int[])" value={param.type} onChange={(e) => handleParamChange(index, 'type', e.target.value, formType)} />
-                    <Button variant="ghost" size="icon" onClick={() => handleRemoveParam(index, formType)}><Trash className="h-4 w-4" /></Button>
+                <div className="grid gap-2">
+                  <Label htmlFor={`${formType}-timeLimit`}>Time Limit (ms)</Label>
+                  <Input id={`${formType}-timeLimit`} name="timeLimit" type="number" value={currentData.codeProblem?.timeLimit || ''} onChange={(e) => handleProblemInputChange(e, formType)} />
                   </div>
-                ))}
-                <Button variant="outline" size="sm" onClick={() => handleAddParam(formType)}>Add Parameter</Button>
+                <div className="grid gap-2">
+                  <Label htmlFor={`${formType}-memoryLimit`}>Memory Limit (MB)</Label>
+                  <Input id={`${formType}-memoryLimit`} name="memoryLimit" type="number" value={currentData.codeProblem?.memoryLimit || ''} onChange={(e) => handleProblemInputChange(e, formType)} />
+                    </div>
+                  </div>
+                
+                <div className="grid gap-2">
+              <Label>Function Parameters</Label>
+              <div className="space-y-4 border rounded p-3">
+                {currentData.params?.map((param, index) => (
+                  <div key={param.id || index} className="border-b last:border-b-0 pb-3 mb-3 space-y-2">
+                    <div className="flex justify-between items-center">
+                        <Label className="text-sm font-medium">Parameter {index + 1}</Label>
+                        <Button variant="ghost" size="icon" onClick={() => handleRemoveParam(index, formType)}><Trash className="h-4 w-4" /></Button>
+                </div>
+                    <div className="grid grid-cols-2 gap-x-4 gap-y-2">
+                        <div className="grid gap-1">
+                            <Label htmlFor={`${formType}-param-name-${index}`} className="text-xs">Name <span className="text-destructive">*</span></Label>
+                            <Input id={`${formType}-param-name-${index}`} placeholder="e.g., nums" value={param.name} onChange={(e) => handleParamChange(index, 'name', e.target.value, formType)} />
+                          </div>
+                        <div className="grid gap-1">
+                            <Label htmlFor={`${formType}-param-type-${index}`} className="text-xs">Type <span className="text-destructive">*</span></Label>
+                            <Input id={`${formType}-param-type-${index}`} placeholder="e.g., int[]" value={param.type} onChange={(e) => handleParamChange(index, 'type', e.target.value, formType)} />
+                        </div>
+                    </div>
+                    <div className="grid gap-1">
+                        <Label htmlFor={`${formType}-param-desc-${index}`} className="text-xs">Description (optional)</Label>
+                        <Input id={`${formType}-param-desc-${index}`} placeholder="Parameter description" value={param.description || ''} onChange={(e) => handleParamChange(index, 'description', e.target.value, formType)} />
+                </div>
               </div>
-            </div>
+            ))}
+                <Button variant="outline" size="sm" onClick={() => handleAddParam(formType)} className="w-full mt-2">
+                    <PlusCircle className="mr-2 h-4 w-4" /> Add Parameter
+                </Button>
+          </div>
+      </div>
+
             <div className="grid gap-2">
               <Label>Test Cases <span className="text-destructive">*</span></Label>
               <div className="space-y-3 border rounded p-3 max-h-[300px] overflow-y-auto">
@@ -669,38 +785,39 @@ export function ProblemCollectionAdmin() {
                       { (currentData.codeProblem?.testCases?.length || 0) > 1 &&
                         <Button variant="ghost" size="icon" onClick={() => handleRemoveTestCase(index, formType)}><Trash className="h-4 w-4" /></Button>
                       }
-                    </div>
+            </div>
                     <Textarea placeholder='Input (e.g., [1,2,3] or {"key":"value"})' value={tc.input} onChange={(e) => handleTestCaseChange(index, 'input', e.target.value, formType)} className="font-mono text-xs" />
                     <Textarea placeholder='Expected Output (e.g., 6 or "hello")' value={tc.expected} onChange={(e) => handleTestCaseChange(index, 'expected', e.target.value, formType)} className="font-mono text-xs" />
-                    <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-2">
                       <Checkbox id={`${formType}-tc-hidden-${index}`} checked={tc.isHidden} onCheckedChange={(checked) => handleTestCaseChange(index, 'isHidden', !!checked, formType)} />
                       <Label htmlFor={`${formType}-tc-hidden-${index}`} className="text-xs">Hidden</Label>
-                    </div>
-                  </div>
-                ))}
-                <Button variant="outline" size="sm" onClick={() => handleAddTestCase(formType)}>Add Test Case</Button>
-              </div>
             </div>
-          </> 
-        )}
-            
-        <div className="grid gap-2">
+            </div>
+                    ))}
+                <Button variant="outline" size="sm" onClick={() => handleAddTestCase(formType)} className="w-full mt-2">
+                    <PlusCircle className="mr-2 h-4 w-4" /> Add Test Case
+                    </Button>
+                  </div>
+                </div>
+              </>
+            )}
+        
+            <div className="grid gap-2">
         <Label htmlFor={`${formType}-estimatedTime`}>Estimated Time (minutes)</Label>
         <Input id={`${formType}-estimatedTime`} name="estimatedTime" type="number" value={currentData.estimatedTime || ''} onChange={(e) => handleProblemInputChange(e, formType)} />
-        </div>
-
-        {/* Collections Selector - Conditional Render for Edit Mode */}
+            </div>
+            
         {formType === 'edit' && (
-          <div className="grid gap-2">
+            <div className="grid gap-2">
             <Label htmlFor={`${formType}-collectionIds`}>Collections</Label>
             <div className="space-y-2 border rounded-md p-3 max-h-[150px] overflow-y-auto">
               {isLoadingCollections ? (
                 <p className="text-sm text-muted-foreground">Loading collections...</p>
-              ) : collections.length === 0 ? (
+                ) : collections.length === 0 ? (
                 <p className="text-sm text-muted-foreground">No collections available.</p>
-              ) : (
+                ) : (
                 collections.map(collection => (
-                  <div key={collection.id} className="flex items-center gap-2">
+                      <div key={collection.id} className="flex items-center gap-2">
                     <Checkbox
                       id={`${formType}-collection-${collection.id}`}
                       checked={(currentData as EditProblemFormState).collectionIds?.includes(collection.id) || false}
@@ -710,72 +827,216 @@ export function ProblemCollectionAdmin() {
                         let newCollectionIds: string[];
                         if (checked) {
                           newCollectionIds = [...currentCollectionIds, collection.id];
-                        } else {
+                            } else {
                           newCollectionIds = currentCollectionIds.filter(id => id !== collection.id);
                         }
                         if (formType === 'edit') { 
                           setEditProblemData(prev => prev ? ({ ...prev, collectionIds: newCollectionIds }) : null);
-                        } 
-                      }}
-                    />
+                            }
+                          }}
+                        />
                     <Label htmlFor={`${formType}-collection-${collection.id}`} className="font-normal">
                       {collection.name}
                     </Label>
-                  </div>
-                ))
-              )}
+                      </div>
+                    ))
+                )}
+              </div>
             </div>
-          </div>
-        )} {/* End Collections Selector Conditional Render */}
-      </div>
+        )} 
+                </div>
     );
   };
 
+  const handleParseAndAddProblemFromJson = useCallback(async (jsonString: string, defaults?: { defaultTopicId?: string; defaultCollectionIds?: string[] }) => {
+    setJsonParseResult(null); 
+    if (!jsonString.trim()) {
+      toast.error("JSON input cannot be empty.");
+      setJsonParseResult({ isValid: false, errors: [{ path: ["json"], message: "Input is empty."}], warnings: [] });
+      return;
+    }
+
+    const result = validateAndParseProblemJSON(jsonString);
+    setJsonParseResult(result);
+
+    if (!result.isValid || !result.parsedData) {
+      toast.error("JSON validation failed. Please check the errors below.");
+      return;
+    }
+
+    const problemData = result.parsedData;
+    let finalTopicId = problemData.topicId; // Prefer topicId from JSON if present
+    if (!finalTopicId && defaults?.defaultTopicId) {
+      finalTopicId = defaults.defaultTopicId;
+    }
+
+    let finalCollectionIds = problemData.collectionIds || [];
+    if (defaults?.defaultCollectionIds) {
+      finalCollectionIds = Array.from(new Set([...finalCollectionIds, ...defaults.defaultCollectionIds]));
+    }
+
+    let apiPayload: any = {
+      name: problemData.name,
+      content: problemData.content,
+      difficulty: problemData.difficulty,
+      problemType: problemData.problemType,
+      required: problemData.required,
+      reqOrder: problemData.reqOrder,
+      slug: problemData.slug,
+      estimatedTime: problemData.estimatedTime,
+      collectionIds: finalCollectionIds.length > 0 ? finalCollectionIds : [], // Ensure it's at least an empty array
+      topicId: finalTopicId, 
+    };
+
+    if (problemData.problemType === 'CODING' && problemData.coding) {
+      apiPayload.defaultLanguage = problemData.coding.languages.defaultLanguage;
+      const languageSupportPayload: Record<string, { template: string, reference?: string, enabled: boolean }> = {};
+      Object.entries(problemData.coding.languages.supported).forEach(([lang, data]) => {
+        if (data) {
+          languageSupportPayload[lang] = { template: data.template, reference: data.reference || "", enabled: true };
+        }
+      });
+      if (!languageSupportPayload[problemData.coding.languages.defaultLanguage] && 
+          problemData.coding.languages.supported[problemData.coding.languages.defaultLanguage]?.template) {
+          languageSupportPayload[problemData.coding.languages.defaultLanguage] = {
+              template: problemData.coding.languages.supported[problemData.coding.languages.defaultLanguage]!.template,
+              reference: problemData.coding.languages.supported[problemData.coding.languages.defaultLanguage]!.reference || "",
+              enabled: true,
+          };
+      }
+      apiPayload.languageSupport = JSON.stringify(languageSupportPayload);
+      apiPayload.functionName = problemData.coding.functionName;
+      apiPayload.timeLimit = problemData.coding.timeLimit;
+      apiPayload.memoryLimit = problemData.coding.memoryLimit;
+      apiPayload.return_type = problemData.coding.returnType;
+      apiPayload.params = JSON.stringify(problemData.coding.parameters || []);
+      apiPayload.testCases = JSON.stringify(
+        problemData.coding.testCases.map(tc => ({
+          input: tc.input, 
+          expectedOutput: tc.expectedOutput,
+          isHidden: tc.isHidden,
+        })) || []
+      );
+    } else if (problemData.problemType === 'CODING' && !problemData.coding) {
+        toast.error("CODING problem type selected in JSON, but 'coding' object is missing or invalid.");
+      return;
+    }
+    
+    try {
+      await api.post('/problems', apiPayload, token);
+      toast.success('Problem added successfully via JSON!');
+      refreshProblems(); 
+    } catch (err) {
+      console.error('Error adding problem from JSON:', err);
+      toast.error('Failed to add problem from JSON. ' + ((err as Error).message || ''));
+      throw err;
+    }
+  }, [token, refreshProblems]);
+
+  const handleAddCollection = async () => {
+    if (!token || !newCollectionData.name.trim()) {
+      toast.error("Collection name cannot be empty.");
+          return;
+        }
+    try {
+      await api.post('/admin/collections', newCollectionData, token);
+      toast.success("Collection created successfully!");
+      setIsAddCollectionDialogOpen(false);
+      fetchCollections(); // Refresh collection list
+    } catch (err) {
+      console.error("Error creating collection:", err);
+      toast.error("Failed to create collection. " + ((err as Error).message || ''));
+    }
+  };
+  
+  const handleOpenEditCollectionDialog = (collection: CollectionItem) => {
+    setEditingCollection(collection);
+    setIsEditCollectionDialogOpen(true);
+  };
+
+  const handleUpdateCollection = async () => {
+    if (!token || !editingCollection || !editingCollection.name.trim()) {
+      toast.error("Collection name cannot be empty.");
+      return;
+    }
+    try {
+      await api.put(`/admin/collections/${editingCollection.id}`, { 
+        name: editingCollection.name, 
+        description: editingCollection.description 
+      }, token);
+      toast.success("Collection updated successfully!");
+      setIsEditCollectionDialogOpen(false);
+      setEditingCollection(null);
+      fetchCollections();
+    } catch (err) {
+      console.error("Error updating collection:", err);
+      toast.error("Failed to update collection. " + ((err as Error).message || ''));
+    }
+  };
+
+  const handleDeleteCollection = async (collectionId: string) => {
+    if (!token) return;
+    if (!confirm("Are you sure you want to delete this collection? This action cannot be undone and might orphan problems.")) {
+      return;
+    }
+    try {
+      await api.delete(`/admin/collections/${collectionId}`, token);
+      toast.success("Collection deleted successfully!");
+      if (selectedCollectionId === collectionId) {
+        setSelectedCollectionId('__ALL_PROBLEMS_VIEW__'); // Reset view if deleted collection was selected
+      }
+      fetchCollections();
+    } catch (err) {
+      console.error("Error deleting collection:", err);
+      toast.error("Failed to delete collection. " + ((err as Error).message || ''));
+    }
+  };
+
+  // Ensure LoadingCard is rendered when isLoadingProblemDetails is true
+  if (isLoadingProblemDetails) {
+    return <LoadingCard text="Loading problem details..." />;
+  }
+
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="text-2xl font-bold">Problem Collection Management</CardTitle>
-        <CardDescription>Organize problems by collection/category.</CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-6">
+    <Card className="shadow-none border-none">
+      <CardContent className="space-y-6 pt-0">
         <div className="flex flex-col md:flex-row gap-6">
-          <div className="w-full md:w-1/4 lg:w-1/5 border-r pr-4">
-            <h4 className="text-lg font-semibold mb-3">Collections</h4>
-            <div className="space-y-2 flex flex-col items-stretch">
-              <Button 
-                variant={!selectedCollectionId ? "secondary" : "ghost"}
-                onClick={() => setSelectedCollectionId(null)}
-                className="w-full justify-start text-left"
-                disabled={isLoadingCollections}
-              >
-                Clear Filter / Show None
-              </Button>
-              <Button 
+          <div className="w-full md:w-1/4 lg:w-1/5 border-r pr-4 flex flex-col">
+            <h4 className="text-lg font-semibold mb-3">Collections Filter</h4>
+            <div className="h-[600px] overflow-y-auto space-y-1 pr-1 flex-grow">
+                            <Button
                 variant={selectedCollectionId === '__ALL_PROBLEMS_VIEW__' ? "secondary" : "ghost"}
                 onClick={() => setSelectedCollectionId('__ALL_PROBLEMS_VIEW__')}
-                className="w-full justify-start text-left mt-1 mb-3 pt-2 pb-2 border-t border-b"
+                className="w-full justify-start text-left text-sm py-2 h-auto mb-1"
                 disabled={isLoadingCollections || isLoadingProblems}
               >
                 View All Problems
-              </Button>
-              {isLoadingCollections && <p className="text-sm text-muted-foreground">Loading collections...</p>}
-              {collections.map((collection) => (
-                            <Button
-                  key={collection.id}
-                  variant={selectedCollectionId === collection.id ? "secondary" : "ghost"}
-                  onClick={() => setSelectedCollectionId(collection.id)}
-                  className="w-full justify-start text-left truncate"
-                  title={collection.name}
-                >
-                  {collection.name}
                             </Button>
+              {isLoadingCollections && <div className="p-2 text-sm text-muted-foreground">Loading...</div>}
+            {collections.map((collection) => (
+                <div key={collection.id} className="flex items-center group">
+        <Button 
+                        variant={selectedCollectionId === collection.id ? "secondary" : "ghost"}
+                        onClick={() => setSelectedCollectionId(collection.id)}
+                        className="w-full justify-start text-left truncate text-sm py-2 h-auto flex-grow"
+                        title={collection.name}
+                        >
+                        {collection.name}
+                    </Button>
+                    <Button variant="ghost" size="icon" className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity" onClick={() => handleOpenEditCollectionDialog(collection)}>
+                        <Pencil className="h-4 w-4" />
+                    </Button>
+                    <Button variant="ghost" size="icon" className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity text-destructive hover:text-destructive-foreground" onClick={() => handleDeleteCollection(collection.id)}>
+                        <Trash2 className="h-4 w-4" />
+        </Button>
+      </div>
               ))}
-                          </div>
-                        </div>
+      </div>
+          </div>
                         
           <div className="w-full md:w-3/4 lg:w-4/5">
             <div className="flex flex-col sm:flex-row gap-4 justify-between items-center mb-4">
-              <div>
+                  <div>
                 <h5 className="text-xl font-semibold">
                   {selectedCollectionId === '__ALL_PROBLEMS_VIEW__' 
                     ? 'All Problems' 
@@ -784,45 +1045,110 @@ export function ProblemCollectionAdmin() {
                       : 'No Collection Selected'}
                   {selectedCollectionId !== '__ALL_PROBLEMS_VIEW__' && selectedCollectionId && " Problems"}
                 </h5>
-                        </div>
-              <div className="flex gap-2">
-                <Button 
-                  variant="outline" 
-                  size="sm"
-                  onClick={refreshProblems}
-                  disabled={isLoadingProblems || isLoadingCollections}
-                  className="flex items-center gap-2"
-                >
-                  {(isLoadingProblems || isLoadingCollections) ? (
-                    <LoadingSpinner size="sm" />
-                  ) : (
-                    <RefreshCw className="h-4 w-4" />
-                  )}
-                  Refresh
-                </Button>
-                <Dialog open={isAddProblemDialogOpen} onOpenChange={setIsAddProblemDialogOpen}>
-                  <DialogTrigger asChild>
-                    <Button disabled={!selectedCollectionId || selectedCollectionId === '__ALL_PROBLEMS_VIEW__' || isLoadingCollections}>
-                      <PlusCircle className="mr-2 h-4 w-4" /> Add New Problem to Collection
-                    </Button>
-                  </DialogTrigger>
-                  <DialogContent className="max-w-3xl">
-                    <DialogHeader>
-                      <DialogTitle>Add New Problem to '{collections.find(c => c.id === selectedCollectionId)?.name || 'Selected Collection'}'</DialogTitle>
-                      <DialogDescription>
-                        Create a new problem and add it to this collection.
-                      </DialogDescription>
-                    </DialogHeader>
-                    {renderProblemFormFields('add')}
-                    <DialogFooter>
-                      <Button variant="outline" onClick={() => setIsAddProblemDialogOpen(false)}>Cancel</Button>
-                      <Button onClick={handleAddProblemToCollection}>Add Problem</Button>
-                    </DialogFooter>
-                  </DialogContent>
-                </Dialog>
-                  </div>
                 </div>
+                <div className="flex gap-2">
+                  <Button 
+                        variant="outline"
+                    size="sm"
+                        onClick={refreshProblems}
+                        disabled={isLoadingProblems || isLoadingCollections}
+                        className="flex items-center gap-2"
+                    >
+                      {(isLoadingProblems || isLoadingCollections) ? (
+                        <LoadingSpinner size="sm" />
+                      ) : (
+                        <RefreshCw className="h-4 w-4" />
+                      )}
+                      Refresh
+                  </Button>
 
+                {/* Conditional Buttons for Add Problem / Add JSON */}
+                {selectedCollectionId === '__ALL_PROBLEMS_VIEW__' ? (
+                  <>
+                    {/* SWAPPED: "Add Problem" (form) button now comes BEFORE "Add JSON" */}
+                    <Dialog open={isAddProblemDialogOpen} onOpenChange={setIsAddProblemDialogOpen}>
+                      <DialogTrigger asChild>
+                  <Button 
+                          variant="outline" 
+                    size="sm"
+                          disabled={isLoadingCollections || isLoadingProblems}
+                  >
+                          <PlusCircle className="mr-2 h-4 w-4" /> Add Problem
+                  </Button>
+                      </DialogTrigger>
+                      <DialogContent className="max-w-3xl">
+                        <DialogHeader>
+                          <DialogTitle>Add New Problem</DialogTitle>
+                          <DialogDescription>
+                            Create a new problem. You can assign collections within the form.
+                          </DialogDescription>
+                        </DialogHeader>
+                        {renderProblemFormFields('add')}
+                        <DialogFooter>
+                          <Button variant="outline" onClick={() => setIsAddProblemDialogOpen(false)}>Cancel</Button>
+                          <Button onClick={handleAddProblemToCollection}>Add Problem</Button>
+                        </DialogFooter>
+                      </DialogContent>
+                    </Dialog>
+                  <Button 
+                    variant="outline" 
+                    size="sm"
+                      onClick={() => {
+                        setJsonInput(""); 
+                        setJsonParseResult(null); 
+                        setIsAddProblemJsonDialogOpen(true);
+                      }}
+                      disabled={isLoadingProblems}
+                    >
+                      <FileJson className="mr-2 h-4 w-4" />
+                      Add JSON
+                  </Button>
+                  </>
+                ) : selectedCollectionId ? ( // A specific collection is selected
+                  <>
+                    {/* Order here is already: Add Problem (form), then Add JSON */}
+                    <Dialog open={isAddProblemDialogOpen} onOpenChange={setIsAddProblemDialogOpen}>
+                      <DialogTrigger asChild>
+                  <Button 
+                          variant="outline" 
+                    size="sm"
+                          disabled={isLoadingCollections || isLoadingProblems}
+                  >
+                          <PlusCircle className="mr-2 h-4 w-4" /> Add Problem
+                  </Button>
+                      </DialogTrigger>
+                      <DialogContent className="max-w-3xl">
+          <DialogHeader>
+                          <DialogTitle>Add New Problem to '{collections.find(c => c.id === selectedCollectionId)?.name || 'Selected Collection'}'</DialogTitle>
+            <DialogDescription>
+                            Create a new problem and add it to this collection.
+            </DialogDescription>
+          </DialogHeader>
+                        {renderProblemFormFields('add')}
+                        <DialogFooter>
+                          <Button variant="outline" onClick={() => setIsAddProblemDialogOpen(false)}>Cancel</Button>
+                          <Button onClick={handleAddProblemToCollection}>Add Problem</Button>
+                        </DialogFooter>
+                      </DialogContent>
+                    </Dialog>
+                            <Button
+                      variant="outline" 
+                              size="sm"
+                              onClick={() => {
+                        setJsonInput(""); 
+                        setJsonParseResult(null); 
+                        setIsAddProblemJsonDialogOpen(true);
+                      }}
+                      disabled={isLoadingCollections || isLoadingProblems}
+                    >
+                      <FileJson className="mr-2 h-4 w-4" />
+                      Add JSON
+                            </Button>
+                  </>
+                ) : null}
+                          </div>
+                        </div>
+                        
             <p className="text-sm text-muted-foreground mb-4">
               Note: To manage a problem's association with topics or other collections, use the "Edit" button for that problem (here or in the Learning Path view).
             </p>
@@ -840,14 +1166,14 @@ export function ProblemCollectionAdmin() {
                     Please select a collection from the list to view its problems, or choose 'View All Problems'.
                 </p>
             )}
-            {selectedCollectionId === '__ALL_PROBLEMS_VIEW__' && problemsInView.length === 0 && (
+            {selectedCollectionId === '__ALL_PROBLEMS_VIEW__' && !isLoadingProblems && problemsInView.length === 0 && (
                 <p className="text-center text-muted-foreground py-4">
-                    No problems found in the system.
+                    No problems found in the system. Use "Add JSON" to add some.
                 </p>
             )}
 
             {!isLoadingProblems && problemsInView.length > 0 && (
-              <div className="space-y-3">
+              <div className="h-[600px] overflow-y-auto space-y-3 pr-2">
                 {problemsInView.map((problem) => (
                   <Card key={problem.id} className="p-4">
                     <div className="flex justify-between items-start">
@@ -862,35 +1188,180 @@ export function ProblemCollectionAdmin() {
                       <div className="flex gap-2 flex-shrink-0">
                         <Button variant="ghost" size="sm" onClick={() => openEditProblemDialog(problem)}>
                           <Edit className="mr-1 h-4 w-4" /> Edit
-                        </Button>
+                            </Button>
                         <Button variant="destructive" size="sm" onClick={() => handleDeleteProblem(problem.id)}>
                           <Trash className="mr-1 h-4 w-4" /> Delete
-                        </Button>
+                    </Button>
               </div>
             </div>
                   </Card>
                 ))}
-            </div>
+          </div>
             )}
             
             <Dialog open={isEditProblemDialogOpen} onOpenChange={setIsEditProblemDialogOpen}>
                 <DialogContent className="max-w-3xl">
                     <DialogHeader>
-                        <DialogTitle>Edit Problem: {editProblemData?.name}</DialogTitle>
+                        <DialogTitle>Edit Problem: {editProblemData?.name || 'Loading...'}</DialogTitle>
                         <DialogDescription>Modify the problem details.</DialogDescription>
                     </DialogHeader>
-                    {renderProblemFormFields('edit')}
+                    {editProblemData ? renderProblemFormFields('edit') : <LoadingSpinner />}
           <DialogFooter>
                         <Button variant="outline" onClick={() => setIsEditProblemDialogOpen(false)}>Cancel</Button>
-                        <Button onClick={handleUpdateProblem}>Save Changes</Button>
+                        <Button onClick={handleUpdateProblem} disabled={!editProblemData}>Save Changes</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-    </div>
-        </div>
+            </div>
+            </div>
 
       </CardContent>
+
+      {/* JSON Import Dialog */}
+      <Dialog open={isAddProblemJsonDialogOpen} onOpenChange={(isOpen) => {
+        setIsAddProblemJsonDialogOpen(isOpen);
+        if (!isOpen) {
+          setJsonInput("");
+          setJsonParseResult(null);
+        }
+      }}>
+        <DialogContent className="max-w-2xl max-h-[80vh] flex flex-col">
+          <DialogHeader>
+            <DialogTitle>Import Problem via JSON</DialogTitle>
+            <DialogDescription>
+              {selectedCollectionId && selectedCollectionId !== '__ALL_PROBLEMS_VIEW__' 
+                ? `Importing to collection: ${collections.find(c => c.id === selectedCollectionId)?.name || 'Selected Collection'}. JSON content can override this.`
+                : "Importing to general problem list. You can specify collection IDs or a topic ID within the JSON."}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex-grow overflow-y-auto py-4 space-y-4">
+              <Textarea
+              placeholder='Paste JSON here...'
+              value={jsonInput}
+              onChange={(e) => setJsonInput(e.target.value)}
+              className="min-h-[300px] font-mono text-sm"
+            />
+            {jsonParseResult && !jsonParseResult.isValid && (
+              <div className="mt-2 p-3 bg-destructive/10 border border-destructive/30 rounded-md text-destructive text-xs">
+                <h4 className="font-semibold mb-1">Validation Errors:</h4>
+                <ul className="list-disc list-inside">
+                  {jsonParseResult.errors.map((err, idx) => (
+                    <li key={idx}>{err.path.join('.')} - {err.message}</li>
+                  ))}
+                </ul>
+            </div>
+            )}
+            {jsonParseResult && jsonParseResult.warnings && jsonParseResult.warnings.length > 0 && (
+               <div className="mt-2 p-3 bg-yellow-500/10 border border-yellow-500/30 rounded-md text-yellow-700 text-xs">
+                <h4 className="font-semibold mb-1">Warnings:</h4>
+                <ul className="list-disc list-inside">
+                  {jsonParseResult.warnings.map((warn, idx) => (
+                    <li key={idx}>{warn}</li>
+                  ))}
+                </ul>
+            </div>
+            )}
+            </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => {
+              setIsAddProblemJsonDialogOpen(false);
+              setJsonInput("");
+              setJsonParseResult(null);
+            }}>Cancel</Button>
+            <Button onClick={async () => {
+              try {
+                const defaults = selectedCollectionId && selectedCollectionId !== '__ALL_PROBLEMS_VIEW__' 
+                  ? { defaultCollectionIds: [selectedCollectionId] } 
+                  : undefined;
+                await handleParseAndAddProblemFromJson(jsonInput, defaults);
+                // On success, close dialog and reset state
+                setIsAddProblemJsonDialogOpen(false);
+                setJsonInput("");
+                setJsonParseResult(null);
+              } catch (e) {
+                // Error is already toasted by handleParseAndAddProblemFromJson
+                // No need to close dialog on error, user might want to correct JSON
+              }
+            }}>Parse & Add Problem</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Add Collection Dialog */}
+      <Dialog open={isAddCollectionDialogOpen} onOpenChange={setIsAddCollectionDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Add New Collection</DialogTitle>
+            <DialogDescription>Create a new collection to organize problems.</DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+                <div className="grid gap-2">
+              <Label htmlFor="new-collection-name">Name</Label>
+              <Input
+                id="new-collection-name" 
+                value={newCollectionData.name} 
+                onChange={(e) => setNewCollectionData({...newCollectionData, name: e.target.value})} 
+                placeholder="e.g., Dynamic Programming Basics"
+                  />
+                </div>
+                <div className="grid gap-2">
+              <Label htmlFor="new-collection-description">Description (Optional)</Label>
+                            <Textarea
+                id="new-collection-description" 
+                value={newCollectionData.description} 
+                onChange={(e) => setNewCollectionData({...newCollectionData, description: e.target.value})} 
+                placeholder="A brief description of this collection."
+                            />
+                          </div>
+                          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsAddCollectionDialogOpen(false)}>Cancel</Button>
+            <Button onClick={handleAddCollection}>Create Collection</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Collection Dialog */}
+      {editingCollection && (
+        <Dialog open={isEditCollectionDialogOpen} onOpenChange={(isOpen) => {
+            setIsEditCollectionDialogOpen(isOpen);
+            if (!isOpen) setEditingCollection(null);
+        }}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Edit Collection: {editingCollection.name}</DialogTitle>
+              <DialogDescription>Update the collection details.</DialogDescription>
+            </DialogHeader>
+            <div className="grid gap-4 py-4">
+            <div className="grid gap-2">
+                <Label htmlFor="edit-collection-name">Name</Label>
+              <Input
+                  id="edit-collection-name" 
+                  value={editingCollection.name} 
+                  onChange={(e) => setEditingCollection({...editingCollection, name: e.target.value})} 
+              />
+            </div>
+            <div className="grid gap-2">
+                <Label htmlFor="edit-collection-description">Description (Optional)</Label>
+                <Textarea 
+                  id="edit-collection-description" 
+                  value={editingCollection.description || ''} 
+                  onChange={(e) => setEditingCollection({...editingCollection, description: e.target.value})} 
+              />
+            </div>
+          </div>
+          <DialogFooter>
+              <Button variant="outline" onClick={() => {setIsEditCollectionDialogOpen(false); setEditingCollection(null);}}>Cancel</Button>
+              <Button onClick={handleUpdateCollection}>Save Changes</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      )}
+
     </Card>
   );
-} 
+});
+
+// Ensure default export if this was the only export, or named export matches import
+// export default ProblemCollectionAdmin; // If it was default before

@@ -591,6 +591,17 @@ router.post('/', authenticateToken, authorizeRoles([Role.ADMIN, Role.DEVELOPER])
           }
         }
 
+        let parsedParams: any[] | object | undefined = undefined;
+        if (params) { // params is the string from req.body
+          try {
+            parsedParams = JSON.parse(params);
+          } catch (e) {
+            console.warn('Failed to parse params JSON on create:', e);
+            // Consider returning res.status(400).json({ error: 'Invalid params JSON format' });
+            // For now, allow it to be undefined, Prisma model for CodeProblem.params defaults to "[]"
+          }
+        }
+
         createData.codeProblem = {
           create: {
             defaultLanguage: defaultLanguage || 'python',
@@ -599,7 +610,7 @@ router.post('/', authenticateToken, authorizeRoles([Role.ADMIN, Role.DEVELOPER])
             timeLimit: timeLimit ? Number(timeLimit) : 5000,
             memoryLimit: memoryLimit ? Number(memoryLimit) : undefined,
             return_type: return_type || undefined,
-            params: params ? (typeof params === 'string' ? params : JSON.stringify(params)) : undefined,
+            params: parsedParams, // Use the parsed params object/array
             testCases: {
               create: parsedTestCases.map((testCase, index) => ({
                 input: testCase.input,

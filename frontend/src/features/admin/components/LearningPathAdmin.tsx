@@ -14,8 +14,7 @@ import { useLearningPath, Topic, Level, Problem } from "@/hooks/useLearningPath"
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
-import { ProblemCollectionAdmin } from "./ProblemCollectionAdmin";
-import { Trash, PlusCircle, RefreshCw } from "lucide-react";
+import { Trash, PlusCircle, RefreshCw, FileJson } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { 
@@ -28,16 +27,21 @@ import {
 import { Difficulty as ProblemDifficulty } from '@/features/problems/types'; // Import ProblemDifficulty
 import { LoadingCard } from '@/components/ui/loading-spinner';
 import { logger } from '@/lib/logger';
+import { Difficulty as ProblemDifficultyOriginal } from '@/features/problems/types'; // Keep original alias if used elsewhere in the file extensively
+import { ProblemType as ImportedProblemType } from '@/features/problems/types'; // Use imported ProblemType
+import { validateAndParseProblemJSON, ValidationResult } from "@/features/admin/utils/problemJSONParser"; // For local parsing feedback
+import { ProblemCollectionAdmin, ProblemCollectionAdminRef } from "./ProblemCollectionAdmin";
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 
 type ProblemType = 'INFO' | 'CODING';
 
-type NewLevel = {
+export type NewLevel = {
   name: string;
   description: string;
   order: number;
 };
 
-type NewTopic = {
+export type NewTopic = {
   name: string;
   description: string;
   content: string;
@@ -45,32 +49,31 @@ type NewTopic = {
   slug?: string;
 };
 
-type TestCase = {
-  input: string;  // Store as string, will parse when needed
-  expected: string;  // Store as string, will parse when needed
+export type TestCase = {
+  input: string;  
+  expected: string;  
   isHidden: boolean;
 };
 
-type PreparedTestCase = {
-  input: string;  // Keep as string for API
-  expectedOutput: string;  // Keep as string for API
+export type PreparedTestCase = {
+  input: string;  
+  expectedOutput: string; 
   isHidden: boolean;
 };
 
-// Add a more robust parameter type
-type FunctionParameter = {
+export type FunctionParameter = {
   name: string;
   type: string;
   description?: string;
 };
 
-type NewProblem = {
+export type NewProblem = {
   name: string;
   content: string;
-  difficulty: ProblemDifficulty;
+  difficulty: ProblemDifficultyOriginal; // Use the aliased Difficulty type
   required: boolean;
   reqOrder: number;
-  problemType: ProblemType;
+  problemType: ImportedProblemType; // Use imported ProblemType
   codeTemplate: string;
   testCases: TestCase[];
   estimatedTime?: number;
@@ -80,8 +83,8 @@ type NewProblem = {
   functionName: string;
   timeLimit: number;
   memoryLimit?: number;
-  return_type?: string; // Add return type
-  params?: FunctionParameter[]; // Add params as array of objects
+  return_type?: string; 
+  params?: FunctionParameter[]; 
 };
 
 type DraggedProblem = Problem & {
@@ -387,6 +390,14 @@ export function LearningPathAdmin() {
 
   const [isLoadingProblems, setIsLoadingProblems] = useState(false); // Add this state
 
+  const problemCollectionAdminRef = useRef<ProblemCollectionAdminRef>(null);
+  
+  // State for Topic-specific JSON Import Dialog
+  const [isUploadJsonToTopicDialogOpen, setIsUploadJsonToTopicDialogOpen] = useState(false);
+  const [jsonInputForTopic, setJsonInputForTopic] = useState("");
+  const [currentTopicIdForJsonImport, setCurrentTopicIdForJsonImport] = useState<string | null>(null);
+  const [jsonParseResultForTopic, setJsonParseResultForTopic] = useState<ValidationResult | null>(null);
+
   // Add the helper functions here, inside the component
   // Helper function to parse params
   const parseParams = (params: any): FunctionParameter[] => {
@@ -437,6 +448,122 @@ export function LearningPathAdmin() {
       params.splice(index, 1);
       return { ...prev, params };
     });
+  };
+
+  const handleParseAndAddProblemFromJSONToTopic = async (jsonString: string, defaultTopicId: string | null) => {
+    setJsonParseResultForTopic(null);
+    if (!token) {
+      toast.error("Authentication token not found.");
+      return;
+    }
+    if (!defaultTopicId) {
+      toast.error("Target topic ID is missing.");
+      return;
+    }
+
+    if (!jsonString.trim()) {
+      toast.error("JSON input cannot be empty.");
+      setJsonParseResultForTopic({ isValid: false, errors: [{ path: ["json"], message: "Input is empty." }], warnings: [] });
+      return;
+    }
+
+    const result = validateAndParseProblemJSON(jsonString);
+    setJsonParseResultForTopic(result);
+
+    if (!result.isValid || !result.parsedData) {
+      toast.error("JSON validation failed. Please check the errors below the input form.");
+      return;
+    }
+
+    const problemDataFromJSON = result.parsedData;
+
+    // Ensure topicId is set: use from JSON if present, otherwise use defaultTopicId
+    const finalTopicId = problemDataFromJSON.topicId || defaultTopicId;
+
+    // Determine reqOrder: use from JSON if present, otherwise calculate based on max existing or default to 1
+    let finalReqOrder = problemDataFromJSON.reqOrder;
+    if (finalReqOrder === undefined) { // If reqOrder is not in the JSON
+      const targetTopic = levels.flatMap(l => l.topics).find(t => t.id === finalTopicId);
+      if (targetTopic && targetTopic.problems && targetTopic.problems.length > 0) {
+        // Calculate reqOrder based on the maximum existing reqOrder in that topic
+        const maxExistingReqOrder = targetTopic.problems.reduce((max, p) => Math.max(max, p.reqOrder || 0), 0);
+        finalReqOrder = maxExistingReqOrder + 1;
+      } else {
+        // Topic is empty or not found, so this will be the first problem
+        finalReqOrder = 1;
+      }
+    }
+
+    let apiPayload: any = {
+      name: problemDataFromJSON.name,
+      content: problemDataFromJSON.content,
+      difficulty: problemDataFromJSON.difficulty,
+      problemType: problemDataFromJSON.problemType,
+      required: problemDataFromJSON.required !== undefined ? problemDataFromJSON.required : true, // Default required to true if not in JSON
+      reqOrder: finalReqOrder, // Use the determined reqOrder
+      slug: problemDataFromJSON.slug,
+      estimatedTime: problemDataFromJSON.estimatedTime,
+      collectionIds: problemDataFromJSON.collectionIds || [],
+      topicId: finalTopicId, // Crucial: ensures problem is linked to a topic
+    };
+
+    if (problemDataFromJSON.problemType === 'CODING' && problemDataFromJSON.coding) {
+      apiPayload.defaultLanguage = problemDataFromJSON.coding.languages.defaultLanguage;
+      const languageSupportPayload: Record<string, { template: string, reference?: string, enabled: boolean }> = {};
+      Object.entries(problemDataFromJSON.coding.languages.supported).forEach(([lang, data]) => {
+        if (data) {
+          languageSupportPayload[lang] = { template: data.template, reference: data.reference || "", enabled: true };
+        }
+      });
+       // Ensure the default language itself has its template/reference if provided
+      if (problemDataFromJSON.coding.languages.supported[problemDataFromJSON.coding.languages.defaultLanguage] &&
+          !languageSupportPayload[problemDataFromJSON.coding.languages.defaultLanguage]) {
+          languageSupportPayload[problemDataFromJSON.coding.languages.defaultLanguage] = {
+              template: problemDataFromJSON.coding.languages.supported[problemDataFromJSON.coding.languages.defaultLanguage]!.template,
+              reference: problemDataFromJSON.coding.languages.supported[problemDataFromJSON.coding.languages.defaultLanguage]!.reference || "",
+              enabled: true,
+          };
+      }
+
+      apiPayload.languageSupport = JSON.stringify(languageSupportPayload);
+      apiPayload.functionName = problemDataFromJSON.coding.functionName;
+      apiPayload.timeLimit = problemDataFromJSON.coding.timeLimit;
+      apiPayload.memoryLimit = problemDataFromJSON.coding.memoryLimit;
+      apiPayload.return_type = problemDataFromJSON.coding.returnType;
+      apiPayload.params = JSON.stringify(problemDataFromJSON.coding.parameters || []);
+      apiPayload.testCases = JSON.stringify(
+        (problemDataFromJSON.coding.testCases || []).map(tc => ({
+          input: tc.input,
+          expectedOutput: tc.expectedOutput,
+          isHidden: tc.isHidden,
+        }))
+      );
+    } else if (problemDataFromJSON.problemType === 'CODING' && !problemDataFromJSON.coding) {
+      toast.error("CODING problem type selected in JSON, but 'coding' object details are missing or invalid.");
+      setJsonParseResultForTopic({
+        isValid: false,
+        errors: [{ path: ["coding"], message: "CODING problem type selected, but 'coding' object details are missing or invalid." }],
+        warnings: result.warnings || []
+      });
+      return;
+    }
+    
+    // Log the final payload for debugging
+    logger.debug("Final API Payload for JSON import to topic:", apiPayload);
+
+    try {
+      // Using POST /problems as per the parser's design, assuming backend routes topicId in payload
+      await api.post('/problems', apiPayload, token);
+      toast.success(`Problem "${apiPayload.name}" added successfully to topic!`);
+      refresh(); // Refresh the learning path data
+      setIsUploadJsonToTopicDialogOpen(false); // Close dialog on success
+      setJsonInputForTopic(""); // Reset input
+      setJsonParseResultForTopic(null); // Reset parse result
+    } catch (err) {
+      logger.error('Error adding problem from JSON to topic:', err);
+      toast.error('Failed to add problem from JSON. ' + ((err as Error).message || 'Check console for details.'));
+      // Keep dialog open for correction
+    }
   };
 
   // Listen for problem removal events from the ProblemCollectionAdmin component
@@ -1370,11 +1497,12 @@ export function LearningPathAdmin() {
     setIsLoadingProblems(true);
     api.get(`/problems/${problem.id}`, token)
       .then(problemDetails => {
+        logger.debug("[LearningPathAdmin] Fetched problemDetails:", problemDetails);
+
         // Normalize test cases from the API to ensure they're ready for editing
         const normalizedTestCases = problemDetails.codeProblem?.testCases 
           ? (Array.isArray(problemDetails.codeProblem.testCases) 
               ? problemDetails.codeProblem.testCases.map(normalizeTestCase)
-              // If testCases is a string (legacy), parse it, else default
               : typeof problemDetails.codeProblem.testCases === 'string' 
                 ? tryParseJson(problemDetails.codeProblem.testCases).map(normalizeTestCase)
                 : [{ input: '', expected: '', isHidden: false }])
@@ -1383,59 +1511,49 @@ export function LearningPathAdmin() {
         // Initialize language support state
         if (problemDetails.codeProblem) {
           try {
-            // languageSupport from backend should now be a direct JSON object
             const languageSupportData = problemDetails.codeProblem.languageSupport;
-
             if (languageSupportData && typeof languageSupportData === 'object' && Object.keys(languageSupportData).length > 0) {
-              // Initialize with default structure, then override with fetched data
-              const initialLanguageSupportState = JSON.parse(JSON.stringify(defaultSupportedLanguages)); // Deep clone
-              
+              const initialLanguageSupportState = JSON.parse(JSON.stringify(defaultSupportedLanguages));
               Object.entries(languageSupportData).forEach(([lang, data]: [string, any]) => {
                 if (lang in initialLanguageSupportState) {
                   initialLanguageSupportState[lang as SupportedLanguage] = {
-                    enabled: true, // If present in languageSupportData, it was enabled when saved
+                    enabled: true, 
                     template: data.template || '',
-                    reference: data.reference || '' // Ensure reference is also loaded
+                    reference: data.reference || ''
                   };
                 }
               });
               setSupportedLanguages(initialLanguageSupportState);
               setDefaultLanguage(problemDetails.codeProblem.defaultLanguage || 'python');
             } else if (problemDetails.codeProblem.codeTemplate) { 
-              // Fallback for old problems with only a single codeTemplate and language
-              const initialLanguageSupportState = JSON.parse(JSON.stringify(defaultSupportedLanguages)); // Deep clone
+              const initialLanguageSupportState = JSON.parse(JSON.stringify(defaultSupportedLanguages));
               const legacyLang = (problemDetails.codeProblem.defaultLanguage || problemDetails.codeProblem.language || 'python') as SupportedLanguage;
-              
               if (legacyLang in initialLanguageSupportState) {
                  initialLanguageSupportState[legacyLang] = {
                     ...initialLanguageSupportState[legacyLang],
                     enabled: true,
                     template: problemDetails.codeProblem.codeTemplate,
-                    // reference: '' // Old problems won't have reference here
                   };
               }
               setSupportedLanguages(initialLanguageSupportState);
               setDefaultLanguage(legacyLang);
             } else {
-                // No language support data and no legacy template, reset to full defaults
                 setSupportedLanguages(JSON.parse(JSON.stringify(defaultSupportedLanguages)));
                 setDefaultLanguage('python');
             }
           } catch (err) {
-            logger.error('Error processing language support from API:', err);
-            setSupportedLanguages(JSON.parse(JSON.stringify(defaultSupportedLanguages))); // Reset to defaults on error
+            logger.error('[LearningPathAdmin] Error processing language support from API:', err);
+            setSupportedLanguages(JSON.parse(JSON.stringify(defaultSupportedLanguages)));
             setDefaultLanguage('python');
           }
-        } else { // Not a coding problem or no codeProblem details
+        } else { 
             setSupportedLanguages(JSON.parse(JSON.stringify(defaultSupportedLanguages)));
             setDefaultLanguage('python');
         }
           
-        // Initialize editProblemData state
-        setEditProblemData({
+        const dataForEditForm = {
           ...problemDetails,
           topicId: problemDetails.topic?.id || null,
-          // Explicitly handle codeProblem structure
           codeProblem: problemDetails.codeProblem ? {
             language: problemDetails.codeProblem.language || 'javascript',
             codeTemplate: problemDetails.codeProblem.codeTemplate || '',
@@ -1443,22 +1561,26 @@ export function LearningPathAdmin() {
             timeLimit: problemDetails.codeProblem.timeLimit || 5000,
             memoryLimit: problemDetails.codeProblem.memoryLimit,
             return_type: problemDetails.codeProblem.return_type || '',
-            // Handle params parsing
             params: parseParams(problemDetails.codeProblem.params),
             testCases: normalizedTestCases,
           } : undefined,
-        });
+        };
+        setEditProblemData(dataForEditForm);
         setSelectedProblem(problemDetails);
         setIsEditingProblem(true);
+
+        logger.debug("[LearningPathAdmin] Set editProblemData to:", dataForEditForm);
+        logger.debug("[LearningPathAdmin] Set isEditingProblem to true.");
+
       })
       .catch(err => {
-        logger.error("Error fetching problem details:", err);
+        logger.error("[LearningPathAdmin] Error fetching problem details:", err);
         toast.error("Could not fetch latest problem details");
-        // Fallback: Initialize with data passed in (might be stale)
+        // Fallback logic from original file
         setEditProblemData({
             id: problem.id,
             name: problem.name || '',
-            difficulty: (problem.difficulty as ProblemDifficulty) || 'EASY', // Changed default/fallback
+            difficulty: (problem.difficulty as ProblemDifficulty) || 'EASY',
             required: problem.required || false,
             problemType: (problem.problemType as ProblemType) || 'INFO',
             slug: problem.slug,
@@ -1471,12 +1593,12 @@ export function LearningPathAdmin() {
         });
         setSelectedProblem(problem);
         setIsEditingProblem(true);
-        // Reset language support to defaults
         setSupportedLanguages(defaultSupportedLanguages);
         setDefaultLanguage('python');
       })
       .finally(() => {
         setIsLoadingProblems(false);
+        logger.debug("[LearningPathAdmin] Finished handleEditProblemClick, isLoadingProblems:", false);
       });
   };
 
@@ -1491,7 +1613,7 @@ export function LearningPathAdmin() {
   if (loading) {
     return (
       <div className="flex items-center justify-center p-8">
-        <LoadingCard text="Loading learning path..." />
+        <div>Loading learning path...</div>
       </div>
     );
   }
@@ -1517,10 +1639,13 @@ export function LearningPathAdmin() {
 
   return (
     <div className="space-y-6">
+      {/* Learning Path Management Header and "Add New Level" button */}
       <div className="flex justify-between items-center">
         <div>
           <h2 className="text-3xl font-bold">Learning Path Management</h2>
-          <p className="text-muted-foreground">Manage levels, topics, and problems</p>
+          <p className="text-muted-foreground mt-1">
+            Manage levels, topics, and problems within the structured learning path.
+          </p>
         </div>
         <Dialog open={isAddingLevel} onOpenChange={setIsAddingLevel}>
           <DialogTrigger asChild>
@@ -1529,50 +1654,31 @@ export function LearningPathAdmin() {
           <DialogContent className="max-h-[90vh] overflow-y-auto max-w-[800px] w-full">
             <DialogHeader>
               <DialogTitle>Add New Level</DialogTitle>
-              <DialogDescription>
-                Create a new level in the learning path.
-              </DialogDescription>
+              <DialogDescription>Create a new level in the learning path.</DialogDescription>
             </DialogHeader>
             <div className="grid gap-4 py-4">
               <div className="grid gap-2">
-                <Label htmlFor="name">Name</Label>
-                <Input
-                  id="name"
-                  value={newLevel.name}
-                  onChange={(e) => setNewLevel({ ...newLevel, name: e.target.value })}
-                  placeholder="e.g., Level 1"
-                />
+                <Label htmlFor="add-level-name-lp">Name</Label> 
+                <Input id="add-level-name-lp" value={newLevel.name} onChange={(e) => setNewLevel({ ...newLevel, name: e.target.value })} placeholder="e.g., Level 1" />
               </div>
               <div className="grid gap-2">
-                <Label htmlFor="description">Description</Label>
-                <Textarea
-                  id="description"
-                  value={newLevel.description}
-                  onChange={(e) => setNewLevel({ ...newLevel, description: e.target.value })}
-                  placeholder="Describe this level..."
-                />
+                <Label htmlFor="add-level-description-lp">Description</Label>
+                <Textarea id="add-level-description-lp" value={newLevel.description} onChange={(e) => setNewLevel({ ...newLevel, description: e.target.value })} placeholder="Describe this level..." />
               </div>
               <div className="grid gap-2">
-                <Label htmlFor="order">Order</Label>
-                <Input
-                  id="order"
-                  type="number"
-                  value={newLevel.order}
-                  onChange={(e) => setNewLevel({ ...newLevel, order: parseInt(e.target.value) })}
-                  min={1}
-                />
+                <Label htmlFor="add-level-order-lp">Order</Label>
+                <Input id="add-level-order-lp" type="number" value={newLevel.order} onChange={(e) => setNewLevel({ ...newLevel, order: parseInt(e.target.value) || 1 })} min={1} />
               </div>
             </div>
             <DialogFooter>
-              <Button variant="outline" onClick={() => setIsAddingLevel(false)}>
-                Cancel
-              </Button>
+              <Button variant="outline" onClick={() => setIsAddingLevel(false)}>Cancel</Button>
               <Button onClick={handleAddLevel}>Add Level</Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>
       </div>
 
+      {/* Levels, Topics, Problems mapping */}
       <div className="grid gap-6">
         {levels.map((level) => (
           <Card key={level.id}>
@@ -1586,8 +1692,11 @@ export function LearningPathAdmin() {
                   variant="outline" 
                   size="sm"
                   onClick={() => {
+                    logger.debug("[LearningPathAdmin] Edit Level button clicked for level:", level);
                     setSelectedLevel(level);
+                    logger.debug("[LearningPathAdmin] setSelectedLevel called with:", level);
                     setIsEditingLevel(true);
+                    logger.debug("[LearningPathAdmin] setIsEditingLevel called with true.");
                   }}
                 >
                   Edit Level
@@ -1623,8 +1732,11 @@ export function LearningPathAdmin() {
                           variant="outline" 
                           size="sm"
                           onClick={() => {
+                            // logger.debug("[LearningPathAdmin] Edit Topic button clicked for topic:", topic);
                             setSelectedTopic(topic);
+                            // logger.debug("[LearningPathAdmin] setSelectedTopic called with:", topic);
                             setIsEditingTopic(true);
+                            // logger.debug("[LearningPathAdmin] setIsEditingTopic called with true.");
                           }}
                         >
                           Edit Topic
@@ -1633,11 +1745,44 @@ export function LearningPathAdmin() {
                           variant="outline" 
                           size="sm"
                           onClick={() => {
+                            logger.debug("[LearningPathAdmin] Add Problem button clicked for topic:", topic);
                             setSelectedTopic(topic);
+                            logger.debug("[LearningPathAdmin] setSelectedTopic called with:", topic);
+                            const initialNewProblemState: NewProblem = {
+                              name: "", content: "", difficulty: "EASY", required: false, reqOrder: 1,
+                              problemType: "INFO", 
+                              codeTemplate: "", testCases: [{ input: '', expected: '', isHidden: false }],
+                              estimatedTime: undefined, collectionIds: [], slug: "",
+                              language: "python", 
+                              functionName: "", timeLimit: 5000, memoryLimit: undefined,
+                              return_type: "", params: []
+                            };
+                            setNewProblem(initialNewProblemState);
+                            logger.debug("[LearningPathAdmin] setNewProblem called with initial state:", initialNewProblemState);
+                            setSupportedLanguages(JSON.parse(JSON.stringify(defaultSupportedLanguages)));
+                            setDefaultLanguage('python'); 
+                            logger.debug("[LearningPathAdmin] Language support states reset.");
                             setIsAddingProblem(true);
+                            logger.debug("[LearningPathAdmin] setIsAddingProblem called with true.");
                           }}
                         >
                           Add Problem
+                        </Button>
+                        {/* NEW "Upload JSON to Topic" BUTTON */}
+                        <Button 
+                            variant="outline" 
+                            size="sm" 
+                            onClick={() => {
+                                logger.debug("[LearningPathAdmin] Upload JSON to Topic button clicked for topic:", topic);
+                                setCurrentTopicIdForJsonImport(topic.id);
+                                setJsonInputForTopic("");
+                                setJsonParseResultForTopic(null);
+                                setIsUploadJsonToTopicDialogOpen(true);
+                                logger.debug(`[LearningPathAdmin] Opening JSON import dialog for topicId: ${topic.id}`);
+                            }}
+                            title="Upload Problem via JSON to this Topic"
+                        >
+                            <FileJson className="mr-2 h-4 w-4" /> Upload JSON
                         </Button>
                         <Button 
                             variant="destructive" 
@@ -1766,611 +1911,7 @@ export function LearningPathAdmin() {
         ))}
       </div>
 
-      {/* Add Problem Collection Admin section */}
-      <div className="mt-12">
-        <Card className="mb-6">
-          <CardHeader>
-            <CardTitle className="text-2xl font-bold">Problem Collection Management</CardTitle>
-            <CardDescription>Organize problems by collection/category</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <ProblemCollectionAdmin />
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Edit Level Dialog */}
-      <Dialog open={isEditingLevel} onOpenChange={setIsEditingLevel}>
-        <DialogContent className="max-h-[90vh] overflow-y-auto max-w-[800px] w-full">
-          <DialogHeader>
-            <DialogTitle>Edit Level</DialogTitle>
-            <DialogDescription>
-              Modify the level details.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="grid gap-4 py-4">
-            <div className="grid gap-2">
-              <Label htmlFor="edit-level-name">Name</Label>
-              <Input
-                id="edit-level-name"
-                name="name"
-                value={selectedLevel?.name || ""}
-                onChange={handleLevelChange}
-              />
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="edit-level-description">Description</Label>
-              <Textarea
-                id="edit-level-description"
-                name="description"
-                value={selectedLevel?.description || ""}
-                onChange={handleLevelChange}
-              />
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="edit-level-order">Order</Label>
-              <Input
-                id="edit-level-order"
-                name="order"
-                type="number"
-                value={selectedLevel?.order || 1}
-                onChange={handleLevelChange}
-                min={1}
-              />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setIsEditingLevel(false)}>
-              Cancel
-            </Button>
-            <Button onClick={handleEditLevel}>Save Changes</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Add Topic Dialog */}
-      <Dialog open={isAddingTopic} onOpenChange={setIsAddingTopic}>
-        <DialogContent className="max-h-[90vh] overflow-y-auto max-w-[800px] w-full">
-          <DialogHeader>
-            <DialogTitle>Add Topic</DialogTitle>
-            <DialogDescription>
-              Add a new topic to Level {selectedLevel?.name}.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="grid gap-4 py-4">
-            <div className="grid gap-2">
-              <Label htmlFor="topic-name">Name</Label>
-              <Input
-                id="topic-name"
-                value={newTopic.name}
-                onChange={(e) => setNewTopic({ ...newTopic, name: e.target.value })}
-                placeholder="Topic name"
-              />
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="topic-slug">Slug</Label>
-              <Input
-                id="topic-slug"
-                value={newTopic.slug}
-                onChange={(e) => setNewTopic({ ...newTopic, slug: e.target.value })}
-                placeholder="URL-friendly identifier (optional)"
-              />
-              <p className="text-xs text-muted-foreground mt-1">
-                A URL-friendly identifier for this topic. Used in topic URLs. If left empty, will be auto-generated from the name.
-              </p>
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="topic-description">Description</Label>
-              <Textarea
-                id="topic-description"
-                value={newTopic.description}
-                onChange={(e) => setNewTopic({ ...newTopic, description: e.target.value })}
-                placeholder="Topic description"
-              />
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="topic-content">Content</Label>
-              <Textarea
-                id="topic-content"
-                value={newTopic.content}
-                onChange={(e) => setNewTopic({ ...newTopic, content: e.target.value })}
-                placeholder="Topic content"
-                className="min-h-[150px] max-h-[300px] overflow-y-auto"
-              />
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="topic-order">Order</Label>
-              <Input
-                id="topic-order"
-                type="number"
-                value={newTopic.order}
-                onChange={(e) => setNewTopic({ ...newTopic, order: parseInt(e.target.value) })}
-                min={1}
-              />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setIsAddingTopic(false)}>
-              Cancel
-            </Button>
-            <Button onClick={handleAddTopic}>Add Topic</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Edit Topic Dialog */}
-      <Dialog open={isEditingTopic} onOpenChange={setIsEditingTopic}>
-        <DialogContent className="max-h-[90vh] overflow-y-auto max-w-[800px] w-full">
-          <DialogHeader>
-            <DialogTitle>Edit Topic</DialogTitle>
-            <DialogDescription>
-              Modify the topic details.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="grid gap-4 py-4">
-            <div className="grid gap-2">
-              <Label htmlFor="edit-topic-name">Name</Label>
-              <Input
-                id="edit-topic-name"
-                name="name"
-                value={selectedTopic?.name || ""}
-                onChange={handleTopicChange}
-              />
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="edit-topic-slug">Slug</Label>
-              <Input
-                id="edit-topic-slug"
-                name="slug"
-                value={selectedTopic?.slug || ""}
-                onChange={handleTopicChange}
-              />
-              <p className="text-xs text-muted-foreground mt-1">
-                A URL-friendly identifier for this topic. Used in topic URLs.
-              </p>
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="edit-topic-description">Description</Label>
-              <Textarea
-                id="edit-topic-description"
-                name="description"
-                value={selectedTopic?.description || ""}
-                onChange={handleTopicChange}
-              />
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="edit-topic-content">Content</Label>
-              <Textarea
-                id="edit-topic-content"
-                name="content"
-                value={selectedTopic?.content || ""}
-                onChange={handleTopicChange}
-                className="min-h-[150px] max-h-[300px] overflow-y-auto"
-              />
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="edit-topic-order">Order</Label>
-              <Input
-                id="edit-topic-order"
-                name="order"
-                type="number"
-                value={selectedTopic?.order || 1}
-                onChange={handleTopicChange}
-                min={1}
-              />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setIsEditingTopic(false)}>
-              Cancel
-            </Button>
-            <Button onClick={handleEditTopic}>Save Changes</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Add Problem Dialog */}
-      <Dialog open={isAddingProblem} onOpenChange={setIsAddingProblem}>
-        <DialogContent className="max-h-[90vh] overflow-y-auto max-w-[800px] w-full">
-          <DialogHeader>
-            <DialogTitle>Add New Problem</DialogTitle>
-            <DialogDescription>
-              Create a new problem for the selected topic.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="grid gap-4 py-4">
-            <div className="grid gap-2">
-              <Label htmlFor="name">Name</Label>
-              <Input
-                id="name"
-                name="name"
-                value={newProblem.name}
-                onChange={handleProblemChange}
-              />
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="slug">Slug</Label>
-              <Input
-                id="slug"
-                name="slug"
-                value={newProblem.slug}
-                onChange={handleProblemChange}
-              />
-              <p className="text-xs text-muted-foreground mt-1">
-                A URL-friendly identifier for this problem. Used in problem URLs. If left empty, will be auto-generated from the name.
-              </p>
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="content">Content (Markdown)</Label>
-              <Textarea
-                id="content"
-                name="content"
-                value={newProblem.content}
-                onChange={handleProblemChange}
-                className="min-h-[150px] max-h-[300px] overflow-y-auto"
-              />
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="difficulty">Difficulty</Label>
-              <Select 
-                name="difficulty" 
-                value={newProblem.difficulty}
-                onValueChange={(value: string) => setNewProblem(prev => ({ ...prev, difficulty: value as ProblemDifficulty }))}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select difficulty" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="BEGINNER">Beginner</SelectItem>
-                  <SelectItem value="EASY">Easy</SelectItem>
-                  <SelectItem value="MEDIUM">Medium</SelectItem>
-                  <SelectItem value="HARD">Hard</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="problemType">Problem Type</Label>
-              <Select 
-                name="problemType" 
-                value={newProblem.problemType}
-                onValueChange={handleProblemTypeChange}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select problem type" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="INFO">Info</SelectItem>
-                  <SelectItem value="CODING">Coding</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            
-            <div className="grid gap-2">
-              <Label htmlFor="collectionIds">Collections (Optional)</Label>
-              <div className="space-y-2 border rounded-md p-3">
-                {loadingCollections ? (
-                  <div className="py-2 text-center text-muted-foreground">Loading collections...</div>
-                ) : collections.length === 0 ? (
-                  <div className="py-2 text-center text-muted-foreground">No collections found</div>
-                ) : (
-                  collections.map(collection => (
-                    <div key={collection.id} className="flex items-center gap-2">
-                      <input
-                        type="checkbox"
-                        id={`collection-${collection.id}`}
-                        checked={newProblem.collectionIds?.includes(collection.id) || false}
-                        onChange={(e) => {
-                          if (e.target.checked) {
-                            setNewProblem(prev => ({
-                              ...prev,
-                              collectionIds: [...(prev.collectionIds || []), collection.id]
-                            }));
-                          } else {
-                            setNewProblem(prev => ({
-                              ...prev,
-                              collectionIds: (prev.collectionIds || []).filter(id => id !== collection.id)
-                            }));
-                          }
-                        }}
-                      />
-                      <Label htmlFor={`collection-${collection.id}`}>{collection.name}</Label>
-                    </div>
-                  ))
-                )}
-              </div>
-            </div>
-            
-            {newProblem.problemType === 'CODING' && (
-              <>
-                <div className="grid gap-2">
-                  <Label htmlFor="language">Programming Language</Label>
-                  <Select 
-                    name="language" 
-                    value={newProblem.language}
-                    onValueChange={(value: string) => setNewProblem(prev => ({ ...prev, language: value }))}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select language" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="javascript">JavaScript</SelectItem>
-                      <SelectItem value="python">Python</SelectItem>
-                      <SelectItem value="java">Java</SelectItem>
-                      <SelectItem value="cpp">C++</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                
-                <div className="grid gap-2">
-                  <Label htmlFor="functionName">Function Name</Label>
-                  <Input
-                    id="functionName"
-                    name="functionName"
-                    value={newProblem.functionName}
-                    onChange={handleProblemChange}
-                    placeholder="solution"
-                  />
-                </div>
-                
-                <div className="grid gap-2">
-                  <Label htmlFor="return_type">Return Type</Label>
-                  <Input
-                    id="return_type"
-                    name="return_type"
-                    value={newProblem.return_type || ""}
-                    onChange={(e) => setNewProblem(prev => ({ ...prev, return_type: e.target.value }))}
-                    placeholder="void"
-                  />
-                </div>
-                
-                <div className="grid gap-2">
-                  <Label>Function Parameters</Label>
-                  <div className="space-y-4 border rounded-md p-4">
-                    {newProblem.params?.map((param, index) => (
-                      <div key={index} className="pb-4 border-b last:border-b-0 last:pb-0 space-y-3">
-                        <div className="flex items-center justify-between">
-                          <h4 className="text-sm font-medium">Parameter {index + 1}</h4>
-                          {newProblem.params && newProblem.params.length > 0 && (
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => handleRemoveParam(index)}
-                            >
-                              <Trash className="h-4 w-4" />
-                            </Button>
-                          )}
-                        </div>
-                        
-                        <div className="grid grid-cols-2 gap-4">
-                          <div className="space-y-2">
-                            <Label htmlFor={`param-name-${index}`} className="text-xs">
-                              Name <span className="text-destructive">*</span>
-                            </Label>
-                            <Input
-                              id={`param-name-${index}`}
-                              value={param.name}
-                              onChange={(e) => handleParamChange(index, 'name', e.target.value)}
-                              placeholder="Parameter name"
-                              required
-                            />
-                          </div>
-                          <div className="space-y-2">
-                            <Label htmlFor={`param-type-${index}`} className="text-xs">
-                              Type <span className="text-destructive">*</span>
-                            </Label>
-                            <Input
-                              id={`param-type-${index}`}
-                              value={param.type}
-                              onChange={(e) => handleParamChange(index, 'type', e.target.value)}
-                              placeholder="Parameter type"
-                              required
-                            />
-                          </div>
-                        </div>
-                        
-                        <div className="space-y-2">
-                          <Label htmlFor={`param-desc-${index}`} className="text-xs">
-                            Description (optional)
-                          </Label>
-                          <Input
-                            id={`param-desc-${index}`}
-                            value={param.description || ''}
-                            onChange={(e) => handleParamChange(index, 'description', e.target.value)}
-                            placeholder="Parameter description"
-                          />
-                        </div>
-                      </div>
-                    ))}
-                    
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      onClick={handleAddParam}
-                      className="w-full"
-                    >
-                      <PlusCircle className="h-4 w-4 mr-2" />
-                      Add Parameter
-                    </Button>
-                  </div>
-                </div>
-                
-                <div className="grid gap-2">
-                  <Label htmlFor="timeLimit">Time Limit (ms)</Label>
-                  <Input
-                    id="timeLimit"
-                    name="timeLimit"
-                    type="number"
-                    value={newProblem.timeLimit}
-                    onChange={handleProblemChange}
-                    placeholder="5000"
-                  />
-                </div>
-                
-                <div className="grid gap-2">
-                  <Label htmlFor="memoryLimit">Memory Limit (MB, optional)</Label>
-                  <Input
-                    id="memoryLimit"
-                    name="memoryLimit"
-                    type="number"
-                    value={newProblem.memoryLimit || ''}
-                    onChange={handleProblemChange}
-                    placeholder="256"
-                  />
-                </div>
-                
-                <div className="grid gap-2">
-                  <Label>Language Support</Label>
-                  <LanguageSupport
-                    supportedLanguages={supportedLanguages}
-                    setSupportedLanguages={setSupportedLanguages}
-                    defaultLanguage={defaultLanguage}
-                    setDefaultLanguage={setDefaultLanguage}
-                  />
-                </div>
-                
-                <div className="grid gap-2">
-                  <Label>Test Cases</Label>
-                  <div className="space-y-4 border rounded-md p-4">
-                    {newProblem.testCases.map((testCase, index) => (
-                      <div key={index} className="pb-4 border-b last:border-b-0 last:pb-0 space-y-3">
-                        <div className="flex items-center justify-between">
-                          <h4 className="text-sm font-medium">Test Case {index + 1}</h4>
-                          {newProblem.testCases.length > 1 && (
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => {
-                                const newTestCases = [...newProblem.testCases];
-                                newTestCases.splice(index, 1);
-                                setNewProblem(prev => ({ ...prev, testCases: newTestCases }));
-                              }}
-                            >
-                              <Trash className="h-4 w-4" />
-                            </Button>
-                          )}
-                        </div>
-                        
-                        <div className="grid grid-cols-2 gap-4">
-                          <div className="space-y-2">
-                            <Label htmlFor={`test-input-${index}`} className="text-xs">
-                              Input <span className="text-destructive">*</span>
-                            </Label>
-                            <Textarea
-                              id={`test-input-${index}`}
-                              value={testCase.input}
-                              onChange={(e) => {
-                                const newTestCases = [...newProblem.testCases];
-                                newTestCases[index].input = e.target.value;
-                                setNewProblem(prev => ({ ...prev, testCases: newTestCases }));
-                              }}
-                              placeholder="Test input"
-                              className="font-mono text-sm"
-                              required
-                            />
-                          </div>
-                          <div className="space-y-2">
-                            <Label htmlFor={`test-output-${index}`} className="text-xs">
-                              Expected Output <span className="text-destructive">*</span>
-                            </Label>
-                            <Textarea
-                              id={`test-output-${index}`}
-                              value={testCase.expected}
-                              onChange={(e) => {
-                                const newTestCases = [...newProblem.testCases];
-                                newTestCases[index].expected = e.target.value;
-                                setNewProblem(prev => ({ ...prev, testCases: newTestCases }));
-                              }}
-                              placeholder="Expected output"
-                              className="font-mono text-sm"
-                              required
-                            />
-                          </div>
-                        </div>
-                        
-                        <div className="flex items-center gap-2">
-                          <Checkbox
-                            id={`test-hidden-${index}`}
-                            checked={testCase.isHidden}
-                            onCheckedChange={(checked) => {
-                              const newTestCases = [...newProblem.testCases];
-                              newTestCases[index].isHidden = !!checked;
-                              setNewProblem(prev => ({ ...prev, testCases: newTestCases }));
-                            }}
-                          />
-                          <Label htmlFor={`test-hidden-${index}`} className="text-sm">
-                            Hidden test case (not shown to user)
-                          </Label>
-                        </div>
-                      </div>
-                    ))}
-                    
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setNewProblem(prev => ({ 
-                        ...prev, 
-                        testCases: [...prev.testCases, { input: '', expected: '', isHidden: false }] 
-                      }))}
-                      className="w-full"
-                    >
-                      <PlusCircle className="h-4 w-4 mr-2" />
-                      Add Test Case
-                    </Button>
-                  </div>
-                </div>
-              </>
-            )}
-            <div className="grid gap-2">
-              <Label htmlFor="reqOrder">Order (if required)</Label>
-              <Input
-                id="reqOrder"
-                name="reqOrder"
-                type="number"
-                value={newProblem.reqOrder}
-                onChange={handleProblemChange}
-                min={1}
-              />
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="estimatedTime">Estimated Time (minutes)</Label>
-              <Input
-                id="estimatedTime"
-                name="estimatedTime"
-                type="number"
-                value={newProblem.estimatedTime || ''}
-                onChange={(e) => {
-                  const value = e.target.value ? parseInt(e.target.value) : undefined;
-                  setNewProblem(prev => ({ ...prev, estimatedTime: value }));
-                }}
-                min={1}
-                placeholder="Leave empty for no estimate"
-              />
-            </div>
-            <div className="flex items-center gap-2">
-              <input
-                type="checkbox"
-                id="required"
-                name="required"
-                checked={newProblem.required}
-                onChange={(e) => setNewProblem(prev => ({ ...prev, required: e.target.checked }))}
-              />
-              <Label htmlFor="required">Required</Label>
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setIsAddingProblem(false)}>
-              Cancel
-            </Button>
-            <Button onClick={handleAddProblem}>Add Problem</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Edit Problem Dialog */}
+      {/* Edit Problem Dialog - RESTORED TO FULL VERSION */}
       <Dialog open={isEditingProblem} onOpenChange={setIsEditingProblem}>
         <DialogContent className="max-h-[90vh] overflow-y-auto max-w-[800px] w-full">
           <DialogHeader>
@@ -2380,6 +1921,7 @@ export function LearningPathAdmin() {
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-4">
+            {/* Name Field */}
             <div className="grid gap-2">
               <Label htmlFor="edit-problem-name">Name <span className="text-destructive">*</span></Label>
               <Input
@@ -2390,6 +1932,7 @@ export function LearningPathAdmin() {
               />
             </div>
             
+            {/* Slug Field */}
             <div className="grid gap-2">
               <Label htmlFor="edit-problem-slug">Slug <span className="text-destructive">*</span></Label>
               <Input
@@ -2403,6 +1946,7 @@ export function LearningPathAdmin() {
               </p>
             </div>
             
+            {/* Content Field */}
             <div className="grid gap-2">
               <Label htmlFor="edit-problem-content">Content (Markdown) <span className="text-destructive">*</span></Label>
               <Textarea
@@ -2414,11 +1958,12 @@ export function LearningPathAdmin() {
               />
             </div>
             
+            {/* Difficulty Field */}
             <div className="grid gap-2">
               <Label htmlFor="edit-problem-difficulty">Difficulty <span className="text-destructive">*</span></Label>
               <Select 
                 value={editProblemData?.difficulty} 
-                onValueChange={(value: ProblemDifficulty) => handleEditProblemSelectChange('difficulty', value)}
+                onValueChange={(value: ProblemDifficultyOriginal) => handleEditProblemSelectChange('difficulty', value)}
               >
                 <SelectTrigger>
                   <SelectValue placeholder="Select difficulty" />
@@ -2432,16 +1977,18 @@ export function LearningPathAdmin() {
               </Select>
             </div>
             
+            {/* Problem Type Field (Cannot change) */}
             <div className="grid gap-2">
               <Label htmlFor="edit-problem-type">Problem Type (Cannot change)</Label>
               <Input
                 id="edit-problem-type"
-                name="problemType"
+                name="problemType" 
                 value={editProblemData?.problemType || ""}
-                disabled // Make type non-editable for simplicity
+                disabled
               />
             </div>
             
+            {/* Collections Field */}
             <div className="grid gap-2">
               <Label htmlFor="edit-problem-collectionIds">Collections (Optional)</Label>
               <div className="space-y-2 border rounded-md p-3">
@@ -2471,12 +2018,14 @@ export function LearningPathAdmin() {
               </div>
             </div>
             
+            {/* CODING Specific Fields - Conditionally Rendered */}
             {editProblemData?.problemType === 'CODING' && editProblemData?.codeProblem && (
               <>
+                {/* Programming Language Select (part of codeProblem in state) */}
                 <div className="grid gap-2">
                   <Label htmlFor="edit-code-language">Programming Language <span className="text-destructive">*</span></Label>
                   <Select 
-                    value={editProblemData.codeProblem.language || 'javascript'} 
+                    value={editProblemData.codeProblem.language || defaultLanguage} 
                     onValueChange={(value: string) => handleEditProblemSelectChange('language', value)}
                   >
                     <SelectTrigger>
@@ -2491,33 +2040,47 @@ export function LearningPathAdmin() {
                   </Select>
                 </div>
                 
+                {/* Language Support Component */}
                 <div className="grid gap-2">
                   <Label>Language Support <span className="text-destructive">*</span></Label>
                   <LanguageSupport
                     supportedLanguages={supportedLanguages}
                     setSupportedLanguages={setSupportedLanguages}
-                    defaultLanguage={defaultLanguage}
-                    setDefaultLanguage={setDefaultLanguage}
+                    defaultLanguage={defaultLanguage} /* This should be the one tied to the form's state */
+                    setDefaultLanguage={setDefaultLanguage} /* This should update the form's state */
                   />
                 </div>
                 
+                {/* Function Name */}
                 <div className="grid gap-2">
                   <Label htmlFor="edit-function-name">Function Name <span className="text-destructive">*</span></Label>
                   <Input
                     id="edit-function-name"
-                    name="functionName"
+                    name="functionName" /* This should target editProblemData.codeProblem.functionName */
                     value={editProblemData.codeProblem.functionName || ""}
-                    onChange={handleEditProblemCodeProblemChange}
+                    onChange={handleEditProblemCodeProblemChange} // This handler updates codeProblem fields
                     placeholder="e.g., solveProblem"
                   />
                 </div>
+                 {/* Return Type Field */}
+                <div className="grid gap-2">
+                    <Label htmlFor="edit-return-type">Return Type</Label>
+                    <Input
+                        id="edit-return-type"
+                        name="return_type" // This should target editProblemData.codeProblem.return_type
+                        value={editProblemData.codeProblem.return_type || ""}
+                        onChange={handleEditProblemCodeProblemChange}
+                        placeholder="e.g., int[], String, void"
+                  />
+                </div>
                 
+                {/* Time Limit & Memory Limit */}
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <Label htmlFor="edit-time-limit">Time Limit (ms) <span className="text-destructive">*</span></Label>
                     <Input
                       id="edit-time-limit"
-                      name="timeLimit"
+                      name="timeLimit" // Targets codeProblem.timeLimit
                       type="number"
                       value={editProblemData.codeProblem.timeLimit || 5000}
                       onChange={handleEditProblemCodeProblemChange}
@@ -2528,9 +2091,9 @@ export function LearningPathAdmin() {
                     <Label htmlFor="edit-memory-limit">Memory Limit (MB)</Label>
                     <Input
                       id="edit-memory-limit"
-                      name="memoryLimit"
+                      name="memoryLimit" // Targets codeProblem.memoryLimit
                       type="number"
-                      value={editProblemData.codeProblem.memoryLimit || ''} // Handle potential null
+                      value={editProblemData.codeProblem.memoryLimit || ''} 
                       onChange={handleEditProblemCodeProblemChange}
                       min={1}
                       placeholder="Optional"
@@ -2538,86 +2101,154 @@ export function LearningPathAdmin() {
                   </div>
                 </div>
                 
-                {/* Test Cases Section */}
+                {/* Function Parameters Section */}
                 <div className="grid gap-2">
-                  <Label>Test Cases <span className="text-destructive">*</span></Label>
-                  <div className="space-y-4 border rounded-md p-4 max-h-[400px] overflow-y-auto">
-                    {editProblemData?.codeProblem?.testCases && editProblemData?.codeProblem?.testCases.length > 0 ? (
-                      editProblemData?.codeProblem?.testCases.map((testCase, index) => (
-                        <div key={index} className="pb-4 border-b last:border-b-0 last:pb-0 space-y-3">
-                          <div className="flex items-center justify-between">
-                            <h4 className="text-sm font-medium">Test Case {index + 1}</h4>
+                  <Label>Function Parameters</Label>
+                  <div className="space-y-4 border rounded-md p-4">
+                    {editProblemData.codeProblem.params?.map((param, index) => (
+                      <div key={index} className="pb-4 border-b last:border-b-0 last:pb-0 space-y-3">
+                        <div className="flex items-center justify-between">
+                          <h4 className="text-sm font-medium">Parameter {index + 1}</h4>
                             <Button
                               type="button"
                               variant="ghost"
                               size="sm"
-                              onClick={() => handleRemoveEditTestCase(index)}
-                              disabled={(editProblemData?.codeProblem?.testCases?.length || 0) <= 1}
+                            onClick={() => {
+                                const newParams = [...(editProblemData.codeProblem?.params || [])];
+                                newParams.splice(index, 1);
+                                setEditProblemData(prev => prev ? {...prev, codeProblem: prev.codeProblem ? {...prev.codeProblem, params: newParams} : undefined} : null);
+                            }}
                             >
                               <Trash className="h-4 w-4" />
                             </Button>
-                          </div>
-                          
-                          <div className="grid grid-cols-2 gap-4">
-                            <div className="space-y-2">
-                              <Label htmlFor={`edit-test-input-${index}`} className="text-xs">
-                                Input <span className="text-destructive">*</span>
-                              </Label>
-                              <Textarea
-                                id={`edit-test-input-${index}`}
-                                value={testCase.input}
-                                onChange={(e) => handleEditTestCaseChange(index, 'input', e.target.value)}
-                                placeholder="Test input"
-                                className="font-mono text-sm"
-                                required
-                              />
-                            </div>
-                            <div className="space-y-2">
-                              <Label htmlFor={`edit-test-output-${index}`} className="text-xs">
-                                Expected Output <span className="text-destructive">*</span>
-                              </Label>
-                              <Textarea
-                                id={`edit-test-output-${index}`}
-                                value={testCase.expected}
-                                onChange={(e) => handleEditTestCaseChange(index, 'expected', e.target.value)}
-                                placeholder="Expected output"
-                                className="font-mono text-sm"
-                                required
-                              />
-                            </div>
-                          </div>
-                          
-                          <div className="flex items-center gap-2">
-                            <Checkbox
-                              id={`edit-test-hidden-${index}`}
-                              checked={testCase.isHidden}
-                              onCheckedChange={(checked) => handleEditTestCaseChange(index, 'isHidden', !!checked)}
+                        </div>
+                        <div className="grid grid-cols-2 gap-4">
+                          <div className="space-y-2">
+                            <Label htmlFor={`edit-param-name-${index}`} className="text-xs">Name <span className="text-destructive">*</span></Label>
+                            <Input
+                              id={`edit-param-name-${index}`}
+                              value={param.name}
+                              onChange={(e) => {
+                                const newParams = [...(editProblemData.codeProblem?.params || [])];
+                                newParams[index] = {...newParams[index], name: e.target.value};
+                                setEditProblemData(prev => prev ? {...prev, codeProblem: prev.codeProblem ? {...prev.codeProblem, params: newParams} : undefined} : null);
+                              }}
+                              placeholder="Parameter name"
+                              required
                             />
-                            <Label htmlFor={`edit-test-hidden-${index}`} className="text-sm">
-                              Hidden test case (not shown to user)
-                            </Label>
+                          </div>
+                          <div className="space-y-2">
+                            <Label htmlFor={`edit-param-type-${index}`} className="text-xs">Type <span className="text-destructive">*</span></Label>
+                            <Input
+                              id={`edit-param-type-${index}`}
+                              value={param.type}
+                              onChange={(e) => {
+                                const newParams = [...(editProblemData.codeProblem?.params || [])];
+                                newParams[index] = {...newParams[index], type: e.target.value};
+                                setEditProblemData(prev => prev ? {...prev, codeProblem: prev.codeProblem ? {...prev.codeProblem, params: newParams} : undefined} : null);
+                              }}
+                              placeholder="Parameter type"
+                              required
+                            />
                           </div>
                         </div>
-                      ))
-                    ) : (
-                      <p>No test cases added yet.</p>
-                    )}
-                    
+                        <div className="space-y-2">
+                          <Label htmlFor={`edit-param-desc-${index}`} className="text-xs">Description (optional)</Label>
+                          <Input
+                            id={`edit-param-desc-${index}`}
+                            value={param.description || ''}
+                            onChange={(e) => {
+                                const newParams = [...(editProblemData.codeProblem?.params || [])];
+                                newParams[index] = {...newParams[index], description: e.target.value};
+                                setEditProblemData(prev => prev ? {...prev, codeProblem: prev.codeProblem ? {...prev.codeProblem, params: newParams} : undefined} : null);
+                            }}
+                            placeholder="Parameter description"
+                          />
+                        </div>
+                      </div>
+                    ))}
                     <Button
                       type="button"
                       variant="outline"
                       size="sm"
-                      onClick={handleAddEditTestCase}
+                      onClick={() => {
+                        const newParams = [...(editProblemData.codeProblem?.params || []), {name: '', type: '', description: ''}];
+                        setEditProblemData(prev => prev ? {...prev, codeProblem: prev.codeProblem ? {...prev.codeProblem, params: newParams} : undefined} : null);
+                      }}
                       className="w-full"
                     >
-                      <PlusCircle className="h-4 w-4 mr-2" />
-                      Add Test Case
+                      <PlusCircle className="h-4 w-4 mr-2" /> Add Parameter
+                    </Button>
+                  </div>
+                </div>
+                
+                {/* Test Cases Section */}
+                <div className="grid gap-2">
+                  <Label>Test Cases <span className="text-destructive">*</span></Label>
+                  <div className="space-y-4 border rounded-md p-4 max-h-[400px] overflow-y-auto">
+                    {editProblemData.codeProblem.testCases?.map((testCase, index) => (
+                      <div key={index} className="pb-4 border-b last:border-b-0 last:pb-0 space-y-3">
+                        <div className="flex items-center justify-between">
+                          <h4 className="text-sm font-medium">Test Case {index + 1}</h4>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                            onClick={() => handleRemoveEditTestCase(index)} // Uses existing handler
+                            disabled={(editProblemData.codeProblem?.testCases?.length || 0) <= 1}
+                            >
+                              <Trash className="h-4 w-4" />
+                            </Button>
+                        </div>
+                        <div className="grid grid-cols-2 gap-4">
+                          <div className="space-y-2">
+                            <Label htmlFor={`edit-test-input-${index}`} className="text-xs">Input <span className="text-destructive">*</span></Label>
+                            <Textarea
+                                id={`edit-test-input-${index}`}
+                              value={testCase.input}
+                              onChange={(e) => handleEditTestCaseChange(index, 'input', e.target.value)} // Uses existing handler
+                              placeholder="Test input"
+                              className="font-mono text-sm"
+                              required
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label htmlFor={`edit-test-output-${index}`} className="text-xs">Expected Output <span className="text-destructive">*</span></Label>
+                            <Textarea
+                                id={`edit-test-output-${index}`}
+                              value={testCase.expected} // This should be testCase.expected
+                              onChange={(e) => handleEditTestCaseChange(index, 'expected', e.target.value)} // Uses existing handler
+                              placeholder="Expected output"
+                              className="font-mono text-sm"
+                              required
+                            />
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Checkbox
+                              id={`edit-test-hidden-${index}`}
+                            checked={testCase.isHidden}
+                            onCheckedChange={(checked) => handleEditTestCaseChange(index, 'isHidden', !!checked)} // Uses existing handler
+                            />
+                          <Label htmlFor={`edit-test-hidden-${index}`} className="text-sm">Hidden test case</Label>
+                        </div>
+                      </div>
+                    ))}
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={handleAddEditTestCase} // Uses existing handler
+                      className="w-full"
+                    >
+                      <PlusCircle className="h-4 w-4 mr-2" /> Add Test Case
                     </Button>
                   </div>
                 </div>
               </>
             )}
             
+            {/* Req Order Field */}
             <div className="grid gap-2">
               <Label htmlFor="edit-problem-reqOrder">Order (if required)</Label>
               <Input
@@ -2630,6 +2261,7 @@ export function LearningPathAdmin() {
               />
             </div>
             
+            {/* Estimated Time Field */}
             <div className="grid gap-2">
               <Label htmlFor="edit-problem-estimatedTime">Estimated Time (minutes)</Label>
               <Input
@@ -2643,15 +2275,13 @@ export function LearningPathAdmin() {
               />
             </div>
             
+            {/* Required Checkbox */}
             <div className="flex items-center gap-2">
               <Checkbox
                 id="edit-problem-required"
-                name="required"
+                name="required" // This needs to be handled by handleEditProblemCheckboxChange or similar
                 checked={editProblemData?.required || false}
-                onCheckedChange={(checked) => {
-                  if (!editProblemData) return;
-                  handleEditProblemSelectChange('required', checked);
-                }}
+                onCheckedChange={(checked) => handleEditProblemSelectChange('required', !!checked)} // Use select change for boolean
               />
               <Label htmlFor="edit-problem-required">Required</Label>
             </div>
@@ -2660,6 +2290,553 @@ export function LearningPathAdmin() {
           <DialogFooter>
             <Button variant="outline" onClick={() => setIsEditingProblem(false)}>Cancel</Button>
             <Button onClick={handleEditProblem}>Save Changes</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Topic Dialog */}
+      <Dialog open={isEditingTopic} onOpenChange={setIsEditingTopic}>
+        <DialogContent className="max-h-[90vh] overflow-y-auto max-w-[800px] w-full">
+          {/* REMOVE FAULTY LOGGER: {isEditingTopic && logger.debug("[LearningPathAdmin] Rendering Edit Topic Dialog. Selected topic:", selectedTopic)} */}
+          <DialogHeader>
+            <DialogTitle>Edit Topic</DialogTitle>
+            <DialogDescription>
+              Modify the topic details.
+            </DialogDescription>
+          </DialogHeader>
+          {/* Assuming the form fields for editing a topic are here, correctly using selectedTopic */}
+          {/* For example: */}
+          <div className="grid gap-4 py-4">
+            <div className="grid gap-2">
+              <Label htmlFor="edit-topic-name">Name</Label>
+              <Input
+                id="edit-topic-name"
+                name="name"
+                value={selectedTopic?.name || ""}
+                onChange={handleTopicChange} // Ensure handleTopicChange is correctly defined and updates selectedTopic
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="edit-topic-slug">Slug</Label>
+              <Input
+                id="edit-topic-slug"
+                name="slug"
+                value={selectedTopic?.slug || ""}
+                onChange={handleTopicChange}
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="edit-topic-description">Description</Label>
+              <Textarea
+                id="edit-topic-description"
+                name="description"
+                value={selectedTopic?.description || ""}
+                onChange={handleTopicChange}
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="edit-topic-content">Content</Label>
+              <Textarea
+                id="edit-topic-content"
+                name="content"
+                value={selectedTopic?.content || ""}
+                onChange={handleTopicChange}
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="edit-topic-order">Order</Label>
+              <Input
+                id="edit-topic-order"
+                name="order"
+                type="number"
+                value={selectedTopic?.order || 0}
+                onChange={handleTopicChange}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsEditingTopic(false)}>Cancel</Button>
+            <Button onClick={handleEditTopic}>Save Changes</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Add Topic Dialog - Ensure this is the complete structure */}
+      <Dialog open={isAddingTopic} onOpenChange={setIsAddingTopic}>
+        <DialogContent className="max-h-[90vh] overflow-y-auto max-w-[800px] w-full">
+          <DialogHeader>
+            <DialogTitle>Add Topic to {selectedLevel?.name || 'Level'}</DialogTitle>
+            <DialogDescription>
+              Create a new topic for the selected level.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="grid gap-2">
+              <Label htmlFor="add-topic-name">Name <span className="text-destructive">*</span></Label>
+              <Input
+                id="add-topic-name"
+                value={newTopic.name}
+                onChange={(e) => setNewTopic({ ...newTopic, name: e.target.value })}
+                placeholder="Topic name"
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="add-topic-slug">Slug (Optional)</Label>
+              <Input
+                id="add-topic-slug"
+                value={newTopic.slug || ''}
+                onChange={(e) => setNewTopic({ ...newTopic, slug: e.target.value })}
+                placeholder="URL-friendly identifier (auto-generated if blank)"
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="add-topic-description">Description</Label>
+              <Textarea
+                id="add-topic-description"
+                value={newTopic.description}
+                onChange={(e) => setNewTopic({ ...newTopic, description: e.target.value })}
+                placeholder="A brief description for this topic."
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="add-topic-content">Content (Markdown)</Label>
+              <Textarea
+                id="add-topic-content"
+                value={newTopic.content}
+                onChange={(e) => setNewTopic({ ...newTopic, content: e.target.value })}
+                placeholder="Detailed content for the topic (Markdown supported)."
+                className="min-h-[150px]"
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="add-topic-order">Order <span className="text-destructive">*</span></Label>
+              <Input
+                id="add-topic-order"
+                type="number"
+                value={newTopic.order}
+                onChange={(e) => setNewTopic({ ...newTopic, order: parseInt(e.target.value) || 1 })}
+                min={1}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsAddingTopic(false)}>Cancel</Button>
+            <Button onClick={handleAddTopic}>Add Topic</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Level Dialog - Ensure this is the complete structure */}
+      <Dialog open={isEditingLevel} onOpenChange={setIsEditingLevel}>
+        <DialogContent className="max-h-[90vh] overflow-y-auto max-w-[800px] w-full">
+          <DialogHeader>
+            <DialogTitle>Edit Level: {selectedLevel?.name || ''}</DialogTitle>
+            <DialogDescription>
+              Modify the details of this level.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="grid gap-2">
+              <Label htmlFor="edit-level-name">Name <span className="text-destructive">*</span></Label>
+              <Input
+                id="edit-level-name"
+                name="name" // Ensure handleLevelChange or direct setter uses this
+                value={selectedLevel?.name || ""}
+                onChange={handleLevelChange} // Or (e) => setSelectedLevel(prev => prev ? {...prev, name: e.target.value} : null)
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="edit-level-description">Description</Label>
+              <Textarea
+                id="edit-level-description"
+                name="description" // Ensure handleLevelChange or direct setter uses this
+                value={selectedLevel?.description || ""}
+                onChange={handleLevelChange} // Or (e) => setSelectedLevel(prev => prev ? {...prev, description: e.target.value} : null)
+                placeholder="Describe this level..."
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="edit-level-order">Order <span className="text-destructive">*</span></Label>
+              <Input
+                id="edit-level-order"
+                name="order" // Ensure handleLevelChange or direct setter uses this
+                type="number"
+                value={selectedLevel?.order || 1} // Default to 1 if undefined
+                onChange={handleLevelChange} // Or (e) => setSelectedLevel(prev => prev ? {...prev, order: parseInt(e.target.value) || 1} : null)
+                min={1}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsEditingLevel(false)}>Cancel</Button>
+            <Button onClick={handleEditLevel}>Save Changes</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Add Problem Dialog - Ensure this is the complete structure */}
+      <Dialog open={isAddingProblem} onOpenChange={setIsAddingProblem}>
+        <DialogContent className="max-h-[90vh] overflow-y-auto max-w-[800px] w-full">
+          <DialogHeader>
+            <DialogTitle>Add New Problem to {selectedTopic?.name || 'Topic'}</DialogTitle>
+            <DialogDescription>
+              Create a new problem for the selected topic.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            {/* Basic Fields: Name, Slug, Content, Difficulty, Problem Type, Collections */}
+            <div className="grid gap-2">
+              <Label htmlFor="add-problem-name">Name <span className="text-destructive">*</span></Label>
+              <Input id="add-problem-name" name="name" value={newProblem.name} onChange={handleProblemChange} />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="add-problem-slug">Slug (Optional)</Label>
+              <Input id="add-problem-slug" name="slug" value={newProblem.slug || ''} onChange={handleProblemChange} />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="add-problem-content">Content (Markdown) <span className="text-destructive">*</span></Label>
+              <Textarea id="add-problem-content" name="content" value={newProblem.content} onChange={handleProblemChange} className="min-h-[150px]" />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="grid gap-2">
+                <Label htmlFor="add-problem-difficulty">Difficulty</Label>
+                <Select name="difficulty" value={newProblem.difficulty} onValueChange={(value) => setNewProblem(prev => ({ ...prev, difficulty: value as ProblemDifficultyOriginal }))}>
+                  <SelectTrigger><SelectValue placeholder="Select difficulty" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="BEGINNER">Beginner</SelectItem>
+                  <SelectItem value="EASY">Easy</SelectItem>
+                  <SelectItem value="MEDIUM">Medium</SelectItem>
+                  <SelectItem value="HARD">Hard</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="grid gap-2">
+                <Label htmlFor="add-problem-problemType">Problem Type</Label>
+                <Select name="problemType" value={newProblem.problemType} onValueChange={handleProblemTypeChange}>
+                  <SelectTrigger><SelectValue placeholder="Select problem type" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="INFO">Info</SelectItem>
+                    <SelectItem value="CODING">Coding</SelectItem>
+                  </SelectContent>
+                </Select>
+            </div>
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="add-problem-collectionIds">Collections (Optional)</Label>
+              <div className="space-y-2 border rounded-md p-3 max-h-[150px] overflow-y-auto">
+                {loadingCollections ? <p>Loading collections...</p> : collections.map(collection => (
+                    <div key={collection.id} className="flex items-center gap-2">
+                      <Checkbox
+                      id={`add-problem-collection-${collection.id}`}
+                      checked={newProblem.collectionIds?.includes(collection.id) || false}
+                        onCheckedChange={(checked) => {
+                        const currentIds = newProblem.collectionIds || [];
+                        const newIds = checked ? [...currentIds, collection.id] : currentIds.filter(id => id !== collection.id);
+                        setNewProblem(prev => ({ ...prev, collectionIds: newIds }));
+                      }}
+                    />
+                    <Label htmlFor={`add-problem-collection-${collection.id}`} className="font-normal">{collection.name}</Label>
+                    </div>
+                ))}
+                {collections.length === 0 && !loadingCollections && <p className="text-sm text-muted-foreground">No collections available.</p>}
+              </div>
+            </div>
+            
+            {/* CODING Specific Fields - Conditionally Rendered */}
+            {newProblem.problemType === 'CODING' && (
+              <>
+                <h4 className="text-lg font-semibold mt-3 border-t pt-3">Coding Details</h4>
+                {/* Language Support Component */}
+                <div className="grid gap-2">
+                  <Label>Language Support <span className="text-destructive">*</span></Label>
+                  <LanguageSupport
+                    supportedLanguages={supportedLanguages}
+                    setSupportedLanguages={setSupportedLanguages}
+                    defaultLanguage={defaultLanguage}
+                    setDefaultLanguage={setDefaultLanguage}
+                  />
+                </div>
+                
+                {/* Function Name */}
+                <div className="grid gap-2">
+                  <Label htmlFor="add-problem-functionName">Function Name <span className="text-destructive">*</span></Label>
+                  <Input id="add-problem-functionName" name="functionName" value={newProblem.functionName} onChange={handleProblemChange} placeholder="e.g., solveProblem" />
+                </div>
+                
+                {/* Return Type */}
+                <div className="grid gap-2">
+                  <Label htmlFor="add-problem-return_type">Return Type <span className="text-destructive">*</span></Label>
+                  <Input id="add-problem-return_type" name="return_type" value={newProblem.return_type || ''} onChange={handleProblemChange} placeholder="e.g., int[], String, void" />
+                </div>
+
+                {/* Time Limit & Memory Limit */}
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label htmlFor="add-problem-timeLimit">Time Limit (ms) <span className="text-destructive">*</span></Label>
+                    <Input id="add-problem-timeLimit" name="timeLimit" type="number" value={newProblem.timeLimit} onChange={handleProblemChange} min={1000} />
+                  </div>
+                  <div>
+                    <Label htmlFor="add-problem-memoryLimit">Memory Limit (MB)</Label>
+                    <Input id="add-problem-memoryLimit" name="memoryLimit" type="number" value={newProblem.memoryLimit || ''} onChange={handleProblemChange} min={1} placeholder="Optional" />
+                  </div>
+                </div>
+                
+                {/* Function Parameters Section */}
+                <div className="grid gap-2">
+                  <Label>Function Parameters</Label>
+                  <div className="space-y-4 border rounded-md p-3">
+                    {newProblem.params?.map((param, index) => (
+                      <div key={index} className="pb-4 border-b last:border-b-0 last:pb-0 space-y-3">
+                        <div className="flex items-center justify-between">
+                          <h4 className="text-sm font-medium">Parameter {index + 1}</h4>
+                          <Button type="button" variant="ghost" size="sm" onClick={() => handleRemoveParam(index)}><Trash className="h-4 w-4" /></Button>
+                        </div>
+                        <div className="grid grid-cols-2 gap-4">
+                          <div className="space-y-2">
+                            <Label htmlFor={`add-param-name-${index}`} className="text-xs">Name <span className="text-destructive">*</span></Label>
+                            <Input id={`add-param-name-${index}`} value={param.name} onChange={(e) => handleParamChange(index, 'name', e.target.value)} placeholder="Parameter name" required />
+                          </div>
+                          <div className="space-y-2">
+                            <Label htmlFor={`add-param-type-${index}`} className="text-xs">Type <span className="text-destructive">*</span></Label>
+                            <Input id={`add-param-type-${index}`} value={param.type} onChange={(e) => handleParamChange(index, 'type', e.target.value)} placeholder="Parameter type" required />
+                          </div>
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor={`add-param-desc-${index}`} className="text-xs">Description (optional)</Label>
+                          <Input id={`add-param-desc-${index}`} value={param.description || ''} onChange={(e) => handleParamChange(index, 'description', e.target.value)} placeholder="Parameter description" />
+                        </div>
+                      </div>
+                    ))}
+                    <Button type="button" variant="outline" size="sm" onClick={handleAddParam} className="w-full"><PlusCircle className="h-4 w-4 mr-2" /> Add Parameter</Button>
+                  </div>
+                </div>
+                
+                {/* Test Cases Section */}
+                <div className="grid gap-2">
+                  <Label>Test Cases <span className="text-destructive">*</span></Label>
+                  <div className="space-y-4 border rounded-md p-4 max-h-[300px] overflow-y-auto">
+                    {newProblem.testCases.map((testCase, index) => (
+                        <div key={index} className="pb-4 border-b last:border-b-0 last:pb-0 space-y-3">
+                          <div className="flex items-center justify-between">
+                            <h4 className="text-sm font-medium">Test Case {index + 1}</h4>
+                          {newProblem.testCases.length > 1 && (
+                            <Button type="button" variant="ghost" size="sm" onClick={() => {
+                                const newTestCases = [...newProblem.testCases]; newTestCases.splice(index, 1);
+                                setNewProblem(prev => ({ ...prev, testCases: newTestCases }));
+                            }}><Trash className="h-4 w-4" /></Button>
+                          )}
+                          </div>
+                          <div className="grid grid-cols-2 gap-4">
+                            <div className="space-y-2">
+                            <Label htmlFor={`add-test-input-${index}`} className="text-xs">Input <span className="text-destructive">*</span></Label>
+                            <Textarea id={`add-test-input-${index}`} value={testCase.input} onChange={(e) => {
+                                const newTestCases = [...newProblem.testCases]; newTestCases[index].input = e.target.value;
+                                setNewProblem(prev => ({ ...prev, testCases: newTestCases }));
+                            }} placeholder="Test input (JSON format if complex)" className="font-mono text-sm" required />
+                            </div>
+                            <div className="space-y-2">
+                            <Label htmlFor={`add-test-output-${index}`} className="text-xs">Expected Output <span className="text-destructive">*</span></Label>
+                            <Textarea id={`add-test-output-${index}`} value={testCase.expected} onChange={(e) => {
+                                const newTestCases = [...newProblem.testCases]; newTestCases[index].expected = e.target.value;
+                                setNewProblem(prev => ({ ...prev, testCases: newTestCases }));
+                            }} placeholder="Expected output (JSON format if complex)" className="font-mono text-sm" required />
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-2">
+                          <Checkbox id={`add-test-hidden-${index}`} checked={testCase.isHidden} onCheckedChange={(checked) => {
+                              const newTestCases = [...newProblem.testCases]; newTestCases[index].isHidden = !!checked;
+                              setNewProblem(prev => ({ ...prev, testCases: newTestCases }));
+                          }} />
+                          <Label htmlFor={`add-test-hidden-${index}`} className="text-sm">Hidden test case</Label>
+                          </div>
+                        </div>
+                    ))}
+                    <Button type="button" variant="outline" size="sm" onClick={() => setNewProblem(prev => ({ ...prev, testCases: [...prev.testCases, { input: '', expected: '', isHidden: false }] }))} className="w-full"><PlusCircle className="h-4 w-4 mr-2" /> Add Test Case</Button>
+                  </div>
+                </div>
+              </>
+            )}
+            {/* Req Order, Estimated Time, Required Checkbox */}
+            <div className="grid gap-2">
+              <Label htmlFor="add-problem-reqOrder">Order (within topic, if required)</Label>
+              <Input id="add-problem-reqOrder" name="reqOrder" type="number" value={newProblem.reqOrder} onChange={handleProblemChange} min={1} />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="add-problem-estimatedTime">Estimated Time (minutes)</Label>
+              <Input id="add-problem-estimatedTime" name="estimatedTime" type="number" value={newProblem.estimatedTime || ''} onChange={(e) => setNewProblem(prev => ({...prev, estimatedTime: e.target.value ? parseInt(e.target.value) : undefined}))} min={1} placeholder="Optional" />
+            </div>
+            <div className="flex items-center gap-2">
+              <Checkbox id="add-problem-required" name="required" checked={newProblem.required} onCheckedChange={(checked) => setNewProblem(prev => ({ ...prev, required: !!checked }))} />
+              <Label htmlFor="add-problem-required">Required in topic</Label>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsAddingProblem(false)}>Cancel</Button>
+            <Button onClick={handleAddProblem}>Add Problem</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* NEW Dialog for Uploading JSON to a specific Topic */}
+      <Dialog open={isUploadJsonToTopicDialogOpen} onOpenChange={(isOpen) => {
+          setIsUploadJsonToTopicDialogOpen(isOpen);
+          if (!isOpen) {
+              setJsonInputForTopic("");
+              setJsonParseResultForTopic(null);
+              setCurrentTopicIdForJsonImport(null);
+          }
+      }}>
+        <DialogContent className="max-w-2xl max-h-[80vh] flex flex-col">
+            <DialogHeader>
+                <DialogTitle>
+                    Upload JSON to Topic: {levels.flatMap(l => l.topics).find(t => t.id === currentTopicIdForJsonImport)?.name || 'Selected Topic'}
+                </DialogTitle>
+                <DialogDescription>
+                    Paste problem JSON. The problem will be associated with this topic. You can also specify collection IDs in the JSON.
+                </DialogDescription>
+            </DialogHeader>
+            <div className="flex-grow overflow-y-auto py-4 space-y-4">
+                <Textarea
+                    placeholder='{
+  "name": "My New Problem for this Topic",
+  "content": "Problem description...",
+  ...
+}'
+                    value={jsonInputForTopic}
+                    onChange={(e) => setJsonInputForTopic(e.target.value)}
+                    className="min-h-[300px] font-mono text-sm"
+                />
+                {jsonParseResultForTopic && !jsonParseResultForTopic.isValid && (
+                    <div className="mt-2 p-3 bg-destructive/10 border border-destructive/30 rounded-md text-destructive text-xs">
+                        <h4 className="font-semibold mb-1">Validation Errors:</h4>
+                        <ul className="list-disc list-inside">
+                        {jsonParseResultForTopic.errors.map((err, idx) => (
+                            <li key={idx}>{err.path.join('.')} - {err.message}</li>
+                        ))}
+                        </ul>
+            </div>
+                )}
+                {jsonParseResultForTopic && jsonParseResultForTopic.warnings && jsonParseResultForTopic.warnings.length > 0 && (
+                    <div className="mt-2 p-3 bg-yellow-500/10 border border-yellow-500/30 rounded-md text-yellow-700 text-xs">
+                        <h4 className="font-semibold mb-1">Warnings:</h4>
+                        <ul className="list-disc list-inside">
+                        {jsonParseResultForTopic.warnings.map((warn, idx) => (
+                            <li key={idx}>{warn}</li>
+                        ))}
+                        </ul>
+          </div>
+                )}
+            </div>
+            <DialogFooter>
+                <Button variant="outline" onClick={() => {
+                    setIsUploadJsonToTopicDialogOpen(false);
+                    setJsonInputForTopic("");
+                    setJsonParseResultForTopic(null);
+                    setCurrentTopicIdForJsonImport(null);
+                }}>Cancel</Button>
+                <Button onClick={async () => {
+                    if (!currentTopicIdForJsonImport) {
+                        toast.error("No topic selected for JSON import. This should not happen.");
+                        return;
+                    }
+                    const validationRes = validateAndParseProblemJSON(jsonInputForTopic); // Validate first
+                    setJsonParseResultForTopic(validationRes);
+                    if (!validationRes.isValid) {
+                        toast.error("JSON validation failed.");
+                        return;
+                    }
+                    try {
+                        await problemCollectionAdminRef.current?.handleJsonImport(
+                            jsonInputForTopic, 
+                            { defaultTopicId: currentTopicIdForJsonImport }
+                        );
+                        // On success from the shared handler
+                        toast.success("Problem successfully imported to topic!");
+                        setIsUploadJsonToTopicDialogOpen(false);
+                        setJsonInputForTopic("");
+                        setJsonParseResultForTopic(null);
+                        setCurrentTopicIdForJsonImport(null);
+                        refresh(); // Refresh LearningPathAdmin to show the new problem in the topic
+                    } catch (apiError) {
+                        // Error is already toasted by the shared handleJsonImport
+                        // Update local parse result to show API error if JSON itself was valid
+                        setJsonParseResultForTopic({
+                            isValid: false,
+                            errors: [{path: ['api'], message: (apiError as Error).message || 'API submission failed after JSON validation.'}],
+                            warnings: validationRes.warnings || [],
+                            parsedData: validationRes.parsedData
+                        });
+                    }
+                }}>Parse & Add Problem</Button>
+            </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* JSON Import Dialog for Topic */}
+      <Dialog open={isUploadJsonToTopicDialogOpen} onOpenChange={(isOpen) => {
+        setIsUploadJsonToTopicDialogOpen(isOpen);
+        if (!isOpen) {
+          setJsonInputForTopic("");
+          setJsonParseResultForTopic(null);
+          setCurrentTopicIdForJsonImport(null); // Reset current topic ID on close
+        }
+      }}>
+        <DialogContent className="max-w-2xl max-h-[80vh] flex flex-col">
+          <DialogHeader>
+            <DialogTitle>Import Problem via JSON to Topic</DialogTitle>
+            <DialogDescription>
+              {currentTopicIdForJsonImport 
+                ? `Importing to topic: ${levels.flatMap(l => l.topics).find(t => t.id === currentTopicIdForJsonImport)?.name || 'Selected Topic'}. JSON content can override topicId, but this topic will be the default.`
+                : "Select a topic first or ensure topicId is in JSON."}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex-grow overflow-y-auto py-4 space-y-4 pr-2">
+            <Textarea
+              placeholder='Paste ProblemJSONImport compliant JSON here...\n{\n  "name": "My New Problem from JSON",\n  "content": "Problem description...",\n  "difficulty": "EASY",\n  "problemType": "CODING",\n  "required": false,\n  "reqOrder": 1,\n  /* "topicId": "optional_topic_id_if_different_from_current", */\n  "collectionIds": ["collection_id_1"],\n  "coding": {\n    "languages": {\n      "defaultLanguage": "python",\n      "supported": {\n        "python": { "template": "def solve():\n  pass" },\n        "javascript": { "template": "function solve() {\n  \n}" }\n      }\n    },\n    "functionName": "solve",\n    "returnType": "int",\n    "parameters": [{ "name": "arg1", "type": "string" }],\n    "testCases": [{ "input": "[\"hello\"]", "expectedOutput": "1", "isHidden": false }]\n  }\n}'
+              value={jsonInputForTopic}
+              onChange={(e) => setJsonInputForTopic(e.target.value)}
+              className="min-h-[300px] font-mono text-sm w-full"
+            />
+            {jsonParseResultForTopic && !jsonParseResultForTopic.isValid && (
+              <div className="mt-2 p-3 bg-destructive/10 border border-destructive/30 rounded-md text-destructive text-xs">
+                <h4 className="font-semibold mb-1">Validation Errors:</h4>
+                <ul className="list-disc list-inside pl-4">
+                  {jsonParseResultForTopic.errors.map((err, idx) => (
+                    <li key={idx}>{err.path.join('.')} - {err.message}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
+            {jsonParseResultForTopic && jsonParseResultForTopic.warnings && jsonParseResultForTopic.warnings.length > 0 && (
+              <div className="mt-2 p-3 bg-yellow-500/10 border border-yellow-500/30 rounded-md text-yellow-700 text-xs">
+                <h4 className="font-semibold mb-1">Warnings:</h4>
+                <ul className="list-disc list-inside pl-4">
+                  {jsonParseResultForTopic.warnings.map((warn, idx) => (
+                    <li key={idx}>{warn}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => {
+              setIsUploadJsonToTopicDialogOpen(false);
+              setJsonInputForTopic("");
+              setJsonParseResultForTopic(null);
+              setCurrentTopicIdForJsonImport(null);
+            }}>Cancel</Button>
+            <Button 
+              onClick={async () => {
+                if (currentTopicIdForJsonImport) {
+                  await handleParseAndAddProblemFromJSONToTopic(jsonInputForTopic, currentTopicIdForJsonImport);
+                } else {
+                  toast.error("Cannot add problem: Target Topic ID is not set.");
+                }
+              }}
+              disabled={!jsonInputForTopic.trim() || (jsonParseResultForTopic?.isValid === false)}
+            >
+              Parse & Add Problem
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

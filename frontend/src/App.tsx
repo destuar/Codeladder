@@ -105,9 +105,9 @@ function MainLayout() {
             path="/dashboard"
             element={
               <ProtectedRoute>
-                {/* <AdminViewWrapper> */}
+                <AdminViewWrapper>
                   <DashboardPage />
-                {/* </AdminViewWrapper> */}
+                </AdminViewWrapper>
               </ProtectedRoute>
             }
           />
