@@ -12,6 +12,8 @@ import { Lock, Check, ChevronRight, Award, Star, FileText, History, GraduationCa
 import { toast } from "@/components/ui/use-toast";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { useMediaQuery } from "@/hooks/useMediaQuery";
+import { LoadingCard, LoadingSpinner } from '@/components/ui/loading-spinner';
+import { logger } from '@/lib/logger';
 
 // Define the Level interface with tests property
 interface Level {
@@ -74,13 +76,13 @@ export function LevelSystem() {
       
       // No need for secondary fetch, data should be complete
       if (!Array.isArray(levelsData)) {
-        console.error("Expected levelsData to be an array, got:", levelsData);
+        logger.error("Expected levelsData to be an array", levelsData);
         return []; // Return empty array if data format is unexpected
       }
 
-      // Optionally, log to confirm tests are present
+      // Log test counts for debugging in development only
       levelsData.forEach(level => {
-        console.log(`Level: ${level.name}, Tests:`, level.tests?.length || 0);
+        logger.debug(`Level: ${level.name}, Tests: ${level.tests?.length || 0}`);
       });
       
       return levelsData;
@@ -203,7 +205,7 @@ export function LevelSystem() {
   const handleTestHistory = (level: Level, e: React.MouseEvent) => {
     e.stopPropagation(); // Prevent the flip animation
     
-    console.log("Navigating to test history for level:", level.id);
+    logger.debug("Navigating to test history for level:", level.id);
     navigate(`/tests/history/${level.id}`, {
       state: { 
         levelId: level.id,
@@ -224,13 +226,13 @@ export function LevelSystem() {
       const nextTestId = response?.nextAssessmentId;
 
       if (nextTestId) {
-        console.log(`Navigating to next test ID: ${nextTestId} for level ${levelId}`);
+        logger.debug(`Navigating to next test ID: ${nextTestId} for level ${levelId}`);
         navigate(`/assessment/test/${nextTestId}`, { state: { levelId, levelName } });
       } else {
-        console.log(`No next test available for level ${levelId} (${levelName}).`);
+        logger.debug(`No next test available for level ${levelId} (${levelName}).`);
       }
     } catch (error) { // Catch potential errors from the API call itself
-      console.error("Error fetching next test:", error);
+      logger.error("Error fetching next test", error);
       toast({
         title: "Error",
         description: "Could not determine the next test. Please try again.",
@@ -268,8 +270,8 @@ export function LevelSystem() {
   // Show full loading state only on initial load OR during refetch when no placeholder data is used
   if (loading && !levels) { 
     return (
-      <div className="flex items-center justify-center p-8">
-        <div className="animate-spin rounded-full h-8 w-8 border-2 border-primary dark:border-muted-foreground border-t-transparent dark:border-t-transparent" />
+      <div className="flex justify-center items-center p-8">
+        <LoadingCard text="Loading learning path..." />
       </div>
     );
   }
@@ -611,9 +613,7 @@ export function LevelSystem() {
                                 disabled={isLoadingTest}
                               >
                                 {isLoadingTest ? (
-                                  <div className="absolute inset-0 flex items-center justify-center">
-                                    <div className="animate-spin rounded-full h-4 w-4 border-2 border-current border-t-transparent" />
-                                  </div>
+                                  <LoadingSpinner size="sm" className="text-current" />
                                 ) : (
                                   <>
                                     <FileText className={cn(
@@ -807,7 +807,7 @@ export function LevelSystem() {
                                   disabled={isLoadingTest}
                                 >
                                   {isLoadingTest ? (
-                                    <div className="animate-spin rounded-full h-4 w-4 border-2 border-current border-t-transparent" />
+                                    <LoadingSpinner size="sm" className="text-current" />
                                   ) : <FileText className="w-4 h-4" />}
                                   Take Exam
                                 </button>

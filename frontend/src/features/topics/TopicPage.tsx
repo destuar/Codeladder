@@ -25,6 +25,7 @@ import { useToast } from '@/components/ui/use-toast';
 import { Difficulty, DIFFICULTY_ORDER } from '@/features/problems/types';
 import { DifficultyBadge } from '@/features/problems/components/DifficultyBadge';
 import { useMediaQuery } from "@/hooks/useMediaQuery";
+import { LoadingCard, LoadingButton } from '@/components/ui/loading-spinner';
 
 type SortField = 'name' | 'difficulty' | 'order' | 'completed';
 type SortDirection = 'asc' | 'desc';
@@ -226,12 +227,10 @@ export default function TopicPage() {
 
   if (loading) {
     return (
-      <div className="container py-8">
-        <Card>
-          <CardContent className="p-6 flex justify-center">
-            <div className="animate-spin rounded-full h-8 w-8 border-2 border-primary border-t-transparent" />
-          </CardContent>
-        </Card>
+      <div className="min-h-screen bg-background">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+          <LoadingCard text="Loading topic..." />
+        </div>
       </div>
     );
   }
@@ -287,7 +286,7 @@ export default function TopicPage() {
               title={isLocked ? "Complete previous level exam to unlock" : "Take the next available quiz"}
             >
               {isTakingQuiz ? (
-                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                <LoadingButton size="sm" />
               ) : (
                 <BookOpen className="w-4 h-4 mr-2 text-blue-500" />
               )}
@@ -330,7 +329,7 @@ export default function TopicPage() {
               title={isLocked ? "Complete previous level exam to unlock" : "Take the next available quiz"}
             >
               {isTakingQuiz ? (
-                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                <LoadingButton size="sm" />
               ) : (
                 <BookOpen className="w-4 h-4 mr-2 text-blue-500" />
               )}

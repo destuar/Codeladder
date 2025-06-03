@@ -22,7 +22,7 @@ interface FeatureItem {
 const features: FeatureItem[] = [
   {
     title: 'Learn',
-    description: 'Begin your DSA learning journey as an Intern—progresssing through modules, quizzes, and leveling exams at your own pace. When you reach L7, you\'ll be prepared for interviews at any level.',
+    description: 'Begin your DSA learning journey as an Intern—progresssing through modules, quizzes, and leveling exams at your own pace. By L7, you\'ll be prepared for interviews at any level.',
     imageLight: learnLightImg, // Use imported variable
     imageDark: learnDarkImg,   // Use imported variable
     imageAlt: 'Learn feature illustration'

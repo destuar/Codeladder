@@ -23,19 +23,35 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 // import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 
 import { 
-  RefreshCw, 
-  Plus, 
-  Pencil, 
-  Trash, 
-  AlertCircle, 
-  ClipboardCheck, 
-  Award, 
-  Clock, 
-  MessageSquare,
-  Loader2,
+  Plus,
+  Edit2,
+  Trash2,
   FileQuestion,
-  FolderKanban as LevelIcon
+  ChevronDown,
+  ChevronUp,
+  Check,
+  X,
+  Clock,
+  BookOpen,
+  AlertCircle,
+  Save,
+  Undo2,
+  Eye,
+  EyeOff,
+  Copy,
+  RefreshCw,
+  Trophy,
+  Target,
+  Calendar,
+  Users,
+  BarChart3,
+  Award,
+  MessageSquare,
+  Pencil,
+  Trash,
 } from 'lucide-react';
+import { cn } from '@/lib/utils';
+import { LoadingSpinner as UILoadingSpinner } from '@/components/ui/loading-spinner';
 
 // Define interfaces for Topic and Level
 interface Topic {
@@ -1018,8 +1034,8 @@ export function TestAdmin() {
                 <div>
                   {/* Loading state */}
                   {isLoading ? (
-                    <div className="flex justify-center py-4">
-                      <Loader2 className="h-6 w-6 animate-spin" />
+                    <div className="text-center py-8">
+                      <UILoadingSpinner size="lg" />
                     </div>
                   ) : (testsByLevel[level.id]?.length || 0) === 0 ? (
                     /* Empty state */
@@ -1703,8 +1719,8 @@ export function TestAdmin() {
           <div>
             {/* Loading state */}
             {isLoading ? (
-              <div className="flex justify-center py-4">
-                <Loader2 className="h-6 w-6 animate-spin" />
+              <div className="text-center py-8">
+                <UILoadingSpinner size="lg" />
               </div>
             ) : (testsByLevel[selectedLevel.id]?.length || 0) === 0 ? (
               /* Empty state */

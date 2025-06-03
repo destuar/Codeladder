@@ -1,6 +1,6 @@
 import { useNavigate, useParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useCallback } from 'react';
 import { useAuth } from '@/features/auth/AuthContext';
 import { api } from '@/lib/api';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -14,6 +14,8 @@ import { toast } from '@/components/ui/use-toast';
 import { Badge } from '@/components/ui/badge';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
+import { LoadingButton, LoadingCard, LoadingSpinner } from '@/components/ui/loading-spinner';
+import { logger } from '@/lib/logger';
 
 // Interface for our collection type
 interface Collection {
@@ -51,7 +53,7 @@ const ShuffleButton = ({ onClick, disabled, isShuffling, problemCount }: {
         >
           {isShuffling ? (
             <>
-              <Loader2 className="h-4 w-4 animate-spin" />
+              <LoadingButton size="sm" />
               <span>Shuffling...</span>
             </>
           ) : (
@@ -102,7 +104,7 @@ export default function CollectionsPage() {
     queryFn: async () => {
       if (!token) throw new Error('No token available');
       const response = await api.get('/problems?includeCompletion=true', token);
-      console.log('Problems fetched:', response.map((p: ExtendedProblem) => ({ id: p.id, name: p.name, slug: p.slug })));
+      logger.debug('Problems fetched:', response.map((p: ExtendedProblem) => ({ id: p.id, name: p.name, slug: p.slug })));
       return response;
     },
     enabled: !!token,
@@ -199,7 +201,7 @@ export default function CollectionsPage() {
     }).toString();
 
     // Enhanced debug logging
-    console.log('Problem navigation details:', { 
+    logger.debug('Problem navigation details:', { 
       problemId, 
       slug,
       hasSlug: !!slug,
@@ -210,7 +212,7 @@ export default function CollectionsPage() {
 
     // Also log the actual problem object from our data
     const problemFromData = problems?.find(p => p.id === problemId);
-    console.log('Problem data from state:', problemFromData ? {
+    logger.debug('Problem data from state:', problemFromData ? {
       id: problemFromData.id,
       name: problemFromData.name,
       slug: problemFromData.slug,
@@ -221,7 +223,7 @@ export default function CollectionsPage() {
     try {
       // Fetch the specific problem to get its slug (the all problems endpoint doesn't include slugs)
       if (!slug && token) {
-        console.log('Fetching problem details to get slug...');
+        logger.debug('Fetching problem details to get slug...');
         // Show a toast notification
         toast({
           title: "Loading problem...",
@@ -229,20 +231,20 @@ export default function CollectionsPage() {
         });
         
         const problemDetails = await api.get(`/problems/${problemId}`, token);
-        console.log('Problem details:', { 
+        logger.debug('Problem details:', { 
           id: problemDetails.id, 
           name: problemDetails.name, 
           slug: problemDetails.slug 
         });
         
         if (problemDetails.slug) {
-          console.log(`Using fetched slug: ${problemDetails.slug}`);
+          logger.debug(`Using fetched slug: ${problemDetails.slug}`);
           navigate(`/problem/${problemDetails.slug}?${params}`);
           return;
         }
       }
     } catch (error) {
-      console.error('Error fetching problem details:', error);
+      logger.error('Error fetching problem details', error);
       toast({
         title: "Error loading problem",
         description: "Unable to fetch problem details. Using ID-based navigation instead.",
@@ -390,7 +392,7 @@ export default function CollectionsPage() {
     return (
       <div className="fixed top-4 right-4 z-50">
         <div className="bg-card p-4 rounded-lg shadow-lg flex items-center gap-3">
-          <Loader2 className="h-5 w-5 animate-spin text-primary" />
+          <LoadingSpinner size="md" className="text-primary" />
           <p className="text-foreground text-sm">Loading problem...</p>
         </div>
       </div>
@@ -476,7 +478,7 @@ export default function CollectionsPage() {
   if (isLoading) {
     return (
       <div className="flex justify-center items-center min-h-screen">
-        <Loader2 className="h-12 w-12 animate-spin text-primary" />
+        <LoadingCard text="Loading collections..." />
       </div>
     );
   }

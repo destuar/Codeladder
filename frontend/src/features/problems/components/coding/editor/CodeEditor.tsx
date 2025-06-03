@@ -1,4 +1,4 @@
-import { useRef, forwardRef, useImperativeHandle } from 'react';
+import React, { useRef, forwardRef, useImperativeHandle } from 'react';
 import Editor, { EditorProps } from "@monaco-editor/react";
 import { useEditor } from './useEditor';
 import { LANGUAGE_CONFIGS, SUPPORTED_LANGUAGES, SupportedLanguage } from '../../../types/coding';
@@ -10,7 +10,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
-import { Play, Send } from "lucide-react";
+import { Play, Send, RotateCcw, Sun, Moon, Eye, EyeOff, Maximize2, Minimize2 } from "lucide-react";
+import { LoadingSpinner } from '@/components/ui/loading-spinner';
 
 interface CodeEditorProps {
   initialCode?: string;
@@ -147,13 +148,13 @@ export const CodeEditor = forwardRef<CodeEditorRef, CodeEditorProps>(({
             >
               {isRunning ? (
                 <>
-                  <div className="h-4 w-4 animate-spin rounded-full border-2 border-background border-t-foreground" />
-                  Running...
+                  <LoadingSpinner size="sm" />
+                  <span className="ml-2">Running...</span>
                 </>
               ) : (
                 <>
                   <Play className="h-4 w-4" />
-                  Run
+                  <span className="ml-2">Run</span>
                 </>
               )}
             </Button>
@@ -166,13 +167,13 @@ export const CodeEditor = forwardRef<CodeEditorRef, CodeEditorProps>(({
             >
               {isRunning ? (
                 <>
-                  <div className="h-4 w-4 animate-spin rounded-full border-2 border-background border-t-foreground" />
-                  Submitting...
+                  <LoadingSpinner size="sm" />
+                  <span className="ml-2">Submitting...</span>
                 </>
               ) : (
                 <>
                   <Send className="h-4 w-4" />
-                  Submit
+                  <span className="ml-2">Submit</span>
                 </>
               )}
             </Button>

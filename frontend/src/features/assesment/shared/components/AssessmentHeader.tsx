@@ -18,6 +18,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { LoadingSpinner } from '@/components/ui/loading-spinner';
 
 interface AssessmentHeaderProps {
   currentIndex: number;
@@ -169,12 +170,10 @@ export function AssessmentHeader({
                       disabled={answeredCount === 0 || isSubmitting}
                       className="transition-colors border-green-300/70 hover:border-green-500 hover:bg-green-50/30 text-green-600 dark:border-green-800/50 dark:text-green-400 dark:hover:bg-green-900/20"
                     >
-                      {isSubmitting ? (
-                        <>
-                          <div className="animate-spin h-4 w-4 mr-2 border-2 border-green-600 border-t-transparent rounded-full" />
-                          Submitting...
-                        </>
-                      ) : (
+                      {isSubmitting && (
+                        <LoadingSpinner size="sm" className="mr-2 text-green-600" />
+                      )}
+                      {isSubmitting ? 'Submitting...' : (
                         <>
                           <Send className="h-4 w-4 mr-2" />
                           Submit {displayType}

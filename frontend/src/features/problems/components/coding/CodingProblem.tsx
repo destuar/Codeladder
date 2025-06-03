@@ -33,6 +33,7 @@ import { toast } from "sonner";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { SubmissionsTab } from './submissions/SubmissionsTab';
 import { api } from '@/lib/api';
+import { logger } from '@/lib/logger';
 
 const MIN_PANEL_WIDTH = 300;
 const MAX_PANEL_WIDTH = 800;
@@ -73,7 +74,7 @@ export default function CodingProblem({
       try {
         return storedCodes ? JSON.parse(storedCodes) : {};
       } catch (e) {
-        console.error("Failed to parse stored language codes:", e);
+        logger.error("Failed to parse stored language codes", e);
         return {};
       }
     }
@@ -94,7 +95,7 @@ export default function CodingProblem({
         : testCasesString;
       return Array.isArray(parsed) ? parsed.map(tc => ({...tc})) as TestCaseType[] : [];
     } catch (e) {
-      console.error('Error parsing test cases:', e);
+      logger.error('Error parsing test cases', e);
       return [];
     }
   }, [testCasesString]);
@@ -124,10 +125,12 @@ export default function CodingProblem({
             let params = response.codeProblem.params;
             if (typeof params === 'string') params = JSON.parse(params);
             if (Array.isArray(params)) setFunctionParams(params);
-          } catch (err) { console.error('Error parsing function parameters:', err); }
+          } catch (err) { 
+            logger.error('Error parsing function parameters', err); 
+          }
         }
       } catch (error) {
-        console.error('Failed to fetch problem:', error);
+        logger.error('Failed to fetch problem', error);
         setCode('// Failed to load problem template.');
       }
     };
@@ -384,7 +387,7 @@ export default function CodingProblem({
                 onRunComplete={() => {}}
                 onAllTestsPassed={() => {
                   if (!hookIsCompleted) {
-                    console.log('All tests passed, automatically marking problem as complete');
+                    logger.debug('All tests passed, automatically marking problem as complete');
                     hookHandleMarkComplete();
                     toast.success('Congratulations! All tests passed. Problem automatically marked as complete! 🎉');
                   }

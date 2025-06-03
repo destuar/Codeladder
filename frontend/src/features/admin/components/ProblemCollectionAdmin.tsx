@@ -41,6 +41,7 @@ import {
 } from '@/features/languages/components/LanguageSupport';
 import { PlusCircle, Trash, Edit, RefreshCw } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { LoadingSpinner } from '@/components/ui/loading-spinner';
 
 // Local type for managing test cases in the form
 interface FormTestCase {
@@ -785,9 +786,20 @@ export function ProblemCollectionAdmin() {
                 </h5>
                         </div>
               <div className="flex gap-2">
-                <Button onClick={refreshProblems} variant="outline" size="icon" disabled={isLoadingProblems || isLoadingCollections}>
-                    <RefreshCw className={cn("h-4 w-4", (isLoadingProblems || isLoadingCollections) && "animate-spin")} />
-                    </Button>
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  onClick={refreshProblems}
+                  disabled={isLoadingProblems || isLoadingCollections}
+                  className="flex items-center gap-2"
+                >
+                  {(isLoadingProblems || isLoadingCollections) ? (
+                    <LoadingSpinner size="sm" />
+                  ) : (
+                    <RefreshCw className="h-4 w-4" />
+                  )}
+                  Refresh
+                </Button>
                 <Dialog open={isAddProblemDialogOpen} onOpenChange={setIsAddProblemDialogOpen}>
                   <DialogTrigger asChild>
                     <Button disabled={!selectedCollectionId || selectedCollectionId === '__ALL_PROBLEMS_VIEW__' || isLoadingCollections}>

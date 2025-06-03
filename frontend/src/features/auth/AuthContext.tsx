@@ -1,7 +1,8 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback, useRef } from 'react';
 import { jwtDecode } from 'jwt-decode';
 import { api } from '../../lib/api';
 import { User } from '../../types/user';
+import { logger } from '@/lib/logger';
 
 interface AuthContextType {
   user: User | null;
@@ -44,7 +45,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   useEffect(() => {
     const handleStorageChange = async (event: StorageEvent) => {
       if (event.key === 'oauth_callback_data' && event.newValue) {
-        console.log('[AuthContext] localStorage change detected for oauth_callback_data', event.newValue);
+        logger.debug('[AuthContext] localStorage change detected for oauth_callback_data', event.newValue);
         try {
           const data = JSON.parse(event.newValue);
           localStorage.removeItem('oauth_callback_data'); // Clean up immediately
@@ -53,18 +54,24 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
           oauthInProgress = true;
 
           if (data.type === 'oauth_success') {
-            console.log('[AuthContext] OAuth Success from localStorage:', data.payload);
+            logger.debug('[AuthContext] OAuth Success from localStorage:', data.payload);
             await handleAuthSuccess(data.payload.user, data.payload.token);
+            // Reset loading state after successful authentication
+            setIsLoading(false);
             // Potentially redirect here or let the calling page handle it
             // Example: window.location.href = localStorage.getItem('auth_redirect') || '/';
             // localStorage.removeItem('auth_redirect');
           } else if (data.type === 'oauth_error') {
-            console.error('[AuthContext] OAuth Error from localStorage:', data.error);
+            logger.error('[AuthContext] OAuth Error from localStorage:', data.error);
             setError(data.error || 'OAuth authentication failed via localStorage.');
+            // Reset loading state after error
+            setIsLoading(false);
           }
         } catch (e) {
-          console.error('[AuthContext] Error processing localStorage oauth_callback_data:', e);
+          logger.error('[AuthContext] Error processing localStorage oauth_callback_data:', e);
           setError('Failed to process OAuth data.');
+          // Reset loading state after error
+          setIsLoading(false);
         } finally {
           oauthInProgress = false; // Reset flag
         }
@@ -77,6 +84,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       oauthInProgress = false; // Ensure flag is reset on unmount too
     };
   }, []); // Empty dependency array, runs once on mount
+
   // -----
 
   // Load saved auth state
@@ -94,10 +102,10 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   const loadUserProfile = async (accessToken: string) => {
     try {
       const userData = await api.get('/profile/me', accessToken);
-      console.log('Loaded user profile:', userData);
+      logger.debug('Loaded user profile:', userData);
       setUser(userData);
     } catch (err) {
-      console.error('Error loading user profile:', err);
+      logger.error('Error loading user profile:', err);
       setError('Failed to load user profile');
     }
   };
@@ -118,34 +126,34 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       
       // Don't set up refresh if token is already expired
       if (timeUntilRefresh <= 0) {
-        console.log('Token already expired, refreshing now...');
+        logger.debug('Token already expired, refreshing now...');
         refreshToken();
         return;
       }
 
-      console.log('Setting up refresh timeout for', timeUntilRefresh, 'ms');
+      logger.debug('Setting up refresh timeout for', timeUntilRefresh, 'ms');
       const timeout = setTimeout(refreshToken, timeUntilRefresh);
       setRefreshTimeout(timeout);
     } catch (err) {
-      console.error('Error setting up token refresh:', err);
+      logger.error('Error setting up token refresh:', err);
     }
   };
 
   const refreshToken = async () => {
     const savedToken = localStorage.getItem('token');
     if (!savedToken) {
-      console.log('No token found, skipping refresh');
+      logger.debug('No token found, skipping refresh');
       return;
     }
 
     try {
-      console.log('Refreshing token...', {
+      logger.debug('Refreshing token...', {
         tokenExists: !!savedToken,
         tokenLength: savedToken?.length
       });
       
       const data = await api.post('/auth/refresh', {}, savedToken);
-      console.log('Token refresh response:', data);
+      logger.debug('Token refresh response:', data);
       
       if (data.accessToken) {
         setToken(data.accessToken);
@@ -158,7 +166,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
         localStorage.setItem('user', JSON.stringify(data.user));
       }
     } catch (err) {
-      console.error('Error refreshing token:', err);
+      logger.error('Error refreshing token:', err);
       // Clear tokens on unauthorized
       if (err instanceof Error && err.message === 'Unauthorized') {
         localStorage.removeItem('token');
@@ -177,7 +185,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
         try {
           await refreshToken();
         } catch (err) {
-          console.error('Error checking session:', err);
+          logger.error('Error checking session:', err);
         }
       }
       setIsLoading(false);
@@ -193,9 +201,9 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   }, []);
 
   const handleAuthSuccess = async (userData: User, authToken: string) => {
-    console.log('[AuthContext] handleAuthSuccess called with:', userData, authToken ? 'token present' : 'token missing');
+    logger.debug('[AuthContext] handleAuthSuccess called with:', userData, authToken ? 'token present' : 'token missing');
     // if (user && user.id === userData.id && token === authToken) {
-    //   console.log('[AuthContext] Auth success already processed with same data. Skipping.');
+    //   logger.debug('[AuthContext] Auth success already processed with same data. Skipping.');
     //   return;
     // }
     try {
@@ -203,27 +211,21 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       setToken(authToken);
       localStorage.setItem('token', authToken);
       
-      // Load full user profile - this also sets the user state
-      // await loadUserProfile(authToken); // This might be redundant if userData from OAuth is complete
-                                       // Or ensure userData from OAuth is the source of truth here.
-      setUser(userData); // Use userData directly from OAuth payload if it's sufficient
+      // Set user
+      setUser(userData);
       localStorage.setItem('user', JSON.stringify(userData));
       
-      // Set up token refresh
+      // Setup token refresh
       setupRefreshToken(authToken);
       
-      // Finally set the user data and clear any errors
-      // setUser(userData); // Already set if using userData directly
+      // Clear any existing error
       // localStorage.setItem('user', JSON.stringify(userData)); // Already set
       setError(null);
-      console.log('[AuthContext] Auth success processed. User:', userData, 'Token:', authToken);
+      logger.debug('[AuthContext] Auth success processed. User:', userData, 'Token:', authToken);
     } catch (err) {
-      console.error('Error during auth success:', err);
+      logger.error('Error during auth success:', err);
       setError('Failed to finalize authentication.');
       throw err;
-    } finally {
-      oauthInProgress = false; // Reset flag after completion or error
-      setIsLoading(false); // Ensure loading state is reset
     }
   };
 
@@ -278,9 +280,9 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       // The actual auth success is handled by handleAuthSuccess, called by listeners.
       new Promise<{ user: User; token: string }>((resolve, reject) => {
         const handleMessage = async (event: MessageEvent) => {
-          console.log('[AuthContext] postMessage received:', event.data, 'from origin:', event.origin);
+          logger.debug('[AuthContext] postMessage received:', event.data, 'from origin:', event.origin);
           if (event.origin !== window.location.origin) { 
-            console.warn(`[AuthContext] Message from untrusted origin "${event.origin}" blocked. Expected ${window.location.origin}.`);
+            logger.warn(`[AuthContext] Message from untrusted origin "${event.origin}" blocked. Expected ${window.location.origin}.`);
             return;
           }
 
@@ -288,32 +290,38 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
 
           if (type === 'oauth_success') {
             if (oauthInProgress) { // Check if already handled by localStorage or another event
-              console.log('[AuthContext] postMessage: OAuth success already in progress or handled. Skipping.');
+              logger.debug('[AuthContext] postMessage: OAuth success already in progress or handled. Skipping.');
               window.removeEventListener('message', handleMessage); // Still remove listener
               return; 
             }
             oauthInProgress = true;
             window.removeEventListener('message', handleMessage);
-            console.log('[AuthContext] OAuth Success from postMessage, processing...', payload);
+            logger.debug('[AuthContext] OAuth Success from postMessage, processing...', payload);
             try {
               await handleAuthSuccess(payload.user, payload.token);
+              // Reset loading state after successful authentication
+              setIsLoading(false);
               resolve(payload); // Resolve for any specific internal logic that might await this (though the main function is void)
             } catch(authError) {
               setError( (authError as Error).message || 'OAuth failed during postMessage success handling');
+              // Reset loading state after error
+              setIsLoading(false);
               reject(authError);
             } finally {
               // oauthInProgress = false; // Resetting in handleAuthSuccess or global error handlers
             }
           } else if (type === 'oauth_error') {
             if (oauthInProgress) {  // Check if already handled
-              console.log('[AuthContext] postMessage: OAuth error already in progress or handled. Skipping.');
+              logger.debug('[AuthContext] postMessage: OAuth error already in progress or handled. Skipping.');
               window.removeEventListener('message', handleMessage);
               return;
             }
             oauthInProgress = true;
             window.removeEventListener('message', handleMessage);
-            console.error('[AuthContext] OAuth Error from postMessage, rejecting promise.', messageError);
+            logger.error('[AuthContext] OAuth Error from postMessage, rejecting promise.', messageError);
             setError(messageError || 'OAuth failed via postMessage');
+            // Reset loading state after error
+            setIsLoading(false);
             reject(new Error(messageError || 'OAuth authentication failed'));
             oauthInProgress = false; // Reset if error specific to postMessage path
           }
@@ -327,26 +335,30 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
               clearInterval(checkClosed);
               window.removeEventListener('message', handleMessage);
               if (!oauthInProgress) {
-                console.log('[AuthContext] Popup closed and OAuth not (yet) handled by message/storage. Setting cancelled error.');
+                logger.debug('[AuthContext] Popup closed and OAuth not (yet) handled by message/storage. Setting cancelled error.');
                 setError('Authentication cancelled or popup closed.');
+                // Reset loading state when popup is closed
+                setIsLoading(false);
                 oauthInProgress = false; // Reset if popup closed before completion
               }
             }
           } catch (e: any) {
             // Check if it's a COOP-related error (this check is basic, might need refinement)
             if (e.message && e.message.includes('Cross-Origin-Opener-Policy')) {
-              console.warn('[AuthContext] COOP policy prevented checking popup.closed. Relying on message/storage for OAuth completion.', e.message);
+              logger.warn('[AuthContext] COOP policy prevented checking popup.closed. Relying on message/storage for OAuth completion.', e.message);
               // Don't necessarily set error here, as message/storage might still come through.
               // If it's essential to know about manual closure even with COOP, this strategy needs rethinking.
               // For now, we just log and let the other mechanisms (postMessage, localStorage) try to complete.
               // If after a longer timeout OAuth is still not in progress, then it might be an actual cancellation.
             } else {
               // Different error while checking popup.closed
-              console.error('[AuthContext] Error checking popup state:', e);
+              logger.error('[AuthContext] Error checking popup state:', e);
               clearInterval(checkClosed); // Stop interval on other errors too
               window.removeEventListener('message', handleMessage);
               if (!oauthInProgress) {
                 setError('Error during OAuth process.'); // Generic error
+                // Reset loading state on error
+                setIsLoading(false);
                 oauthInProgress = false;
               }
             }
@@ -355,12 +367,12 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       }).catch(err => {
         // Catch unhandled rejections from the message/popup promise to prevent global unhandledrejection errors.
         // The error should have already been set in the context via setError.
-        console.warn('[AuthContext] Internal OAuth promise rejected/cancelled:', err.message);
+        logger.warn('[AuthContext] Internal OAuth promise rejected/cancelled:', err.message);
         if (!oauthInProgress) setIsLoading(false); // Only stop loading if we truly errored out here
       });
 
     } catch (err: any) {
-      console.error('Social auth error in loginWithProvider (initial setup):', err);
+      logger.error('Social auth error in loginWithProvider (initial setup):', err);
       setError(err.message || `Failed to login with ${provider}`);
       oauthInProgress = false;
       setIsLoading(false); // Stop loading on initial setup error
@@ -391,7 +403,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
         await api.post('/auth/logout', {}, token);
       }
     } catch (err) {
-      console.error('Error during logout:', err);
+      logger.error('Error during logout:', err);
     } finally {
       Object.keys(sessionStorage).forEach(key => {
         if (key.startsWith('quiz_') || key.startsWith('assessment_')) {

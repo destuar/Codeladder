@@ -11,6 +11,8 @@ import { Separator } from '@/components/ui/separator';
 import { useAdmin } from '@/features/admin/AdminContext';
 import { useLogoSrc } from '@/features/landingpage/hooks/useLogoSrc';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { LoadingButton } from '@/components/ui/loading-spinner';
+import { logger } from '@/lib/logger';
 
 const loginSchema = z.object({
   email: z.string().email('Invalid email address'),
@@ -36,7 +38,7 @@ export default function LoginPage() {
 
   useEffect(() => {
     if (user) {
-      console.log('[LoginPage] User state updated, navigating. User:', user);
+      logger.debug('[LoginPage] User state updated, navigating. User:', user);
       const from = location.state?.from?.pathname || (canAccessAdmin ? '/dashboard' : '/collections');
       navigate(from, { replace: true });
     }
@@ -46,7 +48,7 @@ export default function LoginPage() {
     try {
       await login(data.email, data.password);
     } catch (err) {
-      console.error('[LoginPage] Email login failed:', err);
+      logger.error('[LoginPage] Email login failed:', err);
     }
   };
 
@@ -54,7 +56,7 @@ export default function LoginPage() {
     try {
       await loginWithProvider(provider);
     } catch (err) {
-      console.error(`[LoginPage] ${provider} login failed:`, err);
+      logger.error(`[LoginPage] ${provider} login failed:`, err);
     }
   };
 
@@ -123,8 +125,8 @@ export default function LoginPage() {
             >
               {isLoading ? (
                 <>
-                  <div className="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-background border-t-foreground" />
-                  Signing in...
+                  <LoadingButton size="sm" />
+                  <span className="ml-2">Signing in...</span>
                 </>
               ) : (
                 'Sign in with Email'

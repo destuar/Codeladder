@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useAuth } from '../auth/AuthContext';
 import { useProfile } from './ProfileContext';
 import { Button } from '@/components/ui/button';
@@ -18,6 +18,7 @@ import {
   DialogTrigger,
   DialogClose
 } from "@/components/ui/dialog";
+import { LoadingSpinner } from '@/components/ui/loading-spinner';
 
 // Types for dashboard statistics
 interface DashboardStats {
@@ -357,7 +358,7 @@ export default function ProfilePage() {
                 </Avatar>
                 {isLoading && (
                   <div className="absolute inset-0 flex items-center justify-center bg-black/20 rounded-full">
-                    <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    <LoadingSpinner size="sm" className="text-white" />
                   </div>
                 )}
               </div>

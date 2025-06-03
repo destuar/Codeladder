@@ -13,7 +13,7 @@ import { api } from "@/lib/api";
 import { useLearningPath, Topic, Level, Problem } from "@/hooks/useLearningPath";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { ProblemCollectionAdmin } from "./ProblemCollectionAdmin";
 import { Trash, PlusCircle, RefreshCw } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -26,6 +26,8 @@ import {
   type LanguageData
 } from '@/features/languages/components/LanguageSupport';
 import { Difficulty as ProblemDifficulty } from '@/features/problems/types'; // Import ProblemDifficulty
+import { LoadingCard } from '@/components/ui/loading-spinner';
+import { logger } from '@/lib/logger';
 
 type ProblemType = 'INFO' | 'CODING';
 
@@ -395,7 +397,7 @@ export function LearningPathAdmin() {
         const parsed = JSON.parse(params);
         return Array.isArray(parsed) ? parsed : [];
       } catch (error) {
-        console.error("Error parsing params:", error);
+        logger.error("Error parsing params:", error);
         return [];
       }
     }
@@ -441,7 +443,7 @@ export function LearningPathAdmin() {
   useEffect(() => {
     const handleProblemRemovedFromTopic = (event: ProblemRemovedFromTopicEvent) => {
       const { problemId, topicId } = event.detail;
-      console.log(`Received event: Problem ${problemId} removed from topic ${topicId}`);
+      logger.debug(`Received event: Problem ${problemId} removed from topic ${topicId}`);
       
       // Update our local state to remove the problem from the topic
       setLevels(currentLevels => 
@@ -488,7 +490,7 @@ export function LearningPathAdmin() {
       };
       return problem;
     } catch (error) {
-      console.error(`Error fetching problem ${problemId}:`, error);
+      logger.error(`Error fetching problem ${problemId}:`, error);
       throw error;
     }
   };
@@ -509,7 +511,7 @@ export function LearningPathAdmin() {
         const data = await api.get("/admin/collections", token);
         setCollections(data);
       } catch (error) {
-        console.error("Error fetching collections:", error);
+        logger.error("Error fetching collections:", error);
       } finally {
         setLoadingCollections(false);
       }
@@ -520,14 +522,14 @@ export function LearningPathAdmin() {
 
   const handleAddLevel = async () => {
     try {
-      console.log('Adding new level:', newLevel);
+      logger.debug('Adding new level:', newLevel);
       await api.post("/learning/levels", newLevel, token);
       setIsAddingLevel(false);
       setNewLevel({ name: "", description: "", order: 1 });
       toast.success("Level added successfully");
       refresh();
     } catch (err) {
-      console.error("Error adding level:", err);
+      logger.error("Error adding level", err);
       if (err instanceof Error) {
         toast.error(`Failed to add level: ${err.message}`);
       } else {
@@ -550,7 +552,7 @@ export function LearningPathAdmin() {
       toast.success("Level updated successfully");
       refresh();
     } catch (err) {
-      console.error("Error updating level:", err);
+      logger.error("Error updating level", err);
       if (err instanceof Error) {
         toast.error(`Failed to update level: ${err.message}`);
       } else {
@@ -569,7 +571,7 @@ export function LearningPathAdmin() {
       toast.success("Topic added successfully");
       refresh();
     } catch (err) {
-      console.error("Error adding topic:", err);
+      logger.error("Error adding topic", err);
       if (err instanceof Error) {
         toast.error(`Failed to add topic: ${err.message}`);
       } else {
@@ -594,7 +596,7 @@ export function LearningPathAdmin() {
       toast.success("Topic updated successfully");
       refresh();
     } catch (err) {
-      console.error("Error updating topic:", err);
+      logger.error("Error updating topic", err);
       if (err instanceof Error) {
         toast.error(`Failed to update topic: ${err.message}`);
       } else {
@@ -667,12 +669,12 @@ export function LearningPathAdmin() {
         }
       }
 
-      console.log('Creating problem with payload:', problemPayload); // Add logging
+      logger.debug('Creating problem with payload:', problemPayload);
 
       // Create the problem with all necessary fields
       const createdProblem = await api.post("/problems", problemPayload, token);
       
-      console.log('Created problem:', createdProblem); // Add logging
+      logger.debug('Created problem:', createdProblem);
       
       setIsAddingProblem(false);
       
@@ -700,7 +702,7 @@ export function LearningPathAdmin() {
       toast.success("Problem added successfully");
       refresh();
     } catch (err) {
-      console.error("Error adding problem:", err);
+      logger.error("Error adding problem", err);
       if (err instanceof Error) {
         toast.error(`Failed to add problem: ${err.message}`);
       } else {
@@ -974,7 +976,7 @@ export function LearningPathAdmin() {
       setSelectedProblem(null);
       refresh();
     } catch (err) {
-      console.error("Error updating problem:", err);
+      logger.error("Error updating problem", err);
       toast.error("Failed to update problem");
     }
   };
@@ -1031,7 +1033,7 @@ export function LearningPathAdmin() {
       toast.success("Topic deleted successfully");
       refresh();
     } catch (err) {
-      console.error("Error deleting topic:", err);
+      logger.error("Error deleting topic", err);
       if (err instanceof Error) {
         toast.error(`Failed to delete topic: ${err.message}`);
       } else {
@@ -1046,7 +1048,7 @@ export function LearningPathAdmin() {
       toast.success("Problem deleted successfully");
       refresh();
     } catch (err) {
-      console.error("Error deleting problem:", err);
+      logger.error("Error deleting problem", err);
       if (err instanceof Error) {
         toast.error(`Failed to delete problem: ${err.message}`);
       } else {
@@ -1092,7 +1094,7 @@ export function LearningPathAdmin() {
       toast.success("Problem added to collection");
       return true;
     } catch (err) {
-      console.error("Error adding problem to collection:", err);
+      logger.error("Error adding problem to collection", err);
       toast.error("Failed to add problem to collection");
       return false;
     }
@@ -1139,7 +1141,7 @@ export function LearningPathAdmin() {
       try {
         document.body.removeChild(ghostElement);
       } catch (err) {
-        console.log('Ghost element already removed');
+        logger.debug('Ghost element already removed');
       }
     }, 100);
     
@@ -1173,12 +1175,12 @@ export function LearningPathAdmin() {
       // Get drag data
       const dragDataString = e.dataTransfer.getData('application/json');
       if (!dragDataString) {
-        console.log("No drag data found");
+        logger.debug("No drag data found");
         return;
       }
       
       const dragData = JSON.parse(dragDataString);
-      console.log("Processing drop on topic with data:", dragData);
+      logger.debug("Processing drop on topic with data:", dragData);
       
       // Only handle problem drags
       if (dragData.type !== 'problem') return;
@@ -1190,7 +1192,7 @@ export function LearningPathAdmin() {
         // Immediately invalidate the cache as we'll be modifying this problem
         invalidateProblemCache(dragData.problemId);
       } catch (err) {
-        console.error("Error getting problem data for drop:", err);
+        logger.error("Error getting problem data for drop:", err);
         toast.error("Failed to process drag - could not get problem data");
         return;
       }
@@ -1198,7 +1200,7 @@ export function LearningPathAdmin() {
       if (dragData.sourceType === 'topic') {
         // Skip if source and target topics are the same
         if (dragData.sourceId === targetTopicId) {
-          console.log("Same topic, skipping API call");
+          logger.debug("Same topic, skipping API call");
           return;
         }
         
@@ -1254,7 +1256,7 @@ export function LearningPathAdmin() {
             refresh(); // Fall back to complete refresh
           }
         } catch (err) {
-          console.error("Error moving problem between topics:", err);
+          logger.error("Error moving problem between topics:", err);
           toast.error("Failed to move problem to new topic");
         }
       } 
@@ -1265,15 +1267,15 @@ export function LearningPathAdmin() {
           if (problem.topic) {
             try {
               await api.delete(`/learning/topics/problems/${problem.id}`, token);
-              console.log("Removed problem from previous topic");
+              logger.debug("Removed problem from previous topic");
             } catch (removeError) {
-              console.error("Error removing from previous topic:", removeError);
+              logger.error("Error removing from previous topic:", removeError);
               // Try fallback method
               try {
                 await api.put(`/problems/${problem.id}/remove-topic`, {}, token);
-                console.log("Removed problem from previous topic (fallback method)");
+                logger.debug("Removed problem from previous topic (fallback method)");
               } catch (fallbackError) {
-                console.error("Failed with fallback method too:", fallbackError);
+                logger.error("Failed with fallback method too:", fallbackError);
                 toast.error("Failed to move problem - could not remove from previous topic");
                 return;
               }
@@ -1288,13 +1290,13 @@ export function LearningPathAdmin() {
           refresh();
           
         } catch (err) {
-          console.error("Error adding collection problem to topic:", err);
+          logger.error("Error adding collection problem to topic:", err);
           toast.error("Failed to add problem to topic");
         }
       }
       
     } catch (error) {
-      console.error("Error handling drop on topic:", error);
+      logger.error("Error handling drop on topic:", error);
       toast.error("Failed to process drop operation");
     } finally {
       setDropTargetTopic(null);
@@ -1355,7 +1357,7 @@ export function LearningPathAdmin() {
     try {
       await api.post('/problems/reorder', { problemOrders }, token);
     } catch (err) {
-      console.error('Error reordering problems:', err);
+      logger.error('Error reordering problems:', err);
       toast.error('Failed to reorder problems');
       refresh(); // Only refresh on error to get back to the server state
     }
@@ -1420,7 +1422,7 @@ export function LearningPathAdmin() {
                 setDefaultLanguage('python');
             }
           } catch (err) {
-            console.error('Error processing language support from API:', err);
+            logger.error('Error processing language support from API:', err);
             setSupportedLanguages(JSON.parse(JSON.stringify(defaultSupportedLanguages))); // Reset to defaults on error
             setDefaultLanguage('python');
           }
@@ -1450,7 +1452,7 @@ export function LearningPathAdmin() {
         setIsEditingProblem(true);
       })
       .catch(err => {
-        console.error("Error fetching problem details:", err);
+        logger.error("Error fetching problem details:", err);
         toast.error("Could not fetch latest problem details");
         // Fallback: Initialize with data passed in (might be stale)
         setEditProblemData({
@@ -1489,7 +1491,7 @@ export function LearningPathAdmin() {
   if (loading) {
     return (
       <div className="flex items-center justify-center p-8">
-        <div className="animate-spin rounded-full h-8 w-8 border-2 border-primary border-t-transparent" />
+        <LoadingCard text="Loading learning path..." />
       </div>
     );
   }
@@ -1501,6 +1503,14 @@ export function LearningPathAdmin() {
         <Button variant="outline" onClick={() => window.location.reload()}>
           Retry
         </Button>
+      </div>
+    );
+  }
+
+  if (isLoadingProblems) {
+    return (
+      <div className="flex justify-center items-center p-8">
+        <LoadingCard text="Loading learning path..." />
       </div>
     );
   }

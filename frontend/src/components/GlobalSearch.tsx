@@ -1,9 +1,14 @@
-import { useState, useEffect, useRef } from "react";
-import { useNavigate } from "react-router-dom";
-import { Input } from "@/components/ui/input";
-import { Card, CardContent } from "@/components/ui/card";
-import { api } from "@/lib/api";
-import { useAuth } from "@/features/auth/AuthContext";
+import React, { useState, useEffect, useRef, useMemo } from 'react';
+import { Search, X, Loader2, ChevronRight, BookOpen, Code, FileText, Calculator, Hash, Filter } from 'lucide-react';
+import { Input } from '@/components/ui/input';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { useNavigate } from 'react-router-dom';
+import { api } from '@/lib/api';
+import { useAuth } from '@/features/auth/AuthContext';
+import { cn } from '@/lib/utils';
+import { LoadingSpinner } from '@/components/ui/loading-spinner';
 
 type SearchResult = {
   id: string;
@@ -75,7 +80,7 @@ export function GlobalSearch() {
         />
         {isSearching && (
           <div className="absolute right-2 top-1/2 -translate-y-1/2">
-            <div className="animate-spin h-4 w-4 border-2 border-primary border-t-transparent rounded-full" />
+            <LoadingSpinner size="md" />
           </div>
         )}
       </div>

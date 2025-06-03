@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { 
   Dialog, 
   DialogContent, 
@@ -20,6 +20,15 @@ import {
 } from "@/components/ui/table";
 import { CheckCircle2, Search, X, RepeatIcon, Code2, Filter, Loader2 } from "lucide-react";
 import { useSpacedRepetition } from '../hooks/useSpacedRepetition';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { api } from '@/lib/api';
+import { useAuth } from '@/features/auth/AuthContext';
+import { Plus, Check } from 'lucide-react';
+import { toast } from '@/components/ui/use-toast';
+import { Difficulty } from '@/features/problems/types';
+import { LoadingCard, LoadingSpinner } from '@/components/ui/loading-spinner';
 
 interface Problem {
   id: string;
@@ -186,9 +195,8 @@ export function AddProblemsModal({ isOpen, onClose }: AddProblemsModalProps) {
         
         <div className="flex-1 overflow-auto">
           {isLoading ? (
-            <div className="flex items-center justify-center py-12">
-              <Loader2 className="h-8 w-8 animate-spin text-primary" />
-              <span className="ml-2 text-lg">Loading problems...</span>
+            <div className="flex items-center justify-center py-8">
+              <LoadingCard text="Loading problems..." />
             </div>
           ) : filteredProblems.length === 0 ? (
             <div className="text-center py-12 text-muted-foreground">
@@ -239,7 +247,7 @@ export function AddProblemsModal({ isOpen, onClose }: AddProblemsModalProps) {
                       >
                         {addingProblemIds.has(problem.id) ? (
                           <>
-                            <Loader2 className="h-3 w-3 animate-spin" />
+                            <LoadingSpinner size="xs" />
                             Adding...
                           </>
                         ) : (

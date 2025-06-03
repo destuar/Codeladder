@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -9,6 +9,7 @@ import { cn } from '@/lib/utils';
 import { useQueryClient } from '@tanstack/react-query';
 import { Problem } from '@/features/problems/types';
 import { getIdentifierForProblem } from '../index';
+import { LoadingSpinner } from '@/components/ui/loading-spinner';
 
 interface ReviewControlsProps {
   problem: Problem;
@@ -38,7 +39,6 @@ export function ReviewControls({
   
   const problemId = problem?.id;
   const problemSlug = problem?.slug;
-  const currentLevel = problem?.reviewLevel || 0;
   
   // Handle returning to the previous page after submitting
   const navigateBack = () => {
@@ -166,7 +166,7 @@ export function ReviewControls({
               disabled={isSubmitting}
             >
               {isSubmitting && submittedOption === 'easy' ? (
-                <Loader2 className="h-5 w-5 animate-spin" />
+                <LoadingSpinner size="md" />
               ) : (
                 <Check className="h-5 w-5" />
               )}
@@ -186,7 +186,7 @@ export function ReviewControls({
               disabled={isSubmitting}
             >
               {isSubmitting && submittedOption === 'difficult' ? (
-                <Loader2 className="h-5 w-5 animate-spin" />
+                <LoadingSpinner size="md" />
               ) : (
                 <HelpCircle className="h-5 w-5" />
               )}
@@ -206,7 +206,7 @@ export function ReviewControls({
               disabled={isSubmitting}
             >
               {isSubmitting && submittedOption === 'forgot' ? (
-                <Loader2 className="h-5 w-5 animate-spin" />
+                <LoadingSpinner size="md" />
               ) : (
                 <X className="h-5 w-5" />
               )}

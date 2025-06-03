@@ -17,6 +17,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Difficulty, SortField, SortDirection, ProblemListProps, DIFFICULTY_ORDER } from '@/features/problems/types';
 import { DifficultyBadge } from '@/features/problems/components/DifficultyBadge';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { LoadingSpinner } from '@/components/ui/loading-spinner';
 
 const formatEstimatedTime = (time?: number) => {
   if (!time) return null;
@@ -141,10 +142,7 @@ export function ProblemList({
                 disabled={shuffleDisabled || isShuffling}
               >
                 {isShuffling ? (
-                  <>
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                    <span className="text-sm">Shuffling...</span>
-                  </>
+                  <LoadingSpinner size="sm" />
                 ) : (
                   <>
                     <Shuffle className="h-4 w-4" />

@@ -9,6 +9,7 @@ import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { useLogoSrc } from '@/features/landingpage/hooks/useLogoSrc';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { BorderlessThemeToggle } from "../shared/BorderlessThemeToggle";
+import { logger } from '@/lib/logger';
 
 // Export the interface
 export interface ProblemHeaderProps {
@@ -177,7 +178,7 @@ export function ProblemHeader({
                     "active:scale-95"
                   )}
                   onClick={() => {
-                    console.log('Mark Complete button clicked, current status:', isCompleted);
+                    logger.debug('Mark Complete button clicked, current status:', isCompleted);
                     onMarkComplete();
                   }}
                 >

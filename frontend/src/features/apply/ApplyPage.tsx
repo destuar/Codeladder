@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from '@/components/ui/tooltip'; // Import Radix UI Tooltip components
+import { LoadingCard } from '@/components/ui/loading-spinner';
 
 interface Job {
   id: string;
@@ -296,9 +297,7 @@ export function ApplyPage() {
         </div>
 
         {isLoading && (
-          <div className="flex justify-center items-center h-64">
-            <div className="animate-spin rounded-full h-8 w-8 border-2 border-primary border-t-transparent"></div>
-          </div>
+          <LoadingCard text="Loading jobs..." />
         )}
 
         {error && (

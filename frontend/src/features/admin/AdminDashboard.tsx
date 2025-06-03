@@ -22,7 +22,8 @@ import { ContentMigrationTool } from "./components/ContentMigrationTool";
 import { ProblemListAdmin } from "./components/ProblemListAdmin";
 import { QuizAdmin } from "./components/QuizAdmin";
 import { TestAdmin } from "./components/TestAdmin";
-import { Card } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { LoadingCard } from '@/components/ui/loading-spinner';
 
 interface AdminData {
   users: User[];
@@ -75,15 +76,6 @@ export function AdminDashboard() {
     return null;
   }
 
-  const LoadingView = () => (
-    <div className="flex items-center justify-center p-8">
-      <div className="space-y-4 text-center">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
-        <p className="text-muted-foreground">Loading admin view...</p>
-      </div>
-    </div>
-  );
-
   const ErrorView = () => (
     <div className="p-8 text-center">
       <div className="text-destructive mb-2">Error: {error}</div>
@@ -94,7 +86,19 @@ export function AdminDashboard() {
   );
 
   if (isLoading) {
-    return <LoadingView />;
+    return (
+      <div className="container mx-auto p-6">
+        <Card>
+          <CardHeader>
+            <CardTitle>Loading Admin Dashboard</CardTitle>
+            <CardDescription>Please wait...</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <LoadingCard />
+          </CardContent>
+        </Card>
+      </div>
+    );
   }
 
   if (error) {

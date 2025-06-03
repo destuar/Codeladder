@@ -1,12 +1,12 @@
-import React, { useEffect, useState } from 'react';
-import { useParams, useNavigate, useLocation } from 'react-router-dom';
+import React, { useEffect, useState, useMemo } from 'react';
+import { useParams, useNavigate, useLocation, useSearchParams } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 import { useAuth } from '@/features/auth/AuthContext';
 import InfoProblem from './components/InfoProblem';
 import CodingProblem from './components/coding/CodingProblem';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { ErrorBoundary } from '@/components/ErrorBoundary';
+import ErrorBoundary from '@/components/ErrorBoundary';
 import { ReviewControls } from '@/features/spaced-repetition/components/ReviewControls';
 import { useSpacedRepetition } from '@/features/spaced-repetition/hooks/useSpacedRepetition';
 import { Problem, ProblemType } from './types';
@@ -14,6 +14,8 @@ import { isToday } from 'date-fns';
 import { logProblemReviewState, logWorkflowStep } from './utils/debug';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import { LoadingCard } from '@/components/ui/loading-spinner';
+import { logger } from '@/lib/logger';
 
 // Custom hook to only use spaced repetition when needed
 function useConditionalSpacedRepetition(enabled: boolean) {
@@ -124,7 +126,7 @@ const ProblemPage: React.FC = () => {
       
       return response;
     } catch (error) {
-      console.error('Error submitting review:', error);
+      logger.error('Error submitting review', error);
       throw error;
     }
   };
@@ -256,7 +258,7 @@ const ProblemPage: React.FC = () => {
   // Handler for when a problem is completed
   const handleProblemCompleted = async () => {
     if (!problem) {
-      console.error('Cannot toggle completion: problem data is not available');
+      logger.error('Cannot toggle completion: problem data is not available');
       return;
     }
 
@@ -285,8 +287,10 @@ const ProblemPage: React.FC = () => {
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center p-8">
-        <div className="animate-spin rounded-full h-8 w-8 border-2 border-primary border-t-transparent" />
+      <div className="min-h-screen bg-background">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+          <LoadingCard text="Loading problem..." />
+        </div>
       </div>
     );
   }

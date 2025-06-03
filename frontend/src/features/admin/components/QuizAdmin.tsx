@@ -3,6 +3,7 @@ import { useAuth } from '@/features/auth/AuthContext';
 import { api } from '@/lib/api';
 import { toast } from "sonner";
 import { DragDropContext, Droppable, Draggable, DropResult } from "@hello-pangea/dnd";
+import { logger } from '@/lib/logger';
 
 // UI Components
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
@@ -17,6 +18,7 @@ import { RefreshCw, PlusCircle, Edit, Trash2, FileQuestion, Plus, Award, Clock, 
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
+import { LoadingSpinner, LoadingCard } from '@/components/ui/loading-spinner';
 
 // Define interfaces for Topic and Level
 interface Topic {
@@ -211,7 +213,7 @@ export function QuizAdmin() {
         
       }
     } catch (error) {
-      console.error('Error fetching levels:', error);
+      logger.error('Error fetching levels', error);
       toast.error("Failed to load learning path structure.");
     } finally {
       setIsLoading(false);
@@ -235,7 +237,7 @@ export function QuizAdmin() {
         response = await api.getQuizzesByTopicSlug(topic.slug, token);
       } else {
         // Fallback to ID-based API
-        console.warn(`Using deprecated ID-based API for topic ${topicId} - slug not available`);
+        logger.warn(`Using deprecated ID-based API for topic ${topicId} - slug not available`);
         response = await api.getQuizzesByTopic(topicId, token);
       }
       
@@ -245,7 +247,7 @@ export function QuizAdmin() {
         [topicId]: Array.isArray(response) ? response : [] 
       }));
     } catch (error) {
-      console.error(`Error fetching quizzes for topic ${topicId}:`, error);
+      logger.error(`Error fetching quizzes for topic ${topicId}`, error);
       
       let errorMessage = 'Failed to load quizzes';
       if (error instanceof Error) {
@@ -311,11 +313,11 @@ export function QuizAdmin() {
       try {
         // Assume api.getQuizQuestions exists (like in TestAdmin)
         const fetchedQuestions: QuizQuestion[] = await api.getQuizQuestions(quiz.id, token); 
-        console.log('Fetched quiz questions:', fetchedQuestions);
+        logger.debug('Fetched quiz questions:', fetchedQuestions);
         setQuizProblems(fetchedQuestions);
         setInitialQuizProblems(fetchedQuestions); // Store the initial state
       } catch (error) {
-        console.error('Error loading quiz questions:', error);
+        logger.error('Error loading quiz questions', error);
         toast.error('Failed to load quiz questions.');
         setQuizProblems([]);
         setInitialQuizProblems([]);
@@ -357,7 +359,7 @@ export function QuizAdmin() {
         fetchQuizzesForTopic(quizToDelete.topicId);
       }
     } catch (error) {
-      console.error('Error deleting quiz:', error);
+      logger.error('Error deleting quiz', error);
       toast.error('Failed to delete quiz');
     } finally {
       setShowDeleteDialog(false);
@@ -499,7 +501,7 @@ export function QuizAdmin() {
           toast.info(`Deleting ${deletedQuestionIds.length} question(s)...`);
           const deletePromises = deletedQuestionIds.map(qid => 
             api.deleteQuizQuestion(qid, token).catch(err => {
-              console.error(`Failed to delete question ${qid}:`, err);
+              logger.error(`Failed to delete question ${qid}`, err);
               toast.error(`Failed to delete question ID ${qid}`); 
               return null; // Allow Promise.allSettled to continue
             })
@@ -519,7 +521,7 @@ export function QuizAdmin() {
               return api.updateQuizQuestion(problem.id, problem, token) // Use updateQuizQuestion now
                 .then(() => updatedCount++)
                 .catch(err => {
-                  console.error(`Failed to update question ${problem.id}:`, err);
+                  logger.error(`Failed to update question ${problem.id}`, err);
                   toast.error(`Failed to update question: ${problem.questionText}`);
                   errorCount++;
                 });
@@ -527,7 +529,7 @@ export function QuizAdmin() {
               return api.createQuizQuestion(savedQuizId, problem, token)
                 .then(() => createdCount++)
                 .catch(err => {
-                  console.error(`Failed to create question:`, err);
+                  logger.error(`Failed to create question`, err);
                   toast.error(`Failed to create question: ${problem.questionText}`);
                   errorCount++;
                 });
@@ -562,7 +564,7 @@ export function QuizAdmin() {
       handleCloseDialog();
       
     } catch (error) {
-      console.error('Error saving quiz:', error);
+      logger.error('Error saving quiz', error);
       toast.error(isEditMode ? `Failed to update quiz: ${error instanceof Error ? error.message : 'Unknown error'}` 
                              : `Failed to create quiz: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
@@ -773,26 +775,21 @@ export function QuizAdmin() {
           size="sm"
           onClick={fetchLevels} // Re-fetch levels and quizzes
           disabled={isLoading}
+          className="flex items-center gap-2"
         >
-          <RefreshCw className={`h-4 w-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
-          Refresh
+          {isLoading ? (
+            <LoadingSpinner size="sm" />
+          ) : (
+            <RefreshCw className="h-4 w-4" />
+          )}
+          Refresh Data
         </Button>
       </div>
 
       {/* Loading State */}
       {isLoading ? (
-        <div className="space-y-4">
-          {[1, 2].map(i => ( // Skeleton loaders
-            <Card key={i}>
-              <CardContent className="p-6">
-                <div className="animate-pulse space-y-3">
-                  <div className="h-5 bg-muted rounded w-1/3"></div>
-                  <div className="h-4 bg-muted rounded w-1/2"></div>
-                  <div className="h-10 bg-muted rounded w-full mt-2"></div>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
+        <div className="flex flex-col items-center justify-center p-8 space-y-4">
+          <LoadingCard text="Loading quizzes..." />
         </div>
       ) : levels.length === 0 ? (
         // No levels found
@@ -1008,8 +1005,7 @@ export function QuizAdmin() {
                     <div {...provided.droppableProps} ref={provided.innerRef} className="space-y-3 min-h-[150px]"> {/* Added min-h */}
                       {isLoadingProblems ? (
                         <div className="flex flex-col items-center justify-center p-6 text-muted-foreground">
-                          <RefreshCw className="h-6 w-6 animate-spin mb-2" />
-                          <p className="text-sm">Loading questions...</p>
+                          <LoadingCard />
                         </div>
                       ) : quizProblems.length > 0 ? (
                         quizProblems.map((problem, index) => (

@@ -1,6 +1,8 @@
 import { useEffect } from 'react';
-import { useParams } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import { api } from '@/lib/api';
+import { useAuth } from './AuthContext';
+import { LoadingCard } from '@/components/ui/loading-spinner';
 
 export default function OAuthCallback() {
   const { provider } = useParams<{ provider: string }>();
@@ -44,8 +46,13 @@ export default function OAuthCallback() {
   }, [provider]);
 
   return (
-    <div className="h-screen flex items-center justify-center">
-      <div className="animate-spin rounded-full h-8 w-8 border-2 border-primary border-t-transparent" />
+    <div className="min-h-screen flex items-center justify-center bg-background">
+      <div className="max-w-md mx-auto text-center">
+        <LoadingCard text="Processing authentication..." />
+        <p className="text-sm text-muted-foreground mt-4">
+          Please wait while we complete your sign-in.
+        </p>
+      </div>
     </div>
   );
 } 

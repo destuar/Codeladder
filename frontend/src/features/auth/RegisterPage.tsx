@@ -11,6 +11,8 @@ import { Separator } from '@/components/ui/separator';
 import { useAdmin } from '@/features/admin/AdminContext';
 import { useLogoSrc } from '@/features/landingpage/hooks/useLogoSrc';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { LoadingButton } from '@/components/ui/loading-spinner';
+import { logger } from '@/lib/logger';
 
 const registerSchema = z.object({
   email: z.string().email('Invalid email address'),
@@ -37,7 +39,7 @@ export default function RegisterPage() {
 
   useEffect(() => {
     if (user) {
-      console.log('[RegisterPage] User state updated, navigating. User:', user);
+      logger.debug('[RegisterPage] User state updated, navigating. User:', user);
       const targetPath = canAccessAdmin ? '/dashboard' : '/collections';
       navigate(targetPath, { replace: true });
     }
@@ -47,7 +49,7 @@ export default function RegisterPage() {
     try {
       await registerUser(data.email, data.password, data.name);
     } catch (err) {
-      console.error('[RegisterPage] Email registration failed:', err);
+      logger.error('[RegisterPage] Email registration failed:', err);
     }
   };
 
@@ -55,7 +57,7 @@ export default function RegisterPage() {
     try {
       await loginWithProvider(provider);
     } catch (err) {
-      console.error(`[RegisterPage] ${provider} login failed:`, err);
+      logger.error(`[RegisterPage] ${provider} login failed:`, err);
     }
   };
 
@@ -134,8 +136,8 @@ export default function RegisterPage() {
             >
               {isLoading ? (
                 <>
-                  <div className="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-background border-t-foreground" />
-                  Creating account...
+                  <LoadingButton size="sm" />
+                  <span className="ml-2">Creating account...</span>
                 </>
               ) : (
                 'Sign up with Email'

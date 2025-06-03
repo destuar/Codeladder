@@ -1,4 +1,5 @@
 import { marked } from 'marked';
+import { logger } from './logger';
 
 /**
  * Converts Markdown content to HTML
@@ -19,7 +20,7 @@ export function markdownToHtml(markdown: string): string {
     // In marked v15+, we need to use marked.parse in synchronous mode
     html = marked.parse(markdown, { async: false }) as string;
   } catch (error) {
-    console.error('Error parsing markdown:', error);
+    logger.error('Error parsing markdown', error);
     // Fallback to a simple conversion if marked fails
     html = markdown
       .replace(/\n\n/g, '</p><p>')

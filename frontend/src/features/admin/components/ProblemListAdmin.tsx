@@ -4,6 +4,7 @@ import { useAdmin } from "@/features/admin/AdminContext";
 import { useNavigate } from "react-router-dom";
 import { api } from "@/lib/api";
 import { toast } from "sonner";
+import { LoadingCard } from '@/components/ui/loading-spinner';
 
 // UI Components
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -415,7 +416,7 @@ export function ProblemListAdmin() {
                   <div className="mt-4 space-y-1">
                     {isLoadingCollections ? (
                       <div className="py-8 flex justify-center">
-                        <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary"></div>
+                        <LoadingCard />
                       </div>
                     ) : filteredCollections.length === 0 ? (
                       <div className="py-8 text-center text-muted-foreground">
@@ -507,7 +508,7 @@ export function ProblemListAdmin() {
                     </div>
                   ) : isLoadingProblems ? (
                     <div className="py-12 flex justify-center">
-                      <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary"></div>
+                      <LoadingCard />
                     </div>
                   ) : problems.length === 0 ? (
                     <div className="py-12 text-center space-y-4">

@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useSpacedRepetition } from '../hooks/useSpacedRepetition';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { SpacedRepetitionPanel } from './SpacedRepetitionPanel';
+import { LoadingCard } from '@/components/ui/loading-spinner';
 
 /**
  * Dedicated page for spaced repetition reviews
@@ -21,9 +22,7 @@ export function ReviewPage() {
         {isLoading ? (
           <Card>
             <CardContent className="pt-6">
-              <div className="flex justify-center">
-                <div className="animate-spin rounded-full h-8 w-8 border-2 border-primary border-t-transparent" />
-              </div>
+              <LoadingCard />
             </CardContent>
           </Card>
         ) : (
