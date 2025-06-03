@@ -3,7 +3,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 import { useAuth } from '@/features/auth/AuthContext';
 import { logger } from '@/lib/logger';
-import { toast } from 'react-hot-toast';
+import { toast } from '@/components/ui/use-toast';
 
 interface UseProblemCompletionResult {
   isProblemCompleted: boolean;
@@ -49,7 +49,11 @@ export function useProblemCompletion(
     completeToggleProblem(false).catch(error => {
       // Only revert UI on error
       logger.error('[ProblemCompletion] Error toggling completion', error);
-      toast.error('Failed to update problem status');
+      toast({
+        title: "Error",
+        description: "Failed to update problem status",
+        variant: "destructive"
+      });
       setIsProblemCompleted(previousState);
     });
   };
@@ -98,7 +102,11 @@ export function useProblemCompletion(
       }
     } catch (error) {
       logger.error('[ProblemCompletion] Error toggling completion', error);
-      toast.error('Failed to update problem status');
+      toast({
+        title: "Error",
+        description: "Failed to update problem status",
+        variant: "destructive"
+      });
     }
   };
 
