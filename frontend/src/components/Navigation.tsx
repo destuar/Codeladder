@@ -218,6 +218,10 @@ export function Navigation() {
                   </button>
                 </DialogTrigger>
                 <DialogContent className="lg:hidden fixed inset-x-0 top-0 z-50 bg-background p-4 !left-0 !top-0 !translate-x-0 !translate-y-0 !max-w-none">
+                  <DialogHeader className="sr-only">
+                    <DialogTitle>Navigation Menu</DialogTitle>
+                    <DialogDescription>Mobile navigation options and user controls</DialogDescription>
+                  </DialogHeader>
                   <div className="flex flex-col space-y-4">
                     {/* Top Row: Conditional based on login status */}
                     {!user ? (
