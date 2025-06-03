@@ -10,7 +10,7 @@ import { Job as PrismaJob, Prisma } from '@prisma/client'; // Import Prisma for 
 const BUILTIN_JOBS_URL = 'https://www.builtin.com/jobs/dev-engineering';
 const BUILTIN_SITEMAP_URL = 'https://builtin.com/job-board-sitemap.xml';
 const MAX_PAGES_TO_SCRAPE_ON_DEMAND = 1;
-export const MAX_PAGES_TO_SCRAPE_SCHEDULED = 3;
+export const MAX_PAGES_TO_SCRAPE_SCHEDULED = 4;
 const BASE_URL = 'https://builtin.com';
 
 const xmlParserOptions = { ignoreAttributes: false, attributeNamePrefix: '@_' };
@@ -91,7 +91,7 @@ export class BuiltinService {
       const jobsFromDb = await prisma.job.findMany({
         where: whereClause,
         orderBy: [ { parsedDatePosted: 'desc' }, { createdAt: 'desc' } ], // Sort by parsedDatePosted (most recent first), then createdAt (most recent first)
-        take: 50,
+        take: 100,
       });
 
       // Initial scrape logic if DB is empty AND no specific filters were applied that might intentionally yield zero results
@@ -102,7 +102,7 @@ export class BuiltinService {
         const newJobsFromDb = await prisma.job.findMany({
           where: whereClause, // Re-apply same (likely empty) filters
           orderBy: [ { parsedDatePosted: 'desc' }, { createdAt: 'desc' } ], // Consistent sorting
-          take: 50,
+          take: 100,
         });
         return newJobsFromDb.map(mapPrismaJobToJobInterface);
       }
@@ -133,7 +133,7 @@ export class BuiltinService {
         const recentJobSitemapEntries = urls.filter((entry: any) => 
             entry.loc && typeof entry.loc === 'string' && entry.loc.includes('/job/') &&
             (!entry['@_lastmod'] || new Date(entry['@_lastmod']) >= sevenDaysAgo)
-        ).slice(0, 25 * pageLimit);
+        ).slice(0, 100 * pageLimit);
         logger.log(`Sitemap: Found ${recentJobSitemapEntries.length} recent job URLs.`);
         for (const jobEntry of recentJobSitemapEntries) {
           try {
@@ -146,7 +146,7 @@ export class BuiltinService {
       }
     } catch (e) { logger.error('Sitemap scraping failed.', e); errorCount++; }
 
-    const desiredJobCount = 15 * pageLimit;
+    const desiredJobCount = 100 * pageLimit;
     if (scrapedJobsData.length < desiredJobCount) {
       logger.log(`Sitemap yielded ${scrapedJobsData.length} jobs, aiming for ${desiredJobCount}. Proceeding with page scraping.`);
       for (let i = 1; i <= pageLimit; i++) {

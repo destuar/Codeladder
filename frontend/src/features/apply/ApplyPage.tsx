@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from '@/components/ui/tooltip'; // Import Radix UI Tooltip components
 
 interface Job {
@@ -21,11 +21,46 @@ interface Job {
 
 // const MODALITY_OPTIONS = ['Remote', 'Hybrid', 'In-person']; // Or fetch from backend if dynamic -- Filter UI Removed
 
+// Helper function to extract individual locations from raw HTML string
+const extractLocationsFromRawHtml = (rawHtml: string | undefined): string[] => {
+  if (!rawHtml) return [];
+  // Regex to find content within data-bs-title="..."
+  const match = rawHtml.match(/data-bs-title="([^"]*)"/);
+  const locationsHtmlString = match?.[1]?.replace(/&lt;/g, '<').replace(/&gt;/g, '>');
+
+  if (locationsHtmlString) {
+    try {
+      const parser = new DOMParser();
+      const doc = parser.parseFromString(locationsHtmlString, 'text/html');
+      // This selector is based on observed structure from builtin.com tooltip data
+      const locationElements = doc.querySelectorAll('div.text-truncate');
+      return Array.from(locationElements)
+        .map(el => el.textContent?.trim() || '')
+        .filter(loc => loc !== '');
+    } catch (e) {
+      console.error("Error parsing rawLocationHtml:", e);
+      return [];
+    }
+  }
+  return [];
+};
+
 export function ApplyPage() {
   const [jobs, setJobs] = useState<Job[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [expandedJobs, setExpandedJobs] = useState<Record<string, boolean>>({}); // State for expanded jobs
+
+  // New state variables for filters
+  const [selectedModalities, setSelectedModalities] = useState<string[]>([]); // 'Remote', 'Hybrid'
+  const [selectedLocation, setSelectedLocation] = useState<string>('');
+  const [selectedCompany, setSelectedCompany] = useState<string>('');
+
+  const [availableLocations, setAvailableLocations] = useState<string[]>(['']); // Start with "All"
+  const [availableCompanies, setAvailableCompanies] = useState<string[]>(['']); // Start with "All"
+
+  // State for mobile filter dropdown visibility
+  const [showMobileFilters, setShowMobileFilters] = useState(false);
 
   const toggleJobExpansion = (jobId: string) => {
     setExpandedJobs(prev => ({ ...prev, [jobId]: !prev[jobId] }));
@@ -69,6 +104,105 @@ export function ApplyPage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fetchJobs]); // fetchJobs is now a stable dependency due to empty deps array in its useCallback
 
+  // Populate available locations for dropdown
+  useEffect(() => {
+    if (jobs.length > 0) {
+      const locationsSet = new Set<string>();
+      jobs.forEach(job => {
+        const modality = job.modality?.trim().toLowerCase() || '';
+        // Populate from Hybrid jobs or jobs with blank modality
+        if (modality === 'hybrid' || !modality) {
+          const primaryLocation = job.location?.trim() || '';
+          let individualLocations: string[] = extractLocationsFromRawHtml(job.rawLocationHtml);
+
+          if (individualLocations.length > 0) {
+            // If we successfully extracted individual locations, add them
+            individualLocations.forEach(loc => locationsSet.add(loc));
+          } else if (primaryLocation && !/^\d+\s*locations?$/i.test(primaryLocation) && !primaryLocation.toLowerCase().includes('multiple locations')) {
+            // Otherwise, add the primary location text, but only if it's not a generic "X locations" / "Multiple locations" string
+            locationsSet.add(primaryLocation);
+          }
+        }
+      });
+      setAvailableLocations(['', ...Array.from(locationsSet).sort()]);
+    } else {
+      setAvailableLocations(['']);
+    }
+  }, [jobs]);
+
+  // Populate available companies for dropdown
+  useEffect(() => {
+    if (jobs.length > 0) {
+      const companies = new Set<string>();
+      jobs.forEach(job => {
+        if (job.company && job.company.trim()) {
+          companies.add(job.company.trim());
+        }
+      });
+      setAvailableCompanies(['', ...Array.from(companies).sort()]);
+    } else {
+      setAvailableCompanies(['']);
+    }
+  }, [jobs]);
+
+  const handleModalityChange = (modality: string) => {
+    setSelectedModalities(prev =>
+      prev.includes(modality)
+        ? prev.filter(m => m !== modality)
+        : [...prev, modality]
+    );
+  };
+
+  // Client-side filtering logic
+  const filteredJobs = useMemo(() => {
+    return jobs.filter(job => {
+      const jobModality = job.modality?.trim().toLowerCase() || '';
+      const jobLocation = job.location?.trim() || ''; // Keep original casing for comparison with dropdown values
+      const jobCompany = job.company?.trim() || '';   // Keep original casing
+
+      // Modality Filter
+      let passesModality = false;
+      if (selectedModalities.length === 0) {
+        passesModality = true;
+      } else {
+        if (selectedModalities.some(sm => jobModality === sm.toLowerCase())) {
+          passesModality = true;
+        } else if (!jobModality) { // If job's modality is blank
+          passesModality = true; // "if modality is blank, always include it"
+        }
+      }
+      if (!passesModality) return false;
+
+      // Company Filter
+      const passesCompany = !selectedCompany || jobCompany === selectedCompany;
+      if (!passesCompany) return false;
+
+      // Location Filter
+      const isRemoteModalityActive = selectedModalities.some(sm => sm.toLowerCase() === 'remote');
+      const noModalitiesSelected = selectedModalities.length === 0;
+
+      if (jobModality === 'remote' && (isRemoteModalityActive || noModalitiesSelected)) {
+        return true; // Remote job passes location filter if Remote is an active/implied choice
+      }
+
+      // If not a "Remote job that bypasses location filter", then apply location dropdown
+      if (!selectedLocation) return true; // No location selected in dropdown, so passes
+
+      const primaryJobLocation = job.location?.trim() || '';
+      if (primaryJobLocation === selectedLocation) return true; // Direct match of primary location text
+
+      // If primary location text didn't match, and it MIGHT be a multi-location job, parse rawHTML
+      if (job.rawLocationHtml) { // Check rawLocationHtml for more detailed matching
+        const extractedJobLocations = extractLocationsFromRawHtml(job.rawLocationHtml);
+        if (extractedJobLocations.includes(selectedLocation)) {
+          return true;
+        }
+      }
+
+      return false; // Fails location filter
+    });
+  }, [jobs, selectedModalities, selectedLocation, selectedCompany]);
+
   return (
     <div className="font-mono relative bg-background min-h-screen container mx-auto py-8 px-4 sm:px-6 lg:px-8">
       <div className="absolute inset-0 z-0 bg-dot-[#5271FF]/[0.2] [mask-image:radial-gradient(ellipse_at_center,transparent_20%,black)]" />
@@ -82,6 +216,84 @@ export function ApplyPage() {
           <br className="sm:hidden" /> Powered by Built In.
         </p>
 
+        {/* Filter UI Section - Outer container for button and filter box */}
+        <div className="mb-8 max-w-4xl mx-auto">
+          {/* Mobile "Show/Hide Filters" Button */}
+          <div className="md:hidden text-center mb-4">
+            <button
+              onClick={() => setShowMobileFilters(!showMobileFilters)}
+              className="
+                inline-block px-8 py-2 font-sans /* Removed w-full, added inline-block, adjusted px */
+                bg-card text-primary rounded-lg shadow-md hover:shadow-lg 
+                focus:outline-none 
+                dark:border dark:border-[#5271FF]/15 
+                dark:shadow-[0_4px_6px_-1px_rgba(82,113,255,0.15),_0_2px_4px_-2px_rgba(82,113,255,0.15)]
+              "
+            >
+              {showMobileFilters ? 'Hide Filters' : 'Show Filters'}
+            </button>
+          </div>
+
+          {/* Filters container - hidden on mobile by default, shown on md+, or shown on mobile if showMobileFilters is true */}
+          <div
+            className={`
+              p-6 bg-card shadow-md rounded-lg
+              dark:border dark:border-[#5271FF]/15 
+              dark:shadow-[0_4px_6px_-1px_rgba(82,113,255,0.15),_0_2px_4px_-2px_rgba(82,113,255,0.15)]
+              ${showMobileFilters ? 'block' : 'hidden'} md:block
+            `}
+          >
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-baseline">
+              {/* Modality Filter */}
+              <div>
+                <label className="block text-sm font-sans text-muted-foreground mb-1">Modality</label>
+                <div className="flex space-x-4 mt-1 transform translate-x-4 translate-y-2 mb-2">
+                  {['Remote', 'Hybrid'].map(modality => (
+                    <label key={modality} className="flex items-center space-x-2 cursor-pointer font-sans">
+                      <input
+                        type="checkbox"
+                        className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
+                        checked={selectedModalities.includes(modality)}
+                        onChange={() => handleModalityChange(modality)}
+                      />
+                      <span className="text-sm text-foreground">{modality}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+
+              {/* Location Filter */}
+              <div>
+                <label htmlFor="location-filter" className="block text-sm font-sans text-muted-foreground mb-1">Location</label>
+                <select
+                  id="location-filter"
+                  className="mt-1 block w-full pl-3 pr-10 py-2 text-sm border-gray-300 focus:outline-none focus:ring-primary focus:border-primary rounded-md bg-background text-foreground font-sans"
+                  value={selectedLocation}
+                  onChange={(e) => setSelectedLocation(e.target.value)}
+                >
+                  {availableLocations.map(loc => (
+                    <option key={loc || 'all-locations'} value={loc}>{loc || 'All Locations'}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Company Filter */}
+              <div>
+                <label htmlFor="company-filter" className="block text-sm font-sans text-muted-foreground mb-1">Company</label>
+                <select
+                  id="company-filter"
+                  className="mt-1 block w-full pl-3 pr-10 py-2 text-sm border-gray-300 focus:outline-none focus:ring-primary focus:border-primary rounded-md bg-background text-foreground font-sans"
+                  value={selectedCompany}
+                  onChange={(e) => setSelectedCompany(e.target.value)}
+                >
+                  {availableCompanies.map(comp => (
+                    <option key={comp || 'all-companies'} value={comp}>{comp || 'All Companies'}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+          </div>
+        </div>
 
         {isLoading && (
           <div className="flex justify-center items-center h-64">
@@ -97,7 +309,7 @@ export function ApplyPage() {
           </div>
         )}
 
-        {!isLoading && !error && jobs.length === 0 && (
+        {!isLoading && !error && filteredJobs.length === 0 && (
           <div className="text-center text-muted-foreground bg-card p-6 rounded-md shadow">
             <h2 className="text-xl font-semibold mb-2">No Jobs Found</h2>
             <p>No jobs match your current filters, or the job scraper encountered an issue.</p>
@@ -105,9 +317,9 @@ export function ApplyPage() {
           </div>
         )}
 
-        {!isLoading && !error && jobs.length > 0 && (
+        {!isLoading && !error && filteredJobs.length > 0 && (
           <div className="space-y-6 max-w-4xl mx-auto">
-            {jobs.map((job) => {
+            {filteredJobs.map((job) => {
               const isExpanded = expandedJobs[job.id];
               const hasExpandableContent = job.description || (job.skills && job.skills.length > 0);
 
