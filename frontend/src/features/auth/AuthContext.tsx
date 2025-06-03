@@ -329,41 +329,29 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
 
         window.addEventListener('message', handleMessage);
 
-        const checkClosed = setInterval(async () => {
-          try {
-            if (popup && popup.closed) { // Check if popup exists before accessing .closed
-              clearInterval(checkClosed);
-              window.removeEventListener('message', handleMessage);
-              if (!oauthInProgress) {
-                logger.debug('[AuthContext] Popup closed and OAuth not (yet) handled by message/storage. Setting cancelled error.');
-                setError('Authentication cancelled or popup closed.');
-                // Reset loading state when popup is closed
-                setIsLoading(false);
-                oauthInProgress = false; // Reset if popup closed before completion
-              }
-            }
-          } catch (e: any) {
-            // Check if it's a COOP-related error (this check is basic, might need refinement)
-            if (e.message && e.message.includes('Cross-Origin-Opener-Policy')) {
-              logger.warn('[AuthContext] COOP policy prevented checking popup.closed. Relying on message/storage for OAuth completion.', e.message);
-              // Don't necessarily set error here, as message/storage might still come through.
-              // If it's essential to know about manual closure even with COOP, this strategy needs rethinking.
-              // For now, we just log and let the other mechanisms (postMessage, localStorage) try to complete.
-              // If after a longer timeout OAuth is still not in progress, then it might be an actual cancellation.
-            } else {
-              // Different error while checking popup.closed
-              logger.error('[AuthContext] Error checking popup state:', e);
-              clearInterval(checkClosed); // Stop interval on other errors too
-              window.removeEventListener('message', handleMessage);
-              if (!oauthInProgress) {
-                setError('Error during OAuth process.'); // Generic error
-                // Reset loading state on error
-                setIsLoading(false);
-                oauthInProgress = false;
-              }
-            }
+        // In COOP environments, we cannot access popup properties at all
+        // So we'll rely entirely on postMessage and localStorage, with timeout cleanup
+        
+        // Backup timeout in case neither postMessage nor localStorage work
+        const backupTimeout = setTimeout(() => {
+          window.removeEventListener('message', handleMessage);
+          if (!oauthInProgress) {
+            logger.debug('[AuthContext] OAuth timeout - no response received within 5 minutes.');
+            setError('Authentication timed out. Please try again.');
+            setIsLoading(false);
+            oauthInProgress = false;
           }
-        }, 500);
+        }, 5 * 60 * 1000); // 5 minute timeout
+        
+        // Clean up backup timeout when OAuth completes
+        const originalHandleMessage = handleMessage;
+        const wrappedHandleMessage = async (event: MessageEvent) => {
+          clearTimeout(backupTimeout);
+          await originalHandleMessage(event);
+        };
+        
+        window.removeEventListener('message', handleMessage);
+        window.addEventListener('message', wrappedHandleMessage);
       }).catch(err => {
         // Catch unhandled rejections from the message/popup promise to prevent global unhandledrejection errors.
         // The error should have already been set in the context via setError.

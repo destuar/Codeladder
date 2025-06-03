@@ -88,6 +88,7 @@ export default function RegisterPage() {
               <Input
                 id="name"
                 placeholder=""
+                autoComplete="name"
                 {...register('name')}
               />
               {errors.name && (
@@ -103,6 +104,7 @@ export default function RegisterPage() {
                 id="email"
                 type="email"
                 placeholder="email@example.com"
+                autoComplete="email"
                 {...register('email')}
               />
               {errors.email && (
@@ -118,6 +120,7 @@ export default function RegisterPage() {
                 id="password"
                 type="password"
                 placeholder="••••••••"
+                autoComplete="new-password"
                 {...register('password')}
               />
               {errors.password && (
