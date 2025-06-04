@@ -140,13 +140,21 @@ router.get('/all-scheduled', authenticateToken, (async (req, res) => {
       }
     });
     
-    const scheduledProblems = scheduledProgressRecords.map(progress => ({
-      id: progress.problem?.id,
-      slug: progress.problem?.slug,
-      name: progress.problem?.name,
-      difficulty: progress.problem?.difficulty,
-      topic: progress.problem?.topic,
-      problemType: progress.problem?.problemType,
+    // Filter out progress records where the associated problem has been deleted
+    const validProgressRecords = scheduledProgressRecords.filter(
+      progress => progress.problem !== null && progress.problem !== undefined
+    );
+
+    const scheduledProblems = validProgressRecords.map(progress => ({
+      // Since we filtered, we can be more confident problem is not null,
+      // but optional chaining is still safest if types are loose.
+      // However, for fields like difficulty, if the problem exists, it should exist.
+      id: progress.problem!.id, // Assert problem is not null here due to filter
+      slug: progress.problem!.slug,
+      name: progress.problem!.name,
+      difficulty: progress.problem!.difficulty,
+      topic: progress.problem!.topic,
+      problemType: progress.problem!.problemType,
       reviewLevel: progress.reviewLevel,
       lastReviewedAt: progress.lastReviewedAt,
       dueDate: progress.reviewScheduledAt,
