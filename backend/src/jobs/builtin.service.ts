@@ -129,12 +129,12 @@ export class BuiltinService {
       const sitemap = this.xmlParser.parse(sitemapXml);
       const urls = sitemap?.urlset?.url;
       if (urls && Array.isArray(urls)) {
-        const sevenDaysAgo = new Date(); sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+        const twoDaysAgo = new Date(); twoDaysAgo.setDate(twoDaysAgo.getDate() - 2);
         const recentJobSitemapEntries = urls.filter((entry: any) => 
             entry.loc && typeof entry.loc === 'string' && entry.loc.includes('/job/') &&
-            (!entry['@_lastmod'] || new Date(entry['@_lastmod']) >= sevenDaysAgo)
+            entry['@_lastmod'] && (new Date(entry['@_lastmod']) >= twoDaysAgo)
         ).slice(0, 100 * pageLimit);
-        logger.log(`Sitemap: Found ${recentJobSitemapEntries.length} recent job URLs.`);
+        logger.log(`Sitemap: Found ${recentJobSitemapEntries.length} recent job URLs (within last 2 days).`);
         for (const jobEntry of recentJobSitemapEntries) {
           try {
             const jobDetailHtml = await httpService.get(jobEntry.loc as string);
@@ -196,6 +196,17 @@ export class BuiltinService {
     for (const jobData of uniqueScrapedJobs) {
       try {
         const parsedDate = parseRelativeDate(jobData.datePosted);
+
+        // New filter based on parsed date
+        const fourDaysAgo = new Date();
+        fourDaysAgo.setHours(0, 0, 0, 0); // Start of today
+        fourDaysAgo.setDate(fourDaysAgo.getDate() - 3); // This effectively means the beginning of the day 3 days ago.
+
+        if (!parsedDate || parsedDate < fourDaysAgo) {
+          logger.log(`Skipping job "${jobData.title}" (externalId: ${jobData.externalId}) as its parsed date (${parsedDate ? parsedDate.toISOString() : 'null'}) is older than 3 full days. Original date string: "${jobData.datePosted}"`);
+          continue; // Skip to the next job if it's too old or date is unparsable
+        }
+
         const prismaData = {
           externalId: jobData.externalId,
           url: jobData.url, title: jobData.title, company: jobData.company,

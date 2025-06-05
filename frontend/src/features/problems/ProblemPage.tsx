@@ -219,6 +219,45 @@ const ProblemPage: React.FC = () => {
     }
   }, [problem]);
 
+  // Show review controls if the problem has just been marked as completed (either first time, or in a review session)
+  const shouldShowReviewControls = hasJustCompleted && problem;
+
+  logWorkflowStep('RenderDecision', { 
+    shouldShowReviewControls, 
+    isReviewMode, 
+    hasJustCompleted, 
+    problemExists: !!problem,
+    reviewSubmitted,
+    problemIdentifier: effectiveIdentifier
+  });
+
+  if (isLoading) {
+    // Using a simpler LoadingCard based on previous known "good" state's simplicity
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <LoadingCard text="Loading problem..." />
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center p-4">
+        <div className="text-red-500 p-4 border border-red-500/50 rounded-md bg-red-500/10">
+          Error loading problem: {error.message}
+        </div>
+      </div>
+    );
+  }
+
+  if (!problem) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center p-4">
+         <div className="p-4 text-muted-foreground">Problem not found.</div>
+      </div>
+    );
+  }
+  
   // In review mode, we want to start with the problem marked as not completed
   // regardless of its actual completion status, but show as completed if the user
   // clicked the Mark Complete button in review mode
@@ -282,87 +321,62 @@ const ProblemPage: React.FC = () => {
     }
   };
 
-  // Check if we should show review controls
-  const shouldShowReviewControls = isReviewMode && (effectiveIsCompleted || hasJustCompleted);
-
-  if (isLoading) {
-    return (
-      <div className="min-h-screen bg-background">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-          <LoadingCard text="Loading problem..." />
-        </div>
-      </div>
-    );
-  }
-
-  if (error || !problem) {
-    logWorkflowStep('ProblemLoadError', { error, problemIdentifier: effectiveIdentifier });
-    return (
-      <div className="p-8 text-center text-destructive">
-        Error loading problem
-      </div>
-    );
-  }
-
-  // Determine estimated time as number
-  const estimatedTimeNum = problem.estimatedTime ? Number(problem.estimatedTime) : undefined;
-
-  // Conditional Rendering based on Problem Type
+  // Conditional Rendering based on Problem Type - Reverted to original structure
   return (
-    <div className="min-h-[calc(100vh-4rem)] flex flex-col">
+    <div className="min-h-[calc(100vh-4rem)] flex flex-col"> {/* Original top-level div */}
       <ErrorBoundary>
-        <div className="flex-1">
+        <div className="flex-1"> {/* Original main content wrapper */}
           {(problem.problemType === 'INFO' || problem.problemType === 'STANDALONE_INFO') && (
-            <InfoProblem 
-              content={problem.content || ''} 
-              isCompleted={effectiveIsCompleted}
+            <InfoProblem
+              title={problem.name}
+              content={problem.content || ''}
               nextProblemId={problem.nextProblemId}
               nextProblemSlug={problem.nextProblemSlug}
               prevProblemId={problem.prevProblemId}
               prevProblemSlug={problem.prevProblemSlug}
-              estimatedTime={estimatedTimeNum}
-              isStandalone={problem.problemType === 'STANDALONE_INFO'}
+              onNavigate={navigateToOtherProblem}
+              estimatedTime={problem.estimatedTime}
+              isCompleted={effectiveIsCompleted}
               problemId={problem.id}
               isReviewMode={isReviewMode}
               onCompleted={handleProblemCompleted}
-              problemType={problem.problemType}
-              onNavigate={navigateToOtherProblem}
               sourceContext={sourceContext}
             />
           )}
-
-          {problem.problemType === 'CODING' && (
-            <CodingProblem 
+          {problem.problemType === 'CODING' && problem.codeProblem && (
+            <CodingProblem
               title={problem.name}
-              content={problem.content || ''}
-              codeTemplate={problem.codeProblem?.codeTemplate || problem.codeTemplate}
-              testCases={problem.codeProblem?.testCases ? JSON.stringify(problem.codeProblem.testCases) : problem.testCases?.toString()}
+              content={problem.description || ''} // Assuming description is main content for coding problem
+              codeTemplate={problem.codeProblem.codeTemplate || ''}
+              testCases={JSON.stringify(problem.codeProblem.testCases || [])}
               difficulty={problem.difficulty}
               nextProblemId={problem.nextProblemId}
               nextProblemSlug={problem.nextProblemSlug}
               prevProblemId={problem.prevProblemId}
               prevProblemSlug={problem.prevProblemSlug}
               onNavigate={navigateToOtherProblem}
-              estimatedTime={estimatedTimeNum}
+              estimatedTime={problem.estimatedTime}
               isCompleted={effectiveIsCompleted}
               problemId={problem.id}
               isReviewMode={isReviewMode}
               onCompleted={handleProblemCompleted}
+              problemType={problem.problemType}
               sourceContext={sourceContext}
             />
           )}
         </div>
         
-        {/* Review Controls */}
-        {shouldShowReviewControls && (
-          <div className="mt-auto border-t pt-4 px-4 md:px-6 pb-4">
+        {/* Review Controls - Restored to original position and wrapper */}
+        {shouldShowReviewControls && !reviewSubmitted && (
+          <div className="mt-auto border-t pt-4 px-4 md:px-6 pb-4 bg-background dark:bg-card"> {/* Added bg for better visibility */}
             <ReviewControls 
-              problem={problem}
-              hasJustCompleted={hasJustCompleted}
-              referrer={referrer}
-              onReviewSubmit={handleSubmitReview}
-              scheduledDate={scheduledDate}
+              problem={problem} 
+              spacedRepetitionItemId={problem?.spacedRepetitionItems?.[0]?.id}
+              onReviewSubmit={handleSubmitReview} 
               isEarlyReview={isEarlyReview}
+              scheduledDate={scheduledDate}
+              referrer={referrer}
+              hasJustCompleted={hasJustCompleted}
             />
           </div>
         )}

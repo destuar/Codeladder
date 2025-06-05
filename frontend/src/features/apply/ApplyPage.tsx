@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from '@/components/ui/tooltip'; // Import Radix UI Tooltip components
-import { LoadingCard } from '@/components/ui/loading-spinner';
+import { PageLoadingSpinner } from '@/components/ui/loading-spinner';
+import DottedBackground from "@/components/DottedBackground";
 
 interface Job {
   id: string;
@@ -206,7 +207,7 @@ export function ApplyPage() {
 
   return (
     <div className="font-mono relative bg-background min-h-screen container mx-auto py-8 px-4 sm:px-6 lg:px-8">
-      <div className="absolute inset-0 z-0 bg-dot-[#5271FF]/[0.2] [mask-image:radial-gradient(ellipse_at_center,transparent_20%,black)]" />
+      <DottedBackground />
       <div className="relative z-10"> {/* Wrapper for content to be above the dot pattern */}
         <h1 className="text-3xl font-bold mb-4 text-center">
           <span className="block sm:hidden">New Software Roles</span>
@@ -297,7 +298,7 @@ export function ApplyPage() {
         </div>
 
         {isLoading && (
-          <LoadingCard text="Loading jobs..." />
+          <PageLoadingSpinner />
         )}
 
         {error && (

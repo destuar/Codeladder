@@ -1,24 +1,22 @@
-import { ReactNode } from 'react';
+import React from 'react';
+import { Navigate } from 'react-router-dom';
 import { useAuth } from '@/features/auth/AuthContext';
-import LoginPage from '@/features/auth/LoginPage';
-import { LoadingScreen } from '@/components/ui/loading-spinner';
+import { PageLoadingSpinner } from '@/components/ui/loading-spinner';
 
 interface ProtectedRouteProps {
-  children: ReactNode;
+  children: React.ReactElement;
 }
 
-function ProtectedRoute({ children }: ProtectedRouteProps) {
+export default function ProtectedRoute({ children }: ProtectedRouteProps) {
   const { user, isLoading } = useAuth();
 
   if (isLoading) {
-    return <LoadingScreen text="Checking authentication..." />;
+    return <PageLoadingSpinner />;
   }
 
   if (!user) {
-    return <LoginPage />;
+    return <Navigate to="/login" replace />;
   }
 
-  return <>{children}</>;
-}
-
-export default ProtectedRoute; 
+  return children;
+} 

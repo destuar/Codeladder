@@ -36,6 +36,9 @@ model User {
   // Quiz attempts
   quizAttempts QuizAttempt[]
 
+  // Spaced repetition items for this user
+  spacedRepetitionItems SpacedRepetitionItem[]
+
   // Timestamps
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -121,6 +124,9 @@ model Problem {
   // Code submissions for this problem
   submissions Submission[]
 
+  // Spaced repetition items for this problem
+  spacedRepetitionItems SpacedRepetitionItem[]
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -187,6 +193,26 @@ model StandaloneInfoPage {
   updatedAt     DateTime @updatedAt
 
   @@map("standalone_info_pages")
+}
+
+model SpacedRepetitionItem {
+  id                String    @id @default(cuid())
+  userId            String
+  user              User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  problemId         String
+  problem           Problem   @relation(fields: [problemId], references: [id], onDelete: Cascade)
+
+  reviewScheduledAt DateTime  // When this item is scheduled to be reviewed next
+  reviewLevel       Int       @default(0) // Current review level (determines intervals)
+  lastReviewedAt    DateTime? // When the item was last reviewed
+  isActive          Boolean   @default(true) // To easily filter active review items
+
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  @@unique([userId, problemId]) // A user reviews a specific problem
+  @@index([userId, reviewScheduledAt, isActive]) // For efficiently fetching due items
+  @@map("spaced_repetition_items")
 }
 
 // New model for code submissions

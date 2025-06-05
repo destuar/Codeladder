@@ -6,6 +6,8 @@ import { Badge } from '@/components/ui/badge';
 import { format, formatDistanceToNow, isSameDay, isToday, addDays, isWithinInterval, startOfDay, endOfDay, isAfter } from 'date-fns';
 import { ReviewCalendar } from './ReviewCalendar';
 import { ReviewProblem } from '../api/spacedRepetitionApi';
+import { Difficulty } from '@/features/problems/types';
+import { DifficultyBadge } from '@/features/problems/components/DifficultyBadge';
 import { CalendarIcon, Clock, Calendar, ClockIcon, RefreshCw, ChevronDown, ChevronUp, ArrowLeft, Dumbbell, Check, Brain, Shuffle, Trash2, Edit2, Save, X, Plus, CalendarDays, HelpCircle, Lightbulb, LockIcon } from 'lucide-react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
@@ -118,13 +120,6 @@ export function SpacedRepetitionPanel() {
     // return () => window.removeEventListener('resize', checkScreenSize);
   }, []); // Empty dependency array ensures this runs only once on mount
   
-  const getDifficultyColor = (difficulty: string) => {
-    if (difficulty.includes('EASY')) return 'bg-emerald-500/15 text-emerald-600 border-emerald-500/20';
-    if (difficulty === 'MEDIUM') return 'bg-amber-500/15 text-amber-600 border-amber-500/20';
-    if (difficulty === 'HARD') return 'bg-rose-500/15 text-rose-600 border-rose-500/20';
-    return '';
-  };
-  
   const handleDaySelect = (date: Date, problems: ReviewProblem[]) => {
     // If the date is already selected, unselect it
     if (isCalendarDateSelected && isSameDay(date, selectedDate)) {
@@ -228,9 +223,7 @@ export function SpacedRepetitionPanel() {
                 <span>•</span>
               )}
 
-            <Badge variant="outline" className={getDifficultyColor(problem.difficulty)}>
-              {problem.difficulty.replace(/_/g, ' ')}
-            </Badge>
+            <DifficultyBadge difficulty={problem.difficulty as Difficulty} size="small" />
             {!isActiveDay && problem.dueDate && (
               <>
                 <span>•</span>
@@ -242,8 +235,8 @@ export function SpacedRepetitionPanel() {
       </div>
       <div className="flex items-center gap-2">
         {!isEditMode && (
-          <Button 
-            size="sm" 
+          <Button
+            size="sm"
             variant="outline"
             className={cn(
               "px-2 py-1 h-7 sm:px-3 sm:py-1 sm:h-8 transition-all text-xs sm:text-sm",
@@ -254,20 +247,15 @@ export function SpacedRepetitionPanel() {
             onClick={(e) => {
               e.stopPropagation();
               startReview(
-                { 
+                {
                   id: problem.id,
-                  slug: problem.slug || undefined
-                }, 
-                !isActiveDay ? { 
-                  isEarly: true, 
-                  dueDate: problem.dueDate || undefined 
-                } : undefined
+                  slug: problem.slug || undefined,
+                },
+                !isActiveDay ? { isEarly: true, dueDate: problem.dueDate || undefined } : undefined
               );
             }}
-            disabled={isLoading || isAddingProblem}
           >
             Start
-            {!isActiveDay && <Lightbulb className="ml-1.5 h-3.5 w-3.5 text-yellow-500" />}
           </Button>
         )}
       </div>
@@ -404,7 +392,7 @@ export function SpacedRepetitionPanel() {
                     </Button>
                   </TooltipTrigger>
                   <TooltipContent side="top" className="px-3 py-1.5 text-sm font-medium bg-popover text-popover-foreground">
-                    <p className="whitespace-nowrap">Return to all scheduled reviews</p>
+                    <p className="font-sans whitespace-nowrap">Return to all scheduled reviews</p>
                   </TooltipContent>
                 </Tooltip>
               </TooltipProvider>
@@ -554,7 +542,7 @@ export function SpacedRepetitionPanel() {
                   <>
                     {isEditMode && (
                       <div className="mb-4 text-sm text-muted-foreground bg-muted/20 p-3 rounded-md border border-muted">
-                        <p>The problems will remain marked as completed, but won't appear in your review schedule.</p>
+                        <p className="font-sans">The problems will remain marked as completed, but won't appear in your review schedule.</p>
                       </div>
                     )}
                     <div className="overflow-y-auto">
@@ -586,11 +574,11 @@ export function SpacedRepetitionPanel() {
                             ) : (
                               <Trash2 className="h-4 w-4 mr-1" />
                             )}
-                            {selectedProblems.size > 0 ? selectedProblems.size : ''}
+                            {selectedProblems.size > 0 ? <span className="font-sans">{selectedProblems.size}</span> : ''}
                           </Button>
                         </TooltipTrigger>
                         <TooltipContent side="bottom" className="px-3 py-1.5 text-sm font-medium bg-popover text-popover-foreground">
-                          <p className="whitespace-nowrap">Remove selected problems from your review schedule</p>
+                          <p className="font-sans whitespace-nowrap">Remove selected problems from your review schedule</p>
                         </TooltipContent>
                       </Tooltip>
                     </TooltipProvider>
@@ -608,7 +596,7 @@ export function SpacedRepetitionPanel() {
                           </Button>
                         </TooltipTrigger>
                         <TooltipContent side="bottom" className="px-3 py-1.5 text-sm font-medium bg-popover text-popover-foreground">
-                          <p className="whitespace-nowrap">Cancel selection and exit edit mode</p>
+                          <p className="font-sans whitespace-nowrap">Cancel selection and exit edit mode</p>
                         </TooltipContent>
                       </Tooltip>
                     </TooltipProvider>
@@ -628,7 +616,7 @@ export function SpacedRepetitionPanel() {
                           </Button>
                         </TooltipTrigger>
                         <TooltipContent side="bottom" className="px-3 py-1.5 text-sm font-medium bg-popover text-popover-foreground">
-                          <p className="whitespace-nowrap">Add new problems</p>
+                          <p className="font-sans whitespace-nowrap">Add new problems</p>
                         </TooltipContent>
                       </Tooltip>
                     </TooltipProvider>
@@ -646,7 +634,7 @@ export function SpacedRepetitionPanel() {
                           </Button>
                         </TooltipTrigger>
                         <TooltipContent side="bottom" className="px-3 py-1.5 text-sm font-medium bg-popover text-popover-foreground">
-                          <p className="whitespace-nowrap">Edit your review dashboard</p>
+                          <p className="font-sans whitespace-nowrap">Edit your review dashboard</p>
                         </TooltipContent>
                       </Tooltip>
                     </TooltipProvider>
@@ -665,7 +653,7 @@ export function SpacedRepetitionPanel() {
                           </Button>
                         </TooltipTrigger>
                         <TooltipContent side="bottom" className="px-3 py-1.5 text-sm font-medium bg-popover text-popover-foreground">
-                          <p className="whitespace-nowrap">Refresh your review schedule</p>
+                          <p className="font-sans whitespace-nowrap">Refresh your review schedule</p>
                         </TooltipContent>
                       </Tooltip>
                     </TooltipProvider>

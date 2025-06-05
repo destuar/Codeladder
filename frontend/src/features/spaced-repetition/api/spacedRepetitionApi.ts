@@ -19,7 +19,8 @@ export interface ReviewProblem {
   reviewLevel: number;
   lastReviewedAt: string | null;
   dueDate: string | null;
-  progressId: string;
+  progressId?: string;
+  spacedRepetitionItemId: string;
   reviewHistory?: Array<{
     date: string;
     wasSuccessful: boolean;
@@ -31,6 +32,7 @@ export interface ReviewProblem {
 export interface ReviewResult {
   problemId?: string;
   problemSlug?: string;
+  spacedRepetitionItemId?: string;
   wasSuccessful: boolean;
   reviewOption?: 'easy' | 'difficult' | 'forgot';
 }
@@ -64,7 +66,16 @@ function normalizeReviewProblem(problem: any): ReviewProblem {
     ...problem,
     // Ensure dates are properly formatted
     lastReviewedAt: problem.lastReviewedAt ? new Date(problem.lastReviewedAt).toISOString() : null,
-    dueDate: problem.dueDate ? new Date(problem.dueDate).toISOString() : null
+    dueDate: problem.dueDate ? new Date(problem.dueDate).toISOString() : null,
+    // Ensure spacedRepetitionItemId is carried over, and id is the problem's id
+    id: problem.problem?.id || problem.id, // Prefer problem.id from nested problem object if present from backend
+    spacedRepetitionItemId: problem.spacedRepetitionItemId || problem.id, // Backend might send SRI id as 'id' at top level of item
+    slug: problem.problem?.slug !== undefined ? problem.problem.slug : problem.slug,
+    name: problem.problem?.name || problem.name,
+    difficulty: problem.problem?.difficulty || problem.difficulty,
+    topic: problem.problem?.topic || problem.topic,
+    problemType: problem.problem?.problemType || problem.problemType,
+    // reviewLevel, lastReviewedAt, dueDate are already handled or direct
   };
 }
 

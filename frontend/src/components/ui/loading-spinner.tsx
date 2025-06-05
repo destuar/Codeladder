@@ -105,4 +105,22 @@ export function LoadingCard({ text }: { text?: string }) {
  */
 export function LoadingButton({ size = 'sm' }: { size?: 'xs' | 'sm' | 'md' }) {
   return <LoadingSpinner size={size} />;
+}
+
+/**
+ * Primitive for the custom CSS page loader.
+ */
+function CustomCssPageLoaderPrimitive({ className }: { className?: string }) {
+  return <div className={cn("new-custom-page-loader", className)}></div>;
+}
+
+/**
+ * Standardized page loading spinner using custom CSS: large size, centered, no text.
+ */
+export function PageLoadingSpinner({ className }: { className?: string }) {
+  return (
+    <div className={cn('flex justify-center items-center', className)}>
+      <CustomCssPageLoaderPrimitive />
+    </div>
+  );
 } 

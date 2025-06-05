@@ -50,6 +50,11 @@ export interface Problem {
   nextProblemSlug?: string;
   prevProblemId?: string;
   prevProblemSlug?: string;
+  spacedRepetitionItems?: Array<{
+    id: string;
+    reviewLevel?: number;
+    reviewScheduledAt?: string;
+  }>;
 }
 
 /**

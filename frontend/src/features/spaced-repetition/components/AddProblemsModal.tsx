@@ -28,6 +28,7 @@ import { useAuth } from '@/features/auth/AuthContext';
 import { Plus, Check } from 'lucide-react';
 import { toast } from '@/components/ui/use-toast';
 import { Difficulty } from '@/features/problems/types';
+import { DifficultyBadge } from '@/features/problems/components/DifficultyBadge';
 import { LoadingCard, LoadingSpinner } from '@/components/ui/loading-spinner';
 
 interface Problem {
@@ -40,6 +41,10 @@ interface Problem {
     name: string;
     slug?: string | null;
   };
+  collections?: Array<{
+    id: string;
+    name: string;
+  }>;
 }
 
 interface AddProblemsModalProps {
@@ -53,8 +58,6 @@ export function AddProblemsModal({ isOpen, onClose }: AddProblemsModalProps) {
   const [filteredProblems, setFilteredProblems] = useState<Problem[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedTopicId, setSelectedTopicId] = useState<string | 'all'>('all');
-  const [topics, setTopics] = useState<{id: string, name: string}[]>([]);
   const [addingProblemIds, setAddingProblemIds] = useState<Set<string>>(new Set());
 
   // Load available problems when modal opens
@@ -64,45 +67,24 @@ export function AddProblemsModal({ isOpen, onClose }: AddProblemsModalProps) {
     }
   }, [isOpen]);
 
-  // Filter problems when search query or selected topic changes
+  // Filter problems when search query changes
   useEffect(() => {
     if (!availableProblems.length) return;
     
     let filtered = [...availableProblems];
-    
-    // Apply topic filter
-    if (selectedTopicId !== 'all') {
-      filtered = filtered.filter(problem => 
-        problem.topic && problem.topic.id === selectedTopicId
-      );
-    }
     
     // Apply search filter
     if (searchQuery.trim()) {
       const query = searchQuery.toLowerCase();
       filtered = filtered.filter(problem => 
         problem.name.toLowerCase().includes(query) ||
-        problem.topic?.name.toLowerCase().includes(query)
+        problem.topic?.name.toLowerCase().includes(query) ||
+        (problem.collections && problem.collections.some(c => c.name.toLowerCase().includes(query)))
       );
     }
     
     setFilteredProblems(filtered);
-  }, [searchQuery, selectedTopicId, availableProblems]);
-
-  // Extract unique topics from problems
-  useEffect(() => {
-    if (!availableProblems.length) return;
-    
-    const topicMap = new Map<string, {id: string, name: string}>();
-    
-    availableProblems.forEach(problem => {
-      if (problem.topic) {
-        topicMap.set(problem.topic.id, problem.topic);
-      }
-    });
-    
-    setTopics(Array.from(topicMap.values()));
-  }, [availableProblems]);
+  }, [searchQuery, availableProblems]);
 
   const loadProblems = async () => {
     setIsLoading(true);
@@ -139,19 +121,11 @@ export function AddProblemsModal({ isOpen, onClose }: AddProblemsModalProps) {
     }
   };
 
-  const getDifficultyColor = (difficulty: string) => {
-    if (difficulty.includes('EASY')) return 'bg-emerald-500/15 text-emerald-600 border-emerald-500/20';
-    if (difficulty === 'MEDIUM') return 'bg-amber-500/15 text-amber-600 border-amber-500/20';
-    if (difficulty === 'HARD') return 'bg-rose-500/15 text-rose-600 border-rose-500/20';
-    return '';
-  };
-
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
         <DialogHeader>
           <DialogTitle className="text-xl flex items-center gap-2">
-            <RepeatIcon className="h-5 w-5" />
             Add Problems to Spaced Repetition
           </DialogTitle>
           <DialogDescription>
@@ -176,20 +150,6 @@ export function AddProblemsModal({ isOpen, onClose }: AddProblemsModalProps) {
                 <X className="h-4 w-4 text-muted-foreground hover:text-foreground" />
               </button>
             )}
-          </div>
-          
-          <div className="relative">
-            <select
-              className="h-10 rounded-md border border-input bg-background px-3 py-2 pr-8 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-              value={selectedTopicId}
-              onChange={(e) => setSelectedTopicId(e.target.value)}
-            >
-              <option value="all">All Topics</option>
-              {topics.map(topic => (
-                <option key={topic.id} value={topic.id}>{topic.name}</option>
-              ))}
-            </select>
-            <Filter className="absolute right-2 top-2.5 h-4 w-4 text-muted-foreground pointer-events-none" />
           </div>
         </div>
         
@@ -218,6 +178,7 @@ export function AddProblemsModal({ isOpen, onClose }: AddProblemsModalProps) {
                 <TableRow>
                   <TableHead>Problem</TableHead>
                   <TableHead>Topic</TableHead>
+                  <TableHead>Collections</TableHead>
                   <TableHead>Difficulty</TableHead>
                   <TableHead className="w-[120px] text-right">Action</TableHead>
                 </TableRow>
@@ -233,9 +194,12 @@ export function AddProblemsModal({ isOpen, onClose }: AddProblemsModalProps) {
                     </TableCell>
                     <TableCell>{problem.topic?.name || 'N/A'}</TableCell>
                     <TableCell>
-                      <Badge variant="outline" className={getDifficultyColor(problem.difficulty)}>
-                        {problem.difficulty.replace(/_/g, ' ')}
-                      </Badge>
+                      {problem.collections && problem.collections.length > 0 
+                        ? problem.collections.map(c => c.name).join(', ') 
+                        : 'N/A'}
+                    </TableCell>
+                    <TableCell>
+                      <DifficultyBadge difficulty={problem.difficulty as Difficulty} size="small" />
                     </TableCell>
                     <TableCell className="text-right">
                       <Button

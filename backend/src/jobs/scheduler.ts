@@ -8,7 +8,7 @@ let isBuiltinScrapeJobRunning = false;
 
 // Schedule to run every 15 minutes (e.g., at 0, 15, 30, 45 minutes past the hour)
 // For testing, you might use '*/1 * * * *' (every minute)
-const CRON_SCHEDULE = '*/15 * * * *'; // Every 5 minutes
+const CRON_SCHEDULE = '*/30 * * * *'; // Every 30 minutes
 
 logger.log(`Initializing job scheduler for builtin.com with schedule: ${CRON_SCHEDULE}`);
 

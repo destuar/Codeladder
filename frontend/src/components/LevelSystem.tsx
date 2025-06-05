@@ -12,7 +12,7 @@ import { Lock, Check, ChevronRight, Award, Star, FileText, History, GraduationCa
 import { toast } from "@/components/ui/use-toast";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { useMediaQuery } from "@/hooks/useMediaQuery";
-import { LoadingCard, LoadingSpinner } from '@/components/ui/loading-spinner';
+import { LoadingCard, LoadingSpinner, PageLoadingSpinner } from '@/components/ui/loading-spinner';
 import { logger } from '@/lib/logger';
 
 // Define the Level interface with tests property
@@ -271,7 +271,7 @@ export function LevelSystem() {
   if (loading && !levels) { 
     return (
       <div className="flex justify-center items-center p-8">
-        <LoadingCard text="Loading learning path..." />
+        <PageLoadingSpinner />
       </div>
     );
   }
@@ -307,13 +307,6 @@ export function LevelSystem() {
             }
           }
           
-          .level-connector {
-            position: absolute;
-            width: 3px;
-            background: linear-gradient(to bottom, #e2e8f0, #94a3b8);
-            z-index: -1;
-          }
-          
           .rotate-button {
             transition: transform 0.35s cubic-bezier(0.25, 0.1, 0.25, 1);
             transform-style: preserve-3d;
@@ -341,9 +334,6 @@ export function LevelSystem() {
       <div>
         {isDesktop ? (
           <div className="relative hidden md:grid gap-6"> {/* Desktop view - hidden below md, grid layout */} 
-            {/* Level connectors - the vertical line connecting levels */}
-            <div className="level-connector absolute left-[7.5rem] top-2 bottom-2"></div>
-            
             {/* Ensure levels is an array before mapping */} 
             {Array.isArray(levels) && levels.length > 0 ? (
               levels.map((level, index) => {
@@ -387,13 +377,13 @@ export function LevelSystem() {
                       className={cn(
                         "p-4 relative overflow-hidden group transition-all duration-300 opacity-0 translate-y-4 flex-1 shadow-md dark:shadow-[0_4px_6px_-1px_rgba(82,113,255,0.15),_0_2px_4px_-2px_rgba(82,113,255,0.15)]",
                         isDimmed
-                          ? "border-l-4 border-l-gray-500/30 dark:border-l-gray-600/50 border-t border-t-gray-200/40 dark:border-t-gray-700/30 border-r border-r-gray-200/40 dark:border-r-gray-700/30 border-b border-b-gray-200/40 dark:border-b-gray-700/30 bg-muted/50 dark:bg-card/70"
+                          ? "border-l-4 border-l-gray-500/30 dark:border-l-gray-600/50 border-t border-t-gray-200/40 dark:border-t-gray-700/30 border-r border-r-gray-200/40 dark:border-r-gray-700/30 border-b border-b-gray-200/40 dark:border-b-gray-700/30 bg-background dark:bg-background"
                           : [
                               "dark:border-[#5271FF]/15",
                               isActive
-                                ? "border-l-4 border-l-[#5271FF] dark:border-l-[#5271FF] border-t-0 border-r-0 border-b-0"
+                                ? "border-l-4 border-l-[#5271FF] dark:border-l-[#5271FF]"
                                 : isComplete
-                                ? "border-l-4 border-l-green-600 dark:border-l-green-500 border-t-0 border-r-0 border-b-0"
+                                ? "border-l-4 border-l-green-600 dark:border-l-green-500"
                                 : "border-l-4 border-l-primary/40 dark:border-l-primary/80"
                             ]
                       )}
@@ -425,13 +415,13 @@ export function LevelSystem() {
                                   "hover:scale-[1.01] flex flex-col",
                                   "cursor-pointer h-full",
                                   isDimmed ? (
-                                    "bg-white/50 dark:bg-card/70 dark:border-transparent"
+                                    "bg-background dark:bg-background dark:border-transparent"
                                   ) : (
                                     isActive 
-                                    ? "bg-white dark:bg-card shadow-sm" 
+                                    ? "bg-background dark:bg-background shadow-sm" 
                                     : isComplete 
-                                    ? "bg-white dark:bg-card shadow-sm"
-                                    : "bg-white dark:bg-card shadow-sm"
+                                    ? "bg-background dark:bg-background shadow-sm"
+                                    : "bg-background dark:bg-background shadow-sm"
                                   )
                                 )}
                                 style={{

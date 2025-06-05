@@ -133,3 +133,33 @@
     scrollbar-color: hsl(var(--muted-foreground)) hsl(var(--muted)); /* thumb track */
   }
 }
+
+/* New Custom Page Loader Styles */
+.new-custom-page-loader {
+  width: 30px; /* Smaller size */
+  aspect-ratio: 1;
+  border-radius: 50%;
+  border: 4px solid transparent;
+  border-right-color: hsl(var(--muted-foreground));
+  position: relative;
+  animation: l24 1s infinite linear;
+}
+
+.new-custom-page-loader:before,
+.new-custom-page-loader:after {
+  content: "";
+  position: absolute;
+  inset: -4px;
+  border-radius: 50%;
+  border: inherit;
+  animation: inherit;
+  animation-duration: 2s;
+}
+
+.new-custom-page-loader:after {
+  animation-duration: 4s;
+}
+
+@keyframes l24 {
+  100% { transform: rotate(1turn) }
+}

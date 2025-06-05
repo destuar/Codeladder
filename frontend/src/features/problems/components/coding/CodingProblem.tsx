@@ -16,6 +16,8 @@ import { ProblemHeader } from '@/features/problems/components/coding/ProblemHead
 import { ProblemHeaderProps } from '@/features/problems/components/coding/ProblemHeader';
 import { useProblemCompletion } from '@/features/problems/hooks/useProblemCompletion';
 import { formatEstimatedTime } from '../../utils/time';
+import { DifficultyBadge } from '@/features/problems/components/DifficultyBadge';
+import { Difficulty } from '../../types';
 import { 
   AlertDialog,
   AlertDialogAction,
@@ -210,14 +212,6 @@ export default function CodingProblem({
     }
   }, [onNavigate]);
 
-  // Get difficulty color
-  const getDifficultyColor = () => {
-    if (difficulty.includes('EASY')) return 'bg-emerald-500/15 text-emerald-600 border-emerald-500/20';
-    if (difficulty === 'MEDIUM') return 'bg-amber-500/15 text-amber-600 border-amber-500/20';
-    if (difficulty === 'HARD') return 'bg-rose-500/15 text-rose-600 border-rose-500/20';
-    return '';
-  };
-
   // Format estimated time
   const formattedTime = useMemo(() => {
     if (!estimatedTime) return null;
@@ -288,9 +282,7 @@ export default function CodingProblem({
                     <div className="space-y-4">
                       <h1 className="text-3xl font-bold">{title}</h1>
                       <div className="flex items-center gap-2">
-                        <Badge variant="outline" className={cn("font-semibold", getDifficultyColor())}>
-                          {difficulty.replace(/_/g, ' ')}
-                        </Badge>
+                        {difficulty && <DifficultyBadge difficulty={difficulty as Difficulty} size="small" />}
                         {formattedTime && (
                           <div className="flex items-center text-sm text-muted-foreground">
                             <Timer className="w-4 h-4 mr-1" />

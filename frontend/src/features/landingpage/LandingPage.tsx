@@ -15,6 +15,8 @@ import { useLogoSrc } from '@/features/landingpage/hooks/useLogoSrc';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { FeatureShowcase } from './components';
 import axios from 'axios';
+import DottedBackground from '@/components/DottedBackground';
+import { LoadingSpinner } from '@/components/ui/loading-spinner';
 
 /**
  * LandingPage component
@@ -111,7 +113,7 @@ export default function LandingPage() {
   return (
     <div className="min-h-[calc(100vh-4rem)] bg-transparent relative overflow-hidden font-mono flex flex-col">
       {/* Background pattern: Positioned to cover navbar area, z-0 */}
-      <div className="absolute top-[-4rem] left-0 right-0 bottom-0 z-0 bg-dot-[#5271FF]/[0.2] [mask-image:radial-gradient(ellipse_at_center,transparent_20%,black)]" />
+      <DottedBackground />
       
       {/* Spotlight Wrapper: Positioned behind pattern/content */}
       <div className="absolute inset-0 -z-10 overflow-hidden">
@@ -244,12 +246,10 @@ export default function LandingPage() {
                 {/* Text - Grid Item */}
                 <p className="text-sm text-muted-foreground col-start-1 col-span-2 row-start-2 md:col-start-2 md:col-span-1 md:row-start-2 text-center md:text-left md:mt-1">
                   {isLoadingUserCount ? (
-                    <span className="font-semibold text-foreground">Loading...</span>
+                    <LoadingSpinner size="md" />
                   ) : (
                     <>
-                      <span className="font-semibold text-foreground">
-                        {userCount ? userCount.toLocaleString() : 'Many'}+
-                      </span> candidates are landing offers.
+                      Join <span className="font-semibold text-foreground">{userCount?.toLocaleString() ?? '7,000+'}</span> developers
                     </>
                   )}
                 </p>

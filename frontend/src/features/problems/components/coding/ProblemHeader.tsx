@@ -138,7 +138,9 @@ export function ProblemHeader({
               )}
             </div>
           ) : (
-            <span className="font-medium">{title}</span>
+            <div className="flex flex-col items-center">
+              <span className="font-medium">{title}</span>
+            </div>
           )}
         </div>
 
