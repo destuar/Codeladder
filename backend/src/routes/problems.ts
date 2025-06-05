@@ -25,6 +25,7 @@ interface CreateProblemBody {
   params?: string;
   defaultLanguage?: string;
   languageSupport?: string;
+  coding?: any;
 }
 
 interface UpdateProblemBody {
@@ -117,36 +118,41 @@ const normalizeTestCase = (testCase: any, index: number): any => {
 
 /**
  * Prepares language support data for storage
- * @param language Default language (e.g. 'python')
- * @param codeTemplate Template for the default language
- * @param languageSupportJson Optional JSON string with additional language templates
+ * @param languageSupportJson A JSON string or object with language data
+ * @param defaultLanguage The default language to use if not specified
  * @returns Structured language support JSON object
  */
 const prepareLanguageSupport = (
-  language: string = 'python', 
-  codeTemplate?: string, 
-  languageSupportJson?: string
+  languageSupportInput: string | object,
+  defaultLanguage: string = 'python'
 ): any => {
-  // Start with empty object
   let languageSupport: any = {};
-  
-  // Parse languageSupport if provided
-  if (languageSupportJson) {
+
+  // 1. Parse the input if it's a string
+  if (typeof languageSupportInput === 'string') {
     try {
-      languageSupport = JSON.parse(languageSupportJson);
+      languageSupport = JSON.parse(languageSupportInput);
     } catch (e) {
-      console.warn('Error parsing languageSupport JSON:', e);
+      console.warn('Error parsing languageSupport JSON, starting with empty object.', e);
+      languageSupport = {};
+    }
+  } else if (typeof languageSupportInput === 'object' && languageSupportInput !== null) {
+    languageSupport = { ...languageSupportInput };
+  }
+
+  // 2. Ensure all enabled languages have the required fields
+  for (const lang in languageSupport) {
+    if (languageSupport.hasOwnProperty(lang)) {
+      const langData = languageSupport[lang];
+      // Ensure the essential fields exist, even if null
+      languageSupport[lang] = {
+        template: langData.template || '',
+        reference: langData.reference || null,
+        solution: langData.solution || null,
+      };
     }
   }
-  
-  // Add/update the default language template
-  if (codeTemplate) {
-    languageSupport[language] = {
-      ...(languageSupport[language] || {}),
-      template: codeTemplate
-    };
-  }
-  
+
   return languageSupport;
 };
 
@@ -573,12 +579,23 @@ router.post('/', authenticateToken, authorizeRoles([Role.ADMIN, Role.DEVELOPER])
       return_type,
       params,
       defaultLanguage,
-      languageSupport: languageSupportRaw
-    } = req.body as CreateProblemBody;
+      languageSupport: languageSupportRaw,
+      coding
+    } = req.body as CreateProblemBody & { coding?: any };
 
     // Validate required fields
     if (!name) {
       return res.status(400).json({ error: 'Name is required' });
+    }
+
+    // Add a check to see if a problem with this slug already exists
+    if (slug) {
+      const existingProblem = await prisma.problem.findUnique({
+        where: { slug },
+      });
+      if (existingProblem) {
+        return res.status(409).json({ error: `A problem with the slug '${slug}' already exists.` });
+      }
     }
 
     // Only validate topic if topicId is provided
@@ -630,40 +647,62 @@ router.post('/', authenticateToken, authorizeRoles([Role.ADMIN, Role.DEVELOPER])
 
       // For coding problems, add the codeProblem relation
       if (problemType === 'CODING') {
-        let parsedLanguageSupport: any = null;
-        if (languageSupportRaw) {
-          try {
-            parsedLanguageSupport = JSON.parse(languageSupportRaw);
-          } catch (e) {
-            console.warn('Failed to parse languageSupport JSON on create:', e);
-            // Potentially return error or use a default
+        // --- Start: Handle different request body structures ---
+        let codeProblemData: any = {};
+        let finalTestCases: any[] = [];
+        
+        // Structure from "Add from JSON" feature
+        if (coding) { 
+          finalTestCases = coding.testCases || [];
+          codeProblemData = {
+            defaultLanguage: coding.defaultLanguage || 'python',
+            languageSupport: coding.supported || {},
+            functionName: coding.functionName,
+            timeLimit: coding.timeLimit,
+            memoryLimit: coding.memoryLimit,
+            return_type: coding.returnType,
+            params: coding.parameters || [],
+          };
+        } 
+        // Structure from manual form submission
+        else {
+          const finalLanguageSupport = prepareLanguageSupport(languageSupportRaw || '{}', defaultLanguage);
+          
+          let parsedParams: any[] | object | undefined = undefined;
+          if (params) {
+            try {
+              parsedParams = JSON.parse(params as string);
+            } catch (e) {
+              console.warn('Failed to parse params JSON on create:', e);
+            }
           }
-        }
-
-        let parsedParams: any[] | object | undefined = undefined;
-        if (params) { // params is the string from req.body
-          try {
-            parsedParams = JSON.parse(params);
-          } catch (e) {
-            console.warn('Failed to parse params JSON on create:', e);
-            // Consider returning res.status(400).json({ error: 'Invalid params JSON format' });
-            // For now, allow it to be undefined, Prisma model for CodeProblem.params defaults to "[]"
+          if (testCasesRaw) {
+              try {
+                  finalTestCases = typeof testCasesRaw === 'string' ? JSON.parse(testCasesRaw) : testCasesRaw;
+              } catch (e) {
+                  console.warn('Failed to parse testCasesRaw on create:', e);
+              }
           }
-        }
-
-        createData.codeProblem = {
-          create: {
+          
+          codeProblemData = {
             defaultLanguage: defaultLanguage || 'python',
-            languageSupport: parsedLanguageSupport,
+            languageSupport: finalLanguageSupport,
             functionName: functionName || undefined,
             timeLimit: timeLimit ? Number(timeLimit) : 5000,
             memoryLimit: memoryLimit ? Number(memoryLimit) : undefined,
             return_type: return_type || undefined,
-            params: parsedParams, // Use the parsed params object/array
+            params: parsedParams,
+          };
+        }
+        // --- End: Handle different request body structures ---
+
+        createData.codeProblem = {
+          create: {
+            ...codeProblemData,
             testCases: {
-              create: parsedTestCases.map((testCase, index) => ({
-                input: testCase.input,
-                expectedOutput: testCase.expected || testCase.expectedOutput,
+              create: finalTestCases.map((testCase: any, index: number) => ({
+                input: String(testCase.input),
+                expectedOutput: String(testCase.expectedOutput),
                 isHidden: testCase.isHidden || false,
                 orderNum: testCase.orderNum || index + 1
               }))
@@ -797,18 +836,15 @@ router.put('/:problemId', authenticateToken, authorizeRoles([Role.ADMIN, Role.DE
       }
     }
 
-    // Normalize each test case to ensure proper data structures
+    // Normalize each test case
     parsedTestCases = parsedTestCases.map(normalizeTestCase);
 
-    // Convert estimatedTime to number if provided
+    // Parse estimatedTime
     const parsedEstimatedTime = estimatedTime ? parseInt(estimatedTime.toString()) : null;
     if (estimatedTime && isNaN(parsedEstimatedTime!)) {
       return res.status(400).json({ error: 'Estimated time must be a valid number' });
     }
 
-    // Use a transaction to ensure problem and collections are updated atomically
-    const prismaAny = prisma as any; // Keep type casting for transaction context if needed
-    
     const updatedProblem = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
       let finalCodeProblemId: string | null = null;
       let existingCodeProblem: any = null;
@@ -822,28 +858,15 @@ router.put('/:problemId', authenticateToken, authorizeRoles([Role.ADMIN, Role.DE
       if (effectiveProblemType === 'CODING') {
         existingCodeProblem = await tx.codeProblem.findUnique({ where: { problemId: problemId }});
         
-        let parsedLanguageSupportOnUpdate: any = null;
-        if (languageSupportRaw) {
-          try {
-            parsedLanguageSupportOnUpdate = JSON.parse(languageSupportRaw);
-          } catch (e) {
-            console.warn('Failed to parse languageSupport JSON on update:', e);
-             // Potentially return error or use a default
-          }
-        }
+        const finalLanguageSupportOnUpdate = prepareLanguageSupport(languageSupportRaw || '{}', defaultLanguage);
 
         if (existingCodeProblem) {
-          // Update existing CodeProblem - handle different ID fields with type casting
-          const codeProblemObj = existingCodeProblem as any;
-          const codeProblemId = codeProblemObj.id; // Use the new id field as primary key
-          finalCodeProblemId = codeProblemId;
-          
-          // Create where clause safely
-          const whereClause: any = { id: codeProblemId };
+          // Update existing CodeProblem
+          const codeProblemId = existingCodeProblem.id;
           
           const updateData: any = {
             ...(defaultLanguage !== undefined && { defaultLanguage }),
-            ...(parsedLanguageSupportOnUpdate !== null && { languageSupport: parsedLanguageSupportOnUpdate }),
+            languageSupport: finalLanguageSupportOnUpdate,
             ...(functionName !== undefined && { functionName }),
             ...(timeLimit !== undefined && { timeLimit: parseInt(timeLimit.toString()) }),
             ...(memoryLimit !== undefined && { memoryLimit: memoryLimit ? parseInt(memoryLimit.toString()) : null }),
@@ -861,7 +884,7 @@ router.put('/:problemId', authenticateToken, authorizeRoles([Role.ADMIN, Role.DE
           }
           
           await tx.codeProblem.update({
-            where: whereClause,
+            where: { id: codeProblemId },
             data: updateData
           });
           
@@ -889,11 +912,10 @@ router.put('/:problemId', authenticateToken, authorizeRoles([Role.ADMIN, Role.DE
           // Create new CodeProblem
           const codeProblemData: any = {
             defaultLanguage: defaultLanguage ?? 'python',
-            languageSupport: parsedLanguageSupportOnUpdate,
+            languageSupport: finalLanguageSupportOnUpdate,
             functionName: functionName ?? null,
             timeLimit: timeLimit ? parseInt(timeLimit.toString()) : 5000,
             memoryLimit: memoryLimit ? parseInt(memoryLimit.toString()) : null,
-            // Use unchecked create to directly reference problemId without question relation
             problemId: problemId,
             testCases: {
               create: parsedTestCases.map((tc: any, index: number) => ({
@@ -1248,7 +1270,7 @@ router.post('/:problemId/complete', authenticateToken, (async (req, res) => {
     if (isCompleted && !forceComplete && !isAdmin) {
       // If it is completed, the intention of non-admin, non-force request is to un-complete
       // The logic below will handle this. This block might be redundant or lead to incorrect early exit.
-      // Let's adjust this to allow un-completion.
+      // Let's adjust this to allow un-completing.
       // The current structure implies user cannot un-complete if this block is hit.
       // This condition effectively means "if already completed, and user is trying to complete it again (not force, not admin), then error".
       // This should be: "if user wants to complete an already completed problem (and not forcing/admin)"

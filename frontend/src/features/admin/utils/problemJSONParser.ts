@@ -28,7 +28,7 @@ export interface ProblemJSONImport {
     }>;
     languages: {
       defaultLanguage: SupportedLanguage;
-      supported: Partial<Record<SupportedLanguage, { template: string; reference?: string }>>;
+      supported: Partial<Record<SupportedLanguage, { template: string; reference?: string; solution?: string }>>;
     };
     testCases: Array<{
       input: string;
@@ -48,6 +48,7 @@ const FunctionParameterSchemaInternal = z.object({
 const LanguageDetailSchema = z.object({
   template: z.string(),
   reference: z.string().optional(),
+  solution: z.string().optional(),
 });
 
 const CodingSchema = z.object({
@@ -193,10 +194,10 @@ export function mapJSONToFormState(json: ProblemJSONImport): {
   };
 
   const languageSupportResult: Record<SupportedLanguage, LanguageData> = {
-    python: { enabled: false, template: '', reference: '' },
-    javascript: { enabled: false, template: '', reference: '' },
-    java: { enabled: false, template: '', reference: '' },
-    cpp: { enabled: false, template: '', reference: '' },
+    python: { enabled: false, template: '', reference: '', solution: '' },
+    javascript: { enabled: false, template: '', reference: '', solution: '' },
+    java: { enabled: false, template: '', reference: '', solution: '' },
+    cpp: { enabled: false, template: '', reference: '', solution: '' },
   };
 
   let finalDefaultLanguage: SupportedLanguage = 'python';
@@ -209,6 +210,7 @@ export function mapJSONToFormState(json: ProblemJSONImport): {
           enabled: true,
           template: data.template,
           reference: data.reference || '',
+          solution: (data as any).solution || '',
         };
       }
     });

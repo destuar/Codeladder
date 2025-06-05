@@ -531,7 +531,8 @@ export const ProblemCollectionAdmin = forwardRef<ProblemCollectionAdminRef, {}>(
                             initialLangState[lang as SupportedLanguage] = {
                                 enabled: data.enabled !== undefined ? data.enabled : true,
                                 template: data.template || '',
-                                reference: data.reference || ''
+                                reference: data.reference || '',
+                                solution: data.solution || ''
                             };
                         }
                     });
@@ -541,7 +542,7 @@ export const ProblemCollectionAdmin = forwardRef<ProblemCollectionAdminRef, {}>(
                     const initialLangState = JSON.parse(JSON.stringify(defaultSupportedLanguages));
                     const legacyLang = (defaultLangFromApi || codeProblemDetails.language || 'python') as SupportedLanguage;
                     if (legacyLang in initialLangState) {
-                        initialLangState[legacyLang] = { ...initialLangState[legacyLang], enabled: true, template: codeProblemDetails.codeTemplate, reference: '' };
+                        initialLangState[legacyLang] = { ...initialLangState[legacyLang], enabled: true, template: codeProblemDetails.codeTemplate, reference: '', solution: '' };
                     }
                     setCurrentSupportedLanguages(initialLangState);
                     setCurrentDefaultLanguage(legacyLang);
@@ -827,7 +828,7 @@ export const ProblemCollectionAdmin = forwardRef<ProblemCollectionAdminRef, {}>(
                         let newCollectionIds: string[];
                         if (checked) {
                           newCollectionIds = [...currentCollectionIds, collection.id];
-                            } else {
+      } else {
                           newCollectionIds = currentCollectionIds.filter(id => id !== collection.id);
                         }
                         if (formType === 'edit') { 
@@ -855,7 +856,7 @@ export const ProblemCollectionAdmin = forwardRef<ProblemCollectionAdminRef, {}>(
       setJsonParseResult({ isValid: false, errors: [{ path: ["json"], message: "Input is empty."}], warnings: [] });
       return;
     }
-
+    
     const result = validateAndParseProblemJSON(jsonString);
     setJsonParseResult(result);
 
@@ -890,10 +891,15 @@ export const ProblemCollectionAdmin = forwardRef<ProblemCollectionAdminRef, {}>(
 
     if (problemData.problemType === 'CODING' && problemData.coding) {
       apiPayload.defaultLanguage = problemData.coding.languages.defaultLanguage;
-      const languageSupportPayload: Record<string, { template: string, reference?: string, enabled: boolean }> = {};
+      const languageSupportPayload: Record<string, { template: string, reference?: string, solution?: string, enabled: boolean }> = {};
       Object.entries(problemData.coding.languages.supported).forEach(([lang, data]) => {
         if (data) {
-          languageSupportPayload[lang] = { template: data.template, reference: data.reference || "", enabled: true };
+          languageSupportPayload[lang] = { 
+            template: data.template, 
+            reference: data.reference || "", 
+            solution: data.solution || "",
+            enabled: true 
+          };
         }
       });
       if (!languageSupportPayload[problemData.coding.languages.defaultLanguage] && 
@@ -901,6 +907,7 @@ export const ProblemCollectionAdmin = forwardRef<ProblemCollectionAdminRef, {}>(
           languageSupportPayload[problemData.coding.languages.defaultLanguage] = {
               template: problemData.coding.languages.supported[problemData.coding.languages.defaultLanguage]!.template,
               reference: problemData.coding.languages.supported[problemData.coding.languages.defaultLanguage]!.reference || "",
+              solution: problemData.coding.languages.supported[problemData.coding.languages.defaultLanguage]!.solution || "",
               enabled: true,
           };
       }

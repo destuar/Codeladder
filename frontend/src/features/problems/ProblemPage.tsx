@@ -346,8 +346,8 @@ const ProblemPage: React.FC = () => {
           {problem.problemType === 'CODING' && problem.codeProblem && (
             <CodingProblem
               title={problem.name}
-              content={problem.description || ''} // Assuming description is main content for coding problem
-              codeTemplate={problem.codeProblem.codeTemplate || ''}
+              content={problem.content || problem.description || ''} // Use content first, with a fallback to description for robustness.
+              codeProblem={problem.codeProblem}
               testCases={JSON.stringify(problem.codeProblem.testCases || [])}
               difficulty={problem.difficulty}
               nextProblemId={problem.nextProblemId}

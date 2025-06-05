@@ -6,7 +6,7 @@ import { isMarkdown } from "@/lib/markdown-to-html";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from '@/lib/utils';
 import { Badge } from "@/components/ui/badge";
-import { Timer, RepeatIcon, FileText, Clipboard, History } from "lucide-react";
+import { Timer, RepeatIcon, FileText, Clipboard, History, BookCheck } from "lucide-react";
 import { CodingProblemProps } from '../../types';
 import { ResizablePanel } from './ResizablePanel';
 import { ProblemTimer } from './timer/ProblemTimer';
@@ -36,11 +36,25 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { SubmissionsTab } from './submissions/SubmissionsTab';
 import { api } from '@/lib/api';
 import { logger } from '@/lib/logger';
+import { Light as SyntaxHighlighter } from 'react-syntax-highlighter';
+import { atomOneDark } from 'react-syntax-highlighter/dist/esm/styles/hljs';
+import python from 'react-syntax-highlighter/dist/esm/languages/hljs/python';
+import javascript from 'react-syntax-highlighter/dist/esm/languages/hljs/javascript';
+import java from 'react-syntax-highlighter/dist/esm/languages/hljs/java';
+import csharp from 'react-syntax-highlighter/dist/esm/languages/hljs/csharp';
+import cpp from 'react-syntax-highlighter/dist/esm/languages/hljs/cpp';
+
+SyntaxHighlighter.registerLanguage('python', python);
+SyntaxHighlighter.registerLanguage('javascript', javascript);
+SyntaxHighlighter.registerLanguage('java', java);
+SyntaxHighlighter.registerLanguage('csharp', csharp);
+SyntaxHighlighter.registerLanguage('cpp', cpp);
 
 const MIN_PANEL_WIDTH = 300;
 const MAX_PANEL_WIDTH = 800;
 const DEFAULT_EDITOR_HEIGHT = 500; // px
 const MIN_EDITOR_HEIGHT = 200; // px
+const TAB_TEXT_VISIBILITY_THRESHOLD = 380; // px, hide text below this width
 
 const getLocalStorageKeyForCodes = (problemId: string) => `problem-${problemId}-languageCodes`;
 
@@ -50,7 +64,7 @@ const getLocalStorageKeyForCodes = (problemId: string) => `problem-${problemId}-
 export default function CodingProblem({
   title,
   content,
-  codeTemplate,
+  codeProblem,
   testCases: testCasesString,
   difficulty,
   nextProblemId,
@@ -69,7 +83,9 @@ export default function CodingProblem({
 }: CodingProblemProps) {
   const [leftPanelWidth, setLeftPanelWidth] = useState(window.innerWidth * 0.4);
   const [editorHeight, setEditorHeight] = useState(window.innerHeight * 0.6);
-  const [selectedLanguage, setSelectedLanguage] = useState<SupportedLanguage>('python');
+  const [selectedLanguage, setSelectedLanguage] = useState<SupportedLanguage>(
+    (codeProblem.defaultLanguage as SupportedLanguage) || 'python'
+  );
   const [languageCodes, setLanguageCodes] = useState<{ [key in SupportedLanguage]?: string }>(() => {
     if (problemId) {
       const storedCodes = localStorage.getItem(getLocalStorageKeyForCodes(problemId));
@@ -86,21 +102,31 @@ export default function CodingProblem({
   const [isRunning, setIsRunning] = useState(false);
   const editorRef = useRef<any>(null);
   const [leftPanelTab, setLeftPanelTab] = useState("description");
-  const [functionParams, setFunctionParams] = useState<{ name: string; type: string }[]>([]);
-  const [problemDetails, setProblemDetails] = useState<any>(null);
+  const [functionParams, setFunctionParams] = useState<{ name: string; type: string }[]>(() => {
+    if (codeProblem?.params) {
+      try {
+        let params = codeProblem.params;
+        if (typeof params === 'string') params = JSON.parse(params);
+        if (Array.isArray(params)) return params;
+      } catch (err) {
+        logger.error('Error parsing function parameters', err);
+      }
+    }
+    return [];
+  });
+
+  const showTabText = leftPanelWidth >= TAB_TEXT_VISIBILITY_THRESHOLD;
 
   const parsedOfficialTestCases = useMemo(() => {
-    if (!testCasesString) return [];
+    if (!codeProblem.testCases) return [];
     try {
-      const parsed = typeof testCasesString === 'string' 
-        ? JSON.parse(testCasesString) 
-        : testCasesString;
-      return Array.isArray(parsed) ? parsed.map(tc => ({...tc})) as TestCaseType[] : [];
+        // The test cases are already an object array from the prop
+        return Array.isArray(codeProblem.testCases) ? codeProblem.testCases.map(tc => ({...tc})) as TestCaseType[] : [];
     } catch (e) {
-      logger.error('Error parsing test cases', e);
-      return [];
+        logger.error('Error parsing test cases', e);
+        return [];
     }
-  }, [testCasesString]);
+  }, [codeProblem.testCases]);
 
   // Effect to save languageCodes to LocalStorage whenever it or problemId changes
   useEffect(() => {
@@ -108,87 +134,42 @@ export default function CodingProblem({
       localStorage.setItem(getLocalStorageKeyForCodes(problemId), JSON.stringify(languageCodes));
     }
   }, [languageCodes, problemId]);
-
-  // Effect for initial problem load (fetching data and setting initial language)
-  useEffect(() => {
-    const fetchProblem = async () => {
-      if (!problemId) return;
-      try {
-        const response = await api.get(`/problems/${problemId}`);
-        setProblemDetails(response);
-
-        let initialLang = response.codeProblem?.defaultLanguage || 'python';
-        // Check if there's already code for this initialLang in languageCodes (from LocalStorage)
-        // If not, setSelectedLanguage will trigger the code-setting useEffect to load a template.
-        setSelectedLanguage(initialLang as SupportedLanguage);
-
-        if (response.codeProblem?.params) {
-          try {
-            let params = response.codeProblem.params;
-            if (typeof params === 'string') params = JSON.parse(params);
-            if (Array.isArray(params)) setFunctionParams(params);
-          } catch (err) { 
-            logger.error('Error parsing function parameters', err); 
-          }
-        }
-      } catch (error) {
-        logger.error('Failed to fetch problem', error);
-        setCode('// Failed to load problem template.');
-      }
-    };
-
-    if (problemId) {
-      // Load from LocalStorage first (done in useState initializer for languageCodes)
-      // Then fetch problem details which might provide templates for languages not in LocalStorage
-      fetchProblem();
-    } else {
-      // For new problem (no problemId), selectedLanguage is 'python' by default.
-      // The code-setting useEffect will handle loading initial code/template for this selectedLanguage.
-      // This ensures code state is initialized even if there's no problemId for LocalStorage.
-      if (!languageCodes[selectedLanguage]) { // If no stored code for default python on a new problem
-        const initialNewProblemCode = codeTemplate || LANGUAGE_CONFIGS[selectedLanguage]?.defaultTemplate || '';
-        setCode(initialNewProblemCode);
-        // Also update languageCodes so it can be potentially saved if problemId becomes available later (though less likely flow)
-        setLanguageCodes(prev => ({...prev, [selectedLanguage]: initialNewProblemCode }));
-      }
+  
+  // Helper function to get language template from problem data
+  const getLanguageTemplate = (cp: typeof codeProblem, language: string): string => {
+    if (!cp) return LANGUAGE_CONFIGS[language as SupportedLanguage]?.defaultTemplate || '';
+    const langSupport = cp.languageSupport;
+    if (langSupport && typeof langSupport === 'object' && langSupport[language]?.template) {
+        return langSupport[language].template;
     }
-  }, [problemId]); // Removed languageCodes from here to avoid re-triggering by its own update
+    // Fallback for older problem formats or if languageSupport is not defined
+    if (language === 'python' && typeof cp.codeTemplate === 'string') {
+        return cp.codeTemplate;
+    }
+    // Generic fallback
+    return LANGUAGE_CONFIGS[language as SupportedLanguage]?.defaultTemplate || '';
+  };
 
-  // Effect to manage and display code based on selected language, problemDetails, and languageCodes (from LocalStorage or memory)
+  // Effect to manage and display code based on selected language
   useEffect(() => {
     let newCodeContent: string | undefined = undefined;
-    let updateLanguageCache = false; // Flag to indicate if languageCodes should be updated with a new template
 
+    // 1. Prioritize code already worked on (from LocalStorage/state)
     if (languageCodes[selectedLanguage] !== undefined) {
       newCodeContent = languageCodes[selectedLanguage]!;
-    } else if (problemDetails) {
-      newCodeContent = getLanguageTemplate(problemDetails, selectedLanguage);
-      updateLanguageCache = true; 
-    } else if (!problemId) { // New problem, no problemDetails yet, and no code in languageCodes for selectedLang
-      // Use codeTemplate prop if it's for the current selectedLanguage (assume python if not specified), otherwise default config.
-      const primaryLangForPropTemplate = 'python'; // Assuming codeTemplate prop is for Python on a new problem
-      if (codeTemplate && selectedLanguage === primaryLangForPropTemplate) {
-        newCodeContent = codeTemplate;
-      } else {
-        newCodeContent = LANGUAGE_CONFIGS[selectedLanguage]?.defaultTemplate || '';
-      }
-      updateLanguageCache = true;
+    } 
+    // 2. Otherwise, get the template for the selected language from the problem data
+    else {
+      newCodeContent = getLanguageTemplate(codeProblem, selectedLanguage);
+      
+      // Update languageCodes state with the new template so it's not lost on language switch
+       setLanguageCodes(prev => ({ ...prev, [selectedLanguage]: newCodeContent }));
     }
 
     if (newCodeContent !== undefined) {
       setCode(newCodeContent); // Update the editor's displayed code
-      if (updateLanguageCache) {
-        // Update languageCodes state if a new template was loaded (and not already in languageCodes)
-        // This will then be picked up by the LocalStorage saving effect.
-        setLanguageCodes(prev => {
-            if (prev[selectedLanguage] === undefined) { // Only update if we just loaded a template for an empty slot
-                return { ...prev, [selectedLanguage]: newCodeContent };
-            }
-            return prev; // Otherwise, no change needed, user's typed code (already in languageCodes) is preserved
-        });
-      }
     }
-  }, [selectedLanguage, problemDetails, problemId, codeTemplate, languageCodes]); // Added languageCodes to deps
+  }, [selectedLanguage, codeProblem, languageCodes]);
 
   const { 
     isProblemCompleted: hookIsCompleted, 
@@ -219,16 +200,24 @@ export default function CodingProblem({
     return `${minutes} min${minutes !== 1 ? 's' : ''}`;
   }, [estimatedTime]);
 
-  // Helper function to get language template from problem data
-  const getLanguageTemplate = (problem: any, language: string): string => {
-    if (!problem?.codeProblem) return LANGUAGE_CONFIGS[language as SupportedLanguage]?.defaultTemplate || '';
-    const langSupport = problem.codeProblem.languageSupport;
-    if (langSupport && typeof langSupport === 'object' && langSupport[language]?.template) {
-      return langSupport[language].template;
+  const solutionData = useMemo(() => {
+    const defaultResult = { reference: null, explanation: null };
+    
+    if (!codeProblem) return defaultResult;
+
+    const langSupport = codeProblem.languageSupport?.[selectedLanguage];
+    if (langSupport) {
+      return {
+        reference: langSupport.reference || null,
+        explanation: langSupport.solution || null
+      };
     }
-    // Fallback to a generic default if specific template isn't found in languageSupport
-    return LANGUAGE_CONFIGS[language as SupportedLanguage]?.defaultTemplate || '';
-  };
+
+    // Fallback for older data structures
+    const reference = codeProblem.referenceImplementations?.[selectedLanguage] || null;
+    return { reference, explanation: null };
+
+  }, [codeProblem, selectedLanguage]);
 
   return (
     <div className={cn(
@@ -264,14 +253,18 @@ export default function CodingProblem({
           >
             <Tabs value={leftPanelTab} onValueChange={setLeftPanelTab} className="h-full flex flex-col">
               <div className="px-4 py-2 bg-muted/20 flex-shrink-0 dark:border-transparent border-b border-border">
-                <TabsList className="bg-muted">
+                <TabsList className="bg-muted grid w-full grid-cols-3">
                   <TabsTrigger value="description" className="flex items-center gap-1">
                     <FileText className="h-4 w-4" />
-                    <span>Description</span>
+                    {showTabText && <span>Description</span>}
                   </TabsTrigger>
                   <TabsTrigger value="submissions" className="flex items-center gap-1">
                     <History className="h-4 w-4" />
-                    <span>Submissions</span>
+                    {showTabText && <span>Submissions</span>}
+                  </TabsTrigger>
+                  <TabsTrigger value="solution" className="flex items-center gap-1">
+                    <BookCheck className="h-4 w-4" />
+                    {showTabText && <span>Solution</span>}
                   </TabsTrigger>
                 </TabsList>
               </div>
@@ -293,7 +286,6 @@ export default function CodingProblem({
                     </div>
                     <div className="max-w-full overflow-hidden">
                       {isMarkdown(content) ? (
-                        // For backward compatibility, use Markdown for existing markdown content
                         <div className="prose dark:prose-invert max-w-full overflow-hidden">
                           <Markdown 
                             content={content}
@@ -301,11 +293,9 @@ export default function CodingProblem({
                           />
                         </div>
                       ) : (
-                        // Use HtmlContent for HTML content
-                        <HtmlContent 
-                          content={content} 
-                          className="max-w-full [&_pre]:!whitespace-pre-wrap [&_pre]:!break-words [&_code]:!whitespace-pre-wrap [&_code]:!break-words [&_pre]:!max-w-full [&_pre]:!overflow-x-auto"
-                        />
+                        <div className="prose dark:prose-invert max-w-full">
+                          <HtmlContent content={content} />
+                        </div>
                       )}
                     </div>
                   </div>
@@ -314,6 +304,52 @@ export default function CodingProblem({
               
               <TabsContent value="submissions" className="h-full flex-1 overflow-hidden m-0 p-0">
                 <SubmissionsTab problemId={problemId} />
+              </TabsContent>
+
+              <TabsContent value="solution" className="h-full flex-1 overflow-hidden m-0 p-0">
+                <ScrollArea className="h-full" type="hover">
+                  <div className="p-6 space-y-6">
+                    <h2 className="text-2xl font-bold">Solution</h2>
+                    
+                    {solutionData.reference ? (
+                      <div>
+                        <h3 className="text-xl font-semibold mb-2">Reference Implementation</h3>
+                        <SyntaxHighlighter 
+                          language={selectedLanguage} 
+                          style={atomOneDark}
+                          customStyle={{
+                            background: 'var(--color-background-secondary, #2d2d2d)',
+                            borderRadius: '0.5rem',
+                            padding: '1rem',
+                            fontSize: '0.9rem',
+                            overflowY: 'auto'
+                          }}
+                          showLineNumbers
+                          wrapLines
+                          lineProps={{style: {wordBreak: 'break-all', whiteSpace: 'pre-wrap'}}}
+                        >
+                          {solutionData.reference}
+                        </SyntaxHighlighter>
+                      </div>
+                    ) : (
+                      <div className="text-muted-foreground italic mt-4">
+                        The reference implementation for {LANGUAGE_CONFIGS[selectedLanguage]?.label || selectedLanguage} is not available yet.
+                      </div>
+                    )}
+
+                    {solutionData.explanation && (
+                       <div className="mt-6">
+                         <HtmlContent content={solutionData.explanation} className="prose dark:prose-invert max-w-full" />
+                       </div>
+                    )}
+
+                    {!solutionData.explanation && !solutionData.reference && (
+                       <div className="text-muted-foreground italic">
+                        The solution for {LANGUAGE_CONFIGS[selectedLanguage]?.label || selectedLanguage} is not available yet.
+                      </div>
+                    )}
+                  </div>
+                </ScrollArea>
               </TabsContent>
             </Tabs>
           </ResizablePanel>

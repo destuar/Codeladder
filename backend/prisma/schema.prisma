@@ -335,7 +335,7 @@ model CodeProblem {
   functionName    String?       @map("function_name")
   language        String?       @map("language_old") /// @deprecated Use defaultLanguage instead
   defaultLanguage String        @default("python") @map("default_language")
-  languageSupport Json?         @map("language_support") // Stores all language templates and references
+  languageSupport Json?         @map("language_support") // Stores all language templates, references, and solutions. Shape: { [lang: string]: { template: string, reference: string, solution: string } }
   timeLimit       Int           @default(5000) @map("time_limit") // Execution time limit in ms
   memoryLimit     Int?          @map("memory_limit") // Memory limit in MB if applicable
 

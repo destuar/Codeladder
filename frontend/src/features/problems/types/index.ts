@@ -131,7 +131,7 @@ export interface TestResult {
 export interface CodingProblemProps {
   title: string;
   content: string;
-  codeTemplate?: string;
+  codeProblem: CodeProblemType;
   testCases?: string;
   difficulty: string;
   nextProblemId?: string;
@@ -178,6 +178,13 @@ export interface ResizablePanelProps {
   className?: string;
 }
 
+// Renaming to avoid conflict and for clarity
+export interface LanguageSupportInfo {
+  template: string;
+  reference: string;
+  solution?: string;
+}
+
 // New interfaces for the nested problem types
 export interface CodeProblemType {
   questionId?: string;
@@ -187,6 +194,10 @@ export interface CodeProblemType {
   timeLimit: number | null;
   memoryLimit: number | null;
   testCases?: TestCase[];
+  defaultLanguage?: string;
+  languageSupport?: { [key: string]: LanguageSupportInfo };
+  referenceImplementations?: { [key: string]: string };
+  params?: { name: string; type: string }[] | string;
 }
 
 export interface InfoProblemType {
