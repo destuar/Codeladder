@@ -6,7 +6,7 @@ import { toast } from "sonner";
 import InfoProblem from "@/features/problems/components/info/InfoProblem";
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Markdown } from '@/components/ui/markdown';
-import { LoadingCard } from '@/components/ui/loading-spinner';
+import { LoadingCard, PageLoadingSpinner } from '@/components/ui/loading-spinner';
 import { logger } from '@/lib/logger';
 
 type InfoPage = {
@@ -44,8 +44,8 @@ export function InfoPage() {
 
   if (isLoading) {
     return (
-      <div className="container mx-auto py-8 px-4">
-        <LoadingCard text="Loading..." />
+      <div className="h-screen flex items-center justify-center bg-background">
+        <PageLoadingSpinner />
       </div>
     );
   }

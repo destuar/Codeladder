@@ -10,7 +10,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Button } from '@/components/ui/button';
 import { X, ListFilter, Loader2, Check, SlidersHorizontal, CheckCircle2, PenSquare, BookOpen, Hash, ChevronDown, ChevronUp, Shuffle } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { toast } from '@/components/ui/use-toast';
 import { Badge } from '@/components/ui/badge';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
@@ -231,11 +230,6 @@ export default function CollectionsPage() {
       // Fetch the specific problem to get its slug (the all problems endpoint doesn't include slugs)
       if (!slug && token) {
         logger.debug('Fetching problem details to get slug...');
-        // Show a toast notification
-        toast({
-          title: "Loading problem...",
-          description: `Getting details for ${problemFromData?.name || 'selected problem'}`
-        });
         
         const problemDetails = await api.get(`/problems/${problemId}`, token);
         logger.debug('Problem details:', { 
@@ -248,26 +242,24 @@ export default function CollectionsPage() {
           logger.debug(`Using fetched slug: ${problemDetails.slug}`);
           navigate(`/problem/${problemDetails.slug}?${params}`);
           return;
+        } else {
+          logger.debug(`Slug not found for problem ${problemId}, using ID-based navigation.`);
         }
       }
+      
+      // Fallback to ID-based navigation if no slug is available after fetch
+      const navigationPath = slug ? `/problem/${slug}?${params}` : `/problems/${problemId}?${params}`;
+      logger.debug(`Navigating to: ${navigationPath}`);
+      navigate(navigationPath);
+
     } catch (error) {
       logger.error('Error fetching problem details', error);
-      toast({
-        title: "Error loading problem",
-        description: "Unable to fetch problem details. Using ID-based navigation instead.",
-        variant: "destructive"
-      });
+      // Fallback to ID-based navigation on error
+      navigate(`/problems/${problemId}?${params}`);
     } finally {
       clearTimeout(navigationTimeout);
-      setIsNavigating(false);
-      setIsShuffling(false);
-    }
-
-    // Always prefer the slug if available and not empty
-    if (slug && slug.trim().length > 0) {
-      navigate(`/problem/${slug}?${params}`);
-    } else {
-      navigate(`/problems/${problemId}?${params}`);
+      // We don't want to immediately set navigating to false here
+      // It should remain true until the new page is loaded
     }
   };
 
@@ -373,8 +365,8 @@ export default function CollectionsPage() {
 
   // Format difficulty label for display
   const formatDifficultyLabel = (difficulty: DifficultyFilter): string => {
-    if (difficulty === 'all') return 'All Difficulties';
-    return difficulty.replace(/_/g, ' ');
+    if (difficulty === 'all') return 'All difficulties';
+    return difficulty.charAt(0) + difficulty.slice(1).toLowerCase();
   };
 
   // Get current collection name
@@ -392,15 +384,13 @@ export default function CollectionsPage() {
   // Show loading state while either problems or collections are loading
   const isLoading = isLoadingProblems || isLoadingCollections;
 
-  // Loading overlay for problem navigation
+  // Loading Overlay
   const LoadingOverlay = () => {
     if (!isNavigating) return null;
-    
+
     return (
-      <div className="fixed top-4 right-4 z-50">
-        <div className="bg-card p-4 rounded-lg shadow-lg flex items-center gap-3">
-          <LoadingSpinner size="md" className="text-primary" />
-        </div>
+      <div className="fixed inset-0 bg-background/80 backdrop-blur-sm flex items-center justify-center z-50">
+        <PageLoadingSpinner />
       </div>
     );
   };
@@ -470,50 +460,109 @@ export default function CollectionsPage() {
       const randomIndex = Math.floor(Math.random() * shuffleableFilteredProblems.length);
       const randomProblem = shuffleableFilteredProblems[randomIndex];
       
-      toast({
-        title: "Random problem selected",
-        description: `Selected: ${randomProblem.name}`,
-        duration: 2000,
-      });
-      
       // Navigate to the randomly selected problem
       handleProblemStart(randomProblem.id, randomProblem.slug);
     }
   };
 
-  if (isLoadingProblems || isLoadingCollections || !problems) {
+  if (isLoadingProblems || isLoadingCollections) {
     return (
-      <div className="flex items-center justify-center min-h-[calc(100vh-theme(spacing.16))]">
+      <div className="min-h-screen flex items-center justify-center bg-background">
         <PageLoadingSpinner />
       </div>
     );
   }
 
   return (
-    <div className="font-mono relative min-h-screen bg-background"> {/* Ensure this parent spans full screen */}
+    <div className="relative min-h-screen">
       <DottedBackground />
-      {/* New container for all page content, keeping original layout classes and ensuring it's above the background */}
-      <div className="container mx-auto px-4 py-8 font-mono max-w-7xl relative z-10">
+      <div className="relative z-10 container mx-auto p-4 md:p-6 lg:p-8 font-sans">
         <LoadingOverlay />
-        {/* The original content div now sits inside this new container */}
-        <div className="relative z-10"> {/* This div was the previous main content wrapper */}
-          <header className="mb-8">
-            <div className="text-center mb-6">
-              <h1 className="text-3xl font-bold mb-4 text-center text-foreground">
-                <span className="sm:hidden">Interview Questions</span>
-                <span className="hidden sm:inline">Company Interview Questions</span>
-              </h1>
-              <p className="text-center text-muted-foreground">
-                <span className="sm:hidden">It's practicing smarter.</span>
-                <span className="hidden sm:inline">It's not cheating. It's practicing smarter.</span>
-              </p>
-            </div>
-          </header>
 
-          {/* Sidebar for Small Screens (Stacked) - MOVED AND MODIFIED */}
-          <div className="xl:hidden mb-8"> {/* MODIFIED: Was 2xl:hidden */}
-            <div className="max-w-xl mx-auto space-y-4 rounded-md shadow-md hover:shadow-lg transition-shadow duration-300 dark:shadow-[0_4px_6px_-1px_rgba(82,113,255,0.15),_0_2px_4px_-2px_rgba(82,113,255,0.15)] bg-background/80 dark:bg-background backdrop-blur-md overflow-hidden p-4 border border-border/40 dark:border dark:border-[#5271FF]/15"> {/* Added max-w-xl mx-auto, this is the inner styled div */}
-              {/* Collections Sidebar Content (Title, Shuffle, Buttons) - Duplicated for stacking */}
+        {/* Header Section */}
+        <div className="flex flex-col md:flex-row md:items-center md:justify-between mb-6">
+          <div className="flex-1 mb-4 md:mb-0">
+            <h1 className="text-3xl font-bold mb-4 text-center text-foreground">
+              <span className="sm:hidden">Interview Questions</span>
+              <span className="hidden sm:inline">Company Interview Questions</span>
+            </h1>
+            <p className="text-center text-muted-foreground">
+              <span className="sm:hidden">It's practicing smarter.</span>
+              <span className="hidden sm:inline">It's not cheating. It's practicing smarter.</span>
+            </p>
+          </div>
+        </div>
+
+        {/* Sidebar for Small Screens (Stacked) - MOVED AND MODIFIED */}
+        <div className="xl:hidden mb-8"> {/* MODIFIED: Was 2xl:hidden */}
+          <div className="max-w-xl mx-auto space-y-4 rounded-md shadow-md hover:shadow-lg transition-shadow duration-300 dark:shadow-[0_4px_6px_-1px_rgba(82,113,255,0.15),_0_2px_4px_-2px_rgba(82,113,255,0.15)] bg-background/80 dark:bg-background backdrop-blur-md overflow-hidden p-4 border border-border/40 dark:border dark:border-[#5271FF]/15"> {/* Added max-w-xl mx-auto, this is the inner styled div */}
+            {/* Collections Sidebar Content (Title, Shuffle, Buttons) - Duplicated for stacking */}
+            <div className="flex items-center gap-2">
+              <h1 className="text-xl sm:text-2xl font-bold leading-tight text-foreground font-sans">{currentCollectionName}</h1>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <button 
+                onClick={() => handleCollectionChange("all")}
+                className={cn(
+                  "flex items-center px-3 py-1.5 rounded-full text-sm transition-colors duration-150 font-sans",
+                  selectedCollection === "all" 
+                    ? "bg-[#5271FF] text-white hover:bg-[#415ACC] dark:bg-[#5271FF] dark:hover:bg-[#415ACC]"
+                    : "bg-[#5271FF]/10 text-[#5271FF] hover:bg-[#5271FF]/20 dark:bg-[#6B8EFF]/10 dark:text-[#6B8EFF] dark:hover:bg-[#6B8EFF]/20"
+                )}
+              >
+                All Collections
+                <span className={cn(
+                  "ml-2 px-2 py-0.5 text-xs rounded-full font-semibold",
+                  selectedCollection === "all"
+                    ? "bg-white/20 text-white"
+                    : "bg-[#5271FF]/20 text-[#5271FF] dark:bg-[#6B8EFF]/20 dark:text-[#6B8EFF]"
+                )}>
+                  {collectionProblemCounts["all"] || 0}
+                </span>
+              </button>
+              {collections.map(collection => (
+                <button
+                  key={collection.id}
+                  onClick={() => handleCollectionChange(collection.id)}
+                  className={cn(
+                    "flex items-center px-3 py-1.5 rounded-full text-sm transition-colors duration-150 font-sans",
+                    selectedCollection === collection.id 
+                      ? "bg-[#5271FF] text-white hover:bg-[#415ACC] dark:bg-[#5271FF] dark:hover:bg-[#415ACC]"
+                      : "bg-[#5271FF]/10 text-[#5271FF] hover:bg-[#5271FF]/20 dark:bg-[#6B8EFF]/10 dark:text-[#6B8EFF] dark:hover:bg-[#6B8EFF]/20"
+                  )}
+                >
+                  {collection.name}
+                  <span className={cn(
+                    "ml-2 px-2 py-0.5 text-xs rounded-full font-semibold",
+                    selectedCollection === collection.id
+                      ? "bg-white/20 text-white"
+                      : "bg-[#5271FF]/20 text-[#5271FF] dark:bg-[#6B8EFF]/20 dark:text-[#6B8EFF]"
+                  )}>
+                    {collectionProblemCounts[collection.id] || 0}
+                  </span>
+                </button>
+              ))}
+            </div>
+            {selectedCollection !== 'all' && (
+              <Button
+                variant="ghost" 
+                size="sm"
+                onClick={resetFilters}
+                className="w-full text-[#5271FF] dark:text-[#6B8EFF] hover:bg-[#5271FF]/10 dark:hover:bg-[#6B8EFF]/10 hover:text-[#5271FF] dark:hover:text-white font-sans text-sm"
+              >
+                <X className="h-4 w-4 mr-2" />
+                Reset Selection
+              </Button>
+            )}
+          </div>
+        </div>
+
+        {/* New layout: Centered Problem Area with Sidebar to its left */}
+        <div className="relative max-w-4xl mx-auto mt-8"> {/* Changed max-w-3xl to max-w-4xl */} 
+          {/* Sidebar for Medium+ Screens (Absolutely Positioned) */}
+          <div className="hidden xl:block xl:absolute xl:right-full xl:top-0 xl:mr-8 xl:w-60"> 
+            <div className="xl:sticky xl:top-20 space-y-4 rounded-xl shadow-md hover:shadow-lg transition-shadow duration-300 dark:shadow-[0_4px_6px_-1px_rgba(82,113,255,0.15),_0_2px_4px_-2px_rgba(82,113,255,0.15)] bg-background/80 dark:bg-background backdrop-blur-md overflow-hidden p-4 border border-border/40 dark:border dark:border-[#5271FF]/15">
+              {/* Collections Sidebar Content (Title, Shuffle, Buttons) */}
               <div className="flex items-center gap-2">
                 <h1 className="text-xl sm:text-2xl font-bold leading-tight text-foreground font-sans">{currentCollectionName}</h1>
               </div>
@@ -574,344 +623,277 @@ export default function CollectionsPage() {
             </div>
           </div>
 
-          {/* New layout: Centered Problem Area with Sidebar to its left */}
-          <div className="relative max-w-4xl mx-auto mt-8"> {/* Changed max-w-3xl to max-w-4xl */} 
-            {/* Sidebar for Medium+ Screens (Absolutely Positioned) */}
-            <div className="hidden xl:block xl:absolute xl:right-full xl:top-0 xl:mr-8 xl:w-60"> 
-              <div className="xl:sticky xl:top-20 space-y-4 rounded-xl shadow-md hover:shadow-lg transition-shadow duration-300 dark:shadow-[0_4px_6px_-1px_rgba(82,113,255,0.15),_0_2px_4px_-2px_rgba(82,113,255,0.15)] bg-background/80 dark:bg-background backdrop-blur-md overflow-hidden p-4 border border-border/40 dark:border dark:border-[#5271FF]/15">
-                {/* Collections Sidebar Content (Title, Shuffle, Buttons) */}
-                <div className="flex items-center gap-2">
-                  <h1 className="text-xl sm:text-2xl font-bold leading-tight text-foreground font-sans">{currentCollectionName}</h1>
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  <button 
-                    onClick={() => handleCollectionChange("all")}
-                    className={cn(
-                      "flex items-center px-3 py-1.5 rounded-full text-sm transition-colors duration-150 font-sans",
-                      selectedCollection === "all" 
-                        ? "bg-[#5271FF] text-white hover:bg-[#415ACC] dark:bg-[#5271FF] dark:hover:bg-[#415ACC]"
-                        : "bg-[#5271FF]/10 text-[#5271FF] hover:bg-[#5271FF]/20 dark:bg-[#6B8EFF]/10 dark:text-[#6B8EFF] dark:hover:bg-[#6B8EFF]/20"
-                    )}
-                  >
-                    All Collections
-                    <span className={cn(
-                      "ml-2 px-2 py-0.5 text-xs rounded-full font-semibold",
-                      selectedCollection === "all"
-                        ? "bg-white/20 text-white"
-                        : "bg-[#5271FF]/20 text-[#5271FF] dark:bg-[#6B8EFF]/20 dark:text-[#6B8EFF]"
-                    )}>
-                      {collectionProblemCounts["all"] || 0}
-                    </span>
-                  </button>
-                  {collections.map(collection => (
-                    <button
-                      key={collection.id}
-                      onClick={() => handleCollectionChange(collection.id)}
-                      className={cn(
-                        "flex items-center px-3 py-1.5 rounded-full text-sm transition-colors duration-150 font-sans",
-                        selectedCollection === collection.id 
-                          ? "bg-[#5271FF] text-white hover:bg-[#415ACC] dark:bg-[#5271FF] dark:hover:bg-[#415ACC]"
-                          : "bg-[#5271FF]/10 text-[#5271FF] hover:bg-[#5271FF]/20 dark:bg-[#6B8EFF]/10 dark:text-[#6B8EFF] dark:hover:bg-[#6B8EFF]/20"
-                      )}
-                    >
-                      {collection.name}
-                      <span className={cn(
-                        "ml-2 px-2 py-0.5 text-xs rounded-full font-semibold",
-                        selectedCollection === collection.id
-                          ? "bg-white/20 text-white"
-                          : "bg-[#5271FF]/20 text-[#5271FF] dark:bg-[#6B8EFF]/20 dark:text-[#6B8EFF]"
-                      )}>
-                        {collectionProblemCounts[collection.id] || 0}
-                      </span>
-                    </button>
-                  ))}
-                </div>
-                {selectedCollection !== 'all' && (
-                  <Button
-                    variant="ghost" 
-                    size="sm"
-                    onClick={resetFilters}
-                    className="w-full text-[#5271FF] dark:text-[#6B8EFF] hover:bg-[#5271FF]/10 dark:hover:bg-[#6B8EFF]/10 hover:text-[#5271FF] dark:hover:text-white font-sans text-sm"
-                  >
-                    <X className="h-4 w-4 mr-2" />
-                    Reset Selection
-                  </Button>
-                )}
-              </div>
-            </div>
-
-            {/* Problem Filters and List (This is the content of the centered block) */}
-            <div>
-              <Collapsible 
-                open={isFiltersOpen} 
-                onOpenChange={setIsFiltersOpen}
-                className="mb-2 font-sans"
-              >
-                <div className="bg-background/80 dark:bg-background backdrop-blur-md overflow-hidden rounded-md shadow-md hover:shadow-lg transition-shadow duration-300 dark:shadow-[0_4px_6px_-1px_rgba(82,113,255,0.15),_0_2px_4px_-2px_rgba(82,113,255,0.15)] dark:border dark:border-[#5271FF]/15">
-                  <CollapsibleTrigger asChild>
-                    <div className="px-3 py-2 cursor-pointer hover:bg-secondary/20 transition-colors rounded-t-md">
-                      <div className="text-sm flex items-center gap-2 justify-between">
-                        <div className="flex items-center">
-                          <SlidersHorizontal className="h-4 w-4 mr-2" />
-                          Problem Filters
-                          {hasAdvancedFilters && (
-                            <Badge 
-                              variant="outline" 
-                              className="ml-2 font-sans bg-white text-primary border-border dark:bg-muted dark:text-muted-foreground dark:border-muted"
-                            >
-                              {selectedDifficulties.length + 
-                               (selectedStatus !== 'all' ? 1 : 0) + 
-                               (selectedType !== 'all' ? 1 : 0) + 
-                               selectedTopics.length}
-                            </Badge>
-                          )}
-                        </div>
-                        {isFiltersOpen ? (
-                          <ChevronUp className="h-4 w-4 text-muted-foreground" />
-                        ) : (
-                          <ChevronDown className="h-4 w-4 text-muted-foreground" />
+          {/* Problem Filters and List (This is the content of the centered block) */}
+          <div>
+            <Collapsible 
+              open={isFiltersOpen} 
+              onOpenChange={setIsFiltersOpen}
+              className="mb-2 font-sans"
+            >
+              <div className="bg-background/80 dark:bg-background backdrop-blur-md overflow-hidden rounded-md shadow-md hover:shadow-lg transition-shadow duration-300 dark:shadow-[0_4px_6px_-1px_rgba(82,113,255,0.15),_0_2px_4px_-2px_rgba(82,113,255,0.15)] dark:border dark:border-[#5271FF]/15">
+                <CollapsibleTrigger asChild>
+                  <div className="px-3 py-2 cursor-pointer hover:bg-secondary/20 transition-colors rounded-t-md">
+                    <div className="text-sm flex items-center gap-2 justify-between">
+                      <div className="flex items-center">
+                        <SlidersHorizontal className="h-4 w-4 mr-2" />
+                        Problem Filters
+                        {hasAdvancedFilters && (
+                          <Badge 
+                            variant="outline" 
+                            className="ml-2 font-sans bg-white text-primary border-border dark:bg-muted dark:text-muted-foreground dark:border-muted"
+                          >
+                            {selectedDifficulties.length + 
+                             (selectedStatus !== 'all' ? 1 : 0) + 
+                             (selectedType !== 'all' ? 1 : 0) + 
+                             selectedTopics.length}
+                          </Badge>
                         )}
                       </div>
+                      {isFiltersOpen ? (
+                        <ChevronUp className="h-4 w-4 text-muted-foreground" />
+                      ) : (
+                        <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                      )}
                     </div>
-                  </CollapsibleTrigger>
-                  <CollapsibleContent className="border-t border-border/40 pt-2 px-3 pb-4 space-y-4">
-                    <div>
-                      <div className="grid grid-cols-2 gap-4 pt-2">
-                        <div className="space-y-2">
-                          <div className="flex items-center">
-                            <Hash className="h-4 w-4 mr-2 text-indigo-500" />
-                            <span className="text-sm font-medium font-sans">Difficulty</span>
-                          </div>
-                          <div className="flex flex-wrap gap-2">
-                            {difficulties.map(difficulty => (
-                              <button
-                                key={difficulty}
-                                onClick={() => toggleDifficulty(difficulty as ProblemDifficulty)}
-                                className={cn(
-                                  "flex items-center px-3 py-1 rounded-full text-sm font-sans",
-                                  selectedDifficulties.includes(difficulty as ProblemDifficulty)
-                                    ? "bg-indigo-500 text-white" 
-                                    : "bg-indigo-100 text-indigo-800 hover:bg-indigo-200 dark:bg-indigo-950 dark:text-indigo-200 dark:hover:bg-indigo-900"
-                                )}
-                              >
-                                {formatDifficultyLabel(difficulty as DifficultyFilter)}
-                                {selectedDifficulties.includes(difficulty as ProblemDifficulty) && (
-                                  <Check className="h-3 w-3 ml-1.5" />
-                                )}
-                              </button>
-                            ))}
-                          </div>
+                  </div>
+                </CollapsibleTrigger>
+                <CollapsibleContent className="border-t border-border/40 pt-2 px-3 pb-4 space-y-4">
+                  <div>
+                    <div className="grid grid-cols-2 gap-4 pt-2">
+                      <div className="space-y-2">
+                        <div className="flex items-center">
+                          <Hash className="h-4 w-4 mr-2 text-indigo-500" />
+                          <span className="text-sm font-medium font-sans">Difficulty</span>
                         </div>
-
-                        <div className="space-y-2">
-                          <div className="flex items-center">
-                            <CheckCircle2 className="h-4 w-4 mr-2 text-emerald-500" />
-                            <span className="text-sm font-medium font-sans">Status</span>
-                          </div>
-                          <div className="flex gap-2">
+                        <div className="flex flex-wrap gap-2">
+                          {difficulties.map(difficulty => (
                             <button
-                              onClick={() => setSelectedStatus("all")}
+                              key={difficulty}
+                              onClick={() => toggleDifficulty(difficulty as ProblemDifficulty)}
                               className={cn(
                                 "flex items-center px-3 py-1 rounded-full text-sm font-sans",
-                                selectedStatus === "all"
-                                  ? "bg-emerald-500 text-white" 
-                                  : "bg-emerald-100 text-emerald-800 hover:bg-emerald-200 dark:bg-emerald-950 dark:text-emerald-200 dark:hover:bg-emerald-900"
+                                selectedDifficulties.includes(difficulty as ProblemDifficulty)
+                                  ? "bg-indigo-500 text-white" 
+                                  : "bg-indigo-100 text-indigo-800 hover:bg-indigo-200 dark:bg-indigo-950 dark:text-indigo-200 dark:hover:bg-indigo-900"
                               )}
                             >
-                              All
-                              {selectedStatus === "all" && <Check className="h-3 w-3 ml-1.5" />}
-                            </button>
-                            <button
-                              onClick={() => setSelectedStatus("completed")}
-                              className={cn(
-                                "flex items-center px-3 py-1 rounded-full text-sm font-sans",
-                                selectedStatus === "completed"
-                                  ? "bg-emerald-500 text-white" 
-                                  : "bg-emerald-100 text-emerald-800 hover:bg-emerald-200 dark:bg-emerald-950 dark:text-emerald-200 dark:hover:bg-emerald-900"
+                              {formatDifficultyLabel(difficulty as DifficultyFilter)}
+                              {selectedDifficulties.includes(difficulty as ProblemDifficulty) && (
+                                <Check className="h-3 w-3 ml-1.5" />
                               )}
-                            >
-                              Completed
-                              {selectedStatus === "completed" && <Check className="h-3 w-3 ml-1.5" />}
                             </button>
-                            <button
-                              onClick={() => setSelectedStatus("incomplete")}
-                              className={cn(
-                                "flex items-center px-3 py-1 rounded-full text-sm font-sans",
-                                selectedStatus === "incomplete"
-                                  ? "bg-emerald-500 text-white" 
-                                  : "bg-emerald-100 text-emerald-800 hover:bg-emerald-200 dark:bg-emerald-950 dark:text-emerald-200 dark:hover:bg-emerald-900"
-                              )}
-                            >
-                              Incomplete
-                              {selectedStatus === "incomplete" && <Check className="h-3 w-3 ml-1.5" />}
-                            </button>
-                          </div>
-                        </div>
-
-                        <div className="space-y-2">
-                          <div className="flex items-center">
-                            <PenSquare className="h-4 w-4 mr-2 text-amber-500" />
-                            <span className="text-sm font-medium font-sans">Type</span>
-                          </div>
-                          <div className="flex gap-2">
-                            <button
-                              onClick={() => setSelectedType("all")}
-                              className={cn(
-                                "flex items-center px-3 py-1 rounded-full text-sm font-sans",
-                                selectedType === "all"
-                                  ? "bg-amber-500 text-white" 
-                                  : "bg-amber-100 text-amber-800 hover:bg-amber-200 dark:bg-amber-950 dark:text-amber-200 dark:hover:bg-amber-900"
-                              )}
-                            >
-                              All
-                              {selectedType === "all" && <Check className="h-3 w-3 ml-1.5" />}
-                            </button>
-                            <button
-                              onClick={() => setSelectedType("coding")}
-                              className={cn(
-                                "flex items-center px-3 py-1 rounded-full text-sm font-sans",
-                                selectedType === "coding"
-                                  ? "bg-amber-500 text-white" 
-                                  : "bg-amber-100 text-amber-800 hover:bg-amber-200 dark:bg-amber-950 dark:text-amber-200 dark:hover:bg-amber-900"
-                              )}
-                            >
-                              Code
-                              {selectedType === "coding" && <Check className="h-3 w-3 ml-1.5" />}
-                            </button>
-                            <button
-                              onClick={() => setSelectedType("info")}
-                              className={cn(
-                                "flex items-center px-3 py-1 rounded-full text-sm font-sans",
-                                selectedType === "info"
-                                  ? "bg-amber-500 text-white" 
-                                  : "bg-amber-100 text-amber-800 hover:bg-amber-200 dark:bg-amber-950 dark:text-amber-200 dark:hover:bg-amber-900"
-                              )}
-                            >
-                              Info
-                              {selectedType === "info" && <Check className="h-3 w-3 ml-1.5" />}
-                            </button>
-                          </div>
-                        </div>
-
-                        <div className="space-y-2">
-                          <div className="flex items-center">
-                            <BookOpen className="h-4 w-4 mr-2 text-rose-500" />
-                            <span className="text-sm font-medium font-sans">Topics</span>
-                          </div>
-                          <div className="flex flex-wrap gap-2 max-h-24 overflow-y-auto pr-2">
-                            {topics.map(topic => (
-                              <button
-                                key={topic}
-                                onClick={() => toggleTopic(topic)}
-                                className={cn(
-                                  "flex items-center px-3 py-1 rounded-full text-sm font-sans",
-                                  selectedTopics.includes(topic)
-                                    ? "bg-rose-500 text-white" 
-                                    : "bg-rose-100 text-rose-800 hover:bg-rose-200 dark:bg-rose-950 dark:text-rose-200 dark:hover:bg-rose-900"
-                                )}
-                              >
-                                {topic}
-                                {selectedTopics.includes(topic) && (
-                                  <Check className="h-3 w-3 ml-1.5" />
-                                )}
-                              </button>
-                            ))}
-                          </div>
+                          ))}
                         </div>
                       </div>
 
-                      {hasAdvancedFilters && (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={resetAdvancedFilters}
-                          className="mt-2 font-sans text-sm"
-                        >
-                          <X className="h-4 w-4 mr-2" />
-                          Reset Filters
-                        </Button>
-                      )}
+                      <div className="space-y-2">
+                        <div className="flex items-center">
+                          <CheckCircle2 className="h-4 w-4 mr-2 text-emerald-500" />
+                          <span className="text-sm font-medium font-sans">Status</span>
+                        </div>
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => setSelectedStatus("all")}
+                            className={cn(
+                              "flex items-center px-3 py-1 rounded-full text-sm font-sans",
+                              selectedStatus === "all"
+                                ? "bg-emerald-500 text-white" 
+                                : "bg-emerald-100 text-emerald-800 hover:bg-emerald-200 dark:bg-emerald-950 dark:text-emerald-200 dark:hover:bg-emerald-900"
+                            )}
+                          >
+                            All
+                            {selectedStatus === "all" && <Check className="h-3 w-3 ml-1.5" />}
+                          </button>
+                          <button
+                            onClick={() => setSelectedStatus("completed")}
+                            className={cn(
+                              "flex items-center px-3 py-1 rounded-full text-sm font-sans",
+                              selectedStatus === "completed"
+                                ? "bg-emerald-500 text-white" 
+                                : "bg-emerald-100 text-emerald-800 hover:bg-emerald-200 dark:bg-emerald-950 dark:text-emerald-200 dark:hover:bg-emerald-900"
+                            )}
+                          >
+                            Completed
+                            {selectedStatus === "completed" && <Check className="h-3 w-3 ml-1.5" />}
+                          </button>
+                          <button
+                            onClick={() => setSelectedStatus("incomplete")}
+                            className={cn(
+                              "flex items-center px-3 py-1 rounded-full text-sm font-sans",
+                              selectedStatus === "incomplete"
+                                ? "bg-emerald-500 text-white" 
+                                : "bg-emerald-100 text-emerald-800 hover:bg-emerald-200 dark:bg-emerald-950 dark:text-emerald-200 dark:hover:bg-emerald-900"
+                            )}
+                          >
+                            Incomplete
+                            {selectedStatus === "incomplete" && <Check className="h-3 w-3 ml-1.5" />}
+                          </button>
+                        </div>
+                      </div>
 
-                      {hasAdvancedFilters && (
-                        <div className="flex flex-wrap gap-2 pt-2 border-t border-border/40">
-                          <span className="text-xs text-muted-foreground py-1">Active filters:</span>
-                          
-                          {selectedDifficulties.map(difficulty => (
-                            <Badge key={difficulty} variant="secondary" className="bg-indigo-100 text-indigo-800 dark:bg-indigo-950 dark:text-indigo-200">
-                              <span className="mr-1">Difficulty:</span>
-                              {formatDifficultyLabel(difficulty as DifficultyFilter)}
-                              <button 
-                                className="ml-1 hover:text-destructive" 
-                                onClick={() => toggleDifficulty(difficulty)}
-                              >
-                                <X className="h-3 w-3" />
-                              </button>
-                            </Badge>
-                          ))}
-                          
-                          {selectedStatus !== 'all' && (
-                            <Badge variant="secondary" className="bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-200">
-                              <span className="mr-1">Status:</span>
-                              {selectedStatus === 'completed' ? 'Completed' : 'Incomplete'}
-                              <button 
-                                className="ml-1 hover:text-destructive" 
-                                onClick={() => setSelectedStatus('all')}
-                              >
-                                <X className="h-3 w-3" />
-                              </button>
-                            </Badge>
-                          )}
-                          
-                          {selectedType !== 'all' && (
-                            <Badge variant="secondary" className="bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-200">
-                              <span className="mr-1">Type:</span>
-                              {selectedType === 'coding' ? 'Code Exercise' : 'Reading/Info'}
-                              <button 
-                                className="ml-1 hover:text-destructive" 
-                                onClick={() => setSelectedType('all')}
-                              >
-                                <X className="h-3 w-3" />
-                              </button>
-                            </Badge>
-                          )}
-                          
-                          {selectedTopics.map(topic => (
-                            <Badge key={topic} variant="secondary" className="bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-200">
-                              <span className="mr-1">Topic:</span>
+                      <div className="space-y-2">
+                        <div className="flex items-center">
+                          <PenSquare className="h-4 w-4 mr-2 text-amber-500" />
+                          <span className="text-sm font-medium font-sans">Type</span>
+                        </div>
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => setSelectedType("all")}
+                            className={cn(
+                              "flex items-center px-3 py-1 rounded-full text-sm font-sans",
+                              selectedType === "all"
+                                ? "bg-amber-500 text-white" 
+                                : "bg-amber-100 text-amber-800 hover:bg-amber-200 dark:bg-amber-950 dark:text-amber-200 dark:hover:bg-amber-900"
+                            )}
+                          >
+                            All
+                            {selectedType === "all" && <Check className="h-3 w-3 ml-1.5" />}
+                          </button>
+                          <button
+                            onClick={() => setSelectedType("coding")}
+                            className={cn(
+                              "flex items-center px-3 py-1 rounded-full text-sm font-sans",
+                              selectedType === "coding"
+                                ? "bg-amber-500 text-white" 
+                                : "bg-amber-100 text-amber-800 hover:bg-amber-200 dark:bg-amber-950 dark:text-amber-200 dark:hover:bg-amber-900"
+                            )}
+                          >
+                            Code
+                            {selectedType === "coding" && <Check className="h-3 w-3 ml-1.5" />}
+                          </button>
+                          <button
+                            onClick={() => setSelectedType("info")}
+                            className={cn(
+                              "flex items-center px-3 py-1 rounded-full text-sm font-sans",
+                              selectedType === "info"
+                                ? "bg-amber-500 text-white" 
+                                : "bg-amber-100 text-amber-800 hover:bg-amber-200 dark:bg-amber-950 dark:text-amber-200 dark:hover:bg-amber-900"
+                            )}
+                          >
+                            Info
+                            {selectedType === "info" && <Check className="h-3 w-3 ml-1.5" />}
+                          </button>
+                        </div>
+                      </div>
+
+                      <div className="space-y-2">
+                        <div className="flex items-center">
+                          <BookOpen className="h-4 w-4 mr-2 text-rose-500" />
+                          <span className="text-sm font-medium font-sans">Topics</span>
+                        </div>
+                        <div className="flex flex-wrap gap-2 max-h-24 overflow-y-auto pr-2">
+                          {topics.map(topic => (
+                            <button
+                              key={topic}
+                              onClick={() => toggleTopic(topic)}
+                              className={cn(
+                                "flex items-center px-3 py-1 rounded-full text-sm font-sans",
+                                selectedTopics.includes(topic)
+                                  ? "bg-rose-500 text-white" 
+                                  : "bg-rose-100 text-rose-800 hover:bg-rose-200 dark:bg-rose-950 dark:text-rose-200 dark:hover:bg-rose-900"
+                              )}
+                            >
                               {topic}
-                              <button 
-                                className="ml-1 hover:text-destructive" 
-                                onClick={() => toggleTopic(topic)}
-                              >
-                                <X className="h-3 w-3" />
-                              </button>
-                            </Badge>
+                              {selectedTopics.includes(topic) && (
+                                <Check className="h-3 w-3 ml-1.5" />
+                              )}
+                            </button>
                           ))}
                         </div>
-                      )}
+                      </div>
                     </div>
-                  </CollapsibleContent>
-                </div>
-              </Collapsible>
 
-              <div className="mt-2">
-                {filteredProblems.length > 0 ? (
-                  <ProblemList 
-                    problems={filteredProblems} 
-                    onProblemStart={handleProblemStart} 
-                    hideHeader={true} 
-                    onShuffleClick={shuffleProblems}
-                    isShuffling={isShuffling}
-                    shuffleDisabled={shuffleableFilteredProblems.length === 0}
-                  />
-                ) : (
-                  <p className="text-center text-muted-foreground font-sans">No problems found.</p>
-                )}
+                    {hasAdvancedFilters && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={resetAdvancedFilters}
+                        className="mt-2 font-sans text-sm"
+                      >
+                        <X className="h-4 w-4 mr-2" />
+                        Reset Filters
+                      </Button>
+                    )}
+
+                    {hasAdvancedFilters && (
+                      <div className="flex flex-wrap gap-2 pt-2 border-t border-border/40">
+                        <span className="text-xs text-muted-foreground py-1">Active filters:</span>
+                        
+                        {selectedDifficulties.map(difficulty => (
+                          <Badge key={difficulty} variant="secondary" className="bg-indigo-100 text-indigo-800 dark:bg-indigo-950 dark:text-indigo-200">
+                            <span className="mr-1">Difficulty:</span>
+                            {formatDifficultyLabel(difficulty as DifficultyFilter)}
+                            <button 
+                              className="ml-1 hover:text-destructive" 
+                              onClick={() => toggleDifficulty(difficulty)}
+                            >
+                              <X className="h-3 w-3" />
+                            </button>
+                          </Badge>
+                        ))}
+                        
+                        {selectedStatus !== 'all' && (
+                          <Badge variant="secondary" className="bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-200">
+                            <span className="mr-1">Status:</span>
+                            {selectedStatus === 'completed' ? 'Completed' : 'Incomplete'}
+                            <button 
+                              className="ml-1 hover:text-destructive" 
+                              onClick={() => setSelectedStatus('all')}
+                            >
+                              <X className="h-3 w-3" />
+                            </button>
+                          </Badge>
+                        )}
+                        
+                        {selectedType !== 'all' && (
+                          <Badge variant="secondary" className="bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-200">
+                            <span className="mr-1">Type:</span>
+                            {selectedType === 'coding' ? 'Code Exercise' : 'Reading/Info'}
+                            <button 
+                              className="ml-1 hover:text-destructive" 
+                              onClick={() => setSelectedType('all')}
+                            >
+                              <X className="h-3 w-3" />
+                            </button>
+                          </Badge>
+                        )}
+                        
+                        {selectedTopics.map(topic => (
+                          <Badge key={topic} variant="secondary" className="bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-200">
+                            <span className="mr-1">Topic:</span>
+                            {topic}
+                            <button 
+                              className="ml-1 hover:text-destructive" 
+                              onClick={() => toggleTopic(topic)}
+                            >
+                              <X className="h-3 w-3" />
+                            </button>
+                          </Badge>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </CollapsibleContent>
               </div>
+            </Collapsible>
+
+            <div className="mt-2">
+              {filteredProblems.length > 0 ? (
+                <ProblemList 
+                  problems={filteredProblems} 
+                  onProblemStart={handleProblemStart} 
+                  hideHeader={true} 
+                  onShuffleClick={shuffleProblems}
+                  isShuffling={isShuffling}
+                  shuffleDisabled={shuffleableFilteredProblems.length === 0}
+                />
+              ) : (
+                <p className="text-center text-muted-foreground font-sans">No problems found.</p>
+              )}
             </div>
           </div>
         </div>
       </div>
-    </div> /* End of outermost full-screen div */
+    </div>
   );
 } 

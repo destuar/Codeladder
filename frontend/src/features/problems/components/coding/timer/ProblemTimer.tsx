@@ -26,7 +26,7 @@ export function ProblemTimer({ className }: ProblemTimerProps) {
         variant={isRunning ? "default" : "outline"}
         size="sm"
         className={cn(
-          "gap-1 min-w-[90px] font-mono text-xs",
+          "gap-1 min-w-[90px] text-xs",
           isRunning && "bg-primary/10 text-primary hover:bg-primary/20"
         )}
         onClick={toggle}

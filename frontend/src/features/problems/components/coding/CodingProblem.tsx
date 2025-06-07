@@ -6,7 +6,7 @@ import { isMarkdown } from "@/lib/markdown-to-html";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from '@/lib/utils';
 import { Badge } from "@/components/ui/badge";
-import { Timer, RepeatIcon, FileText, Clipboard, History, BookCheck } from "lucide-react";
+import { Timer, RepeatIcon, FileText, Clipboard, History, BookCheck, Play, Send, Loader2 } from "lucide-react";
 import { CodingProblemProps } from '../../types';
 import { ResizablePanel } from './ResizablePanel';
 import { ProblemTimer } from './timer/ProblemTimer';
@@ -100,6 +100,7 @@ export default function CodingProblem({
   });
   const [code, setCode] = useState('');
   const [isRunning, setIsRunning] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const editorRef = useRef<any>(null);
   const [leftPanelTab, setLeftPanelTab] = useState("description");
   const [functionParams, setFunctionParams] = useState<{ name: string; type: string }[]>(() => {
@@ -218,6 +219,25 @@ export default function CodingProblem({
     return { reference, explanation: null };
 
   }, [codeProblem, selectedLanguage]);
+
+  const handleRunClick = () => {
+    setIsSubmitting(false);
+    document.querySelector<HTMLButtonElement>('[data-testrunner-run-button]')?.click();
+  };
+
+  const handleSubmitClick = () => {
+    setIsSubmitting(true);
+    document.querySelector<HTMLButtonElement>('[data-testrunner-submit-button]')?.click();
+  };
+
+  const handleSubmissionComplete = () => {
+    setIsSubmitting(false);
+  };
+
+  const handleResetCode = () => {
+    const template = getLanguageTemplate(codeProblem, selectedLanguage);
+    setCode(template);
+  };
 
   return (
     <div className={cn(
@@ -387,21 +407,10 @@ export default function CodingProblem({
                   language={selectedLanguage}
                   onLanguageChange={handleLanguageChange}
                   ref={editorRef}
-                  onRunTests={() => {
-                    // Use the data attribute to click the hidden button
-                    const testRunnerElement = document.querySelector('[data-testrunner-run-button]');
-                    if (testRunnerElement) {
-                      (testRunnerElement as HTMLButtonElement).click();
-                    }
-                  }}
-                  onSubmitSolution={() => {
-                    // Use the data attribute to click the hidden button
-                    const testRunnerElement = document.querySelector('[data-testrunner-submit-button]');
-                    if (testRunnerElement) {
-                      (testRunnerElement as HTMLButtonElement).click();
-                    }
-                  }}
+                  onRunTests={handleRunClick}
+                  onSubmitSolution={handleSubmitClick}
                   isRunning={isRunning}
+                  isSubmitting={isSubmitting}
                 />
               </div>
             </Resizable>
@@ -412,23 +421,33 @@ export default function CodingProblem({
                 code={code}
                 officialTestCases={parsedOfficialTestCases}
                 problemId={problemId}
-                onRunComplete={() => {}}
-                onAllTestsPassed={() => {
-                  if (!hookIsCompleted) {
-                    logger.debug('All tests passed, automatically marking problem as complete');
-                    hookHandleMarkComplete();
-                    toast.success('Congratulations! All tests passed. Problem automatically marked as complete! 🎉');
-                  }
-                }}
+                onAllTestsPassed={hookHandleMarkComplete}
                 language={selectedLanguage}
                 isRunning={isRunning}
                 setIsRunning={setIsRunning}
                 functionParams={functionParams}
+                onSubmissionComplete={handleSubmissionComplete}
               />
             </div>
           </div>
         </div>
       </div>
+
+      {/* Reset code dialog */}
+      <AlertDialog open={false} onOpenChange={() => {}}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Reset Code</AlertDialogTitle>
+            <AlertDialogDescription>
+              <p>This will reset your code to the default template. Are you sure?</p>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleResetCode}>Reset</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 } 

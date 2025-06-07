@@ -753,371 +753,126 @@ router.post('/', authenticateToken, authorizeRoles([Role.ADMIN, Role.DEVELOPER])
 
 // Update a problem (admin only)
 router.put('/:problemId', authenticateToken, authorizeRoles([Role.ADMIN, Role.DEVELOPER]), (async (req, res) => {
-  const { problemId } = req.params;
-  const {
-    name,
-    content,
-    difficulty,
-    required,
-    reqOrder,
-    problemType, // Type might be updated
-    collectionIds,
-    testCases: testCasesRaw,
-    estimatedTime,
-    functionName,
-    timeLimit,
-    memoryLimit,
-    return_type,
-    params,
-    defaultLanguage,
-    languageSupport: languageSupportRaw
-  } = req.body as UpdateProblemBody;
-
   try {
-    // Fetch the current problem state, INCLUDING the codeProblem relation
-    const currentProblem = await prisma.problem.findUniqueOrThrow({
-      where: { id: problemId },
-      include: { 
-        collections: true,
-        codeProblem: true
-      } 
-    });
-
-    console.log('Updating problem with ID:', problemId);
-    console.log('Request body:', {
-      name,
-      content: content ? `${content.substring(0, 20)}...` : undefined,
-      difficulty,
-      required,
-      reqOrder,
-      problemType,
+    const { problemId } = req.params;
+    const {
       collectionIds,
-      testCases: testCasesRaw ? 'Provided' : undefined,
-      estimatedTime,
-      functionName: problemType === 'CODING' ? functionName : undefined,
-      timeLimit: problemType === 'CODING' ? timeLimit : undefined,
-      memoryLimit: problemType === 'CODING' ? memoryLimit : undefined,
-      return_type: return_type ? 'Provided' : undefined,
-      params: params ? 'Provided' : undefined,
-      defaultLanguage: problemType === 'CODING' ? defaultLanguage : undefined,
-      languageSupport: problemType === 'CODING' ? languageSupportRaw : undefined
+      topicId,
+      codeProblem: codeProblemPayload,
+      ...rest
+    } = req.body;
+
+    const existingProblem = await prisma.problem.findUnique({
+      where: { id: problemId },
+      include: { codeProblem: true }
     });
 
-    // Check for duplicate order number if reqOrder is provided and different from current
-    if (reqOrder && reqOrder !== currentProblem.reqOrder) {
-      const existingProblem = await prisma.problem.findFirst({
-        where: {
-          topicId: currentProblem.topicId,
-          reqOrder,
-          id: { not: problemId } // Exclude the current problem from the check
-        }
-      });
-
-      if (existingProblem) {
-        return res.status(400).json({ 
-          error: 'Order number already exists',
-          details: `Problem "${existingProblem.name}" already has order number ${reqOrder}`
-        });
-      }
+    if (!existingProblem) {
+      return res.status(404).json({ error: 'Problem not found' });
     }
 
-    // Parse test cases if provided
-    let parsedTestCases: any[] = [];
-    if (testCasesRaw) {
-      if (typeof testCasesRaw === 'string') {
-        try {
-          parsedTestCases = JSON.parse(testCasesRaw);
-        } catch (error) {
-          console.error('Error parsing testCases in update:', error);
-          return res.status(400).json({ error: 'Invalid test cases format' });
-        }
-      } else if (Array.isArray(testCasesRaw)) {
-        parsedTestCases = testCasesRaw;
-      }
-    }
-
-    // Normalize each test case
-    parsedTestCases = parsedTestCases.map(normalizeTestCase);
-
-    // Parse estimatedTime
-    const parsedEstimatedTime = estimatedTime ? parseInt(estimatedTime.toString()) : null;
-    if (estimatedTime && isNaN(parsedEstimatedTime!)) {
-      return res.status(400).json({ error: 'Estimated time must be a valid number' });
-    }
-
-    const updatedProblem = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
-      let finalCodeProblemId: string | null = null;
-      let existingCodeProblem: any = null;
-
-      // Determine the effective problem type (use new if provided, else keep current)
-      const effectiveProblemType = problemType ?? currentProblem.problemType;
-
-      // --- Handle Type-Specific Relations ---
-
-      // Handle CodeProblem logic if the effective type is CODING
-      if (effectiveProblemType === 'CODING') {
-        existingCodeProblem = await tx.codeProblem.findUnique({ where: { problemId: problemId }});
-        
-        const finalLanguageSupportOnUpdate = prepareLanguageSupport(languageSupportRaw || '{}', defaultLanguage);
-
-        if (existingCodeProblem) {
-          // Update existing CodeProblem
-          const codeProblemId = existingCodeProblem.id;
-          
-          const updateData: any = {
-            ...(defaultLanguage !== undefined && { defaultLanguage }),
-            languageSupport: finalLanguageSupportOnUpdate,
-            ...(functionName !== undefined && { functionName }),
-            ...(timeLimit !== undefined && { timeLimit: parseInt(timeLimit.toString()) }),
-            ...(memoryLimit !== undefined && { memoryLimit: memoryLimit ? parseInt(memoryLimit.toString()) : null }),
-          };
-
-          // Add the new JSON fields with type assertion
-          if (return_type !== undefined) {
-            updateData.return_type = return_type;
-          }
-          if (params !== undefined) {
-            updateData.params = typeof params === 'string' ? params : JSON.stringify(params);
-          }
-          if (parsedTestCases) {
-            updateData.test_cases = JSON.stringify(parsedTestCases);
-          }
-          
-          await tx.codeProblem.update({
-            where: { id: codeProblemId },
-            data: updateData
-          });
-          
-          // For test case deletion
-          if (finalCodeProblemId) {
-            await tx.testCase.deleteMany({ 
-              where: { 
-                codeProblemId: finalCodeProblemId 
-              } 
-            });
-            
-            // Create new test cases if provided
-            if (parsedTestCases && Array.isArray(parsedTestCases) && parsedTestCases.length > 0) {
-              const testCaseData = parsedTestCases.map((tc: any, index: number) => ({
-                codeProblemId: finalCodeProblemId!, 
-                input: tc.input,
-                expectedOutput: tc.expectedOutput,
-                isHidden: tc.isHidden || false,
-                orderNum: tc.orderNum || index + 1
-              }));
-              await tx.testCase.createMany({ data: testCaseData });
-            }
-          }
-        } else {
-          // Create new CodeProblem
-          const codeProblemData: any = {
-            defaultLanguage: defaultLanguage ?? 'python',
-            languageSupport: finalLanguageSupportOnUpdate,
-            functionName: functionName ?? null,
-            timeLimit: timeLimit ? parseInt(timeLimit.toString()) : 5000,
-            memoryLimit: memoryLimit ? parseInt(memoryLimit.toString()) : null,
-            problemId: problemId,
-            testCases: {
-              create: parsedTestCases.map((tc: any, index: number) => ({
-                input: tc.input,
-                expectedOutput: tc.expectedOutput,
-                isHidden: tc.isHidden || false,
-                orderNum: tc.orderNum || index + 1
-              }))
-            }
-          };
-
-          // Add the new JSON fields outside of the TypeScript type system
-          if (return_type) {
-            codeProblemData.return_type = return_type;
-          }
-          if (params) {
-            codeProblemData.params = typeof params === 'string' ? params : JSON.stringify(params);
-          }
-          if (parsedTestCases && parsedTestCases.length > 0) {
-            codeProblemData.test_cases = JSON.stringify(parsedTestCases);
-          }
-
-          const newCodeProblem = await tx.codeProblem.create({
-            data: codeProblemData
-          });
-          
-          // Access ID safely with type casting
-          const newCodeProblemObj = newCodeProblem as any;
-          finalCodeProblemId = newCodeProblemObj.questionId || newCodeProblemObj.id || newCodeProblemObj.problemId;
-        }
-      } else if (effectiveProblemType === 'INFO') {
-        // Handle InfoProblem logic if the effective type is INFO
-        // If type changed TO INFO, delete any existing CodeProblem
-        if (currentProblem.codeProblem) {
-          // Type cast for safe property access
-          const codeProblemObj = currentProblem.codeProblem as any;
-          const whereClause: any = {};
-          
-          // Delete test cases first (use a safe codeProblemId access)
-          const codeProblemId = codeProblemObj.questionId || codeProblemObj.id || codeProblemObj.problemId;
-          if (codeProblemId) {
-            await tx.testCase.deleteMany({ where: { codeProblemId }});
-          }
-          
-          // Build a safe where clause for deletion
-          if (codeProblemObj.questionId) whereClause.questionId = codeProblemObj.questionId;
-          if (codeProblemObj.id) whereClause.id = codeProblemObj.id;
-          if (codeProblemObj.problemId) whereClause.problemId = codeProblemObj.problemId;
-          
-          // Delete the code problem
-          await tx.codeProblem.delete({ where: whereClause });
-        }
-      } else {
-         // If type is neither CODING nor INFO (e.g., STANDALONE_INFO or type removed)
-         // Delete both related records if they exist
-         if (currentProblem.codeProblem) {
-             // Type cast for safe property access
-             const codeProblemObj = currentProblem.codeProblem as any;
-             const whereClause: any = {};
-             
-             // Delete test cases first (use a safe codeProblemId access)
-             const codeProblemId = codeProblemObj.questionId || codeProblemObj.id || codeProblemObj.problemId;
-             if (codeProblemId) {
-               await tx.testCase.deleteMany({ where: { codeProblemId }});
-             }
-             
-             // Build a safe where clause for deletion
-             if (codeProblemObj.questionId) whereClause.questionId = codeProblemObj.questionId;
-             if (codeProblemObj.id) whereClause.id = codeProblemObj.id;
-             if (codeProblemObj.problemId) whereClause.problemId = codeProblemObj.problemId;
-             
-             // Delete the code problem
-             await tx.codeProblem.delete({ where: whereClause });
-         }
-      }
-      // --- End of Type-Specific Relations Handling ---
-
-      // --- Prepare Problem Update Data ---
-      const problemUpdateData: Prisma.ProblemUpdateInput = {
-        ...(name !== undefined && { name }),
-        ...(difficulty !== undefined && { difficulty }),
-        ...(required !== undefined && { required }),
-        ...(reqOrder !== undefined && { reqOrder }),
-        ...(problemType !== undefined && { problemType: effectiveProblemType }), // Use effective type
-        ...(estimatedTime !== undefined && { estimatedTime: parsedEstimatedTime }),
-        ...(req.body.slug !== undefined && { slug: req.body.slug }),
-        ...(content !== undefined && { content: content }),
-      };
-
-      // --- Handle Connections/Disconnections for Relations ---
-      if (effectiveProblemType === 'CODING' && finalCodeProblemId) {
-        // Connect using the id field - use type assertion to work around TS errors
-        (problemUpdateData.codeProblem as any) = { 
-          connect: { id: finalCodeProblemId } 
-        };
-      } else { 
-        // Disconnect codeProblem if type is neither or related record wasn't created/found
-        if (currentProblem.codeProblem) problemUpdateData.codeProblem = { disconnect: true };
-      }
-       
-      // Perform the actual Problem update
-      const problem = await tx.problem.update({
-        where: { id: problemId },
-        data: problemUpdateData,
-        include: { // Include necessary relations for the response/collection logic
-          collections: {
-            include: {
-              collection: true
-            }
-          },
-          codeProblem: { // Include the potentially updated/connected codeProblem
-            include: {
-              testCases: true
-            }
-          },
-        }
-      });
-      
-      console.log(`Problem updated successfully. ID: ${problem.id}`);
-
-      // 2. Update collection relationships if collectionIds is provided
-      if (collectionIds !== undefined) {
-        // Get current collection IDs for comparisons
-        const currentCollectionIds = problem.collections.map((pc: { collectionId: string }) => pc.collectionId);
-        
-        // Find collections to add and remove
-        const collectionsToAdd = collectionIds.filter(id => !currentCollectionIds.includes(id));
-        const collectionsToRemove = currentCollectionIds.filter((id: string) => !collectionIds.includes(id));
-        
-        console.log(`Collections to add: ${collectionsToAdd.length}, to remove: ${collectionsToRemove.length}`);
-        
-        // Remove old relationships
-        if (collectionsToRemove.length > 0) {
-          await tx.problemToCollection.deleteMany({
-            where: {
-              problemId,
-              collectionId: {
-                in: collectionsToRemove
-              }
-            }
-          });
-          console.log(`Removed ${collectionsToRemove.length} collection relationships`);
-        }
-        
-        // Add new relationships
-        if (collectionsToAdd.length > 0) {
-          // Check that all collections exist first
-          for (const collectionId of collectionsToAdd) {
-            const exists = await tx.collection.findUnique({
-              where: { id: collectionId },
-              select: { id: true }
-            });
-            
-            if (!exists) {
-              throw new Error(`Collection ID ${collectionId} does not exist`);
-            }
-          }
-          
-          // Create the new relationships
-          await tx.problemToCollection.createMany({
-            data: collectionsToAdd.map(collectionId => ({
-              problemId,
-              collectionId
-            })),
-            skipDuplicates: true
-          });
-          console.log(`Added ${collectionsToAdd.length} new collection relationships`);
-        }
-        
-        // Get the updated problem with collections
-        return await tx.problem.findUnique({
-          where: { id: problem.id },
-          include: {
-            collections: {
-              include: {
-                collection: true
-              }
-            },
-            codeProblem: {
-              include: {
-                testCases: true
-              }
-            },
-          }
-        });
-      }
-      
-      // If no collection updates needed, return the problem with collections
-      return problem;
-    });
-    
-    // Transform collections for the response
-    const responseData = {
-      ...updatedProblem,
-      collectionIds: updatedProblem?.collections.map((pc: { collection: { id: string } }) => pc.collection.id) || [],
-      collections: undefined // Remove collections from the response
+    const problemData: Prisma.ProblemUpdateInput = {
+      name: rest.name,
+      content: rest.content,
+      difficulty: rest.difficulty,
+      required: rest.required,
+      reqOrder: rest.reqOrder,
+      problemType: rest.problemType,
+      estimatedTime: rest.estimatedTime ? parseInt(String(rest.estimatedTime)) : undefined,
+      slug: rest.slug,
     };
     
-    res.json(responseData);
+    Object.keys(problemData).forEach(key => {
+      const k = key as keyof Prisma.ProblemUpdateInput;
+      if (problemData[k] === undefined) {
+        delete problemData[k];
+      }
+    });
+
+    let codeProblemUpdateData: Prisma.CodeProblemUpdateInput | undefined = undefined;
+
+    if (existingProblem.problemType === ProblemType.CODING && codeProblemPayload) {
+      const testCasesRaw = codeProblemPayload.testCases || [];
+      const parsedTestCases = (Array.isArray(testCasesRaw) ? testCasesRaw : []).map(normalizeTestCase);
+      
+      const languageSupport = prepareLanguageSupport(
+        codeProblemPayload.languageSupport || {},
+        codeProblemPayload.defaultLanguage
+      );
+
+      codeProblemUpdateData = {
+        functionName: codeProblemPayload.functionName,
+        timeLimit: codeProblemPayload.timeLimit ? parseInt(String(codeProblemPayload.timeLimit)) : undefined,
+        memoryLimit: codeProblemPayload.memoryLimit ? parseInt(String(codeProblemPayload.memoryLimit)) : undefined,
+        return_type: codeProblemPayload.return_type,
+        params: typeof codeProblemPayload.params === 'object' ? JSON.stringify(codeProblemPayload.params) : codeProblemPayload.params,
+        defaultLanguage: codeProblemPayload.defaultLanguage,
+        languageSupport: languageSupport,
+        testCases: {
+          deleteMany: {},
+          create: parsedTestCases,
+        },
+      };
+    }
+
+    await prisma.$transaction(async (tx) => {
+      await tx.problem.update({
+        where: { id: problemId },
+        data: problemData,
+      });
+
+      if (codeProblemUpdateData && existingProblem.codeProblem) {
+        await tx.codeProblem.update({
+          where: { id: existingProblem.codeProblem.id },
+          data: codeProblemUpdateData,
+        });
+      }
+      
+      if (collectionIds && Array.isArray(collectionIds)) {
+        await tx.problemToCollection.deleteMany({
+          where: { problemId: problemId },
+        });
+
+        if (collectionIds.length > 0) {
+          await tx.problemToCollection.createMany({
+            data: collectionIds.map((id: string) => ({
+              problemId: problemId,
+              collectionId: id,
+            })),
+          });
+        }
+      }
+
+      if (topicId !== undefined) {
+        await tx.problem.update({
+          where: { id: problemId },
+          data: { topic: topicId ? { connect: { id: topicId } } : { disconnect: true } },
+        });
+      }
+    });
+
+    const finalProblem = await prisma.problem.findUnique({
+      where: { id: problemId },
+      include: {
+        topic: true,
+        collections: { include: { collection: true } },
+        codeProblem: { include: { testCases: true } },
+      },
+    });
+
+    res.status(200).json(finalProblem);
   } catch (error) {
-    console.error('Error updating problem:', error);
-    res.status(500).json({ error: 'Failed to update problem' });
+    console.error("Detailed error updating problem:", error);
+    if (error instanceof Prisma.PrismaClientKnownRequestError) {
+      if (error.code === 'P2002') {
+        return res.status(409).json({ error: 'A problem with this slug already exists.', details: error.meta });
+      }
+      return res.status(500).json({
+        error: 'Failed to update problem due to a database constraint.',
+        details: { code: error.code, meta: error.meta }
+      });
+    }
+    res.status(500).json({ error: 'Failed to update problem', details: String(error) });
   }
 }) as RequestHandler);
 

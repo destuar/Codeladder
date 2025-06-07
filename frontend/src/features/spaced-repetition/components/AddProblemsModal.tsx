@@ -29,7 +29,7 @@ import { Plus, Check } from 'lucide-react';
 import { toast } from '@/components/ui/use-toast';
 import { Difficulty } from '@/features/problems/types';
 import { DifficultyBadge } from '@/features/problems/components/DifficultyBadge';
-import { LoadingCard, LoadingSpinner } from '@/components/ui/loading-spinner';
+import { LoadingSpinner } from '@/components/ui/loading-spinner';
 
 interface Problem {
   id: string;
@@ -156,7 +156,7 @@ export function AddProblemsModal({ isOpen, onClose }: AddProblemsModalProps) {
         <div className="flex-1 overflow-auto">
           {isLoading ? (
             <div className="flex items-center justify-center py-8">
-              <LoadingCard text="Loading problems..." />
+              <LoadingSpinner text="Loading problems..." size="lg" />
             </div>
           ) : filteredProblems.length === 0 ? (
             <div className="text-center py-12 text-muted-foreground">

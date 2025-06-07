@@ -18,7 +18,7 @@ import { RefreshCw, PlusCircle, Edit, Trash2, FileQuestion, Plus, Award, Clock, 
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
-import { LoadingSpinner, LoadingCard } from '@/components/ui/loading-spinner';
+import { LoadingSpinner, LoadingCard, PageLoadingSpinner } from '@/components/ui/loading-spinner';
 
 // Define interfaces for Topic and Level
 interface Topic {
@@ -289,7 +289,7 @@ export function QuizAdmin() {
     setIsEditMode(false);
     setSelectedQuiz(null);
     setQuizProblems([]);
-    setInitialQuizProblems([]); // Reset initial state too
+    setInitialQuizProblems([]); // Reset initial problems too
     setShowQuizDialog(true);
   };
 
@@ -762,6 +762,24 @@ export function QuizAdmin() {
   };
 
   // --- RENDER LOGIC (Mostly Unchanged) ---
+  if (isLoading) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle>Quizzes</CardTitle>
+          <CardDescription>
+            Manage quizzes for each topic in the learning path.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="flex items-center justify-center p-8 bg-background min-h-[400px]">
+            <PageLoadingSpinner />
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -789,7 +807,7 @@ export function QuizAdmin() {
       {/* Loading State */}
       {isLoading ? (
         <div className="flex flex-col items-center justify-center p-8 space-y-4">
-          <LoadingCard text="Loading quizzes..." />
+          <LoadingSpinner />
         </div>
       ) : levels.length === 0 ? (
         // No levels found
@@ -840,110 +858,64 @@ export function QuizAdmin() {
                         </div>
                       </CardHeader>
                       <CardContent className="p-3 min-h-[80px]"> {/* Adjusted padding/min-h */}
-                        {isLoadingQuizzes[topic.id] ? (
-                          <div className="flex justify-center items-center h-full">
-                             <RefreshCw className="h-5 w-5 animate-spin text-muted-foreground" />
-                          </div>
-                        ) : fetchErrors[topic.id] ? (
-                          <div className="flex flex-col items-center justify-center p-4 border border-destructive/50 bg-destructive/10 rounded-lg gap-2">
-                            <p className="text-destructive text-center text-sm">
-                              {fetchErrors[topic.id]}
-                            </p>
-                            <Button 
-                              variant="destructive" 
-                              size="sm"
-                              onClick={() => fetchQuizzesForTopic(topic.id)}
-                            >
-                              <RefreshCw className="h-4 w-4 mr-1" />
-                              Retry
-                            </Button>
-                          </div>
-                        ) : (quizzesByTopic[topic.id] && quizzesByTopic[topic.id].length > 0) ? (
-                          <div className="space-y-2"> {/* Adjusted spacing */}
-                            {quizzesByTopic[topic.id].map((quiz) => (
-                              <div 
-                                key={quiz.id} 
-                                className="flex items-center justify-between p-2 border rounded-lg hover:bg-accent/50 transition-colors"
-                              >
-                                <div className="space-y-0.5 flex-grow mr-2">
-                                  {/* Keep Quiz Name */}
-                                  <div className="font-medium text-sm">{quiz.name}</div>
-                                  
-                                  {/* === Start Replacement === */}
-                                  <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground"> 
-                                    {/* Passing Score */}
-                                    <div className="flex items-center">
-                                      <Award className="h-3.5 w-3.5 mr-1" />
-                                      <span>Pass: {quiz.passingScore}%</span>
-                                    </div>
-                                    
-                                    {/* Estimated Time */}
-                                    {quiz.estimatedTime && (
-                                      <div className="flex items-center">
-                                        <Clock className="h-3.5 w-3.5 mr-1" />
-                                        <span>{formatTime(quiz.estimatedTime)}</span>
-                                      </div>
-                                    )}
-                                    
-                                    {/* Question Count */}
-                                    <div className="flex items-center">
-                                      <MessageSquare className="h-3.5 w-3.5 mr-1" />
-                                      <span>
-                                        {quiz._count?.questions || 0} {(quiz._count?.questions || 0) === 1 ? 'Question' : 'Questions'}
-                                      </span>
-                                    </div>
-                                  </div>
-                                  {/* === End Replacement === */}
-
-                                  {/* Keep Quiz Description */}
-                                  {quiz.description && (
+                        <div className="p-4 bg-muted/30 rounded-lg space-y-2">
+                          {isLoadingQuizzes[topic.id] ? (
+                            <div className="flex items-center justify-center py-4">
+                              <LoadingSpinner text="Loading..." />
+                            </div>
+                          ) : quizzesByTopic[topic.id] && quizzesByTopic[topic.id].length > 0 ? (
+                            quizzesByTopic[topic.id].map((quiz) => (
+                              <Card key={quiz.id} className="bg-background/70">
+                                <CardHeader className="flex flex-row items-center justify-between space-y-0 p-2">
+                                  <div className="space-y-0.5 flex-grow mr-2">
+                                    <div className="font-medium text-sm">{quiz.name}</div>
                                     <div className="text-xs text-muted-foreground pt-1">
                                       {quiz.description}
                                     </div>
-                                  )}
-                                </div>
-                                <div className="flex gap-1 flex-shrink-0"> {/* Adjusted gap */}
-                                  <Button 
-                                    variant="ghost" 
-                                    size="sm" // Consistent size
-                                    className="h-7 px-2" // Smaller padding
-                                    onClick={() => handleEditQuiz(quiz, topic)}
-                                  >
-                                    <Edit className="h-3.5 w-3.5 mr-1" /> {/* Adjusted size */}
-                                    Edit
-                                  </Button>
-                                  <Button 
-                                    variant="ghost" 
-                                    size="sm" // Consistent size
-                                    className="text-destructive hover:text-destructive h-7 px-2" // Smaller padding
-                                    onClick={() => handleDeleteClick(quiz)}
-                                  >
-                                    <Trash2 className="h-3.5 w-3.5 mr-1" /> {/* Adjusted size */}
-                                    Delete
-                                  </Button>
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                        ) : (
-                          <div className="flex flex-col items-center justify-center h-full text-center py-4">
-                            <FileQuestion className="h-8 w-8 text-muted-foreground mb-2" /> {/* Adjusted size */}
-                            <p className="text-sm font-medium text-muted-foreground mb-1">
-                              No quizzes added yet.
-                            </p>
-                            <p className="text-xs text-muted-foreground mb-2"> {/* Adjusted margin */}
-                              Add a quiz to this topic using the button above.
-                            </p>
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => handleAddQuiz(topic)}
-                            >
-                              <Plus className="h-4 w-4 mr-1" />
-                              Add First Quiz
-                            </Button>
-                          </div>
-                        )}
+                                  </div>
+                                  <div className="flex gap-1 flex-shrink-0">
+                                    <Button 
+                                      variant="ghost" 
+                                      size="sm"
+                                      className="h-7 px-2"
+                                      onClick={() => handleEditQuiz(quiz, topic)}
+                                    >
+                                      <Edit className="h-3.5 w-3.5 mr-1" />
+                                      Edit
+                                    </Button>
+                                    <Button 
+                                      variant="ghost" 
+                                      size="sm"
+                                      className="text-destructive hover:text-destructive h-7 px-2"
+                                      onClick={() => handleDeleteClick(quiz)}
+                                    >
+                                      <Trash2 className="h-3.5 w-3.5 mr-1" />
+                                      Delete
+                                    </Button>
+                                  </div>
+                                </CardHeader>
+                              </Card>
+                            ))
+                          ) : (
+                            <div className="flex flex-col items-center justify-center h-full text-center py-4">
+                              <FileQuestion className="h-8 w-8 text-muted-foreground mb-2" />
+                              <p className="text-sm font-medium text-muted-foreground mb-1">
+                                No quizzes added yet.
+                              </p>
+                              <p className="text-xs text-muted-foreground mb-2">
+                                Add a quiz to this topic using the button above.
+                              </p>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => handleAddQuiz(topic)}
+                              >
+                                <Plus className="h-4 w-4 mr-1" />
+                                Add First Quiz
+                              </Button>
+                            </div>
+                          )}
+                        </div>
                       </CardContent>
                     </Card>
                   ))}
@@ -1005,7 +977,7 @@ export function QuizAdmin() {
                     <div {...provided.droppableProps} ref={provided.innerRef} className="space-y-3 min-h-[150px]"> {/* Added min-h */}
                       {isLoadingProblems ? (
                         <div className="flex flex-col items-center justify-center p-6 text-muted-foreground">
-                          <LoadingCard />
+                          <LoadingSpinner />
                         </div>
                       ) : quizProblems.length > 0 ? (
                         quizProblems.map((problem, index) => (

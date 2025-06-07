@@ -30,7 +30,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { AddProblemsModal } from './AddProblemsModal';
 import { cn } from '@/lib/utils';
-import { LoadingSpinner, LoadingCard } from '@/components/ui/loading-spinner';
+import { LoadingSpinner } from '@/components/ui/loading-spinner';
 
 /**
  * Panel component that displays problems due for review and allows users to start reviews
@@ -413,9 +413,12 @@ export function SpacedRepetitionPanel() {
       );
     }
     
-    // Default view showing all scheduled reviews
     if (isLoading) {
-      return <LoadingCard />;
+      return (
+        <div className="flex items-center justify-center p-8">
+          <LoadingSpinner text="Loading reviews..." size="lg" />
+        </div>
+      );
     }
     
     if (!allScheduledReviews) {

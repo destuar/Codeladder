@@ -19,6 +19,7 @@ interface TestRunnerProps {
   isRunning?: boolean;
   setIsRunning?: React.Dispatch<React.SetStateAction<boolean>>;
   functionParams?: { name: string; type: string }[];
+  onSubmissionComplete?: () => void;
 }
 
 /**
@@ -33,7 +34,8 @@ export function TestRunner({
   language,
   isRunning: externalIsRunning,
   setIsRunning: externalSetIsRunning,
-  functionParams
+  functionParams,
+  onSubmissionComplete
 }: TestRunnerProps) {
   const [activeTab, setActiveTab] = useState("testcase");
   const [selectedTestCase, setSelectedTestCase] = useState<number | null>(0);
@@ -149,6 +151,7 @@ export function TestRunner({
       }
     } finally {
       setIsRunning(false);
+      onSubmissionComplete?.();
     }
   };
 

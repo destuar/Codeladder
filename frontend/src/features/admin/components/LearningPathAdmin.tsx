@@ -25,7 +25,7 @@ import {
   type LanguageData
 } from '@/features/languages/components/LanguageSupport';
 import { Difficulty as ProblemDifficulty } from '@/features/problems/types'; // Import ProblemDifficulty
-import { LoadingCard } from '@/components/ui/loading-spinner';
+import { PageLoadingSpinner } from '@/components/ui/loading-spinner';
 import { logger } from '@/lib/logger';
 import { Difficulty as ProblemDifficultyOriginal } from '@/features/problems/types'; // Keep original alias if used elsewhere in the file extensively
 import { ProblemType as ImportedProblemType } from '@/features/problems/types'; // Use imported ProblemType
@@ -1612,8 +1612,8 @@ export function LearningPathAdmin() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center p-8">
-        <div>Loading learning path...</div>
+      <div className="flex justify-center items-center p-8 bg-background min-h-[400px]">
+        <PageLoadingSpinner />
       </div>
     );
   }
@@ -1632,7 +1632,7 @@ export function LearningPathAdmin() {
   if (isLoadingProblems) {
     return (
       <div className="flex justify-center items-center p-8">
-        <LoadingCard text="Loading learning path..." />
+        <PageLoadingSpinner />
       </div>
     );
   }

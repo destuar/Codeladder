@@ -14,7 +14,7 @@ import { isToday } from 'date-fns';
 import { logProblemReviewState, logWorkflowStep } from './utils/debug';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { LoadingCard } from '@/components/ui/loading-spinner';
+import { LoadingCard, PageLoadingSpinner } from '@/components/ui/loading-spinner';
 import { logger } from '@/lib/logger';
 
 // Custom hook to only use spaced repetition when needed
@@ -232,10 +232,9 @@ const ProblemPage: React.FC = () => {
   });
 
   if (isLoading) {
-    // Using a simpler LoadingCard based on previous known "good" state's simplicity
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
-        <LoadingCard text="Loading problem..." />
+        <PageLoadingSpinner />
       </div>
     );
   }
@@ -326,7 +325,35 @@ const ProblemPage: React.FC = () => {
     <div className="min-h-[calc(100vh-4rem)] flex flex-col"> {/* Original top-level div */}
       <ErrorBoundary>
         <div className="flex-1"> {/* Original main content wrapper */}
-          {(problem.problemType === 'INFO' || problem.problemType === 'STANDALONE_INFO') && (
+          {problem.problemType === 'CODING' ? (
+            problem.codeProblem ? (
+              <CodingProblem
+                title={problem.name}
+                content={problem.content || problem.description || ''} // Use content first, with a fallback to description for robustness.
+                codeProblem={problem.codeProblem}
+                testCases={JSON.stringify(problem.codeProblem.testCases || [])}
+                difficulty={problem.difficulty}
+                nextProblemId={problem.nextProblemId}
+                nextProblemSlug={problem.nextProblemSlug}
+                prevProblemId={problem.prevProblemId}
+                prevProblemSlug={problem.prevProblemSlug}
+                onNavigate={navigateToOtherProblem}
+                estimatedTime={problem.estimatedTime}
+                isCompleted={effectiveIsCompleted}
+                problemId={problem.id}
+                isReviewMode={isReviewMode}
+                onCompleted={handleProblemCompleted}
+                problemType={problem.problemType}
+                sourceContext={sourceContext}
+              />
+            ) : (
+              <div className="text-destructive p-4 border border-destructive/50 rounded-md bg-destructive/10">
+                <strong>Error:</strong> Code data is missing. Please try again later.
+              </div>
+            )
+          ) : null}
+
+          {problem.problemType === 'INFO' && (
             <InfoProblem
               title={problem.name}
               content={problem.content || ''}
@@ -340,27 +367,6 @@ const ProblemPage: React.FC = () => {
               problemId={problem.id}
               isReviewMode={isReviewMode}
               onCompleted={handleProblemCompleted}
-              sourceContext={sourceContext}
-            />
-          )}
-          {problem.problemType === 'CODING' && problem.codeProblem && (
-            <CodingProblem
-              title={problem.name}
-              content={problem.content || problem.description || ''} // Use content first, with a fallback to description for robustness.
-              codeProblem={problem.codeProblem}
-              testCases={JSON.stringify(problem.codeProblem.testCases || [])}
-              difficulty={problem.difficulty}
-              nextProblemId={problem.nextProblemId}
-              nextProblemSlug={problem.nextProblemSlug}
-              prevProblemId={problem.prevProblemId}
-              prevProblemSlug={problem.prevProblemSlug}
-              onNavigate={navigateToOtherProblem}
-              estimatedTime={problem.estimatedTime}
-              isCompleted={effectiveIsCompleted}
-              problemId={problem.id}
-              isReviewMode={isReviewMode}
-              onCompleted={handleProblemCompleted}
-              problemType={problem.problemType}
               sourceContext={sourceContext}
             />
           )}

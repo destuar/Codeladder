@@ -205,19 +205,6 @@ export function ProblemHeader({
         
         <BorderlessThemeToggle />
         
-        <TooltipProvider>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button variant="ghost" size="icon" className="h-9 w-9">
-                <Settings className="h-4 w-4" />
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent className="bg-popover text-popover-foreground border shadow-md">
-              <p>Settings</p>
-            </TooltipContent>
-          </Tooltip>
-        </TooltipProvider>
-
         <Link to="/profile">
           <Avatar className="h-8 w-8 transition-transform hover:scale-105">
             <AvatarImage src={profile?.avatarUrl} />

@@ -25,7 +25,7 @@ import { useToast } from '@/components/ui/use-toast';
 import { Difficulty, DIFFICULTY_ORDER } from '@/features/problems/types';
 import { DifficultyBadge } from '@/features/problems/components/DifficultyBadge';
 import { useMediaQuery } from "@/hooks/useMediaQuery";
-import { LoadingCard, LoadingButton } from '@/components/ui/loading-spinner';
+import { LoadingCard, LoadingButton, PageLoadingSpinner } from '@/components/ui/loading-spinner';
 
 type SortField = 'name' | 'difficulty' | 'order' | 'completed';
 type SortDirection = 'asc' | 'desc';
@@ -227,10 +227,8 @@ export default function TopicPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-background">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-          <LoadingCard text="Loading topic..." />
-        </div>
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <PageLoadingSpinner />
       </div>
     );
   }

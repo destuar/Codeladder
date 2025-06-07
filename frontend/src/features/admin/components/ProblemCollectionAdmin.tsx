@@ -41,7 +41,7 @@ import {
 } from '@/features/languages/components/LanguageSupport';
 import { PlusCircle, Trash, Edit, RefreshCw, FileJson, Pencil, Trash2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { LoadingSpinner, LoadingCard } from '@/components/ui/loading-spinner';
+import { LoadingCard, LoadingSpinner, PageLoadingSpinner } from '@/components/ui/loading-spinner';
 import { validateAndParseProblemJSON, ValidationResult, ProblemJSONImport } from '../utils/problemJSONParser';
 
 // Local type for managing test cases in the form
@@ -99,13 +99,16 @@ const normalizeAdminTestCaseToFormTestCase = (apiTestCase: any): FormTestCase =>
     ? apiTestCase.input 
     : JSON.stringify(apiTestCase.input);
 
-  // CRITICAL CHANGE HERE: Check for apiTestCase.expectedOutput first, then apiTestCase.expected
-  const expectedStr = 
-    apiTestCase.expectedOutput !== undefined 
-      ? (typeof apiTestCase.expectedOutput === 'string' ? apiTestCase.expectedOutput : JSON.stringify(apiTestCase.expectedOutput))
-      : apiTestCase.expected !== undefined 
-        ? (typeof apiTestCase.expected === 'string' ? apiTestCase.expected : JSON.stringify(apiTestCase.expected))
-        : ''; // Default to empty string if neither is found
+  // Correctly handle expected output to avoid double-stringifying
+  const getExpectedString = (expectedValue: any): string => {
+    if (expectedValue === undefined || expectedValue === null) return '';
+    // If it's already a string, return it as is.
+    if (typeof expectedValue === 'string') return expectedValue;
+    // Otherwise, stringify it.
+    return JSON.stringify(expectedValue);
+  };
+  
+  const expectedStr = getExpectedString(apiTestCase.expectedOutput ?? apiTestCase.expected);
 
   return {
     id: apiTestCase.id, // if present from API
@@ -456,9 +459,7 @@ export const ProblemCollectionAdmin = forwardRef<ProblemCollectionAdminRef, {}>(
       return_type: newProblemData.return_type,
       params: JSON.stringify(newProblemData.params || []),
       defaultLanguage: currentDefaultLanguage,
-      languageSupport: JSON.stringify(
-        prepareLanguageSupport(currentDefaultLanguage, currentSupportedLanguages)
-      ),
+      languageSupport: JSON.stringify(currentSupportedLanguages),
     };
 
     if (newProblemData.problemType === 'CODING' && newProblemData.codeProblem) {
@@ -508,8 +509,8 @@ export const ProblemCollectionAdmin = forwardRef<ProblemCollectionAdminRef, {}>(
         if (!problemDetailsFull) {
             toast.error("Failed to fetch problem details.");
             setIsLoadingProblemDetails(false);
-            return;
-        }
+              return;
+            }
         const problemDetails = problemDetailsFull as Problem;
         // console.log("[ProblemCollectionAdmin] Fetched problemDetails:", problemDetails);
         // console.log("[ProblemCollectionAdmin] Fetched problemDetails.codeProblem.params:", (problemDetails as any).codeProblem?.params);
@@ -519,26 +520,25 @@ export const ProblemCollectionAdmin = forwardRef<ProblemCollectionAdminRef, {}>(
         let problemReturnType: string | undefined = undefined;
         
         if (problemDetails.problemType === 'CODING' && problemDetails.codeProblem) {
-            const codeProblemDetails = problemDetails.codeProblem as any; // Use any for easier access to potentially dynamic fields
+            const codeProblemDetails = problemDetails.codeProblem as any;
             try {
                 const languageSupportData = codeProblemDetails.languageSupport;
                 const defaultLangFromApi = codeProblemDetails.defaultLanguage;
 
                 if (languageSupportData && typeof languageSupportData === 'object' && Object.keys(languageSupportData).length > 0) {
-                    const initialLangState = JSON.parse(JSON.stringify(defaultSupportedLanguages));
-                    Object.entries(languageSupportData).forEach(([lang, data]: [string, any]) => {
-                        if (lang in initialLangState && data) {
-                            initialLangState[lang as SupportedLanguage] = {
-                                enabled: data.enabled !== undefined ? data.enabled : true,
-                                template: data.template || '',
-                                reference: data.reference || '',
-                                solution: data.solution || ''
-                            };
+                    const normalizedState = JSON.parse(JSON.stringify(defaultSupportedLanguages));
+                    for (const lang in languageSupportData) {
+                        if (lang in normalizedState) {
+                           normalizedState[lang as SupportedLanguage] = {
+                               ...normalizedState[lang as SupportedLanguage], // keep default structure
+                               ...languageSupportData[lang], // override with fetched data
+                               enabled: true // always mark as enabled if it came from DB
+                           };
                         }
-                    });
-                    setCurrentSupportedLanguages(initialLangState);
+                    }
+                    setCurrentSupportedLanguages(normalizedState);
                     setCurrentDefaultLanguage(defaultLangFromApi || 'python');
-                } else if (codeProblemDetails.codeTemplate) { 
+                } else if (codeProblemDetails.codeTemplate) { // Legacy support
                     const initialLangState = JSON.parse(JSON.stringify(defaultSupportedLanguages));
                     const legacyLang = (defaultLangFromApi || codeProblemDetails.language || 'python') as SupportedLanguage;
                     if (legacyLang in initialLangState) {
@@ -546,11 +546,8 @@ export const ProblemCollectionAdmin = forwardRef<ProblemCollectionAdminRef, {}>(
                     }
                     setCurrentSupportedLanguages(initialLangState);
                     setCurrentDefaultLanguage(legacyLang);
-        } else {
-                    setCurrentSupportedLanguages(JSON.parse(JSON.stringify(defaultSupportedLanguages)));
-                    setCurrentDefaultLanguage('python');
-            }
-          } catch (err) {
+                }
+            } catch (err) {
                 console.error("Error processing language support for edit:", err);
                 toast.error("Error setting up language support from fetched data.");
                 setCurrentSupportedLanguages(JSON.parse(JSON.stringify(defaultSupportedLanguages)));
@@ -584,11 +581,10 @@ export const ProblemCollectionAdmin = forwardRef<ProblemCollectionAdminRef, {}>(
             estimatedTime: problemDetails.estimatedTime,
             collectionIds: problemDetails.collectionIds || [],
             codeProblem: formCodeProblem, 
-            params: problemParams, // Use params extracted from codeProblem
-            return_type: problemReturnType, // Use return_type extracted from codeProblem
+            params: problemParams,
+            return_type: problemReturnType,
         };
         setEditProblemData(finalEditData);
-        // console.log("[ProblemCollectionAdmin] Set editProblemData:", finalEditData);
         setIsEditProblemDialogOpen(true);
       })
       .catch(err => {
@@ -614,25 +610,26 @@ export const ProblemCollectionAdmin = forwardRef<ProblemCollectionAdminRef, {}>(
       slug: editProblemData.slug,
       estimatedTime: editProblemData.estimatedTime,
       collectionIds: editProblemData.collectionIds,
+      // Pass these top-level fields
       return_type: editProblemData.return_type,
-      params: JSON.stringify(editProblemData.params || []),
-      defaultLanguage: currentDefaultLanguage,
-      languageSupport: JSON.stringify(
-        prepareLanguageSupport(currentDefaultLanguage, currentSupportedLanguages)
-      ),
+      params: editProblemData.params,
     };
 
     if (editProblemData.problemType === 'CODING' && editProblemData.codeProblem) {
-      const { testCases, ...restOfCodeProblem } = editProblemData.codeProblem; // testCases here are FormTestCase[]
+      // Re-structure the payload to match what the backend expects
       apiPayload.codeProblem = {
-        ...restOfCodeProblem,
-        // Convert FormTestCase[] back to AdminTestCase[] for the codeProblem object if API expects that structure
-        testCases: (testCases || []).map(prepareFormTestCaseForAdminCodeProblemType), 
+        functionName: editProblemData.codeProblem.functionName,
+        timeLimit: editProblemData.codeProblem.timeLimit,
+        memoryLimit: editProblemData.codeProblem.memoryLimit,
+        return_type: editProblemData.return_type, // from top level form state
+        params: editProblemData.params, // from top level form state
+        defaultLanguage: currentDefaultLanguage,
+        languageSupport: currentSupportedLanguages,
+        testCases: (editProblemData.codeProblem.testCases || []).map(prepareFormTestCaseForApiSubmission),
       };
-      // And also prepare stringified FormTestCases for top-level API submission
-       apiPayload.testCases = JSON.stringify(
-        (editProblemData.codeProblem.testCases || []).map(prepareFormTestCaseForApiSubmission)
-      );
+      // These are now inside codeProblem object, so remove from top-level if they exist
+      delete apiPayload.return_type;
+      delete apiPayload.params;
     }
     
     try {

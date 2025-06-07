@@ -1,6 +1,7 @@
-import { ScrollArea } from "@/components/ui/scroll-area";
+import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
 import { TestResult } from '../../../types/coding';
+import { ParameterDisplay } from "./ParameterDisplay";
 
 interface ResultTabProps {
   testResults: TestResult[];
@@ -33,47 +34,50 @@ export function ResultTab({
     <>
       {/* Test case navigation - same styling as TestCaseTab */}
       <div className="p-2 flex items-center gap-2 flex-shrink-0 bg-background">
-        <div className="flex gap-2 py-1 px-4">
-          {/* Status indicator - shown separately */}
-          {testResults.length > 0 && (
-            <div className={cn(
-              "rounded-md px-3 py-1.5 text-sm font-medium mr-2",
-              testResults.every(r => r.passed) 
-                ? "bg-green-600/10 text-green-500" 
-                : "bg-red-500/10 text-red-500"
-            )}>
-              {testResults.every(r => r.passed) 
-                ? `Accepted (${testResults[0]?.runtime || 0} ms)` 
-                : `Failed (${testResults.filter(r => r.passed).length}/${testResults.length} passed)`
-              }
-            </div>
-          )}
-          
-          {/* Test case buttons - styled like TestCaseTab */}
-          {testResults.length > 0 ? (
-            testResults.map((result, index) => (
-              <button
-                key={index}
-                className={cn(
-                  "min-w-[80px] flex items-center justify-center rounded-md px-3 py-1.5 text-sm font-medium transition-all duration-200",
-                  selectedTestCase === index 
-                    ? "bg-primary/10 text-primary border border-primary/40 shadow-sm transform scale-105" 
-                    : "bg-background text-foreground/80 border dark:border-transparent border-border hover:bg-accent hover:text-accent-foreground"
-                )}
-                onClick={() => setSelectedTestCase(index)}
-              >
-                Case {index + 1}
-                <div className="w-2 h-2 rounded-full ml-1.5" style={{ 
-                  backgroundColor: result.passed ? '#10b981' : '#ef4444' 
-                }} />
-              </button>
-            ))
-          ) : (
-            <div className="text-sm text-muted-foreground">
-              Run your code to see results
-            </div>
-          )}
-        </div>
+        <ScrollArea className="w-full whitespace-nowrap">
+          <div className="flex items-center gap-2 py-1 px-4">
+            {/* Status indicator - shown separately */}
+            {testResults.length > 0 && (
+              <div className={cn(
+                "rounded-md px-3 py-1.5 text-sm font-medium mr-2",
+                testResults.every(r => r.passed) 
+                  ? "bg-green-600/10 text-green-500" 
+                  : "bg-red-500/10 text-red-500"
+              )}>
+                {testResults.every(r => r.passed) 
+                  ? `Accepted (${testResults[0]?.runtime || 0} ms)` 
+                  : `Failed (${testResults.filter(r => r.passed).length}/${testResults.length})`
+                }
+              </div>
+            )}
+            
+            {/* Test case buttons - styled like TestCaseTab */}
+            {testResults.length > 0 ? (
+              testResults.map((result, index) => (
+                <button
+                  key={index}
+                  className={cn(
+                    "min-w-[80px] flex-shrink-0 flex items-center justify-center rounded-md px-3 py-1.5 text-sm font-medium transition-all duration-200",
+                    selectedTestCase === index 
+                      ? "bg-primary/10 text-primary border border-primary/40 shadow-sm transform scale-105" 
+                      : "bg-background text-foreground/80 border dark:border-transparent border-border hover:bg-accent hover:text-accent-foreground"
+                  )}
+                  onClick={() => setSelectedTestCase(index)}
+                >
+                  Case {index + 1}
+                  <div className="w-2 h-2 rounded-full ml-1.5" style={{ 
+                    backgroundColor: result.passed ? '#10b981' : '#ef4444' 
+                  }} />
+                </button>
+              ))
+            ) : (
+              <div className="text-sm text-muted-foreground">
+                Run your code to see results
+              </div>
+            )}
+          </div>
+          <ScrollBar orientation="horizontal" />
+        </ScrollArea>
       </div>
       
       {/* Test case details - always rendered */}
@@ -81,68 +85,33 @@ export function ResultTab({
         {testResults.length > 0 && selectedTestCase !== null && selectedTestCase < testResults.length ? (
           <div className="p-4 pb-8 space-y-4">
             {/* Input section */}
-            <div>
-              <h3 className="text-sm font-medium mb-2">Input</h3>
-              
-              {/* First parameter */}
-              {testResults[selectedTestCase].input && Array.isArray(testResults[selectedTestCase].input) && testResults[selectedTestCase].input.length >= 1 && (
-                <div className="space-y-1 mb-3">
-                  <div className="text-xs text-muted-foreground font-mono">{getParameterName(0)} =</div>
-                  <div className="bg-muted/50 rounded-md p-3 dark:border-transparent border border-border">
-                    <pre className="text-sm whitespace-pre-wrap break-all">
-                      {JSON.stringify(testResults[selectedTestCase].input[0], null, 2)}
-                    </pre>
-                  </div>
-                </div>
-              )}
-              
-              {/* Second parameter if exists */}
-              {testResults[selectedTestCase].input && Array.isArray(testResults[selectedTestCase].input) && testResults[selectedTestCase].input.length >= 2 && (
-                <div className="space-y-1 mb-3">
-                  <div className="text-xs text-muted-foreground font-mono">{getParameterName(1)} =</div>
-                  <div className="bg-muted/50 rounded-md p-3 dark:border-transparent border border-border">
-                    <pre className="text-sm whitespace-pre-wrap break-all">
-                      {JSON.stringify(testResults[selectedTestCase].input[1], null, 2)}
-                    </pre>
-                  </div>
-                </div>
-              )}
-              
-              {/* Additional parameters if they exist */}
-              {testResults[selectedTestCase].input && 
-               Array.isArray(testResults[selectedTestCase].input) && 
-               testResults[selectedTestCase].input.length >= 3 && 
-                testResults[selectedTestCase].input.slice(2).map((param, idx) => (
-                  <div key={idx} className="space-y-1 mb-3">
-                    <div className="text-xs text-muted-foreground font-mono">{getParameterName(idx + 2)} =</div>
-                    <div className="bg-muted/50 rounded-md p-3 dark:border-transparent border border-border">
-                      <pre className="text-sm whitespace-pre-wrap break-all">
-                        {JSON.stringify(param, null, 2)}
-                      </pre>
-                    </div>
-                  </div>
-                ))
-              }
+            <div className="space-y-3">
+              <h3 className="text-sm font-medium">Input</h3>
+              {testResults[selectedTestCase].input.map((param: any, idx: number) => (
+                <ParameterDisplay
+                  key={idx}
+                  name={getParameterName(idx)}
+                  value={param}
+                />
+              ))}
             </div>
             
             {/* Output section */}
             <div>
               <h3 className="text-sm font-medium mb-2">Output</h3>
-              <div className="bg-muted/50 rounded-md p-3 dark:border-transparent border border-border">
-                <pre className="text-sm whitespace-pre-wrap break-all">
-                  {JSON.stringify(testResults[selectedTestCase].output, null, 2)}
-                </pre>
-              </div>
+              <ParameterDisplay
+                name="output"
+                value={testResults[selectedTestCase].output}
+              />
             </div>
             
             {/* Expected section */}
             <div>
               <h3 className="text-sm font-medium mb-2">Expected</h3>
-              <div className="bg-muted/50 rounded-md p-3 dark:border-transparent border border-border">
-                <pre className="text-sm whitespace-pre-wrap break-all">
-                  {JSON.stringify(testResults[selectedTestCase].expected, null, 2)}
-                </pre>
-              </div>
+              <ParameterDisplay
+                name="expected"
+                value={testResults[selectedTestCase].expected}
+              />
             </div>
             
             {/* Error display if any */}

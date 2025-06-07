@@ -24,8 +24,10 @@ import { ProblemCollectionAdmin, ProblemCollectionAdminRef } from './components/
 import { QuizAdmin } from "./components/QuizAdmin";
 import { TestAdmin } from "./components/TestAdmin";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { LoadingCard } from '@/components/ui/loading-spinner';
+import { PageLoadingSpinner } from '@/components/ui/loading-spinner';
 import { PlusCircle } from 'lucide-react';
+import { Level, Topic, Problem } from '@/hooks/useLearningPath';
+import { useMediaQuery } from '@/hooks/useMediaQuery';
 
 interface AdminData {
   users: User[];
@@ -40,6 +42,7 @@ export function AdminDashboard() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const problemCollectionAdminRef = useRef<ProblemCollectionAdminRef>(null);
+  const [activeTab, setActiveTab] = useState('overview');
 
   useEffect(() => {
     const fetchData = async () => {
@@ -90,16 +93,8 @@ export function AdminDashboard() {
 
   if (isLoading) {
     return (
-      <div className="container mx-auto p-6">
-        <Card>
-          <CardHeader>
-            <CardTitle>Loading Admin Dashboard</CardTitle>
-            <CardDescription>Please wait...</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <LoadingCard />
-          </CardContent>
-        </Card>
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <PageLoadingSpinner />
       </div>
     );
   }

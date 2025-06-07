@@ -2,7 +2,7 @@ import { useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { api } from '@/lib/api';
 import { useAuth } from './AuthContext';
-import { LoadingCard } from '@/components/ui/loading-spinner';
+import { PageLoadingSpinner } from '@/components/ui/loading-spinner';
 
 export default function OAuthCallback() {
   const { provider } = useParams<{ provider: string }>();
@@ -48,9 +48,12 @@ export default function OAuthCallback() {
   return (
     <div className="min-h-screen flex items-center justify-center bg-background">
       <div className="max-w-md mx-auto text-center">
-        <LoadingCard text="Processing authentication..." />
-        <p className="text-sm text-muted-foreground mt-4">
-          Please wait while we complete your sign-in.
+        <PageLoadingSpinner />
+        <p className="text-lg text-muted-foreground mt-4">
+          Processing authentication...
+        </p>
+        <p className="text-sm text-muted-foreground mt-2">
+          Please wait while we complete your sign-in. This window will close automatically.
         </p>
       </div>
     </div>
