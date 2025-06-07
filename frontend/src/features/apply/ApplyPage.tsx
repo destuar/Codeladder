@@ -254,7 +254,7 @@ export function ApplyPage() {
                     <label key={modality} className="flex items-center space-x-2 cursor-pointer font-sans">
                       <input
                         type="checkbox"
-                        className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
+                        className="h-4 w-4 rounded-sm border-gray-300 bg-gray-100 accent-primary focus:ring-0 focus:ring-offset-0 checked:bg-primary checked:text-black dark:border-gray-600 dark:bg-gray-700 dark:checked:text-white"
                         checked={selectedModalities.includes(modality)}
                         onChange={() => handleModalityChange(modality)}
                       />
