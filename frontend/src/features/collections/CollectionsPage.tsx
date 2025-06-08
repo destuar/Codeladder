@@ -560,7 +560,7 @@ export default function CollectionsPage() {
         {/* New layout: Centered Problem Area with Sidebar to its left */}
         <div className="relative max-w-4xl mx-auto mt-8"> {/* Changed max-w-3xl to max-w-4xl */} 
           {/* Sidebar for Medium+ Screens (Absolutely Positioned) */}
-          <div className="hidden xl:block xl:absolute xl:right-full xl:top-0 xl:mr-8 xl:w-60"> 
+          <div className="hidden xl:block xl:absolute xl:right-[calc(100%+1rem)] xl:top-0 xl:w-64"> 
             <div className="xl:sticky xl:top-20 space-y-4 rounded-xl shadow-md hover:shadow-lg transition-shadow duration-300 dark:shadow-[0_4px_6px_-1px_rgba(82,113,255,0.15),_0_2px_4px_-2px_rgba(82,113,255,0.15)] bg-background/80 dark:bg-background backdrop-blur-md overflow-hidden p-4 border border-border/40 dark:border dark:border-[#5271FF]/15">
               {/* Collections Sidebar Content (Title, Shuffle, Buttons) */}
               <div className="flex items-center gap-2">
