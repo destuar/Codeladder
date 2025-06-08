@@ -482,13 +482,13 @@ export default function CollectionsPage() {
         {/* Header Section */}
         <div className="flex flex-col md:flex-row md:items-center md:justify-between mb-6">
           <div className="flex-1 mb-4 md:mb-0">
-            <h1 className="text-3xl font-bold mb-4 text-center text-foreground">
+            <h1 className="text-3xl font-bold mb-4 text-center text-foreground font-mono">
               <span className="sm:hidden">Interview Questions</span>
               <span className="hidden sm:inline">Company Interview Questions</span>
             </h1>
-            <p className="text-center text-muted-foreground">
-              <span className="sm:hidden">It's practicing smarter.</span>
-              <span className="hidden sm:inline">It's not cheating. It's practicing smarter.</span>
+            <p className="text-center text-muted-foreground font-mono">
+              <span className="sm:hidden">Keep practicing smarter.</span>
+              <span className="hidden sm:inline">The smarter way to practice.</span>
             </p>
           </div>
         </div>
