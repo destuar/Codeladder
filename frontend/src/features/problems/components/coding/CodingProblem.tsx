@@ -427,6 +427,7 @@ export default function CodingProblem({
                 setIsRunning={setIsRunning}
                 functionParams={functionParams}
                 onSubmissionComplete={handleSubmissionComplete}
+                isCompleted={hookIsCompleted}
               />
             </div>
           </div>

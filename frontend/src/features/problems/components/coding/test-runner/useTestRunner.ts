@@ -38,8 +38,8 @@ interface UseTestRunnerResult {
   testResults: TestResult[];
   allPassed: boolean;
   // Removed TestCase[] from runTests signature, backend will fetch official ones
-  runTests: (code: string, problemId: string, language: string, userCustomTestCases?: TestCaseType[]) => Promise<void>;
-  runQuickTests: (code: string, problemId: string, language: string, userCustomTestCases?: TestCaseType[]) => Promise<void>;
+  runTests: (code: string, problemId: string, language: string, userCustomTestCases?: TestCaseType[]) => Promise<{ allPassed: boolean }>;
+  runQuickTests: (code: string, problemId: string, language: string, userCustomTestCases?: TestCaseType[]) => Promise<{ allPassed: boolean }>;
   runCustomTest: (code: string, input: any[], functionName: string, language: string) => Promise<TestResult>;
 }
 
@@ -118,7 +118,7 @@ export function useTestRunner(): UseTestRunnerResult {
 
   // Secure execute endpoint that creates a submission
   const runTests = useCallback(async (code: string, problemId: string, language: string, userCustomTestCases?: TestCaseType[]) => {
-    const executeRequest = async () => {
+    const executeRequest = async (): Promise<{ allPassed: boolean }> => {
       setTestResults([]);
       setAllPassed(false);
       
@@ -146,12 +146,23 @@ export function useTestRunner(): UseTestRunnerResult {
         if (data && data.results && Array.isArray(data.results)) {
           setTestResults(data.results);
           setAllPassed(data.allPassed);
+          
+          // Debug logging to track test execution results
+          logger.debug('[useTestRunner] Submission test results:', {
+            allPassed: data.allPassed,
+            resultsCount: data.results.length,
+            passedTests: data.results.filter(r => r.passed).length,
+            failedTests: data.results.filter(r => !r.passed).length
+          });
+          
+          return { allPassed: data.allPassed };
         } else {
           throw new Error('Invalid response format from server');
         }
       } catch (error) {
         if ((error as any).isAxiosError && (error as any).response?.status === 401) {
-          await handleAuthError(error as any, () => executeRequest());
+          await handleAuthError(error as any, async () => { await executeRequest(); });
+          return executeRequest(); // Return the result from the retry
         } else {
           logger.error('Error running tests', error);
           
@@ -164,17 +175,18 @@ export function useTestRunner(): UseTestRunnerResult {
             error: error instanceof Error ? error.message : 'Unknown error'
           }]);
           setAllPassed(false);
+          return { allPassed: false };
         }
       }
     };
 
     // Start the execution process
-    await executeRequest();
+    return await executeRequest();
   }, [getSecureHeaders, handleAuthError]);
 
   // Secure run-tests endpoint without creating a submission
   const runQuickTests = useCallback(async (code: string, problemId: string, language: string, userCustomTestCases?: TestCaseType[]) => {
-    const quickTestRequest = async () => {
+    const quickTestRequest = async (): Promise<{ allPassed: boolean }> => {
       setTestResults([]);
       setAllPassed(false);
       
@@ -202,12 +214,14 @@ export function useTestRunner(): UseTestRunnerResult {
         if (data && data.results && Array.isArray(data.results)) {
           setTestResults(data.results);
           setAllPassed(data.allPassed);
+          return { allPassed: data.allPassed };
         } else {
           throw new Error('Invalid response format from server');
         }
       } catch (error) {
         if ((error as any).isAxiosError && (error as any).response?.status === 401) {
-          await handleAuthError(error as any, () => quickTestRequest());
+          await handleAuthError(error as any, async () => { await quickTestRequest(); });
+          return quickTestRequest(); // Return the result from the retry
         } else {
           logger.error('Error running quick tests', error);
           
@@ -220,12 +234,13 @@ export function useTestRunner(): UseTestRunnerResult {
             error: error instanceof Error ? error.message : 'Unknown error'
           }]);
           setAllPassed(false);
+          return { allPassed: false };
         }
       }
     };
 
     // Start the quick test process
-    await quickTestRequest();
+    return await quickTestRequest();
   }, [getSecureHeaders, handleAuthError]);
 
   // Secure custom test execution

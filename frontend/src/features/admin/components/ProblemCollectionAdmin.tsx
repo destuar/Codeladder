@@ -94,17 +94,55 @@ const difficultyLevels: ProblemDifficulty[] = ['BEGINNER', 'EASY', 'MEDIUM', 'HA
 // Converts API AdminTestCase to FormTestCase
 // AdminTestCase (from problems/types) has { input: any[], expected: any }
 // Fetched problemDetails.codeProblem.testCases might have { input: ..., expectedOutput: ..., isHidden: ... }
+// This function handles the conversion carefully to avoid double-stringifying values like true -> "true" -> "\"true\""
 const normalizeAdminTestCaseToFormTestCase = (apiTestCase: any): FormTestCase => {
-  const inputStr = typeof apiTestCase.input === 'string' 
-    ? apiTestCase.input 
-    : JSON.stringify(apiTestCase.input);
+  // Handle input with the same logic as expected output to ensure consistency
+  const getInputString = (inputValue: any): string => {
+    if (inputValue === undefined || inputValue === null) return '';
+    
+    // If it's already a string, check if it's a JSON string that should be simplified
+    if (typeof inputValue === 'string') {
+      try {
+        // Try to parse the string as JSON to validate it's proper JSON
+        JSON.parse(inputValue);
+        // If it parses successfully, return the original string (it's properly formatted JSON)
+        return inputValue;
+      } catch (e) {
+        // If it doesn't parse as JSON, it's a malformed string, try to fix it by stringifying
+        return JSON.stringify(inputValue);
+      }
+    }
+    
+    // For non-string values, stringify them
+    return JSON.stringify(inputValue);
+  };
+  
+  const inputStr = getInputString(apiTestCase.input);
 
   // Correctly handle expected output to avoid double-stringifying
   const getExpectedString = (expectedValue: any): string => {
     if (expectedValue === undefined || expectedValue === null) return '';
-    // If it's already a string, return it as is.
-    if (typeof expectedValue === 'string') return expectedValue;
-    // Otherwise, stringify it.
+    
+    // If it's already a string, check if it's a JSON string that should be simplified
+    if (typeof expectedValue === 'string') {
+      try {
+        // Try to parse the string as JSON
+        const parsed = JSON.parse(expectedValue);
+        
+        // If it parses to a primitive value (not an object/array), return the original simpler representation
+        if (typeof parsed === 'string' || typeof parsed === 'number' || typeof parsed === 'boolean' || parsed === null) {
+          return String(parsed);
+        }
+        
+        // If it's an object or array, return the original string (it's properly formatted JSON)
+        return expectedValue;
+      } catch (e) {
+        // If it doesn't parse as JSON, it's just a regular string, return as-is
+        return expectedValue;
+      }
+    }
+    
+    // For non-string values, stringify them
     return JSON.stringify(expectedValue);
   };
   
@@ -134,11 +172,25 @@ const prepareFormTestCaseForAdminCodeProblemType = (formTC: FormTestCase): Admin
 };
 
 // Converts FormTestCase to what the API submission expects for a test case (stringified + isHidden)
-// This function seems correct as it maps form's 'expected' to 'expectedOutput' for the API.
+// This function ensures that values are properly formatted before being sent to the API
 const prepareFormTestCaseForApiSubmission = (formTC: FormTestCase): ApiSubmittedTestCase => {
+  // Clean up the input and expected values to ensure they're properly formatted JSON
+  const cleanJsonString = (value: string): string => {
+    if (!value.trim()) return '';
+    
+    try {
+      // Try to parse and re-stringify to ensure proper JSON formatting
+      const parsed = JSON.parse(value);
+      return JSON.stringify(parsed);
+    } catch (e) {
+      // If it's not valid JSON, treat it as a string literal
+      return JSON.stringify(value);
+    }
+  };
+
   return {
-    input: formTC.input, 
-    expectedOutput: formTC.expected, // Correctly maps form's 'expected' to 'expectedOutput'
+    input: cleanJsonString(formTC.input), 
+    expectedOutput: cleanJsonString(formTC.expected), // Clean and properly format the expected output
     isHidden: formTC.isHidden,
   };
 };
