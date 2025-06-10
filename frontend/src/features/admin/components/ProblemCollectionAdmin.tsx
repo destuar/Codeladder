@@ -103,13 +103,19 @@ const normalizeAdminTestCaseToFormTestCase = (apiTestCase: any): FormTestCase =>
     // If it's already a string, check if it's a JSON string that should be simplified
     if (typeof inputValue === 'string') {
       try {
-        // Try to parse the string as JSON to validate it's proper JSON
-        JSON.parse(inputValue);
-        // If it parses successfully, return the original string (it's properly formatted JSON)
+        // Try to parse the string as JSON
+        const parsed = JSON.parse(inputValue);
+        
+        // If it parses to a primitive value, return the simpler representation
+        if (typeof parsed === 'string' || typeof parsed === 'number' || typeof parsed === 'boolean' || parsed === null) {
+          return String(parsed);
+        }
+        
+        // If it's an object or array, return the original string (it's properly formatted JSON)
         return inputValue;
       } catch (e) {
-        // If it doesn't parse as JSON, it's a malformed string, try to fix it by stringifying
-        return JSON.stringify(inputValue);
+        // If it doesn't parse as JSON, it's just a regular string, return as-is
+        return inputValue;
       }
     }
     
@@ -129,7 +135,7 @@ const normalizeAdminTestCaseToFormTestCase = (apiTestCase: any): FormTestCase =>
         // Try to parse the string as JSON
         const parsed = JSON.parse(expectedValue);
         
-        // If it parses to a primitive value (not an object/array), return the original simpler representation
+        // If it parses to a primitive value (not an object/array), return the simpler representation
         if (typeof parsed === 'string' || typeof parsed === 'number' || typeof parsed === 'boolean' || parsed === null) {
           return String(parsed);
         }
@@ -179,18 +185,19 @@ const prepareFormTestCaseForApiSubmission = (formTC: FormTestCase): ApiSubmitted
     if (!value.trim()) return '';
     
     try {
-      // Try to parse and re-stringify to ensure proper JSON formatting
+      // Try to parse the value first to see if it's already valid JSON
       const parsed = JSON.parse(value);
-      return JSON.stringify(parsed);
+      // If it parsed successfully, the value is already properly formatted JSON
+      return value;
     } catch (e) {
-      // If it's not valid JSON, treat it as a string literal
+      // If it's not valid JSON, treat it as a string literal and stringify it
       return JSON.stringify(value);
     }
   };
 
   return {
     input: cleanJsonString(formTC.input), 
-    expectedOutput: cleanJsonString(formTC.expected), // Clean and properly format the expected output
+    expectedOutput: cleanJsonString(formTC.expected), // Clean and properly format the expected output without double-stringifying
     isHidden: formTC.isHidden,
   };
 };

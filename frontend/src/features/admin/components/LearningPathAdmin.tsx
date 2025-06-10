@@ -295,19 +295,33 @@ const prepareTestCase = (testCase: TestCase): PreparedTestCase => {
  * @returns A normalized test case for UI editing
  */
 const normalizeTestCase = (testCase: any): TestCase => {
-  // Handle input
-  const inputStr = typeof testCase.input === 'string' 
-    ? testCase.input
-    : JSON.stringify(testCase.input);
+  // Helper function to properly normalize values without double-stringifying
+  const normalizeValue = (value: any): string => {
+    if (value === undefined || value === null) return '';
     
-  // Handle expected output
-  const expectedStr = typeof testCase.expected === 'string' || typeof testCase.expectedOutput === 'string'
-    ? (testCase.expected || testCase.expectedOutput)
-    : JSON.stringify(testCase.expected || testCase.expectedOutput);
+    if (typeof value === 'string') {
+      try {
+        // Try to parse to see if it's already a JSON string
+        const parsed = JSON.parse(value);
+        // If it's a primitive value, return the simple representation
+        if (typeof parsed === 'string' || typeof parsed === 'number' || typeof parsed === 'boolean' || parsed === null) {
+          return String(parsed);
+        }
+        // If it's an object/array, keep the JSON string format
+        return value;
+      } catch (e) {
+        // If it doesn't parse, it's a regular string, return as-is
+        return value;
+      }
+    }
+    
+    // For non-string values, stringify them
+    return JSON.stringify(value);
+  };
   
   return {
-    input: inputStr,
-    expected: expectedStr,
+    input: normalizeValue(testCase.input),
+    expected: normalizeValue(testCase.expected || testCase.expectedOutput),
     isHidden: !!testCase.isHidden
   };
 };
@@ -770,15 +784,22 @@ export function LearningPathAdmin() {
         // Process test cases
         if (newProblem.testCases && newProblem.testCases.length > 0) {
           const preparedTestCases = newProblem.testCases.map(testCase => {
-            // Ensure input is properly stringified if it's not already a string
-            const input = typeof testCase.input === 'string' ? testCase.input : JSON.stringify(testCase.input);
-            
-            // Ensure expected output is properly stringified if it's not already a string
-            const expected = typeof testCase.expected === 'string' ? testCase.expected : JSON.stringify(testCase.expected);
+            // Helper function to avoid double-stringifying
+            const ensureJsonString = (value: any): string => {
+              if (typeof value === 'string') {
+                try {
+                  JSON.parse(value);
+                  return value; // Already valid JSON string
+                } catch (e) {
+                  return JSON.stringify(value); // Raw string, needs stringifying
+                }
+              }
+              return JSON.stringify(value); // Non-string value, stringify it
+            };
             
             return {
-              input,
-              expectedOutput: expected,
+              input: ensureJsonString(testCase.input),
+              expectedOutput: ensureJsonString(testCase.expected),
               isHidden: testCase.isHidden
             };
           });

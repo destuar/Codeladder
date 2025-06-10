@@ -108,9 +108,25 @@ const normalizeTestCase = (testCase: any, index: number): any => {
   // Parse and clean the expected output
   const parsedExpected = safelyParseValue(testCase.expectedOutput ?? testCase.expected ?? testCase.expected_out ?? '');
   
+  // Helper function to ensure we don't double-stringify
+  const ensureJsonString = (value: any): string => {
+    if (typeof value === 'string') {
+      // Check if it's already a valid JSON string
+      try {
+        JSON.parse(value);
+        return value; // Already a valid JSON string, return as-is
+      } catch (e) {
+        // Not valid JSON, so it's a raw string value that needs stringifying
+        return JSON.stringify(value);
+      }
+    }
+    // For non-string values, stringify them
+    return JSON.stringify(value);
+  };
+  
   return {
-    input: JSON.stringify(parsedInput), // Store consistent JSON string
-    expectedOutput: JSON.stringify(parsedExpected), // Store consistent JSON string
+    input: ensureJsonString(parsedInput), // Store consistent JSON string without double-stringifying
+    expectedOutput: ensureJsonString(parsedExpected), // Store consistent JSON string without double-stringifying
     isHidden: testCase.isHidden || (testCase.phase === 'hidden') || false,
     orderNum: testCase.orderNum || testCase.case_id || index + 1
   };
