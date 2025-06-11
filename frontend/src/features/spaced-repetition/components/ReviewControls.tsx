@@ -1,17 +1,19 @@
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { Check, X, HelpCircle, Dumbbell, AlertCircle, Loader2 } from 'lucide-react';
+import { Check, X, HelpCircle, AlertCircle, Loader2 } from 'lucide-react';
 import { ReviewResult } from '../api/spacedRepetitionApi';
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { useQueryClient } from '@tanstack/react-query';
 import { Problem } from '@/features/problems/types';
 import { getIdentifierForProblem } from '../index';
+import { LoadingSpinner } from '@/components/ui/loading-spinner';
 
 interface ReviewControlsProps {
   problem: Problem;
+  spacedRepetitionItemId?: string;
   onReviewSubmit: (result: ReviewResult) => void;
   isEarlyReview?: boolean;
   scheduledDate?: string;
@@ -24,6 +26,7 @@ interface ReviewControlsProps {
  */
 export function ReviewControls({ 
   problem,
+  spacedRepetitionItemId,
   onReviewSubmit,
   isEarlyReview = false,
   scheduledDate,
@@ -38,7 +41,6 @@ export function ReviewControls({
   
   const problemId = problem?.id;
   const problemSlug = problem?.slug;
-  const currentLevel = problem?.reviewLevel || 0;
   
   // Handle returning to the previous page after submitting
   const navigateBack = () => {
@@ -77,7 +79,8 @@ export function ReviewControls({
       // Prepare review result with either problemId or problemSlug, preferring slug if available
       const result: ReviewResult = {
         wasSuccessful,
-        reviewOption: option
+        reviewOption: option,
+        spacedRepetitionItemId: spacedRepetitionItemId,
       };
       
       // Use slug if available, otherwise fall back to ID
@@ -137,7 +140,6 @@ export function ReviewControls({
       <Card className="w-full max-w-md shadow-lg border-2 border-blue-200 dark:border-blue-800 animate-in fade-in zoom-in-95 duration-100">
         <CardHeader className="pb-2">
           <div className="flex items-center gap-2">
-            <Dumbbell className="h-5 w-5 text-blue-500 dark:text-blue-400" />
             <CardTitle className="text-xl">How well did you remember?</CardTitle>
           </div>
           {isEarlyReview && scheduledDate ? (
@@ -166,7 +168,7 @@ export function ReviewControls({
               disabled={isSubmitting}
             >
               {isSubmitting && submittedOption === 'easy' ? (
-                <Loader2 className="h-5 w-5 animate-spin" />
+                <LoadingSpinner size="md" />
               ) : (
                 <Check className="h-5 w-5" />
               )}
@@ -186,7 +188,7 @@ export function ReviewControls({
               disabled={isSubmitting}
             >
               {isSubmitting && submittedOption === 'difficult' ? (
-                <Loader2 className="h-5 w-5 animate-spin" />
+                <LoadingSpinner size="md" />
               ) : (
                 <HelpCircle className="h-5 w-5" />
               )}
@@ -206,7 +208,7 @@ export function ReviewControls({
               disabled={isSubmitting}
             >
               {isSubmitting && submittedOption === 'forgot' ? (
-                <Loader2 className="h-5 w-5 animate-spin" />
+                <LoadingSpinner size="md" />
               ) : (
                 <X className="h-5 w-5" />
               )}

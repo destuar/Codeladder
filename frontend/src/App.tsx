@@ -34,6 +34,7 @@ import { ScrollToTop } from './components/ScrollToTop';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
 import { cn } from '@/lib/utils';
 import OAuthCallbackReceiver from './features/auth/OAuthCallbackReceiver';
+import { ApplyPage } from './features/apply/ApplyPage';
 
 // Regular components
 const UnauthorizedPage = () => (
@@ -236,6 +237,16 @@ function MainLayout() {
               <ProtectedRoute>
                 <AdminViewWrapper>
                   <ReviewPage />
+                </AdminViewWrapper>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/apply"
+            element={
+              <ProtectedRoute>
+                <AdminViewWrapper>
+                  <ApplyPage />
                 </AdminViewWrapper>
               </ProtectedRoute>
             }

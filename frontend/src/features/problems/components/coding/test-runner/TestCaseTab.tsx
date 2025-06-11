@@ -16,6 +16,7 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useState, useEffect, useMemo } from "react";
+import { ParameterDisplay } from "./ParameterDisplay";
 
 interface TestCaseTabProps {
   testCases: TestCaseType[];
@@ -244,53 +245,15 @@ export function TestCaseTab({
           <div className="p-4 pb-8 space-y-4">
             {/* Input section */}
             {currentTestCase.input && (
-              <div>
-                <h3 className="text-sm font-medium mb-2">Input</h3>
-                
-                {/* Display first parameter */}
-                {currentTestCase.input.length >= 1 && (
-                  <div className="space-y-1 mb-3">
-                    <div className="text-xs text-muted-foreground font-mono">
-                      {/* Use the parameter name from function parameters */}
-                      {getParameterName(0)} {" ="}
-                    </div>
-                    <div className="bg-muted/50 rounded-md p-3 dark:border-transparent border border-border">
-                      <pre className="text-sm whitespace-pre-wrap break-all">
-                        {JSON.stringify(currentTestCase.input[0], null, 2)}
-                      </pre>
-                    </div>
-                  </div>
-                )}
-                
-                {/* Display second parameter (if exists) */}
-                {currentTestCase.input.length >= 2 && (
-                  <div className="space-y-1 mb-3">
-                    <div className="text-xs text-muted-foreground font-mono">
-                      {getParameterName(1)} {" ="}
-                    </div>
-                    <div className="bg-muted/50 rounded-md p-3 dark:border-transparent border border-border">
-                      <pre className="text-sm whitespace-pre-wrap break-all">
-                        {JSON.stringify(currentTestCase.input[1], null, 2)}
-                      </pre>
-                    </div>
-                  </div>
-                )}
-                
-                {/* Additional parameters if they exist */}
-                {currentTestCase.input.length >= 3 && 
-                  currentTestCase.input.slice(2).map((param: any, idx: number) => (
-                    <div key={idx} className="space-y-1 mb-3">
-                      <div className="text-xs text-muted-foreground font-mono">
-                        {getParameterName(idx + 2)} {" ="}
-                      </div>
-                      <div className="bg-muted/50 rounded-md p-3 dark:border-transparent border border-border">
-                        <pre className="text-sm whitespace-pre-wrap break-all">
-                          {JSON.stringify(param, null, 2)}
-                        </pre>
-                      </div>
-                    </div>
-                  ))
-                }
+              <div className="space-y-3">
+                <h3 className="text-sm font-medium">Input</h3>
+                {currentTestCase.input.map((param: any, idx: number) => (
+                  <ParameterDisplay
+                    key={idx}
+                    name={getParameterName(idx)}
+                    value={param}
+                  />
+                ))}
               </div>
             )}
             
@@ -298,11 +261,10 @@ export function TestCaseTab({
             {currentTestCase?.expected !== undefined && (
               <div>
                 <h3 className="text-sm font-medium mb-2">Expected</h3>
-                <div className="bg-muted/50 rounded-md p-3 dark:border-transparent border border-border">
-                  <pre className="text-sm whitespace-pre-wrap break-all">
-                    {JSON.stringify(tryParseJson(currentTestCase.expected), null, 2)}
-                  </pre>
-                </div>
+                <ParameterDisplay
+                  name="output"
+                  value={tryParseJson(currentTestCase.expected)}
+                />
               </div>
             )}
           </div>

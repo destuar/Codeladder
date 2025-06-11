@@ -116,23 +116,7 @@ export function Navigation() {
                 "hidden lg:flex items-center justify-center gap-12 transition-opacity duration-200 ease-in-out"
               )}
             >
-              {!canAccessAdmin ? (
-                <Dialog>
-                  <DialogTrigger asChild>
-                    <span className="text-base font-medium text-muted-foreground hover:text-foreground cursor-pointer">
-                      Learn
-                    </span>
-                  </DialogTrigger>
-                  <DialogContent className="sm:max-w-[425px]">
-                    <DialogHeader>
-                      <DialogTitle>Feature Coming Soon</DialogTitle>
-                      <DialogDescription>
-                        The full 'Learn' section featuring the mastery-based learning dashboard is currently under development. Check back later!
-                      </DialogDescription>
-                    </DialogHeader>
-                  </DialogContent>
-                </Dialog>
-              ) : (
+              {user ? (
                 <Link 
                   to="/dashboard" 
                   className="text-base font-medium text-muted-foreground hover:text-foreground"
@@ -144,64 +128,37 @@ export function Navigation() {
                 >
                   Learn
                 </Link>
+              ) : (
+                <Link 
+                  to="/login" 
+                  className="text-base font-medium text-muted-foreground hover:text-foreground"
+                >
+                  Learn
+                </Link>
               )}
               <Link 
                 to={user ? "/collections" : "/login"}
                 className="text-base font-medium text-muted-foreground hover:text-foreground"
               >
-                <span className="relative inline-block py-0.5">
-                  Practice
-                  <span 
-                    className="absolute top-0 right-0 translate-x-3/4 -translate-y-1/4 rotate-[15deg] text-[0.6rem] font-bold leading-none text-[#5271FF] bg-[#5271FF]/10 px-0.5 py-0.5 rounded-sm shadow-[0_0_3px_#5271FF]"
-                  >
-                    NEW
-                  </span>
-                </span>
+                Practice
               </Link>
-              {!canAccessAdmin ? (
-                <Dialog>
-                  <DialogTrigger asChild>
-                    <span className="text-base font-medium text-muted-foreground hover:text-foreground cursor-pointer">
-                      Review
-                    </span>
-                  </DialogTrigger>
-                  <DialogContent className="sm:max-w-[425px]">
-                    <DialogHeader>
-                      <DialogTitle>Feature Coming Soon</DialogTitle>
-                      <DialogDescription>
-                        The 'Review' section, featuring a personalized spaced repetition dashboard to help you retain knowledge, is currently under development. Check back later!
-                      </DialogDescription>
-                    </DialogHeader>
-                  </DialogContent>
-                </Dialog>
-              ) : (
-                <Link
-                  to="/review"
-                  className="text-base font-medium text-muted-foreground hover:text-foreground"
-                  onClick={() => {
-                    if (isAdminView) {
-                      setIsAdminView(false);
-                    }
-                  }}
-                >
-                  Review
-                </Link>
-              )}
-              <Dialog>
-                <DialogTrigger asChild>
-                  <span className="text-base font-medium text-muted-foreground hover:text-foreground cursor-pointer">
-                    Apply
-                  </span>
-                </DialogTrigger>
-                <DialogContent className="sm:max-w-[425px]">
-                  <DialogHeader>
-                    <DialogTitle>Feature Coming Soon</DialogTitle>
-                    <DialogDescription>
-                      The 'Apply' section featuring projects and challenges is currently under development. Check back later!
-                    </DialogDescription>
-                  </DialogHeader>
-                </DialogContent>
-              </Dialog>
+              <Link
+                to="/review"
+                className="text-base font-medium text-muted-foreground hover:text-foreground"
+                onClick={() => {
+                  if (isAdminView) {
+                    setIsAdminView(false);
+                  }
+                }}
+              >
+                Review
+              </Link>
+              <Link
+                to="/apply"
+                className="text-base font-medium text-muted-foreground hover:text-foreground"
+              >
+                Apply
+              </Link>
             </div>
 
             <div 
@@ -261,6 +218,10 @@ export function Navigation() {
                   </button>
                 </DialogTrigger>
                 <DialogContent className="lg:hidden fixed inset-x-0 top-0 z-50 bg-background p-4 !left-0 !top-0 !translate-x-0 !translate-y-0 !max-w-none">
+                  <DialogHeader className="sr-only">
+                    <DialogTitle>Navigation Menu</DialogTitle>
+                    <DialogDescription>Mobile navigation options and user controls</DialogDescription>
+                  </DialogHeader>
                   <div className="flex flex-col space-y-4">
                     {/* Top Row: Conditional based on login status */}
                     {!user ? (
@@ -292,25 +253,7 @@ export function Navigation() {
                     <hr className="border-divider" />
 
                     {/* Navigation Links */}
-                    {!canAccessAdmin ? (
-                      <DialogClose asChild>
-                        <Dialog>
-                          <DialogTrigger asChild>
-                            <span className="text-base font-medium text-muted-foreground hover:text-foreground cursor-pointer">
-                              Learn
-                            </span>
-                          </DialogTrigger>
-                          <DialogContent className="sm:max-w-[425px]">
-                            <DialogHeader>
-                              <DialogTitle>Feature Coming Soon</DialogTitle>
-                              <DialogDescription>
-                                The full 'Learn' section featuring the mastery-based learning dashboard is currently under development. Check back later!
-                              </DialogDescription>
-                            </DialogHeader>
-                          </DialogContent>
-                        </Dialog>
-                      </DialogClose>
-                    ) : (
+                    {user ? (
                       <DialogClose asChild>
                         <Link
                           to="/dashboard"
@@ -322,67 +265,44 @@ export function Navigation() {
                           Learn
                         </Link>
                       </DialogClose>
+                    ) : (
+                      <DialogClose asChild>
+                        <Link
+                          to="/login"
+                          className="text-base font-medium text-muted-foreground hover:text-foreground"
+                        >
+                          Learn
+                        </Link>
+                      </DialogClose>
                     )}
                     <DialogClose asChild>
                       <Link
                         to={user ? "/collections" : "/login"}
                         className="text-base font-medium text-muted-foreground hover:text-foreground"
                       >
-                        <span className="relative inline-block py-0.5">
-                          Practice
-                          <span className="absolute top-0 right-0 translate-x-3/4 -translate-y-1/4 rotate-[15deg] text-[0.6rem] font-bold leading-none text-[#5271FF] bg-[#5271FF]/10 px-0.5 py-0.5 rounded-sm shadow-[0_0_3px_#5271FF]">
-                            NEW
-                          </span>
-                        </span>
+                        Practice
                       </Link>
                     </DialogClose>
                     <DialogClose asChild>
-                      {!canAccessAdmin ? (
-                        <Dialog>
-                          <DialogTrigger asChild>
-                            <span className="text-base font-medium text-muted-foreground hover:text-foreground cursor-pointer">
-                              Review
-                            </span>
-                          </DialogTrigger>
-                          <DialogContent className="sm:max-w-[425px]">
-                            <DialogHeader>
-                              <DialogTitle>Feature Coming Soon</DialogTitle>
-                              <DialogDescription>
-                                The 'Review' section, featuring a personalized spaced repetition dashboard to help you retain knowledge, is currently under development. Check back later!
-                              </DialogDescription>
-                            </DialogHeader>
-                          </DialogContent>
-                        </Dialog>
-                      ) : (
-                        <Link
-                          to="/review"
-                          className="text-base font-medium text-muted-foreground hover:text-foreground"
-                          onClick={() => {
-                            if (isAdminView) {
-                              setIsAdminView(false);
-                            }
-                          }}
-                        >
-                          Review
-                        </Link>
-                      )}
+                      <Link
+                        to="/review"
+                        className="text-base font-medium text-muted-foreground hover:text-foreground"
+                        onClick={() => {
+                          if (isAdminView) {
+                            setIsAdminView(false);
+                          }
+                        }}
+                      >
+                        Review
+                      </Link>
                     </DialogClose>
                     <DialogClose asChild>
-                      <Dialog>
-                        <DialogTrigger asChild>
-                          <span className="text-base font-medium text-muted-foreground hover:text-foreground cursor-pointer">
-                            Apply
-                          </span>
-                        </DialogTrigger>
-                        <DialogContent className="sm:max-w-[425px]">
-                          <DialogHeader>
-                            <DialogTitle>Feature Coming Soon</DialogTitle>
-                            <DialogDescription>
-                              The 'Apply' section featuring projects and challenges is currently under development. Check back later!
-                            </DialogDescription>
-                          </DialogHeader>
-                        </DialogContent>
-                      </Dialog>
+                      <Link
+                        to="/apply"
+                        className="text-base font-medium text-muted-foreground hover:text-foreground"
+                      >
+                        Apply
+                      </Link>
                     </DialogClose>
                     <hr className="border-divider" />
                     {/* User/Auth Controls (Main List - Only Profile) */}

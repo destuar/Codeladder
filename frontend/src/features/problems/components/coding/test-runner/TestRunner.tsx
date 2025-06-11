@@ -6,6 +6,7 @@ import { TestCase as TestCaseType } from '../../../types/coding';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { TestCaseTab } from './TestCaseTab';
 import { ResultTab } from './ResultTab';
+import { logger } from '@/lib/logger';
 
 const getLocalStorageKeyForCustomTests = (problemId: string) => `problem-${problemId}-customTestCases`;
 
@@ -19,6 +20,8 @@ interface TestRunnerProps {
   isRunning?: boolean;
   setIsRunning?: React.Dispatch<React.SetStateAction<boolean>>;
   functionParams?: { name: string; type: string }[];
+  onSubmissionComplete?: () => void;
+  isCompleted?: boolean;
 }
 
 /**
@@ -33,7 +36,9 @@ export function TestRunner({
   language,
   isRunning: externalIsRunning,
   setIsRunning: externalSetIsRunning,
-  functionParams
+  functionParams,
+  onSubmissionComplete,
+  isCompleted = false
 }: TestRunnerProps) {
   const [activeTab, setActiveTab] = useState("testcase");
   const [selectedTestCase, setSelectedTestCase] = useState<number | null>(0);
@@ -124,7 +129,7 @@ export function TestRunner({
     setIsRunning(true);
     try {
       // Pass only userCustomTestCases to the hook
-      await runQuickTests(code, problemId, language, userCustomTestCases);
+      const result = await runQuickTests(code, problemId, language, userCustomTestCases);
       onRunComplete?.();
       if (testResults.length > 0 || userCustomTestCases.length > 0) { // Check if any results or custom tests to show
         setActiveTab("result");
@@ -139,16 +144,33 @@ export function TestRunner({
     setIsRunning(true);
     try {
       // Pass only userCustomTestCases to the hook
-      await runTests(code, problemId, language, userCustomTestCases);
+      const result = await runTests(code, problemId, language, userCustomTestCases);
       onRunComplete?.();
-      if (allPassed && onAllTestsPassed) {
+      
+      // Debug logging to track the completion logic
+      logger.debug('[TestRunner] Submission complete:', {
+        allPassedFromResult: result.allPassed,
+        allPassedFromState: allPassed,
+        isAlreadyCompleted: isCompleted,
+        hasOnAllTestsPassed: !!onAllTestsPassed,
+        willTriggerCompletion: result.allPassed && !isCompleted && !!onAllTestsPassed
+      });
+      
+      if (result.allPassed && !isCompleted && onAllTestsPassed) {
+        logger.debug('[TestRunner] Calling onAllTestsPassed - problem will be marked complete');
         onAllTestsPassed();
+      } else if (result.allPassed && isCompleted) {
+        logger.debug('[TestRunner] Tests passed but problem already completed - NOT calling onAllTestsPassed');
+      } else {
+        logger.debug('[TestRunner] NOT calling onAllTestsPassed - tests failed or no callback');
       }
+      
       if (testResults.length > 0 || userCustomTestCases.length > 0) { // Check if any results or custom tests to show
         setActiveTab("result");
       }
     } finally {
       setIsRunning(false);
+      onSubmissionComplete?.();
     }
   };
 

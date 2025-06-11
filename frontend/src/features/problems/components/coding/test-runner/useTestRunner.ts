@@ -2,6 +2,7 @@ import { useState, useCallback, useRef, useEffect } from 'react';
 import { TestCase, TestResult } from '../../../types/coding';
 import axios from 'axios';
 import { api } from '../../../../../lib/api';
+import { logger } from '@/lib/logger';
 
 interface ExecuteCodeResponse {
   results: TestResult[];
@@ -37,8 +38,8 @@ interface UseTestRunnerResult {
   testResults: TestResult[];
   allPassed: boolean;
   // Removed TestCase[] from runTests signature, backend will fetch official ones
-  runTests: (code: string, problemId: string, language: string, userCustomTestCases?: TestCaseType[]) => Promise<void>;
-  runQuickTests: (code: string, problemId: string, language: string, userCustomTestCases?: TestCaseType[]) => Promise<void>;
+  runTests: (code: string, problemId: string, language: string, userCustomTestCases?: TestCaseType[]) => Promise<{ allPassed: boolean }>;
+  runQuickTests: (code: string, problemId: string, language: string, userCustomTestCases?: TestCaseType[]) => Promise<{ allPassed: boolean }>;
   runCustomTest: (code: string, input: any[], functionName: string, language: string) => Promise<TestResult>;
 }
 
@@ -60,7 +61,7 @@ export function useTestRunner(): UseTestRunnerResult {
    */
   const getSecureHeaders = useCallback(() => {
     const token = localStorage.getItem('token');
-    console.log('[useTestRunner] getSecureHeaders - Token from localStorage:', token ? `Present (ends with ${token.slice(-6)})` : 'MISSING or EMPTY');
+    logger.debug('[useTestRunner] getSecureHeaders - Token from localStorage:', token ? `Present (ends with ${token.slice(-6)})` : 'MISSING or EMPTY');
     return {
       'Content-Type': 'application/json',
       ...(token ? { 'Authorization': `Bearer ${token}` } : {})
@@ -93,7 +94,7 @@ export function useTestRunner(): UseTestRunnerResult {
             await request();
           }
         } catch (refreshError) {
-          console.error('Token refresh failed:', refreshError);
+          logger.error('Token refresh failed', refreshError);
           setTestResults([{
             passed: false,
             input: [],
@@ -117,12 +118,12 @@ export function useTestRunner(): UseTestRunnerResult {
 
   // Secure execute endpoint that creates a submission
   const runTests = useCallback(async (code: string, problemId: string, language: string, userCustomTestCases?: TestCaseType[]) => {
-    const executeRequest = async () => {
+    const executeRequest = async (): Promise<{ allPassed: boolean }> => {
       setTestResults([]);
       setAllPassed(false);
       
       const headers = getSecureHeaders();
-      console.log('[useTestRunner] runTests - Headers for /api/code/execute:', headers);
+      logger.debug('[useTestRunner] runTests - Headers for /api/code/execute:', headers);
 
       try {
         const payload: { code: string; language: string; problemId: string; userCustomTestCases?: TestCaseType[] } = { 
@@ -145,14 +146,25 @@ export function useTestRunner(): UseTestRunnerResult {
         if (data && data.results && Array.isArray(data.results)) {
           setTestResults(data.results);
           setAllPassed(data.allPassed);
+          
+          // Debug logging to track test execution results
+          logger.debug('[useTestRunner] Submission test results:', {
+            allPassed: data.allPassed,
+            resultsCount: data.results.length,
+            passedTests: data.results.filter(r => r.passed).length,
+            failedTests: data.results.filter(r => !r.passed).length
+          });
+          
+          return { allPassed: data.allPassed };
         } else {
           throw new Error('Invalid response format from server');
         }
       } catch (error) {
         if ((error as any).isAxiosError && (error as any).response?.status === 401) {
-          await handleAuthError(error as any, () => executeRequest());
+          await handleAuthError(error as any, async () => { await executeRequest(); });
+          return executeRequest(); // Return the result from the retry
         } else {
-          console.error('Error running tests:', error);
+          logger.error('Error running tests', error);
           
           setTestResults([{
             passed: false,
@@ -163,22 +175,23 @@ export function useTestRunner(): UseTestRunnerResult {
             error: error instanceof Error ? error.message : 'Unknown error'
           }]);
           setAllPassed(false);
+          return { allPassed: false };
         }
       }
     };
 
     // Start the execution process
-    await executeRequest();
+    return await executeRequest();
   }, [getSecureHeaders, handleAuthError]);
 
   // Secure run-tests endpoint without creating a submission
   const runQuickTests = useCallback(async (code: string, problemId: string, language: string, userCustomTestCases?: TestCaseType[]) => {
-    const quickTestRequest = async () => {
+    const quickTestRequest = async (): Promise<{ allPassed: boolean }> => {
       setTestResults([]);
       setAllPassed(false);
       
       const headers = getSecureHeaders();
-      console.log('[useTestRunner] runQuickTests - Headers for /api/code/run-tests:', headers);
+      logger.debug('[useTestRunner] runQuickTests - Headers for /api/code/run-tests:', headers);
       
       try {
         const payload: { code: string; language: string; problemId: string; userCustomTestCases?: TestCaseType[] } = { 
@@ -201,14 +214,16 @@ export function useTestRunner(): UseTestRunnerResult {
         if (data && data.results && Array.isArray(data.results)) {
           setTestResults(data.results);
           setAllPassed(data.allPassed);
+          return { allPassed: data.allPassed };
         } else {
           throw new Error('Invalid response format from server');
         }
       } catch (error) {
         if ((error as any).isAxiosError && (error as any).response?.status === 401) {
-          await handleAuthError(error as any, () => quickTestRequest());
+          await handleAuthError(error as any, async () => { await quickTestRequest(); });
+          return quickTestRequest(); // Return the result from the retry
         } else {
-          console.error('Error running quick tests:', error);
+          logger.error('Error running quick tests', error);
           
           setTestResults([{
             passed: false,
@@ -219,12 +234,13 @@ export function useTestRunner(): UseTestRunnerResult {
             error: error instanceof Error ? error.message : 'Unknown error'
           }]);
           setAllPassed(false);
+          return { allPassed: false };
         }
       }
     };
 
     // Start the quick test process
-    await quickTestRequest();
+    return await quickTestRequest();
   }, [getSecureHeaders, handleAuthError]);
 
   // Secure custom test execution
@@ -236,7 +252,7 @@ export function useTestRunner(): UseTestRunnerResult {
   ): Promise<TestResult> => {
     const customTestRequest = async (): Promise<TestResult> => {
       const headers = getSecureHeaders();
-      console.log('[useTestRunner] runCustomTest - Headers for /api/code/custom-test:', headers);
+      logger.debug('[useTestRunner] runCustomTest - Headers for /api/code/custom-test:', headers);
 
       try {
         const response = await axios.post<ExecuteCustomTestResponse>(
@@ -267,7 +283,7 @@ export function useTestRunner(): UseTestRunnerResult {
           return customTestRequest(); // Ensure a TestResult is returned
         }
         
-        console.error('Error running custom test:', error);
+        logger.error('Error running custom test', error);
         return {
           passed: false,
           input: input,

@@ -4,6 +4,10 @@ import { api } from "@/lib/api";
 import { useAuth } from "@/features/auth/AuthContext";
 import { toast } from "sonner";
 import InfoProblem from "@/features/problems/components/info/InfoProblem";
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Markdown } from '@/components/ui/markdown';
+import { LoadingCard, PageLoadingSpinner } from '@/components/ui/loading-spinner';
+import { logger } from '@/lib/logger';
 
 type InfoPage = {
   id: string;
@@ -28,7 +32,7 @@ export function InfoPage() {
         const data = await api.get(`/problems/slug/${page}`, token);
         setInfoPage(data);
       } catch (error) {
-        console.error("Error fetching info page:", error);
+        logger.error("Error fetching info page", error);
         toast.error("Failed to load the info page");
       } finally {
         setIsLoading(false);
@@ -40,8 +44,8 @@ export function InfoPage() {
 
   if (isLoading) {
     return (
-      <div className="h-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+      <div className="h-screen flex items-center justify-center bg-background">
+        <PageLoadingSpinner />
       </div>
     );
   }
@@ -58,7 +62,7 @@ export function InfoPage() {
 
   // Dummy navigation handler as standalone info pages don't have next/prev
   const handleNavigate = (id: string, slug?: string) => {
-    console.warn(`Navigation attempt from InfoPage: id=${id}, slug=${slug}. Standalone pages have no sequence.`);
+    logger.warn(`Navigation attempt from InfoPage: id=${id}, slug=${slug}. Standalone pages have no sequence.`);
     // Do nothing, or potentially navigate to a default page if needed?
   };
 

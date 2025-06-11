@@ -20,8 +20,10 @@ interface PricingTierProps {
 const PricingTier = ({ title, subtitle, price, priceDetail, features, buttonText, isPopular = false, isComingSoon = false, linkTo }: PricingTierProps) => (
   // Use brand blue for border, add glow effect via shadow
   <Card className={cn(
-    "flex flex-col", 
-    isPopular ? "border-[#5271FF]/50 border-2 shadow-lg shadow-[#5271FF]/30 relative dark:shadow-[#5271FF]/50" : "border"
+    "flex flex-col h-full min-h-[26rem] md:min-h-0",
+    isPopular 
+      ? "border-[#5271FF]/50 border-2 shadow-lg shadow-[#5271FF]/30 relative dark:shadow-lg dark:shadow-[#5271FF]/50" 
+      : "shadow-lg border-border/30 dark:shadow-lg dark:shadow-[#5271FF]/50 dark:border-[#5271FF]/30"
   )}>
     {isPopular && (
       // Use brand blue for popular badge background, white check
@@ -31,12 +33,12 @@ const PricingTier = ({ title, subtitle, price, priceDetail, features, buttonText
     )}
     <CardHeader className="flex-grow-0">
       <CardTitle>{title}</CardTitle>
-      {subtitle && <CardDescription>{subtitle}</CardDescription>}
+      {subtitle && <CardDescription className="font-sans">{subtitle}</CardDescription>}
     </CardHeader>
     <CardContent className="flex flex-col flex-grow space-y-4">
-      <div className="text-4xl font-bold">{price}<span className="text-sm font-normal text-muted-foreground"> / month</span></div>
-      {priceDetail && <p className="text-xs text-muted-foreground">{priceDetail}</p>}
-      <ul className="space-y-2 text-sm flex-grow">
+      <div className="text-4xl font-bold font-sans">{price}<span className="text-sm font-normal text-muted-foreground font-sans"> / month</span></div>
+      {priceDetail && <p className="text-xs text-muted-foreground font-sans">{priceDetail}</p>}
+      <ul className="space-y-2 text-sm flex-grow font-sans h-full">
         {features.map((feature, index) => (
           <li key={index} className="flex items-start">
             <span className="mr-2 font-semibold">-</span>
@@ -49,18 +51,18 @@ const PricingTier = ({ title, subtitle, price, priceDetail, features, buttonText
       {/* Apply brand blue style to ALL buttons, disable if coming soon, link if linkTo provided */}
       {isComingSoon ? (
         <Button
-          className="w-full text-white bg-muted text-muted-foreground cursor-not-allowed hover:bg-muted"
+          className="w-full text-white bg-muted text-muted-foreground cursor-not-allowed hover:bg-muted font-sans"
           disabled
         >
           Coming Soon
         </Button>
       ) : linkTo ? (
-        <Button className="w-full bg-[#5271FF] hover:bg-[#415ACC] text-white" asChild>
+        <Button className="w-full bg-[#5271FF] hover:bg-[#415ACC] text-white font-sans" asChild>
           <Link to={linkTo}>{buttonText} &rarr;</Link>
         </Button>
       ) : (
         // Fallback for a button that's not coming soon and has no link
-        <Button className="w-full bg-[#5271FF] hover:bg-[#415ACC] text-white">
+        <Button className="w-full bg-[#5271FF] hover:bg-[#415ACC] text-white font-sans">
           {buttonText} &rarr;
         </Button>
       )}
@@ -120,8 +122,8 @@ export const Pricing = () => {
       <div className="container mx-auto px-4">
         <div className="text-center mb-12">
           <h2 className="text-3xl font-bold tracking-tight sm:text-4xl">Pricing</h2>
-          <p className="mt-2 text-lg text-muted-foreground">
-            Keep climbing the career ladder
+          <p className="mt-3 text-lg md:text-xl text-muted-foreground max-w-2xl mx-auto">
+            Start climbing the career ladder.
           </p>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-6xl mx-auto">

@@ -24,6 +24,7 @@ export type LanguageData = {
   enabled: boolean;
   template: string;
   reference: string;
+  solution: string;
 };
 
 export type LanguageSupportProps = { 
@@ -46,7 +47,8 @@ export const prepareLanguageSupport = (
     if (data.enabled) {
       result[lang] = {
         template: data.template || '',
-        reference: data.reference || null
+        reference: data.reference || null,
+        solution: data.solution || null
       };
     }
   });
@@ -57,12 +59,14 @@ export const prepareLanguageSupport = (
     if (supportedLanguages[defaultLanguage]) {
       result[defaultLanguage] = {
         template: supportedLanguages[defaultLanguage].template || '',
-        reference: null
+        reference: null,
+        solution: null
       };
     } else {
       result[defaultLanguage] = {
         template: '',
-        reference: null
+        reference: null,
+        solution: null
       };
     }
   }
@@ -72,10 +76,10 @@ export const prepareLanguageSupport = (
 
 // Initial default state for supported languages
 export const defaultSupportedLanguages: Record<SupportedLanguage, LanguageData> = {
-  python: { enabled: true, template: '', reference: '' },
-  javascript: { enabled: false, template: '', reference: '' },
-  java: { enabled: false, template: '', reference: '' },
-  cpp: { enabled: false, template: '', reference: '' }
+  python: { enabled: true, template: '', reference: '', solution: '' },
+  javascript: { enabled: false, template: '', reference: '', solution: '' },
+  java: { enabled: false, template: '', reference: '', solution: '' },
+  cpp: { enabled: false, template: '', reference: '', solution: '' }
 };
 
 export const LanguageSupport: React.FC<LanguageSupportProps> = ({ 
@@ -146,6 +150,16 @@ export const LanguageSupport: React.FC<LanguageSupportProps> = ({
       }
     }));
   };
+
+  const handleSolutionChange = (language: SupportedLanguage, solution: string) => {
+    setSupportedLanguages(prev => ({
+      ...prev,
+      [language]: {
+        ...prev[language],
+        solution
+      }
+    }));
+  };
   
   return (
     <div className="space-y-4">
@@ -196,7 +210,7 @@ export const LanguageSupport: React.FC<LanguageSupportProps> = ({
             onValueChange={setDefaultLanguage}
             className="w-full"
           >
-            <TabsList className="mb-2 grid w-full grid-cols-none justify-start sm:grid-cols-auto">
+            <TabsList className="mb-2 flex flex-wrap border-b">
               {enabledLanguages.map(lang => (
                 <TabsTrigger key={lang} value={lang}>
                   {languageNames[lang as SupportedLanguage]}
@@ -225,6 +239,17 @@ export const LanguageSupport: React.FC<LanguageSupportProps> = ({
                     onChange={(e) => handleReferenceChange(lang as SupportedLanguage, e.target.value)}
                     className="font-mono text-sm h-40"
                     placeholder={`Enter ${languageNames[lang as SupportedLanguage]} reference implementation`}
+                  />
+                </div>
+
+                <div>
+                  <Label htmlFor={`solution-${lang}`}>Solution Explanation (Optional)</Label>
+                  <Textarea 
+                    id={`solution-${lang}`}
+                    value={supportedLanguages[lang as SupportedLanguage]?.solution || ''}
+                    onChange={(e) => handleSolutionChange(lang as SupportedLanguage, e.target.value)}
+                    className="font-mono text-sm h-40"
+                    placeholder={`Enter ${languageNames[lang as SupportedLanguage]} solution explanation (supports Markdown)`}
                   />
                 </div>
               </TabsContent>

@@ -36,6 +36,9 @@ model User {
   // Quiz attempts
   quizAttempts QuizAttempt[]
 
+  // Spaced repetition items for this user
+  spacedRepetitionItems SpacedRepetitionItem[]
+
   // Timestamps
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -121,6 +124,9 @@ model Problem {
   // Code submissions for this problem
   submissions Submission[]
 
+  // Spaced repetition items for this problem
+  spacedRepetitionItems SpacedRepetitionItem[]
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -128,9 +134,9 @@ model Problem {
 }
 
 model ProblemToCollection {
-  problem      Problem    @relation(fields: [problemId], references: [id])
+  problem      Problem    @relation(fields: [problemId], references: [id], onDelete: Cascade)
   problemId    String
-  collection   Collection @relation(fields: [collectionId], references: [id])
+  collection   Collection @relation(fields: [collectionId], references: [id], onDelete: Cascade)
   collectionId String
 
   @@id([problemId, collectionId])
@@ -189,6 +195,26 @@ model StandaloneInfoPage {
   @@map("standalone_info_pages")
 }
 
+model SpacedRepetitionItem {
+  id                String    @id @default(cuid())
+  userId            String
+  user              User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  problemId         String
+  problem           Problem   @relation(fields: [problemId], references: [id], onDelete: Cascade)
+
+  reviewScheduledAt DateTime  // When this item is scheduled to be reviewed next
+  reviewLevel       Int       @default(0) // Current review level (determines intervals)
+  lastReviewedAt    DateTime? // When the item was last reviewed
+  isActive          Boolean   @default(true) // To easily filter active review items
+
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  @@unique([userId, problemId]) // A user reviews a specific problem
+  @@index([userId, reviewScheduledAt, isActive]) // For efficiently fetching due items
+  @@map("spaced_repetition_items")
+}
+
 // New model for code submissions
 model Submission {
   id            String           @id @default(cuid())
@@ -210,7 +236,7 @@ model Submission {
   // Relations
   user      User    @relation(fields: [userId], references: [id])
   userId    String
-  problem   Problem @relation(fields: [problemId], references: [id])
+  problem   Problem @relation(fields: [problemId], references: [id], onDelete: Cascade)
   problemId String
 
   @@index([userId])
@@ -309,7 +335,7 @@ model CodeProblem {
   functionName    String?       @map("function_name")
   language        String?       @map("language_old") /// @deprecated Use defaultLanguage instead
   defaultLanguage String        @default("python") @map("default_language")
-  languageSupport Json?         @map("language_support") // Stores all language templates and references
+  languageSupport Json?         @map("language_support") // Stores all language templates, references, and solutions. Shape: { [lang: string]: { template: string, reference: string, solution: string } }
   timeLimit       Int           @default(5000) @map("time_limit") // Execution time limit in ms
   memoryLimit     Int?          @map("memory_limit") // Memory limit in MB if applicable
 
@@ -464,4 +490,29 @@ enum SubmissionStatus {
 enum AssessmentType {
   QUIZ
   TEST
+}
+
+model Job {
+  id                String    @id @default(cuid())
+  externalId        String    @unique
+  url               String    @unique
+  title             String
+  company           String
+  companyUrl        String?
+  companyLogoUrl    String?   @db.Text
+  location          String
+  rawLocationHtml   String?   @db.Text
+  modality          String?
+  salary            String?
+  datePostedRaw     String?
+  parsedDatePosted  DateTime?
+  description       String?   @db.Text
+  skills            String[]
+  source            String    // e.g., "builtin.com"
+  createdAt         DateTime  @default(now()) // Indicates when it was added in the last scrape
+
+  @@index([parsedDatePosted])
+  @@index([modality])
+  @@index([location])
+  @@map("jobs")
 }

@@ -1,7 +1,9 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 import { useAuth } from '@/features/auth/AuthContext';
+import { logger } from '@/lib/logger';
+import { toast } from '@/components/ui/use-toast';
 
 interface UseProblemCompletionResult {
   isProblemCompleted: boolean;
@@ -38,18 +40,20 @@ export function useProblemCompletion(
     
     // In review mode, don't make API calls - just update UI and call the callback
     if (isReviewMode) {
-      console.log('[ProblemCompletion] Skipping API toggle in review mode, calling onCompleted directly');
-      // Call onCompleted here if it exists, as the API call is skipped
-      if (onCompleted) {
-        onCompleted(); 
-      }
-      return; // Still return early to prevent API call
+      logger.debug('[ProblemCompletion] Skipping API toggle in review mode, calling onCompleted directly');
+      if (onCompleted) onCompleted();
+      return;
     }
     
     // For non-review mode, fire API call asynchronously (non-blocking)
     completeToggleProblem(false).catch(error => {
       // Only revert UI on error
-      console.error('[ProblemCompletion] Error toggling completion:', error);
+      logger.error('[ProblemCompletion] Error toggling completion', error);
+      toast({
+        title: "Error",
+        description: "Failed to update problem status",
+        variant: "destructive"
+      });
       setIsProblemCompleted(previousState);
     });
   };
@@ -59,7 +63,7 @@ export function useProblemCompletion(
     // When not in review mode, follow normal toggle behavior
     const isBeingMarkedComplete = !isProblemCompleted;
     
-    console.log('[ProblemCompletion] Marking problem as complete:', {
+    logger.debug('[ProblemCompletion] Marking problem as complete:', {
       problemId,
       currentState: isProblemCompleted,
       isReviewMode,
@@ -72,7 +76,7 @@ export function useProblemCompletion(
         preserveReviewData: isReviewMode
       }, token);
       
-      console.log('[ProblemCompletion] Server response:', response);
+      logger.debug('[ProblemCompletion] Server response:', response);
       
       // Perform invalidation asynchronously to avoid blocking
       setTimeout(() => {
@@ -87,18 +91,22 @@ export function useProblemCompletion(
           queryClient.invalidateQueries({ queryKey: ['reviewStats'] })
         ]);
         
-        console.log('[ProblemCompletion] All queries invalidated');
+        logger.debug('[ProblemCompletion] All queries invalidated');
       }, 0);
       
       // Call onCompleted callback when marking as complete (only in non-review mode now)
       // The review mode case is handled in handleMarkAsComplete
       if (onCompleted && isBeingMarkedComplete) {
-        console.log('[ProblemCompletion] Calling onCompleted callback (non-review)');
+        logger.debug('[ProblemCompletion] Calling onCompleted callback (non-review)');
         // onCompleted(); // Already called earlier if in review mode
       }
     } catch (error) {
-      // Error handling is now in the handleMarkAsComplete function
-      throw error;
+      logger.error('[ProblemCompletion] Error toggling completion', error);
+      toast({
+        title: "Error",
+        description: "Failed to update problem status",
+        variant: "destructive"
+      });
     }
   };
 

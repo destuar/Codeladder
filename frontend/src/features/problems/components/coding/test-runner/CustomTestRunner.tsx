@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import React, { useState, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Play, Plus, X } from 'lucide-react';
@@ -7,6 +7,7 @@ import { Separator } from '@/components/ui/separator';
 import { useTestRunner } from './useTestRunner';
 import { formatValue } from '../../../utils/formatters';
 import { CustomTestCase } from '../../../types/coding';
+import { LoadingSpinner } from '@/components/ui/loading-spinner';
 
 interface CustomTestRunnerProps {
   code: string;
@@ -140,7 +141,7 @@ export function CustomTestRunner({ code, functionName, language }: CustomTestRun
                       title="Run this test case"
                     >
                       {isRunning ? (
-                        <div className="h-4 w-4 animate-spin rounded-full border-2 border-background border-t-foreground" />
+                        <LoadingSpinner size="sm" className="text-background" />
                       ) : (
                         <Play className="h-4 w-4" />
                       )}

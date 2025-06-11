@@ -3,6 +3,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from '@/components/ui/button';
 import { RepeatIcon, CalendarDays, Dumbbell } from 'lucide-react';
 import { useDashboardReviews } from '../hooks/useDashboardReviews';
+import { LoadingSpinner } from '@/components/ui/loading-spinner';
 
 /**
  * A card to display on the dashboard that shows due review information
@@ -28,7 +29,7 @@ export function DashboardReviewCard() {
         </CardHeader>
         <CardContent>
           <div className="h-12 flex items-center justify-center">
-            <div className="animate-spin rounded-full h-5 w-5 border-2 border-primary border-t-transparent" />
+            <LoadingSpinner size="md" />
           </div>
         </CardContent>
       </Card>

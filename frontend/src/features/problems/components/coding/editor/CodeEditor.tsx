@@ -1,4 +1,4 @@
-import { useRef, forwardRef, useImperativeHandle } from 'react';
+import React, { useRef, forwardRef, useImperativeHandle } from 'react';
 import Editor, { EditorProps } from "@monaco-editor/react";
 import { useEditor } from './useEditor';
 import { LANGUAGE_CONFIGS, SUPPORTED_LANGUAGES, SupportedLanguage } from '../../../types/coding';
@@ -10,7 +10,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
-import { Play, Send } from "lucide-react";
+import { Play, Send, RotateCcw, Sun, Moon, Eye, EyeOff, Maximize2, Minimize2, Loader2 } from "lucide-react";
+import { LoadingSpinner } from '@/components/ui/loading-spinner';
 
 interface CodeEditorProps {
   initialCode?: string;
@@ -21,6 +22,7 @@ interface CodeEditorProps {
   onRunTests?: () => void;
   onSubmitSolution?: () => void;
   isRunning?: boolean;
+  isSubmitting?: boolean;
 }
 
 export interface CodeEditorRef {
@@ -64,7 +66,8 @@ export const CodeEditor = forwardRef<CodeEditorRef, CodeEditorProps>(({
   onLanguageChange,
   onRunTests,
   onSubmitSolution,
-  isRunning = false
+  isRunning = false,
+  isSubmitting = false
 }, ref) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const {
@@ -141,19 +144,15 @@ export const CodeEditor = forwardRef<CodeEditorRef, CodeEditorProps>(({
             <Button 
               onClick={onRunTests} 
               disabled={isRunning}
-              className="gap-2 w-24"
-              size="sm"
               variant="outline"
+              className="h-9 rounded-md px-4 text-sm gap-2 dark:border-transparent dark:bg-white/10 dark:hover:bg-white/20"
             >
-              {isRunning ? (
-                <>
-                  <div className="h-4 w-4 animate-spin rounded-full border-2 border-background border-t-foreground" />
-                  Running...
-                </>
+              {isRunning && !isSubmitting ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
               ) : (
                 <>
                   <Play className="h-4 w-4" />
-                  Run
+                  <span>Run</span>
                 </>
               )}
             </Button>
@@ -161,18 +160,14 @@ export const CodeEditor = forwardRef<CodeEditorRef, CodeEditorProps>(({
             <Button 
               onClick={onSubmitSolution} 
               disabled={isRunning}
-              className="gap-2 w-24"
-              size="sm"
+              className="h-9 rounded-md px-3 text-sm gap-2 bg-[#5271FF] hover:bg-[#415ACC] text-white"
             >
-              {isRunning ? (
-                <>
-                  <div className="h-4 w-4 animate-spin rounded-full border-2 border-background border-t-foreground" />
-                  Submitting...
-                </>
+              {isRunning && isSubmitting ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
               ) : (
                 <>
                   <Send className="h-4 w-4" />
-                  Submit
+                  <span>Submit</span>
                 </>
               )}
             </Button>

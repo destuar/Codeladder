@@ -2,6 +2,7 @@ import { Button } from "@/components/ui/button";
 import { Github } from "lucide-react";
 import { FcGoogle } from "react-icons/fc";
 import { FaApple } from "react-icons/fa";
+import { LoadingButton } from "@/components/ui/loading-spinner";
 
 interface SocialAuthButtonProps {
   provider: 'google' | 'github';
@@ -35,7 +36,7 @@ export function SocialAuthButton({ provider, onClick, isLoading }: SocialAuthBut
       className={`w-full flex-1 bg-white hover:bg-gray-50 border-gray-300 text-gray-700 dark:bg-neutral-800 dark:hover:bg-neutral-700 dark:border-neutral-700 dark:text-neutral-200 font-medium h-10 px-4 ${hoverClasses[provider]}`}
     >
       {isLoading ? (
-        <div className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
+        <LoadingButton size="sm" />
       ) : (
         <>
           <Icon className="h-4 w-4 mr-2 flex-shrink-0" />

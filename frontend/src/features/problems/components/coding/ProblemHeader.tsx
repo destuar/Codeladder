@@ -9,6 +9,7 @@ import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { useLogoSrc } from '@/features/landingpage/hooks/useLogoSrc';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { BorderlessThemeToggle } from "../shared/BorderlessThemeToggle";
+import { logger } from '@/lib/logger';
 
 // Export the interface
 export interface ProblemHeaderProps {
@@ -137,7 +138,9 @@ export function ProblemHeader({
               )}
             </div>
           ) : (
-            <span className="font-medium">{title}</span>
+            <div className="flex flex-col items-center">
+              <span className="font-medium">{title}</span>
+            </div>
           )}
         </div>
 
@@ -177,7 +180,7 @@ export function ProblemHeader({
                     "active:scale-95"
                   )}
                   onClick={() => {
-                    console.log('Mark Complete button clicked, current status:', isCompleted);
+                    logger.debug('Mark Complete button clicked, current status:', isCompleted);
                     onMarkComplete();
                   }}
                 >
@@ -202,19 +205,6 @@ export function ProblemHeader({
         
         <BorderlessThemeToggle />
         
-        <TooltipProvider>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button variant="ghost" size="icon" className="h-9 w-9">
-                <Settings className="h-4 w-4" />
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent className="bg-popover text-popover-foreground border shadow-md">
-              <p>Settings</p>
-            </TooltipContent>
-          </Tooltip>
-        </TooltipProvider>
-
         <Link to="/profile">
           <Avatar className="h-8 w-8 transition-transform hover:scale-105">
             <AvatarImage src={profile?.avatarUrl} />

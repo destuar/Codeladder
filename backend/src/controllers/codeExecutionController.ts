@@ -8,7 +8,13 @@
 
 import { Request, Response } from 'express';
 import { prisma } from '../lib/prisma';
-import { submitCode, formatTestCode, ProcessedResult } from '../services/judge0Service';
+import {
+  submitCode,
+  submitCodeBatch,
+  formatTestCode,
+  ProcessedResult,
+} from '../services/judge0Service';
+import { LANGUAGE_IDS } from '../shared/languageIds';
 import { Prisma } from '@prisma/client';
 
 // Define the expected payload structure from Prisma
@@ -162,8 +168,23 @@ export async function executeCode(req: Request, res: Response): Promise<void> {
     }));
 
     const functionName = codeProblem.functionName || 'solution';
-    const submissionResponseResults: TestResultForResponse[] = []; // Use the new local type
-    let overallAllPassed = true;
+
+    // Combine official and custom test cases for batch submission
+    const allTestCases = [
+      ...officialTestCases,
+      ...(userCustomTestCases?.map(tc => ({
+        ...tc,
+        id: 'custom',
+        isHidden: false,
+      })) || []),
+    ];
+
+    // Get language ID once
+    const languageId = LANGUAGE_IDS[language.toLowerCase()];
+    if (!languageId) {
+      res.status(400).json({ error: `Unsupported language: ${language}` });
+      return;
+    }
 
     // Create Submission Record Early
     const submission = await prisma.submission.create({
@@ -177,69 +198,72 @@ export async function executeCode(req: Request, res: Response): Promise<void> {
       },
     });
 
-    // 1. Process Official Test Cases
-    for (const officialCase of officialTestCases) {
-      const formattedInputArray = Array.isArray(officialCase.input) ? officialCase.input : [officialCase.input];
-      const formattedCode = formatTestCode(code, language, formattedInputArray, functionName);
-      const judge0Result: ProcessedResult = await submitCode(formattedCode, language);
+    // Chunk the submissions into batches of 20
+    const batchSize = 20;
+    const submissionChunks = [];
+    for (let i = 0; i < allTestCases.length; i += batchSize) {
+      submissionChunks.push(allTestCases.slice(i, i + batchSize));
+    }
 
-      let expectedOutputParsed = safelyParseJson(officialCase.expectedOutput);
+    let judge0Results: ProcessedResult[] = [];
+    for (const chunk of submissionChunks) {
+      const batchSubmissions = chunk.map(testCase => {
+        const formattedInputArray = Array.isArray(testCase.input)
+          ? testCase.input
+          : [testCase.input];
+        const formattedCode = formatTestCode(
+          code,
+          language,
+          formattedInputArray,
+          functionName,
+        );
+        return {
+          source_code: Buffer.from(formattedCode).toString('base64'),
+          language_id: languageId,
+        };
+      });
+      const chunkResults = await submitCodeBatch(batchSubmissions);
+      judge0Results = judge0Results.concat(chunkResults);
+    }
+
+    const submissionResponseResults: TestResultForResponse[] = [];
+    let overallAllPassed = true;
+
+    for (let i = 0; i < allTestCases.length; i++) {
+      const testCase = allTestCases[i];
+      const judge0Result = judge0Results[i];
+
+      const isCustom = testCase.id === 'custom';
+      const expectedOutput = isCustom
+        ? (testCase as UserCustomTestCase).expected
+        : (testCase as ParsedTestCaseFromDB).expectedOutput;
+
+      let expectedOutputParsed = safelyParseJson(expectedOutput);
       let actualOutputParsed = safelyParseJson(judge0Result.output.trim());
-      
+
       const outputMatches = compareOutputs(expectedOutputParsed, actualOutputParsed);
       const casePassed = judge0Result.statusId === 3 && outputMatches;
 
       if (!casePassed) overallAllPassed = false;
-      
+
       submissionResponseResults.push({
-        input: formattedInputArray,
+        input: Array.isArray(testCase.input)
+          ? testCase.input
+          : [testCase.input],
         expected: expectedOutputParsed,
         output: actualOutputParsed,
         passed: casePassed,
         runtime: judge0Result.executionTime,
         memory: judge0Result.memory,
-        error: judge0Result.error || (judge0Result.compilationOutput ? "Compilation Error" : undefined),
+        error:
+          judge0Result.error ||
+          (judge0Result.compilationOutput ? 'Compilation Error' : undefined),
         compilationOutput: judge0Result.compilationOutput,
         statusDescription: judge0Result.statusDescription,
         statusId: judge0Result.statusId,
         exitCode: judge0Result.exitCode,
-        isCustom: false,
+        isCustom: isCustom,
       });
-    }
-
-    // 2. Process User Custom Test Cases (if any)
-    if (userCustomTestCases && userCustomTestCases.length > 0) {
-      for (const customCase of userCustomTestCases) {
-        // Ensure input for formatTestCode is an array
-        const customInputArray = Array.isArray(customCase.input) ? customCase.input : [customCase.input];
-        const formattedCode = formatTestCode(code, language, customInputArray, functionName);
-        const judge0Result: ProcessedResult = await submitCode(formattedCode, language);
-
-        let customExpectedParsed = customCase.expected !== undefined ? safelyParseJson(customCase.expected) : undefined;
-        let actualOutputParsed = safelyParseJson(judge0Result.output.trim());
-
-        let casePassed = judge0Result.statusId === 3; // Accepted by Judge0
-        if (customCase.expected !== undefined) { // Only compare if custom expected output is provided
-          casePassed = casePassed && compareOutputs(customExpectedParsed, actualOutputParsed);
-        }
-
-        if (!casePassed) overallAllPassed = false;
-
-        submissionResponseResults.push({
-          input: customInputArray,
-          expected: customExpectedParsed, // May be undefined
-          output: actualOutputParsed,
-          passed: casePassed,
-          runtime: judge0Result.executionTime,
-          memory: judge0Result.memory,
-          error: judge0Result.error || (judge0Result.compilationOutput ? "Compilation Error" : undefined),
-          compilationOutput: judge0Result.compilationOutput,
-          statusDescription: judge0Result.statusDescription,
-          statusId: judge0Result.statusId,
-          exitCode: judge0Result.exitCode,
-          isCustom: true, // Flag for custom test cases
-        });
-      }
     }
 
     // Update Submission with all results
@@ -249,8 +273,8 @@ export async function executeCode(req: Request, res: Response): Promise<void> {
         results: submissionResponseResults as unknown as Prisma.JsonArray,
         passed: overallAllPassed,
         status: 'COMPLETED',
-        executionTime: submissionResponseResults.reduce((sum, r) => sum + (r.runtime || 0), 0),
-        memory: submissionResponseResults.reduce((max, r) => Math.max(max, r.memory || 0), 0),
+        executionTime: Math.max(...submissionResponseResults.map(r => r.runtime || 0)),
+        memory: Math.max(...submissionResponseResults.map(r => r.memory || 0)),
       },
     });
 

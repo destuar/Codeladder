@@ -10,6 +10,9 @@ import { SocialAuthButton } from '@/components/ui/social-auth-button';
 import { Separator } from '@/components/ui/separator';
 import { useAdmin } from '@/features/admin/AdminContext';
 import { useLogoSrc } from '@/features/landingpage/hooks/useLogoSrc';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { LoadingButton } from '@/components/ui/loading-spinner';
+import { logger } from '@/lib/logger';
 
 const loginSchema = z.object({
   email: z.string().email('Invalid email address'),
@@ -35,7 +38,7 @@ export default function LoginPage() {
 
   useEffect(() => {
     if (user) {
-      console.log('[LoginPage] User state updated, navigating. User:', user);
+      logger.debug('[LoginPage] User state updated, navigating. User:', user);
       const from = location.state?.from?.pathname || (canAccessAdmin ? '/dashboard' : '/collections');
       navigate(from, { replace: true });
     }
@@ -45,7 +48,7 @@ export default function LoginPage() {
     try {
       await login(data.email, data.password);
     } catch (err) {
-      console.error('[LoginPage] Email login failed:', err);
+      logger.error('[LoginPage] Email login failed:', err);
     }
   };
 
@@ -53,12 +56,12 @@ export default function LoginPage() {
     try {
       await loginWithProvider(provider);
     } catch (err) {
-      console.error(`[LoginPage] ${provider} login failed:`, err);
+      logger.error(`[LoginPage] ${provider} login failed:`, err);
     }
   };
 
   return (
-    <div className="font-mono h-[calc(100vh-4rem)] flex items-center justify-center relative bg-background px-4">
+    <div className="h-[calc(100vh-4rem)] flex items-center justify-center relative bg-background px-4">
       <div className="absolute inset-0 z-0 bg-dot-[#5271FF]/[0.2] [mask-image:radial-gradient(ellipse_at_center,transparent_20%,black)]"></div>
       
       <img
@@ -67,94 +70,97 @@ export default function LoginPage() {
         className="absolute inset-0 m-auto w-1/2 h-1/2 max-w-lg max-h-lg object-contain opacity-[0.02] pointer-events-none z-0 select-none"
       />
 
-      <div className="relative z-10 w-full max-w-md space-y-6 p-8 bg-background/80 dark:bg-neutral-900/80 backdrop-blur-md rounded-xl border border-[#5271FF]/30 shadow-2xl shadow-[#5271FF]/10 dark:shadow-[#5271FF]/20">
-        <div className="space-y-2 text-center">
-          <h1 className="text-2xl sm:text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-[#5271FF] to-[#6B8EFF]">Welcome back</h1>
-          <p className="text-sm sm:text-base text-muted-foreground">Sign in to your account</p>
-        </div>
+      <Card className="relative z-10 w-full max-w-md border shadow-lg dark:border-[#5271FF]/30 dark:shadow-2xl dark:shadow-[#5271FF]/20">
+        <CardHeader className="space-y-2 text-center">
+          <CardTitle className="text-2xl sm:text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-[#5271FF] to-[#6B8EFF] font-mono">Hello! Welcome back.</CardTitle>
+          <CardDescription className="text-sm sm:text-base font-mono">Sign in to your account</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          <form className="space-y-4" onSubmit={handleSubmit(onSubmit)}>
+            <div className="space-y-2">
+              <label
+                htmlFor="email"
+                className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+              >
+                Email
+              </label>
+              <Input
+                id="email"
+                type="email"
+                placeholder="email@example.com"
+                autoComplete="email"
+                {...register('email')}
+              />
+              {errors.email && (
+                <p className="text-sm text-destructive">{errors.email.message}</p>
+              )}
+            </div>
+            <div className="space-y-2">
+              <label
+                htmlFor="password"
+                className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+              >
+                Password
+              </label>
+              <Input
+                id="password"
+                type="password"
+                placeholder="••••••••"
+                autoComplete="current-password"
+                {...register('password')}
+              />
+              {errors.password && (
+                <p className="text-sm text-destructive">
+                  {errors.password.message}
+                </p>
+              )}
+            </div>
 
-        <form className="space-y-4" onSubmit={handleSubmit(onSubmit)}>
-          <div className="space-y-2">
-            <label
-              htmlFor="email"
-              className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+            {error && (
+              <div className="text-sm text-destructive text-center">{error}</div>
+            )}
+
+            <Button
+              type="submit"
+              className="w-full gap-2 bg-[#5271FF] hover:bg-[#415ACC] text-white dark:bg-[#5271FF] dark:hover:bg-[#415ACC] dark:text-white relative overflow-hidden group shadow-md shadow-[#5271FF]/5 py-3 text-base font-medium transition-all duration-300 ease-in-out hover:scale-105"
+              disabled={isLoading}
             >
-              Email
-            </label>
-            <Input
-              id="email"
-              type="email"
-              placeholder="m@example.com"
-              {...register('email')}
+              {isLoading ? (
+                <>
+                  <LoadingButton size="sm" />
+                  <span className="ml-2">Signing in...</span>
+                </>
+              ) : (
+                'Sign in with Email'
+              )}
+            </Button>
+          </form>
+
+          <div className="relative my-6">
+            <div className="absolute inset-0 flex items-center">
+              <Separator className="w-full" />
+            </div>
+            <div className="relative flex justify-center text-xs uppercase">
+              <span className="px-2 text-muted-foreground bg-card">
+                Or continue with
+              </span>
+            </div>
+          </div>
+
+          <div className="space-y-3">
+            <SocialAuthButton
+              provider="google"
+              onClick={() => handleSocialAuth('google')}
+              isLoading={isLoading}
             />
-            {errors.email && (
-              <p className="text-sm text-destructive">{errors.email.message}</p>
-            )}
-          </div>
-          <div className="space-y-2">
-            <label
-              htmlFor="password"
-              className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
-            >
-              Password
-            </label>
-            <Input
-              id="password"
-              type="password"
-              placeholder="••••••••"
-              {...register('password')}
+            <SocialAuthButton
+              provider="github"
+              onClick={() => handleSocialAuth('github')}
+              isLoading={isLoading}
             />
-            {errors.password && (
-              <p className="text-sm text-destructive">
-                {errors.password.message}
-              </p>
-            )}
           </div>
-
-          {error && (
-            <div className="text-sm text-destructive text-center">{error}</div>
-          )}
-
-          <Button
-            type="submit"
-            className="w-full gap-2 bg-[#5271FF] hover:bg-[#415ACC] text-white dark:bg-[#5271FF] dark:hover:bg-[#415ACC] dark:text-white relative overflow-hidden group shadow-md shadow-[#5271FF]/5 py-3 text-base font-medium transition-all duration-300 ease-in-out hover:scale-105"
-            disabled={isLoading}
-          >
-            {isLoading ? (
-              <>
-                <div className="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-background border-t-foreground" />
-                Signing in...
-              </>
-            ) : (
-              'Sign in with Email'
-            )}
-          </Button>
-        </form>
-
-        <div className="relative">
-          <div className="absolute inset-0 flex items-center">
-            <Separator className="w-full" />
-          </div>
-          <div className="relative flex justify-center text-xs uppercase">
-            <span className="px-2 text-muted-foreground bg-background/80 dark:bg-neutral-900/80">
-              Or continue with
-            </span>
-          </div>
-        </div>
-
-        <div className="space-y-3">
-          <SocialAuthButton
-            provider="google"
-            onClick={() => handleSocialAuth('google')}
-            isLoading={isLoading}
-          />
-          <SocialAuthButton
-            provider="github"
-            onClick={() => handleSocialAuth('github')}
-            isLoading={isLoading}
-          />
-        </div>
-      </div>
+        </CardContent>
+      </Card>
     </div>
   );
 } 

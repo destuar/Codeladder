@@ -1,12 +1,12 @@
-import React, { useEffect, useState } from 'react';
-import { useParams, useNavigate, useLocation } from 'react-router-dom';
+import React, { useEffect, useState, useMemo } from 'react';
+import { useParams, useNavigate, useLocation, useSearchParams } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 import { useAuth } from '@/features/auth/AuthContext';
 import InfoProblem from './components/InfoProblem';
 import CodingProblem from './components/coding/CodingProblem';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { ErrorBoundary } from '@/components/ErrorBoundary';
+import ErrorBoundary from '@/components/ErrorBoundary';
 import { ReviewControls } from '@/features/spaced-repetition/components/ReviewControls';
 import { useSpacedRepetition } from '@/features/spaced-repetition/hooks/useSpacedRepetition';
 import { Problem, ProblemType } from './types';
@@ -14,6 +14,8 @@ import { isToday } from 'date-fns';
 import { logProblemReviewState, logWorkflowStep } from './utils/debug';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import { LoadingCard, PageLoadingSpinner } from '@/components/ui/loading-spinner';
+import { logger } from '@/lib/logger';
 
 // Custom hook to only use spaced repetition when needed
 function useConditionalSpacedRepetition(enabled: boolean) {
@@ -124,7 +126,7 @@ const ProblemPage: React.FC = () => {
       
       return response;
     } catch (error) {
-      console.error('Error submitting review:', error);
+      logger.error('Error submitting review', error);
       throw error;
     }
   };
@@ -217,6 +219,44 @@ const ProblemPage: React.FC = () => {
     }
   }, [problem]);
 
+  // Show review controls if the problem has just been marked as completed (either first time, or in a review session)
+  const shouldShowReviewControls = hasJustCompleted && problem;
+
+  logWorkflowStep('RenderDecision', { 
+    shouldShowReviewControls, 
+    isReviewMode, 
+    hasJustCompleted, 
+    problemExists: !!problem,
+    reviewSubmitted,
+    problemIdentifier: effectiveIdentifier
+  });
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <PageLoadingSpinner />
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center p-4">
+        <div className="text-red-500 p-4 border border-red-500/50 rounded-md bg-red-500/10">
+          Error loading problem: {error.message}
+        </div>
+      </div>
+    );
+  }
+
+  if (!problem) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center p-4">
+         <div className="p-4 text-muted-foreground">Problem not found.</div>
+      </div>
+    );
+  }
+  
   // In review mode, we want to start with the problem marked as not completed
   // regardless of its actual completion status, but show as completed if the user
   // clicked the Mark Complete button in review mode
@@ -256,7 +296,7 @@ const ProblemPage: React.FC = () => {
   // Handler for when a problem is completed
   const handleProblemCompleted = async () => {
     if (!problem) {
-      console.error('Cannot toggle completion: problem data is not available');
+      logger.error('Cannot toggle completion: problem data is not available');
       return;
     }
 
@@ -280,66 +320,49 @@ const ProblemPage: React.FC = () => {
     }
   };
 
-  // Check if we should show review controls
-  const shouldShowReviewControls = isReviewMode && (effectiveIsCompleted || hasJustCompleted);
-
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center p-8">
-        <div className="animate-spin rounded-full h-8 w-8 border-2 border-primary border-t-transparent" />
-      </div>
-    );
-  }
-
-  if (error || !problem) {
-    logWorkflowStep('ProblemLoadError', { error, problemIdentifier: effectiveIdentifier });
-    return (
-      <div className="p-8 text-center text-destructive">
-        Error loading problem
-      </div>
-    );
-  }
-
-  // Determine estimated time as number
-  const estimatedTimeNum = problem.estimatedTime ? Number(problem.estimatedTime) : undefined;
-
-  // Conditional Rendering based on Problem Type
+  // Conditional Rendering based on Problem Type - Reverted to original structure
   return (
-    <div className="min-h-[calc(100vh-4rem)] flex flex-col">
+    <div className="min-h-[calc(100vh-4rem)] flex flex-col"> {/* Original top-level div */}
       <ErrorBoundary>
-        <div className="flex-1">
-          {(problem.problemType === 'INFO' || problem.problemType === 'STANDALONE_INFO') && (
-            <InfoProblem 
-              content={problem.content || ''} 
-              isCompleted={effectiveIsCompleted}
-              nextProblemId={problem.nextProblemId}
-              nextProblemSlug={problem.nextProblemSlug}
-              prevProblemId={problem.prevProblemId}
-              prevProblemSlug={problem.prevProblemSlug}
-              estimatedTime={estimatedTimeNum}
-              isStandalone={problem.problemType === 'STANDALONE_INFO'}
-              problemId={problem.id}
-              isReviewMode={isReviewMode}
-              onCompleted={handleProblemCompleted}
-              problemType={problem.problemType}
-              onNavigate={navigateToOtherProblem}
-              sourceContext={sourceContext}
-            />
-          )}
+        <div className="flex-1"> {/* Original main content wrapper */}
+          {problem.problemType === 'CODING' ? (
+            problem.codeProblem ? (
+              <CodingProblem
+                title={problem.name}
+                content={problem.content || problem.description || ''} // Use content first, with a fallback to description for robustness.
+                codeProblem={problem.codeProblem}
+                testCases={JSON.stringify(problem.codeProblem.testCases || [])}
+                difficulty={problem.difficulty}
+                nextProblemId={problem.nextProblemId}
+                nextProblemSlug={problem.nextProblemSlug}
+                prevProblemId={problem.prevProblemId}
+                prevProblemSlug={problem.prevProblemSlug}
+                onNavigate={navigateToOtherProblem}
+                estimatedTime={problem.estimatedTime}
+                isCompleted={effectiveIsCompleted}
+                problemId={problem.id}
+                isReviewMode={isReviewMode}
+                onCompleted={handleProblemCompleted}
+                problemType={problem.problemType}
+                sourceContext={sourceContext}
+              />
+            ) : (
+              <div className="text-destructive p-4 border border-destructive/50 rounded-md bg-destructive/10">
+                <strong>Error:</strong> Code data is missing. Please try again later.
+              </div>
+            )
+          ) : null}
 
-          {problem.problemType === 'CODING' && (
-            <CodingProblem 
+          {problem.problemType === 'INFO' && (
+            <InfoProblem
               title={problem.name}
               content={problem.content || ''}
-              codeTemplate={problem.codeProblem?.codeTemplate || problem.codeTemplate}
-              testCases={problem.codeProblem?.testCases ? JSON.stringify(problem.codeProblem.testCases) : problem.testCases?.toString()}
-              difficulty={problem.difficulty}
               nextProblemId={problem.nextProblemId}
               nextProblemSlug={problem.nextProblemSlug}
               prevProblemId={problem.prevProblemId}
               prevProblemSlug={problem.prevProblemSlug}
               onNavigate={navigateToOtherProblem}
-              estimatedTime={estimatedTimeNum}
+              estimatedTime={problem.estimatedTime}
               isCompleted={effectiveIsCompleted}
               problemId={problem.id}
               isReviewMode={isReviewMode}
@@ -349,16 +372,17 @@ const ProblemPage: React.FC = () => {
           )}
         </div>
         
-        {/* Review Controls */}
-        {shouldShowReviewControls && (
-          <div className="mt-auto border-t pt-4 px-4 md:px-6 pb-4">
+        {/* Review Controls - Restored to original position and wrapper */}
+        {shouldShowReviewControls && !reviewSubmitted && (
+          <div className="mt-auto border-t pt-4 px-4 md:px-6 pb-4 bg-background dark:bg-card"> {/* Added bg for better visibility */}
             <ReviewControls 
-              problem={problem}
-              hasJustCompleted={hasJustCompleted}
-              referrer={referrer}
-              onReviewSubmit={handleSubmitReview}
-              scheduledDate={scheduledDate}
+              problem={problem} 
+              spacedRepetitionItemId={problem?.spacedRepetitionItems?.[0]?.id}
+              onReviewSubmit={handleSubmitReview} 
               isEarlyReview={isEarlyReview}
+              scheduledDate={scheduledDate}
+              referrer={referrer}
+              hasJustCompleted={hasJustCompleted}
             />
           </div>
         )}

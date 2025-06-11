@@ -1,8 +1,10 @@
 import React, { useEffect, useState } from 'react';
-import { Check, Clock, ChevronLeft, ChevronRight, Send } from 'lucide-react';
+import { Check, Clock, ChevronLeft, ChevronRight, Send, Flag, X, Menu } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { AssessmentQuestion } from '../types';
+import { cn } from '@/lib/utils';
+import { LoadingSpinner } from '@/components/ui/loading-spinner';
 
 interface AssessmentNavigationProps {
   currentIndex: number;
@@ -143,17 +145,10 @@ export function AssessmentNavigation({
           onClick={onSubmit}
           disabled={isSubmitting || answeredCount === 0}
         >
-          {isSubmitting ? (
-            <>
-              <div className="animate-spin h-4 w-4 mr-2 border-2 border-primary-foreground border-t-transparent rounded-full" />
-              Submitting...
-            </>
-          ) : (
-            <>
-              {submitButtonIcon}
-              {submitButtonText}
-            </>
+          {isSubmitting && (
+            <LoadingSpinner size="sm" className="mr-2 text-primary-foreground" />
           )}
+          {isSubmitting ? 'Submitting...' : 'Submit Assessment'}
         </Button>
         
         {answeredCount < totalQuestions && (

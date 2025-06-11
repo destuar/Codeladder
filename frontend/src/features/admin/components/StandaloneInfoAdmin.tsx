@@ -28,6 +28,7 @@ import {
 import { api } from "@/lib/api";
 import { useAuth } from "@/features/auth/AuthContext";
 import { Pencil, Trash2 } from "lucide-react";
+import { PageLoadingSpinner } from '@/components/ui/loading-spinner';
 
 type StandaloneInfoPage = {
   id: string;
@@ -212,17 +213,9 @@ export function StandaloneInfoAdmin() {
 
   if (isLoading) {
     return (
-      <Card>
-        <CardHeader>
-          <CardTitle>Standalone Info Pages</CardTitle>
-          <CardDescription>Loading...</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="flex items-center justify-center p-8">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-          </div>
-        </CardContent>
-      </Card>
+      <div className="flex items-center justify-center p-8 bg-background min-h-[300px]">
+        <PageLoadingSpinner />
+      </div>
     );
   }
 

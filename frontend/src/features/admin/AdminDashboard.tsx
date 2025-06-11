@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useLocation } from 'react-router-dom';
 import { useAdmin } from './AdminContext';
 import { useAuth } from '../auth/AuthContext';
@@ -19,10 +19,15 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { LearningPathAdmin } from "./components/LearningPathAdmin";
 import { StandaloneInfoAdmin } from "./components/StandaloneInfoAdmin";
 import { ContentMigrationTool } from "./components/ContentMigrationTool";
-import { ProblemListAdmin } from "./components/ProblemListAdmin";
+// import { ProblemListAdmin } from "./components/ProblemListAdmin";
+import { ProblemCollectionAdmin, ProblemCollectionAdminRef } from './components/ProblemCollectionAdmin';
 import { QuizAdmin } from "./components/QuizAdmin";
 import { TestAdmin } from "./components/TestAdmin";
-import { Card } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { PageLoadingSpinner } from '@/components/ui/loading-spinner';
+import { PlusCircle } from 'lucide-react';
+import { Level, Topic, Problem } from '@/hooks/useLearningPath';
+import { useMediaQuery } from '@/hooks/useMediaQuery';
 
 interface AdminData {
   users: User[];
@@ -36,6 +41,8 @@ export function AdminDashboard() {
   const [data, setData] = useState<AdminData>({ users: [] });
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const problemCollectionAdminRef = useRef<ProblemCollectionAdminRef>(null);
+  const [activeTab, setActiveTab] = useState('overview');
 
   useEffect(() => {
     const fetchData = async () => {
@@ -75,15 +82,6 @@ export function AdminDashboard() {
     return null;
   }
 
-  const LoadingView = () => (
-    <div className="flex items-center justify-center p-8">
-      <div className="space-y-4 text-center">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
-        <p className="text-muted-foreground">Loading admin view...</p>
-      </div>
-    </div>
-  );
-
   const ErrorView = () => (
     <div className="p-8 text-center">
       <div className="text-destructive mb-2">Error: {error}</div>
@@ -94,7 +92,11 @@ export function AdminDashboard() {
   );
 
   if (isLoading) {
-    return <LoadingView />;
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <PageLoadingSpinner />
+      </div>
+    );
   }
 
   if (error) {
@@ -211,20 +213,31 @@ export function AdminDashboard() {
         <Tabs defaultValue="editor" className="space-y-4">
           <TabsList>
             <TabsTrigger value="editor">Learning Path Editor</TabsTrigger>
-            <TabsTrigger value="problem-list">Problem List Editor</TabsTrigger>
+            <TabsTrigger value="problem-collection-editor">Problem List Editor</TabsTrigger>
             <TabsTrigger value="quiz-editor">Quiz Editor</TabsTrigger>
             <TabsTrigger value="test-editor">Test Editor</TabsTrigger>
             <TabsTrigger value="info">Standalone Info Pages</TabsTrigger>
             <TabsTrigger value="tools">Content Tools</TabsTrigger>
-            <TabsTrigger value="preview">User View Preview</TabsTrigger>
+            {/* <TabsTrigger value="preview">User View Preview</TabsTrigger> */}
           </TabsList>
 
           <TabsContent value="editor" className="space-y-4">
             <LearningPathAdmin />
           </TabsContent>
 
-          <TabsContent value="problem-list" className="space-y-4">
-            <ProblemListAdmin />
+          <TabsContent value="problem-collection-editor" className="space-y-4">
+            <div className="flex justify-between items-center mb-4">
+              <div>
+                <h2 className="text-3xl font-bold">Problem Collection Management</h2>
+                <p className="text-muted-foreground mt-1">
+                  View all problems or filter by collection. Add new problems (not tied to a specific topic) here.
+                </p>
+              </div>
+              <Button onClick={() => problemCollectionAdminRef.current?.openAddCollectionDialog()}>
+                  <PlusCircle className="mr-2 h-4 w-4" /> Add New Collection
+              </Button>
+            </div>
+            <ProblemCollectionAdmin ref={problemCollectionAdminRef} />
           </TabsContent>
 
           <TabsContent value="quiz-editor" className="space-y-4">
@@ -243,11 +256,7 @@ export function AdminDashboard() {
             <ContentMigrationTool />
           </TabsContent>
 
-          <TabsContent value="preview" className="space-y-4">
-            <Card className="p-6">
-              <LevelSystem />
-            </Card>
-          </TabsContent>
+          {/* Preview tab already commented out */}
         </Tabs>
       </div>
     </div>

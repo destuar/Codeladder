@@ -10,12 +10,14 @@ import {
 } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { ArrowUpDown, ChevronDown, ChevronUp, CheckCircle2, Circle, Book, Code2, Timer, Lock, X } from "lucide-react";
+import { ArrowUpDown, ChevronDown, ChevronUp, CheckCircle2, Circle, Book, Code2, Timer, Lock, X, Shuffle, Loader2 } from "lucide-react";
 import { cn } from '@/lib/utils';
 import { Problem, Topic } from '@/hooks/useLearningPath';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Difficulty, SortField, SortDirection, ProblemListProps, DIFFICULTY_ORDER } from '@/features/problems/types';
 import { DifficultyBadge } from '@/features/problems/components/DifficultyBadge';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { LoadingSpinner } from '@/components/ui/loading-spinner';
 
 const formatEstimatedTime = (time?: number) => {
   if (!time) return null;
@@ -47,6 +49,9 @@ interface EnhancedProblemListProps extends ProblemListProps {
   resetFilters?: () => void;
   formatDifficultyLabel?: (difficulty: string) => string;
   hideHeader?: boolean;
+  onShuffleClick?: () => void;
+  isShuffling?: boolean;
+  shuffleDisabled?: boolean;
 }
 
 export function ProblemList({
@@ -66,6 +71,9 @@ export function ProblemList({
   resetFilters,
   formatDifficultyLabel = (d: string) => String(d).replace(/_/g, ' '),
   hideHeader = false,
+  onShuffleClick,
+  isShuffling,
+  shuffleDisabled,
 }: EnhancedProblemListProps) {
   const [sortField, setSortField] = useState<SortField>('order');
   const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
@@ -125,7 +133,25 @@ export function ProblemList({
           )}
           
           {/* Filters */}
-          <div className="flex flex-wrap items-center gap-3">
+          <div className="w-full flex flex-wrap items-center gap-3">
+            {onShuffleClick && (
+              <Button
+                variant="ghost"
+                onClick={onShuffleClick}
+                className="h-9 px-3 bg-background hover:bg-muted/20 disabled:opacity-50 shadow-md flex items-center gap-1.5 font-sans text-sm font-normal"
+                disabled={shuffleDisabled || isShuffling}
+              >
+                {isShuffling ? (
+                  <LoadingSpinner size="sm" />
+                ) : (
+                  <>
+                    <Shuffle className="h-4 w-4" />
+                    <span className="sm:hidden text-sm">Shuffle</span>
+                    <span className="hidden sm:inline text-sm">Shuffle</span>
+                  </>
+                )}
+              </Button>
+            )}
             {collections?.length > 0 && onCollectionChange && (
               <>
                 <div className="flex items-center">
@@ -189,11 +215,11 @@ export function ProblemList({
                   size="sm"
                   onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
                   disabled={currentPage === 1}
-                  className="h-8 px-3 bg-background border border-border/40 hover:bg-muted/20 disabled:opacity-50"
+                  className="h-8 px-3 bg-background hover:bg-muted/20 disabled:opacity-50 shadow-md"
                 >
                   Previous
                 </Button>
-                <span className="text-sm px-3 py-1 bg-background border border-border/40 rounded-md">
+                <span className="text-sm px-3 py-1 bg-background rounded-md">
                   {currentPage} / {totalPages}
                 </span>
                 <Button
@@ -201,7 +227,7 @@ export function ProblemList({
                   size="sm"
                   onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
                   disabled={currentPage === totalPages}
-                  className="h-8 px-3 bg-background border border-border/40 hover:bg-muted/20 disabled:opacity-50"
+                  className="h-8 px-3 bg-background hover:bg-muted/20 disabled:opacity-50 shadow-md"
                 >
                   Next
                 </Button>
@@ -218,7 +244,7 @@ export function ProblemList({
             {showOrder && (
               <TableHead 
                 className={cn(
-                  "cursor-pointer group hover:text-foreground transition-colors pl-4",
+                  "cursor-pointer group hover:text-foreground transition-colors pl-4 text-xs sm:text-sm font-sans",
                   isLocked && "text-muted-foreground"
                 )}
                 onClick={() => handleSort('order')}
@@ -227,19 +253,19 @@ export function ProblemList({
                   <span className="group-hover:font-medium transition-colors">Order</span>
                   {sortField === 'order' ? (
                     sortDirection === 'asc' ? (
-                      <ChevronUp className="h-4 w-4 ml-1 text-blue-500 dark:text-blue-400" />
+                      <ChevronUp className="h-3 w-3 sm:h-4 sm:w-4 ml-1 text-blue-500 dark:text-blue-400" />
                     ) : (
-                      <ChevronDown className="h-4 w-4 ml-1 text-blue-500 dark:text-blue-400" />
+                      <ChevronDown className="h-3 w-3 sm:h-4 sm:w-4 ml-1 text-blue-500 dark:text-blue-400" />
                     )
                   ) : (
-                    <ArrowUpDown className="h-4 w-4 ml-1 text-muted-foreground/70 group-hover:text-foreground transition-colors" />
+                    <ArrowUpDown className="h-3 w-3 sm:h-4 sm:w-4 ml-1 text-muted-foreground/70 group-hover:text-foreground transition-colors" />
                   )}
                 </div>
               </TableHead>
             )}
             <TableHead 
               className={cn(
-                "cursor-pointer group hover:text-foreground transition-colors",
+                "cursor-pointer group hover:text-foreground transition-colors text-xs sm:text-sm font-sans",
                 isLocked && "text-muted-foreground"
               )}
               onClick={() => handleSort('name')}
@@ -248,21 +274,21 @@ export function ProblemList({
                 <span className="group-hover:font-medium transition-colors">Name</span>
                 {sortField === 'name' ? (
                   sortDirection === 'asc' ? (
-                    <ChevronUp className="h-4 w-4 ml-1 text-blue-500 dark:text-blue-400" />
+                    <ChevronUp className="h-3 w-3 sm:h-4 sm:w-4 ml-1 text-blue-500 dark:text-blue-400" />
                   ) : (
-                    <ChevronDown className="h-4 w-4 ml-1 text-blue-500 dark:text-blue-400" />
+                    <ChevronDown className="h-3 w-3 sm:h-4 sm:w-4 ml-1 text-blue-500 dark:text-blue-400" />
                   )
                 ) : (
-                  <ArrowUpDown className="h-4 w-4 ml-1 text-muted-foreground/70 group-hover:text-foreground transition-colors" />
+                  <ArrowUpDown className="h-3 w-3 sm:h-4 sm:w-4 ml-1 text-muted-foreground/70 group-hover:text-foreground transition-colors" />
                 )}
               </div>
             </TableHead>
             {showTopicName && (
-              <TableHead className={cn(isLocked && "text-muted-foreground")}>Topic</TableHead>
+              <TableHead className={cn("text-xs sm:text-sm py-2 sm:py-3", isLocked && "text-muted-foreground")}>Topic</TableHead>
             )}
             <TableHead 
               className={cn(
-                "cursor-pointer group hover:text-foreground transition-colors",
+                "cursor-pointer group hover:text-foreground transition-colors text-xs sm:text-sm py-2 sm:py-3 font-sans",
                 isLocked && "text-muted-foreground"
               )}
               onClick={() => handleSort('difficulty')}
@@ -271,104 +297,114 @@ export function ProblemList({
                 <span className="group-hover:font-medium transition-colors">Difficulty</span>
                 {sortField === 'difficulty' ? (
                   sortDirection === 'asc' ? (
-                    <ChevronUp className="h-4 w-4 ml-1 text-blue-500 dark:text-blue-400" />
+                    <ChevronUp className="h-3 w-3 sm:h-4 sm:w-4 ml-1 text-blue-500 dark:text-blue-400" />
                   ) : (
-                    <ChevronDown className="h-4 w-4 ml-1 text-blue-500 dark:text-blue-400" />
+                    <ChevronDown className="h-3 w-3 sm:h-4 sm:w-4 ml-1 text-blue-500 dark:text-blue-400" />
                   )
                 ) : (
-                  <ArrowUpDown className="h-4 w-4 ml-1 text-muted-foreground/70 group-hover:text-foreground transition-colors" />
+                  <ArrowUpDown className="h-3 w-3 sm:h-4 sm:w-4 ml-1 text-muted-foreground/70 group-hover:text-foreground transition-colors" />
                 )}
               </div>
             </TableHead>
-            <TableHead className={cn("w-[120px] pr-6", isLocked && "text-muted-foreground")}>Action</TableHead>
+            <TableHead className={cn("w-[100px] sm:w-[120px] text-xs sm:text-sm pl-2 pr-2 sm:pl-0 sm:pr-6 py-2 sm:py-3", isLocked && "text-muted-foreground")}></TableHead>
           </TableRow>
         </TableHeader>
         <TableBody className={cn(isLocked && "opacity-50")}>
           {paginatedProblems.length === 0 ? (
             <TableRow>
-              <TableCell colSpan={showOrder ? 5 : 4} className="text-center py-10 text-muted-foreground">
+              <TableCell colSpan={showOrder ? 5 : 4} className="text-center py-10 text-muted-foreground text-xs sm:text-sm">
                 No problems available
               </TableCell>
             </TableRow>
           ) : (
-            paginatedProblems.map((problem, index) => (
-              <TableRow 
-                key={problem.id} 
-                className={cn(
-                  "transition-colors border-b border-border/10",
-                  "hover:bg-blue-50/20 dark:hover:bg-blue-900/5",
-                  index % 2 === 0 ? "bg-muted/10 dark:bg-muted/15" : ""
-                )}
-              >
-                <TableCell className="pl-6 py-3">
-                  {problem.isCompleted ? (
-                    <CheckCircle2 className={cn("h-5 w-5 text-green-500", isLocked && "text-muted-foreground")} />
-                  ) : (
-                    <Circle className="h-5 w-5 text-muted-foreground/40" />
+            paginatedProblems.map((problem, index) => {
+              const isProblemLocked = isLocked && !problem.isCompleted;
+              const problemEstimatedTime = formatEstimatedTime(parseEstimatedTime(problem.estimatedTime));
+
+              return (
+                <TableRow 
+                  key={problem.id} 
+                  className={cn(
+                    "font-sans border-0 border-b border-border/10",
+                    isProblemLocked 
+                      ? "bg-muted/20 hover:bg-muted/30 text-muted-foreground/60 cursor-not-allowed" 
+                      : "hover:bg-muted/20",
+                    index % 2 !== 0 && !isProblemLocked ? "bg-muted/10 dark:bg-muted/15" : "",
+                    {
+                      "transition-colors hover:bg-blue-50/20 dark:hover:bg-blue-900/5": !isProblemLocked,
+                    }
                   )}
-                </TableCell>
-                {showOrder && (
-                  <TableCell className="pl-4">
-                    {problem.required ? (
-                      <Badge variant="outline" className={cn("bg-blue-50/50 dark:bg-blue-900/20", isLocked && "text-muted-foreground")}>
-                        REQ {problem.reqOrder}
-                      </Badge>
+                >
+                  <TableCell className="w-4 pl-6 py-3">
+                    {problem.isCompleted ? (
+                      <CheckCircle2 className={cn("h-4 w-4 sm:h-5 sm:w-5 text-green-500", isProblemLocked && "text-muted-foreground")} />
                     ) : (
-                      <Badge variant="secondary" className={cn("bg-muted/50", isLocked && "bg-muted text-muted-foreground")}>
-                        {problem.reqOrder ? `OPT ${problem.reqOrder}` : 'STANDALONE'}
-                      </Badge>
+                      <Circle className={cn("h-4 w-4 sm:h-5 sm:w-5 text-muted-foreground/40")} />
                     )}
                   </TableCell>
-                )}
-                <TableCell className={cn("font-medium", isLocked && "text-muted-foreground")}>
-                  <span className="flex items-center gap-2">
-                    {problem.problemType === 'INFO' ? (
-                      <Book className={cn("h-4 w-4", "text-amber-500 dark:text-amber-400")} />
-                    ) : (
-                      <Code2 className={cn("h-4 w-4", "text-indigo-500 dark:text-indigo-400")} />
-                    )}
-                    <span className="line-clamp-1">{problem.name}</span>
-                  </span>
-                </TableCell>
-                {showTopicName && (
-                  <TableCell className={cn(isLocked && "text-muted-foreground")}>
-                    {problem.topic?.name || 'Standalone'}
-                  </TableCell>
-                )}
-                <TableCell>
-                  <DifficultyBadge difficulty={problem.difficulty || 'MEDIUM' as Difficulty} />
-                </TableCell>
-                <TableCell className="pr-6">
-                  <div className="flex items-center gap-2">
-                    <Button 
-                      variant="outline" 
-                      size="sm"
-                      className={cn(
-                        "px-3 py-1 h-8 transition-all",
-                        "bg-transparent hover:bg-blue-50/70 text-blue-600 border border-blue-200/70",
-                        "dark:border-blue-800/50 dark:text-blue-400 dark:hover:bg-blue-900/20",
-                        isLocked && !canAccessAdmin && "text-muted-foreground border-muted/50",
-                        isLocked && canAccessAdmin && "text-yellow-500 border-yellow-200 hover:bg-yellow-50/20 dark:border-yellow-800/50"
+                  {showOrder && (
+                    <TableCell className="pl-2 sm:pl-4 py-2 sm:py-3 text-xs sm:text-sm">
+                      {problem.required ? (
+                        <Badge variant="outline" className={cn("bg-blue-50/50 dark:bg-blue-900/20 text-xs sm:text-sm border-transparent dark:border-transparent", isLocked && "text-muted-foreground")}>
+                          REQ {problem.reqOrder}
+                        </Badge>
+                      ) : (
+                        <Badge variant="secondary" className={cn("bg-muted/50 text-xs sm:text-sm text-slate-400 dark:text-slate-500", isLocked && "bg-muted text-muted-foreground")}>
+                          {problem.reqOrder ? `OPT ${problem.reqOrder}` : 'STANDALONE'}
+                        </Badge>
                       )}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onProblemStart(problem.id, problem.slug);
-                      }}
-                    >
-                      {isLocked && canAccessAdmin ? "Start (Admin)" : "Start"}
-                    </Button>
-                    {problem.estimatedTime && (
-                      <span className="flex items-center gap-1 px-2 py-0.5 rounded text-muted-foreground">
-                        <Timer className="h-3.5 w-3.5" />
-                        <span className="text-xs whitespace-nowrap">
-                          {formatEstimatedTime(parseEstimatedTime(problem.estimatedTime))}
+                    </TableCell>
+                  )}
+                  <TableCell className={cn("font-medium py-2 sm:py-3 text-xs sm:text-sm", isLocked && "text-muted-foreground")}>
+                    <span className="flex items-center gap-1 sm:gap-2">
+                      {problem.problemType === 'INFO' ? (
+                        <Book className={cn("h-3 w-3 sm:h-4 sm:w-4", "text-amber-500 dark:text-amber-400")} />
+                      ) : (
+                        <Code2 className={cn("h-3 w-3 sm:h-4 sm:w-4", "text-indigo-500 dark:text-indigo-400")} />
+                      )}
+                      <span className="line-clamp-1">{problem.name}</span>
+                    </span>
+                  </TableCell>
+                  {showTopicName && (
+                    <TableCell className={cn("py-2 sm:py-3 text-xs sm:text-sm", isLocked && "text-muted-foreground")}>
+                      {problem.topic?.name || 'Standalone'}
+                    </TableCell>
+                  )}
+                  <TableCell className="py-2 sm:py-3">
+                    <DifficultyBadge difficulty={problem.difficulty || 'MEDIUM' as Difficulty} size="small" />
+                  </TableCell>
+                  <TableCell className={cn("py-2 sm:py-3 pl-2 pr-2 sm:pl-0 sm:pr-6", isLocked && "text-muted-foreground")}>
+                    <div className="flex items-center gap-1 sm:gap-2">
+                      <Button 
+                        variant="outline" 
+                        size="sm"
+                        className={cn(
+                          "px-2 py-1 h-7 sm:px-3 sm:py-1 sm:h-8 transition-all text-xs sm:text-sm",
+                          "bg-transparent hover:bg-blue-50/70 text-blue-600 border border-blue-200/70",
+                          "dark:border-blue-800/50 dark:text-blue-400 dark:hover:bg-blue-900/20",
+                          isLocked && !canAccessAdmin && "text-muted-foreground border-muted/50",
+                          isLocked && canAccessAdmin && "text-yellow-500 border-yellow-200 hover:bg-yellow-50/20 dark:border-yellow-800/50"
+                        )}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onProblemStart(problem.id, problem.slug);
+                        }}
+                      >
+                        {isLocked && canAccessAdmin ? "Start (Admin)" : "Start"}
+                      </Button>
+                      {problem.estimatedTime && (
+                        <span className="hidden md:flex items-center gap-1 px-2 py-0.5 rounded text-muted-foreground">
+                          <Timer className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
+                          <span className="text-xs whitespace-nowrap">
+                            {formatEstimatedTime(parseEstimatedTime(problem.estimatedTime))}
+                          </span>
                         </span>
-                      </span>
-                    )}
-                  </div>
-                </TableCell>
-              </TableRow>
-            ))
+                      )}
+                    </div>
+                  </TableCell>
+                </TableRow>
+              )
+            })
           )}
         </TableBody>
       </Table>
