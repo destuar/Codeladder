@@ -240,16 +240,16 @@ export default function LandingPage() {
                     <AvatarFallback>DK</AvatarFallback>
                   </Avatar>
                   <Avatar className="h-8 w-8 ring-2 ring-background">
-                    <AvatarImage src="https://images.unsplash.com/photo-1517841905240-472988babdf9?w=64&h=64&fit=crop&crop=face&auto=format&q=80" alt="Maya P." />
-                    <AvatarFallback>MP</AvatarFallback>
+                    <AvatarImage src="https://api.dicebear.com/7.x/personas/svg?seed=Emma&backgroundColor=c0aede,d1d4f9,ffd5dc&hair=short01,short02,short03&hairColor=2c1b18,724133,a55728" alt="Emma L." />
+                    <AvatarFallback>EL</AvatarFallback>
                   </Avatar>
                   <Avatar className="h-8 w-8 ring-2 ring-background">
                     <AvatarImage src="https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=64&h=64&fit=crop&crop=face&auto=format&q=80" alt="Alex R." />
                     <AvatarFallback>AR</AvatarFallback>
                   </Avatar>
                   <Avatar className="h-8 w-8 ring-2 ring-background">
-                    <AvatarImage src="https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=64&h=64&fit=crop&crop=face&auto=format&q=80" alt="Priya S." />
-                    <AvatarFallback>PS</AvatarFallback>
+                    <AvatarImage src="https://api.dicebear.com/7.x/bottts-neutral/svg?seed=CodingPanda&backgroundColor=c0aede,d1d4f9,ffd5dc&primaryColor=2c1b18,724133" alt="🐼 PandaCoder" />
+                    <AvatarFallback>🐼</AvatarFallback>
                   </Avatar>
                 </div>
 
