@@ -17,6 +17,7 @@ import { FeatureShowcase } from './components';
 import axios from 'axios';
 import DottedBackground from '@/components/DottedBackground';
 import { LoadingSpinner } from '@/components/ui/loading-spinner';
+import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 
 /**
  * LandingPage component
@@ -227,13 +228,29 @@ export default function LandingPage() {
 
               {/* Social Proof Section - Updated Layout using CSS Grid */}
               <div className="relative z-10 grid grid-cols-[auto_auto] md:grid-cols-[auto_1fr] grid-rows-[auto_auto] gap-x-2 gap-y-1 md:gap-x-4 items-center md:items-start pt-4 md:pt-6">
-                {/* Fake Profile Pictures - Grid Item */}
+                {/* User Profile Pictures - Grid Item */}
                 <div className="flex -space-x-2 overflow-hidden col-start-1 row-start-1 md:row-span-2 md:self-center">
-                  <div className="inline-block h-8 w-8 rounded-full bg-gray-300 dark:bg-gray-600 ring-2 ring-background filter grayscale"></div>
-                  <div className="inline-block h-8 w-8 rounded-full bg-gray-400 dark:bg-gray-500 ring-2 ring-background filter grayscale"></div>
-                  <div className="inline-block h-8 w-8 rounded-full bg-gray-300 dark:bg-gray-600 ring-2 ring-background filter grayscale"></div>
-                  <div className="inline-block h-8 w-8 rounded-full bg-gray-400 dark:bg-gray-500 ring-2 ring-background filter grayscale"></div>
-                  <div className="inline-block h-8 w-8 rounded-full bg-gray-300 dark:bg-gray-600 ring-2 ring-background filter grayscale"></div>
+                  {/* Using realistic stock photos for more authentic social proof */}
+                  <Avatar className="h-8 w-8 ring-2 ring-background">
+                    <AvatarImage src="https://images.unsplash.com/photo-1494790108755-2616b612b47c?w=64&h=64&fit=crop&crop=face&auto=format&q=80" alt="Sarah M." />
+                    <AvatarFallback>SM</AvatarFallback>
+                  </Avatar>
+                  <Avatar className="h-8 w-8 ring-2 ring-background">
+                    <AvatarImage src="https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=64&h=64&fit=crop&crop=face&auto=format&q=80" alt="David K." />
+                    <AvatarFallback>DK</AvatarFallback>
+                  </Avatar>
+                  <Avatar className="h-8 w-8 ring-2 ring-background">
+                    <AvatarImage src="https://images.unsplash.com/photo-1517841905240-472988babdf9?w=64&h=64&fit=crop&crop=face&auto=format&q=80" alt="Maya P." />
+                    <AvatarFallback>MP</AvatarFallback>
+                  </Avatar>
+                  <Avatar className="h-8 w-8 ring-2 ring-background">
+                    <AvatarImage src="https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=64&h=64&fit=crop&crop=face&auto=format&q=80" alt="Alex R." />
+                    <AvatarFallback>AR</AvatarFallback>
+                  </Avatar>
+                  <Avatar className="h-8 w-8 ring-2 ring-background">
+                    <AvatarImage src="https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=64&h=64&fit=crop&crop=face&auto=format&q=80" alt="Priya S." />
+                    <AvatarFallback>PS</AvatarFallback>
+                  </Avatar>
                 </div>
 
                 {/* Stars - Grid Item */}

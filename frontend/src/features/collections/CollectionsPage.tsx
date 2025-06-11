@@ -8,7 +8,7 @@ import { ProblemList } from '@/components/ProblemList';
 import { Problem, Difficulty as ProblemDifficulty } from '@/features/problems/types';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from '@/components/ui/button';
-import { X, ListFilter, Loader2, Check, SlidersHorizontal, CheckCircle2, PenSquare, BookOpen, Hash, ChevronDown, ChevronUp, Shuffle } from 'lucide-react';
+import { X, ListFilter, Loader2, Check, SlidersHorizontal, CheckCircle2, PenSquare, BookOpen, Hash, ChevronDown, ChevronUp, Shuffle, Search } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
@@ -16,6 +16,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/component
 import { LoadingButton, LoadingCard, LoadingSpinner, PageLoadingSpinner } from '@/components/ui/loading-spinner';
 import { logger } from '@/lib/logger';
 import DottedBackground from "@/components/DottedBackground";
+import { Input } from '@/components/ui/input';
 
 // Interface for our collection type
 interface Collection {
@@ -76,6 +77,7 @@ export default function CollectionsPage() {
   const [selectedDifficulty, setSelectedDifficulty] = useState<DifficultyFilter>("all");
   const [isNavigating, setIsNavigating] = useState(false);
   const [isShuffling, setIsShuffling] = useState(false);
+  const [collectionSearch, setCollectionSearch] = useState("");
 
   // New filter states
   const [selectedDifficulties, setSelectedDifficulties] = useState<ProblemDifficulty[]>([]);
@@ -465,6 +467,15 @@ export default function CollectionsPage() {
     }
   };
 
+  // Filter collections based on search term
+  const filteredCollections = useMemo(() => {
+    if (!collectionSearch.trim()) return collections;
+    
+    return collections.filter(collection =>
+      collection.name.toLowerCase().includes(collectionSearch.toLowerCase())
+    );
+  }, [collections, collectionSearch]);
+
   if (isLoadingProblems || isLoadingCollections) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
@@ -496,10 +507,22 @@ export default function CollectionsPage() {
         {/* Sidebar for Small Screens (Stacked) - MOVED AND MODIFIED */}
         <div className="xl:hidden mb-8"> {/* MODIFIED: Was 2xl:hidden */}
           <div className="max-w-xl mx-auto space-y-4 rounded-md shadow-md hover:shadow-lg transition-shadow duration-300 dark:shadow-[0_4px_6px_-1px_rgba(82,113,255,0.15),_0_2px_4px_-2px_rgba(82,113,255,0.15)] bg-background/80 dark:bg-background backdrop-blur-md overflow-hidden p-4 border border-border/40 dark:border dark:border-[#5271FF]/15"> {/* Added max-w-xl mx-auto, this is the inner styled div */}
-            {/* Collections Sidebar Content (Title, Shuffle, Buttons) - Duplicated for stacking */}
+            {/* Collections Sidebar Content (Title, Search, Shuffle, Buttons) - Duplicated for stacking */}
             <div className="flex items-center gap-2">
               <h1 className="text-xl sm:text-2xl font-bold leading-tight text-foreground font-sans">{currentCollectionName}</h1>
             </div>
+            
+            {/* Search Input for Collections */}
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Search companies..."
+                value={collectionSearch}
+                onChange={(e) => setCollectionSearch(e.target.value)}
+                className="pl-10 h-9 text-sm font-sans bg-background/50 border-border/60 focus:border-[#5271FF] dark:focus:border-[#6B8EFF] transition-colors"
+              />
+            </div>
+            
             <div className="flex flex-wrap gap-2">
               <button 
                 onClick={() => handleCollectionChange("all")}
@@ -520,7 +543,7 @@ export default function CollectionsPage() {
                   {collectionProblemCounts["all"] || 0}
                 </span>
               </button>
-              {collections.map(collection => (
+              {filteredCollections.map(collection => (
                 <button
                   key={collection.id}
                   onClick={() => handleCollectionChange(collection.id)}
@@ -543,11 +566,14 @@ export default function CollectionsPage() {
                 </button>
               ))}
             </div>
-            {selectedCollection !== 'all' && (
+            {(selectedCollection !== 'all' || collectionSearch.trim()) && (
               <Button
                 variant="ghost" 
                 size="sm"
-                onClick={resetFilters}
+                onClick={() => {
+                  resetFilters();
+                  setCollectionSearch("");
+                }}
                 className="w-full text-[#5271FF] dark:text-[#6B8EFF] hover:bg-[#5271FF]/10 dark:hover:bg-[#6B8EFF]/10 hover:text-[#5271FF] dark:hover:text-white font-sans text-sm"
               >
                 <X className="h-4 w-4 mr-2" />
@@ -562,10 +588,22 @@ export default function CollectionsPage() {
           {/* Sidebar for Medium+ Screens (Absolutely Positioned) */}
           <div className="hidden xl:block xl:absolute xl:right-[calc(100%+1rem)] xl:top-0 xl:w-64"> 
             <div className="xl:sticky xl:top-20 space-y-4 rounded-xl shadow-md hover:shadow-lg transition-shadow duration-300 dark:shadow-[0_4px_6px_-1px_rgba(82,113,255,0.15),_0_2px_4px_-2px_rgba(82,113,255,0.15)] bg-background/80 dark:bg-background backdrop-blur-md overflow-hidden p-4 border border-border/40 dark:border dark:border-[#5271FF]/15">
-              {/* Collections Sidebar Content (Title, Shuffle, Buttons) */}
+              {/* Collections Sidebar Content (Title, Search, Shuffle, Buttons) */}
               <div className="flex items-center gap-2">
                 <h1 className="text-xl sm:text-2xl font-bold leading-tight text-foreground font-sans">{currentCollectionName}</h1>
               </div>
+              
+              {/* Search Input for Collections */}
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder="Search companies..."
+                  value={collectionSearch}
+                  onChange={(e) => setCollectionSearch(e.target.value)}
+                  className="pl-10 h-9 text-sm font-sans bg-background/50 border-border/60 focus:border-[#5271FF] dark:focus:border-[#6B8EFF] transition-colors"
+                />
+              </div>
+              
               <div className="flex flex-wrap gap-2">
                 <button 
                   onClick={() => handleCollectionChange("all")}
@@ -586,7 +624,7 @@ export default function CollectionsPage() {
                     {collectionProblemCounts["all"] || 0}
                   </span>
                 </button>
-                {collections.map(collection => (
+                {filteredCollections.map(collection => (
                   <button
                     key={collection.id}
                     onClick={() => handleCollectionChange(collection.id)}
@@ -609,11 +647,14 @@ export default function CollectionsPage() {
                   </button>
                 ))}
               </div>
-              {selectedCollection !== 'all' && (
+              {(selectedCollection !== 'all' || collectionSearch.trim()) && (
                 <Button
                   variant="ghost" 
                   size="sm"
-                  onClick={resetFilters}
+                  onClick={() => {
+                    resetFilters();
+                    setCollectionSearch("");
+                  }}
                   className="w-full text-[#5271FF] dark:text-[#6B8EFF] hover:bg-[#5271FF]/10 dark:hover:bg-[#6B8EFF]/10 hover:text-[#5271FF] dark:hover:text-white font-sans text-sm"
                 >
                   <X className="h-4 w-4 mr-2" />
