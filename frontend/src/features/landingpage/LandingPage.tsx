@@ -249,7 +249,7 @@ export default function LandingPage() {
                     <LoadingSpinner size="md" />
                   ) : (
                     <>
-                      Join <span className="font-semibold text-foreground">{userCount?.toLocaleString() ?? '7,000+'}</span> developers
+                      Join <span className="font-semibold text-foreground">{userCount?.toLocaleString() ?? '7,000+'}</span> others already landing offers.
                     </>
                   )}
                 </p>
