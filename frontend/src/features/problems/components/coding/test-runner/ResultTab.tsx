@@ -72,7 +72,7 @@ export function ResultTab({
               ))
             ) : (
               <div className="text-sm text-muted-foreground">
-                Run your code to see results
+                
               </div>
             )}
           </div>

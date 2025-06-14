@@ -11,7 +11,7 @@ import { CodingProblemProps } from '../../types';
 import { ResizablePanel } from './ResizablePanel';
 import { ProblemTimer } from './timer/ProblemTimer';
 import { CodeEditor, CodeEditorRef } from './editor/CodeEditor';
-import { TestRunner } from './test-runner/TestRunner';
+import { TestRunner, TestRunnerRef } from './test-runner/TestRunner';
 import { ProblemHeader } from '@/features/problems/components/coding/ProblemHeader';
 import { ProblemHeaderProps } from '@/features/problems/components/coding/ProblemHeader';
 import { useProblemCompletion } from '@/features/problems/hooks/useProblemCompletion';
@@ -102,6 +102,7 @@ export default function CodingProblem({
   const [isRunning, setIsRunning] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const editorRef = useRef<any>(null);
+  const testRunnerRef = useRef<TestRunnerRef>(null);
   const [leftPanelTab, setLeftPanelTab] = useState("description");
   const [functionParams, setFunctionParams] = useState<{ name: string; type: string }[]>(() => {
     if (codeProblem?.params) {
@@ -222,12 +223,12 @@ export default function CodingProblem({
 
   const handleRunClick = () => {
     setIsSubmitting(false);
-    document.querySelector<HTMLButtonElement>('[data-testrunner-run-button]')?.click();
+    testRunnerRef.current?.handleRunTests();
   };
 
   const handleSubmitClick = () => {
     setIsSubmitting(true);
-    document.querySelector<HTMLButtonElement>('[data-testrunner-submit-button]')?.click();
+    testRunnerRef.current?.handleSubmitSolution();
   };
 
   const handleSubmissionComplete = () => {
@@ -269,16 +270,13 @@ export default function CodingProblem({
             <Tabs value={leftPanelTab} onValueChange={setLeftPanelTab} className="h-full flex flex-col">
               <div className="px-4 py-2 bg-muted/20 flex-shrink-0 dark:border-transparent border-b border-border">
                 <TabsList className="bg-muted grid w-full grid-cols-3">
-                  <TabsTrigger value="description" className="flex items-center gap-1">
-                    <FileText className="h-4 w-4" />
+                  <TabsTrigger value="description" className="flex items-center justify-center">
                     <span>Description</span>
                   </TabsTrigger>
-                  <TabsTrigger value="submissions" className="flex items-center gap-1">
-                    <History className="h-4 w-4" />
+                  <TabsTrigger value="submissions" className="flex items-center justify-center">
                     <span>Submissions</span>
                   </TabsTrigger>
-                  <TabsTrigger value="solution" className="flex items-center gap-1">
-                    <BookCheck className="h-4 w-4" />
+                  <TabsTrigger value="solution" className="flex items-center justify-center">
                     <span>Solution</span>
                   </TabsTrigger>
                 </TabsList>
@@ -390,6 +388,7 @@ export default function CodingProblem({
           {/* Test Runner - Mobile */}
           <div className="flex-1 min-h-0 overflow-hidden">
             <TestRunner
+              ref={testRunnerRef}
               code={code}
               officialTestCases={parsedOfficialTestCases}
               problemId={problemId}
@@ -561,6 +560,7 @@ export default function CodingProblem({
             {/* Test Runner - with function params */}
             <div className="flex-1 min-h-0 overflow-hidden">
               <TestRunner
+                ref={testRunnerRef}
                 code={code}
                 officialTestCases={parsedOfficialTestCases}
                 problemId={problemId}

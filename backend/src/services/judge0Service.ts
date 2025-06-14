@@ -371,7 +371,11 @@ export function formatTestCode(
 ): string {
   // Convert input to a string representation based on language
   const inputStr = JSON.stringify(input);
-  const inputCommaSeparated = input.join(', ');
+  // For C++ and Java, we might need a comma-separated list of primitives
+  const inputCommaSeparated = input.map(i => {
+    if (typeof i === 'string') return `"${i}"`;
+    return i;
+  }).join(', ');
   
   switch (language.toLowerCase()) {
     case 'javascript':
@@ -597,9 +601,36 @@ run_test()
       // Extract class name from the user's code
       const classMatch = code.match(/class\s+(\w+)/);
       const className = classMatch ? classMatch[1] : 'Solution';
-      
+      const isStaticMethod = code.includes(`static \w+ ${functionName}`);
+
+      const invocation = isStaticMethod
+        ? `${className}.${functionName}`
+        : `new ${className}().${functionName}`;
+
+      const mainBody = `
+        try {
+            // This is a simplified input handling. It assumes a single array argument.
+            // Future improvement: Handle multiple arguments of different types.
+            int[] testInput = {${inputCommaSeparated}};
+            
+            Object result = ${invocation}(testInput);
+            
+            if (result instanceof int[]) {
+                System.out.println(java.util.Arrays.toString((int[])result));
+            } else if (result instanceof Object[]) {
+                System.out.println(java.util.Arrays.toString((Object[])result));
+            } else {
+                System.out.println(result);
+            }
+            
+        } catch (Exception e) {
+            System.err.println("Error: " + e.getMessage());
+            e.printStackTrace();
+        }
+      `;
+
       // Check if this is a linked list problem
-      const isLinkedListProblem = code.includes('ListNode') || functionName.toLowerCase().includes('list');
+      const isLinkedListProblem = code.includes("ListNode") || functionName.toLowerCase().includes("list");
       
       if (isLinkedListProblem) {
         return `
@@ -618,25 +649,12 @@ ${code}
 
 public class Main {
     public static void main(String[] args) {
-        ${className} solution = new ${className}();
-        try {
-            int[] inputArray = {${inputCommaSeparated}};
-            ListNode head = arrayToLinkedList(inputArray);
-            
-            ListNode result = solution.${functionName}(head);
-            
-            int[] resultArray = linkedListToArray(result);
-            System.out.println(Arrays.toString(resultArray));
-            
-        } catch (Exception e) {
-            System.err.println("Error: " + e.getMessage());
-            e.printStackTrace();
-        }
+        ${mainBody}
     }
     
+    // Helper functions for linked list conversion
     private static ListNode arrayToLinkedList(int[] arr) {
-        if (arr.length == 0) return null;
-        
+        if (arr == null || arr.length == 0) return null;
         ListNode head = new ListNode(arr[0]);
         ListNode current = head;
         for (int i = 1; i < arr.length; i++) {
@@ -647,16 +665,18 @@ public class Main {
     }
     
     private static int[] linkedListToArray(ListNode head) {
+        if (head == null) return new int[0];
         List<Integer> list = new ArrayList<>();
-        while (head != null) {
-            list.add(head.val);
-            head = head.next;
+        ListNode current = head;
+        while (current != null) {
+            list.add(current.val);
+            current = current.next;
         }
-        int[] result = new int[list.size()];
+        int[] arr = new int[list.size()];
         for (int i = 0; i < list.size(); i++) {
-            result[i] = list.get(i);
+            arr[i] = list.get(i);
         }
-        return result;
+        return arr;
     }
 }
         `;
@@ -668,21 +688,7 @@ ${code}
 
 public class Main {
     public static void main(String[] args) {
-        ${className} solution = new ${className}();
-        try {
-            int[] testInput = {${inputCommaSeparated}};
-            Object result = solution.${functionName}(testInput);
-            
-            if (result instanceof int[]) {
-                System.out.println(Arrays.toString((int[])result));
-            } else {
-                System.out.println(result);
-            }
-            
-        } catch (Exception e) {
-            System.err.println("Error: " + e.getMessage());
-            e.printStackTrace();
-        }
+        ${mainBody}
     }
 }
         `;
@@ -690,17 +696,44 @@ public class Main {
     
     case 'cpp':
     case 'c++':
-      // Check if this is a linked list problem
-      const isLinkedListProblemCpp = code.includes('ListNode') || functionName.toLowerCase().includes('list');
-      
-      if (isLinkedListProblemCpp) {
-        return `
+      const executionLogic = code.includes('class Solution')
+        ? `Solution solution; auto result = solution.${functionName}(testInput); print_output(result);`
+        : `auto result = ${functionName}(testInput); print_output(result);`;
+
+      return `
 #include <iostream>
 #include <vector>
+#include <string>
+#include <stack>
+#include <queue>
+#include <algorithm>
+#include <climits>
 
 using namespace std;
 
-// Definition for singly-linked list
+// Overloaded function to print different types
+void print_output(int value) { cout << value; }
+void print_output(long value) { cout << value; }
+void print_output(long long value) { cout << value; }
+void print_output(double value) { cout << value; }
+void print_output(float value) { cout << value; }
+void print_output(bool value) { cout << (value ? "true" : "false"); }
+void print_output(const string& value) { cout << "\\"" << value << "\\""; }
+void print_output(char value) { cout << "'" << value << "'"; }
+
+template<typename T>
+void print_output(const vector<T>& vec) {
+    cout << "[";
+    for (size_t i = 0; i < vec.size(); ++i) {
+        print_output(vec[i]);
+        if (i < vec.size() - 1) {
+            cout << ",";
+        }
+    }
+    cout << "]";
+}
+
+// Definition for singly-linked list (if needed)
 struct ListNode {
     int val;
     ListNode *next;
@@ -711,68 +744,14 @@ struct ListNode {
 
 ${code}
 
-ListNode* arrayToLinkedList(vector<int>& arr) {
-    if (arr.empty()) return nullptr;
-    
-    ListNode* head = new ListNode(arr[0]);
-    ListNode* current = head;
-    for (size_t i = 1; i < arr.size(); i++) {
-        current->next = new ListNode(arr[i]);
-        current = current->next;
-    }
-    return head;
-}
-
-vector<int> linkedListToArray(ListNode* head) {
-    vector<int> result;
-    while (head) {
-        result.push_back(head->val);
-        head = head->next;
-    }
-    return result;
-}
-
 int main() {
-    vector<int> inputArray = {${inputCommaSeparated}};
-    ListNode* head = arrayToLinkedList(inputArray);
-    
-    Solution solution;
-    ListNode* result = solution.${functionName}(head);
-    
-    vector<int> resultArray = linkedListToArray(result);
-    
-    cout << "[";
-    for (size_t i = 0; i < resultArray.size(); i++) {
-        if (i > 0) cout << ",";
-        cout << resultArray[i];
-    }
-    cout << "]" << endl;
-    
-    return 0;
-}
-        `;
-      } else {
-        return `
-#include <iostream>
-#include <vector>
-#include <algorithm>
-#include <climits>
-
-using namespace std;
-
-${code}
-
-int main() {
+    // Simplified input handling, assumes a single vector argument
     vector<int> testInput = {${inputCommaSeparated}};
-    
-    auto result = ${functionName}(testInput);
-    
-    cout << result << endl;
-    
+    ${executionLogic}
+    cout << endl;
     return 0;
 }
         `;
-      }
     
     default:
       throw new Error(`Unsupported language for test formatting: ${language}`);
