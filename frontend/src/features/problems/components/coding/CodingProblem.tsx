@@ -262,7 +262,150 @@ export default function CodingProblem({
 
       {/* Main content */}
       <div className="flex-1 overflow-hidden flex flex-col">
-        <div className="flex flex-1 min-h-0 overflow-auto">
+        {/* Mobile: Vertical stack layout */}
+        <div className="md:hidden flex flex-col h-full">
+          {/* Problem description - Mobile */}
+          <div className="flex-shrink-0 border-b border-border">
+            <Tabs value={leftPanelTab} onValueChange={setLeftPanelTab} className="h-full flex flex-col">
+              <div className="px-4 py-2 bg-muted/20 flex-shrink-0 dark:border-transparent border-b border-border">
+                <TabsList className="bg-muted grid w-full grid-cols-3">
+                  <TabsTrigger value="description" className="flex items-center gap-1">
+                    <FileText className="h-4 w-4" />
+                    <span>Description</span>
+                  </TabsTrigger>
+                  <TabsTrigger value="submissions" className="flex items-center gap-1">
+                    <History className="h-4 w-4" />
+                    <span>Submissions</span>
+                  </TabsTrigger>
+                  <TabsTrigger value="solution" className="flex items-center gap-1">
+                    <BookCheck className="h-4 w-4" />
+                    <span>Solution</span>
+                  </TabsTrigger>
+                </TabsList>
+              </div>
+            
+              <TabsContent value="description" className="overflow-hidden m-0 p-0 max-h-[30vh]">
+                <ScrollArea className="h-full" type="hover">
+                  <div className="p-4 space-y-4 w-full">
+                    <div className="space-y-3">
+                      <h1 className="text-2xl font-bold">{title}</h1>
+                      <div className="flex items-center gap-2">
+                        {difficulty && <DifficultyBadge difficulty={difficulty as Difficulty} size="small" />}
+                        {formattedTime && (
+                          <div className="flex items-center text-sm text-muted-foreground">
+                            <Timer className="w-4 h-4 mr-1" />
+                            <span>{formattedTime}</span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                    <div className="max-w-full overflow-hidden">
+                      {isMarkdown(content) ? (
+                        <div className="prose dark:prose-invert max-w-full overflow-hidden prose-sm">
+                          <Markdown 
+                            content={content}
+                            className="max-w-full [&_pre]:!whitespace-pre-wrap [&_pre]:!break-words [&_code]:!whitespace-pre-wrap [&_code]:!break-words [&_pre]:!max-w-full [&_pre]:!overflow-x-auto"
+                          />
+                        </div>
+                      ) : (
+                        <div className="prose dark:prose-invert max-w-full prose-sm">
+                          <HtmlContent content={content} />
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </ScrollArea>
+              </TabsContent>
+              
+              <TabsContent value="submissions" className="overflow-hidden m-0 p-0 max-h-[30vh]">
+                <SubmissionsTab problemId={problemId} />
+              </TabsContent>
+
+              <TabsContent value="solution" className="overflow-hidden m-0 p-0 max-h-[30vh]">
+                <ScrollArea className="h-full" type="hover">
+                  <div className="p-4 space-y-4">
+                    <h2 className="text-xl font-bold">Solution</h2>
+                    
+                    {solutionData.reference ? (
+                      <div>
+                        <h3 className="text-lg font-semibold mb-2">Reference Implementation</h3>
+                        <SyntaxHighlighter 
+                          language={selectedLanguage} 
+                          style={atomOneDark}
+                          customStyle={{
+                            background: 'var(--color-background-secondary, #2d2d2d)',
+                            borderRadius: '0.5rem',
+                            padding: '1rem',
+                            fontSize: '0.8rem',
+                            overflowY: 'auto'
+                          }}
+                          showLineNumbers
+                          wrapLines
+                          lineProps={{style: {wordBreak: 'break-all', whiteSpace: 'pre-wrap'}}}
+                        >
+                          {solutionData.reference}
+                        </SyntaxHighlighter>
+                      </div>
+                    ) : (
+                      <div className="text-muted-foreground italic mt-4 text-sm">
+                        The reference implementation for {LANGUAGE_CONFIGS[selectedLanguage]?.label || selectedLanguage} is not available yet.
+                      </div>
+                    )}
+
+                    {solutionData.explanation && (
+                       <div className="mt-4">
+                         <HtmlContent content={solutionData.explanation} className="prose dark:prose-invert max-w-full prose-sm" />
+                       </div>
+                    )}
+
+                    {!solutionData.explanation && !solutionData.reference && (
+                       <div className="text-muted-foreground italic text-sm">
+                        The solution for {LANGUAGE_CONFIGS[selectedLanguage]?.label || selectedLanguage} is not available yet.
+                      </div>
+                    )}
+                  </div>
+                </ScrollArea>
+              </TabsContent>
+            </Tabs>
+          </div>
+
+          {/* Code Editor - Mobile */}
+          <div className="flex-1 min-h-0 border-b border-border">
+            <div className="h-full overflow-hidden">
+              <CodeEditor
+                initialCode={code}
+                onChange={handleCodeChange}
+                className="h-full"
+                language={selectedLanguage}
+                onLanguageChange={handleLanguageChange}
+                ref={editorRef}
+                onRunTests={handleRunClick}
+                onSubmitSolution={handleSubmitClick}
+                isRunning={isRunning}
+                isSubmitting={isSubmitting}
+              />
+            </div>
+          </div>
+
+          {/* Test Runner - Mobile */}
+          <div className="flex-1 min-h-0 overflow-hidden">
+            <TestRunner
+              code={code}
+              officialTestCases={parsedOfficialTestCases}
+              problemId={problemId}
+              onAllTestsPassed={hookHandleMarkComplete}
+              language={selectedLanguage}
+              isRunning={isRunning}
+              setIsRunning={setIsRunning}
+              functionParams={functionParams}
+              onSubmissionComplete={handleSubmissionComplete}
+              isCompleted={hookIsCompleted}
+            />
+          </div>
+        </div>
+
+        {/* Desktop: Side-by-side layout */}
+        <div className="hidden md:flex flex-1 min-h-0 overflow-auto">
           {/* Left panel - Problem description */}
           <ResizablePanel
             defaultWidth={leftPanelWidth}

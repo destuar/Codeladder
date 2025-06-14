@@ -77,8 +77,8 @@ function MainLayout() {
   const shouldHideNavigation = isProblemPage || isCollectionPage || isQuizPage || isTestPage || isAssessmentPage || isProblemReviewPage;
   const isLandingPage = location.pathname === '/landing';
 
-  // Add top padding only when the navbar is fixed (mobile view OR desktop landing page)
-  const shouldAddTopPadding = !isDesktop || isLandingPage;
+  // Add top padding only when the navbar is fixed (mobile view OR desktop landing page) AND navigation is shown
+  const shouldAddTopPadding = (!isDesktop || isLandingPage) && !shouldHideNavigation;
   
   return (
     <div className={cn("min-h-screen bg-background text-foreground relative", { "pt-16": shouldAddTopPadding })}>

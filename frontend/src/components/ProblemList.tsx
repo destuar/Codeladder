@@ -138,7 +138,7 @@ export function ProblemList({
               <Button
                 variant="ghost"
                 onClick={onShuffleClick}
-                className="h-9 px-3 bg-background hover:bg-muted/20 disabled:opacity-50 shadow-md flex items-center gap-1.5 font-sans text-sm font-normal"
+                className="h-9 px-3 bg-background hover:bg-muted/20 disabled:opacity-50 shadow-md flex items-center gap-1.5 font-sans text-sm font-medium"
                 disabled={shuffleDisabled || isShuffling}
               >
                 {isShuffling ? (
@@ -288,7 +288,7 @@ export function ProblemList({
             )}
             <TableHead 
               className={cn(
-                "cursor-pointer group hover:text-foreground transition-colors text-xs sm:text-sm py-2 sm:py-3 font-sans",
+                "cursor-pointer group hover:text-foreground transition-colors text-xs sm:text-sm py-2 sm:py-3 font-sans w-[70px] sm:w-auto",
                 isLocked && "text-muted-foreground"
               )}
               onClick={() => handleSort('difficulty')}
@@ -306,7 +306,7 @@ export function ProblemList({
                 )}
               </div>
             </TableHead>
-            <TableHead className={cn("w-[100px] sm:w-[120px] text-xs sm:text-sm pl-2 pr-2 sm:pl-0 sm:pr-6 py-2 sm:py-3", isLocked && "text-muted-foreground")}></TableHead>
+            <TableHead className={cn("w-[80px] sm:w-[120px] text-xs sm:text-sm pl-2 pr-2 sm:pl-0 sm:pr-6 py-2 sm:py-3", isLocked && "text-muted-foreground")}></TableHead>
           </TableRow>
         </TableHeader>
         <TableBody className={cn(isLocked && "opacity-50")}>
@@ -355,14 +355,14 @@ export function ProblemList({
                       )}
                     </TableCell>
                   )}
-                  <TableCell className={cn("font-medium py-2 sm:py-3 text-xs sm:text-sm", isLocked && "text-muted-foreground")}>
-                    <span className="flex items-center gap-1 sm:gap-2">
+                  <TableCell className={cn("font-medium py-2 sm:py-3", isLocked && "text-muted-foreground")}>
+                    <span className="flex items-center gap-2">
                       {problem.problemType === 'INFO' ? (
-                        <Book className={cn("h-3 w-3 sm:h-4 sm:w-4", "text-amber-500 dark:text-amber-400")} />
+                        <Book className={cn("h-4 w-4 flex-shrink-0", "text-amber-500 dark:text-amber-400")} />
                       ) : (
-                        <Code2 className={cn("h-3 w-3 sm:h-4 sm:w-4", "text-indigo-500 dark:text-indigo-400")} />
+                        <Code2 className={cn("h-4 w-4 flex-shrink-0", "text-indigo-500 dark:text-indigo-400")} />
                       )}
-                      <span className="line-clamp-1">{problem.name}</span>
+                      <span className="line-clamp-1 text-sm">{problem.name}</span>
                     </span>
                   </TableCell>
                   {showTopicName && (
@@ -370,10 +370,10 @@ export function ProblemList({
                       {problem.topic?.name || 'Standalone'}
                     </TableCell>
                   )}
-                  <TableCell className="py-2 sm:py-3">
+                  <TableCell className="py-2 sm:py-3 w-[70px] sm:w-auto">
                     <DifficultyBadge difficulty={problem.difficulty || 'MEDIUM' as Difficulty} size="small" />
                   </TableCell>
-                  <TableCell className={cn("py-2 sm:py-3 pl-2 pr-2 sm:pl-0 sm:pr-6", isLocked && "text-muted-foreground")}>
+                  <TableCell className={cn("py-2 sm:py-3 pl-2 pr-2 sm:pl-0 sm:pr-6 w-[80px] sm:w-[120px]", isLocked && "text-muted-foreground")}>
                     <div className="flex items-center gap-1 sm:gap-2">
                       <Button 
                         variant="outline" 

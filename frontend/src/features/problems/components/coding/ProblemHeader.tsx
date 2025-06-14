@@ -62,13 +62,27 @@ export function ProblemHeader({
   const displayTitle = sourceContext ? sourceContext.name : title;
 
   return (
-    <div className="flex justify-between items-center px-4 py-2 h-16 bg-background dark:border-transparent border-b border-border">
+    <div className={cn(
+      "flex justify-between items-center px-4 bg-background dark:border-transparent border-b border-border",
+      // Mobile: match standard header height used across the app
+      "h-16 py-2"
+    )}>
       {/* Left section - Logo and Timer */}
       <div className="flex items-center gap-3 w-1/4">
         <Link to="/dashboard" className="flex items-center">
-          <img src={logoSrc} alt="CodeLadder Logo" className="h-12 w-auto" />
+          <img src={logoSrc} alt="CodeLadder Logo" className={cn(
+            // Mobile: slightly smaller logo but not as small as before
+            "h-10 w-auto md:h-12"
+          )} />
         </Link>
-        {isCodingProblem && <ProblemTimer className="ml-3" />}
+        {isCodingProblem && (
+          <div className="ml-3">
+            {/* Mobile: Hide timer completely */}
+            <div className="hidden md:block">
+              <ProblemTimer />
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Middle section - Problem navigation - always centered */}
@@ -81,9 +95,15 @@ export function ProblemHeader({
                 size="icon"
                 onClick={() => prevProblemId && onNavigate(prevProblemId, prevProblemSlug)}
                 disabled={!prevProblemId || isReviewMode}
-                className="h-8 w-8"
+                className={cn(
+                  // Mobile: slightly larger buttons for better touch targets
+                  "h-7 w-7 md:h-8 md:w-8"
+                )}
               >
-                <ChevronLeft className="h-4 w-4" />
+                <ChevronLeft className={cn(
+                  // Mobile: slightly larger icons
+                  "h-4 w-4 md:h-4 md:w-4"
+                )} />
               </Button>
             </TooltipTrigger>
             <TooltipContent className="bg-popover text-popover-foreground border shadow-md">
@@ -92,7 +112,11 @@ export function ProblemHeader({
           </Tooltip>
         </TooltipProvider>
 
-        <div className="mx-2 max-w-[300px] truncate text-center">
+        <div className={cn(
+          "mx-2 truncate text-center",
+          // Mobile: slightly larger max width and text
+          "max-w-[220px] text-sm md:max-w-[300px] md:text-base"
+        )}>
           {sourceContext ? (
             <div className="flex flex-col items-center">
               {sourceContext.from === 'topic' ? (
@@ -102,7 +126,11 @@ export function ProblemHeader({
                       <Button
                         variant="ghost"
                         asChild
-                        className="font-medium rounded-md h-8 transition-colors"
+                        className={cn(
+                          "font-medium rounded-md transition-colors",
+                          // Mobile: slightly larger button
+                          "h-7 text-sm md:h-8 md:text-sm"
+                        )}
                       >
                         <Link to={`/topic/${sourceContext.slug || sourceContext.id}`}>
                           {displayTitle}
@@ -121,7 +149,11 @@ export function ProblemHeader({
                       <Button
                         variant="ghost"
                         asChild
-                        className="font-medium rounded-md h-8 transition-colors"
+                        className={cn(
+                          "font-medium rounded-md transition-colors",
+                          // Mobile: slightly larger button
+                          "h-7 text-sm md:h-8 md:text-sm"
+                        )}
                       >
                         <Link to={`/collections/${sourceContext.slug || sourceContext.id}`}>
                           {displayTitle}
@@ -134,12 +166,20 @@ export function ProblemHeader({
                   </Tooltip>
                 </TooltipProvider>
               ) : (
-                <span className="font-medium">{displayTitle}</span>
+                <span className={cn(
+                  "font-medium",
+                  // Mobile: slightly larger text
+                  "text-sm md:text-sm"
+                )}>{displayTitle}</span>
               )}
             </div>
           ) : (
             <div className="flex flex-col items-center">
-              <span className="font-medium">{title}</span>
+              <span className={cn(
+                "font-medium",
+                // Mobile: slightly larger text
+                "text-sm md:text-sm"
+              )}>{title}</span>
             </div>
           )}
         </div>
@@ -152,9 +192,15 @@ export function ProblemHeader({
                 size="icon"
                 onClick={() => nextProblemId && onNavigate(nextProblemId, nextProblemSlug)}
                 disabled={!nextProblemId || isReviewMode}
-                className="h-8 w-8"
+                className={cn(
+                  // Mobile: slightly larger buttons for better touch targets
+                  "h-7 w-7 md:h-8 md:w-8"
+                )}
               >
-                <ChevronRight className="h-4 w-4" />
+                <ChevronRight className={cn(
+                  // Mobile: slightly larger icons
+                  "h-4 w-4 md:h-4 md:w-4"
+                )} />
               </Button>
             </TooltipTrigger>
             <TooltipContent className="bg-popover text-popover-foreground border shadow-md">
@@ -177,7 +223,9 @@ export function ProblemHeader({
                     "transition-all duration-100",
                     isCompleted && "text-green-500 hover:bg-green-500/10",
                     !isCompleted && "text-muted-foreground hover:text-foreground",
-                    "active:scale-95"
+                    "active:scale-95",
+                    // Mobile: slightly larger button and text
+                    "h-7 text-sm px-2 md:h-8 md:text-sm md:px-3"
                   )}
                   onClick={() => {
                     logger.debug('Mark Complete button clicked, current status:', isCompleted);
@@ -187,11 +235,19 @@ export function ProblemHeader({
                   <div className="flex items-center">
                     {isCompleted ? (
                       <>
-                        <CheckCircle2 className="w-4 h-4 mr-1" />
-                        <span>Completed</span>
+                        <CheckCircle2 className={cn(
+                          "mr-1",
+                          // Mobile: slightly larger icon
+                          "w-4 h-4 md:w-4 md:h-4"
+                        )} />
+                        <span className="hidden sm:inline">Completed</span>
+                        <span className="sm:hidden">Done</span>
                       </>
                     ) : (
-                      <span>Mark Complete</span>
+                      <>
+                        <span className="hidden sm:inline">Mark Complete</span>
+                        <span className="sm:hidden">Complete</span>
+                      </>
                     )}
                   </div>
                 </Button>
@@ -203,9 +259,13 @@ export function ProblemHeader({
           </TooltipProvider>
         )}
         
-        <BorderlessThemeToggle />
+        {/* Theme Toggle - Hidden on mobile */}
+        <div className="hidden md:block">
+          <BorderlessThemeToggle />
+        </div>
         
-        <Link to="/profile">
+        {/* Profile Avatar - Hidden on mobile */}
+        <Link to="/profile" className="hidden md:block">
           <Avatar className="h-8 w-8 transition-transform hover:scale-105">
             <AvatarImage src={profile?.avatarUrl} />
             <AvatarFallback>{user?.name?.[0] || user?.email?.[0]}</AvatarFallback>

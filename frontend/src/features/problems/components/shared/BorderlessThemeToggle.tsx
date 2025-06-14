@@ -31,9 +31,17 @@ export function BorderlessThemeToggle({ isStatic = false }: BorderlessThemeToggl
       variant="ghost"
       size="icon"
       onClick={toggleTheme}
-      className="w-9 h-9 rounded-md flex items-center justify-center"
+      className={cn(
+        "rounded-md flex items-center justify-center",
+        // Mobile: slightly larger size to match h-16 header
+        "w-7 h-7 md:w-9 md:h-9"
+      )}
     >
-      <div className="relative w-5 h-5">
+      <div className={cn(
+        "relative",
+        // Mobile: slightly larger icon
+        "w-4 h-4 md:w-5 md:h-5"
+      )}>
         {/* Sun */}
         <div
           className={cn(
@@ -50,7 +58,10 @@ export function BorderlessThemeToggle({ isStatic = false }: BorderlessThemeToggl
             viewBox="0 0 24 24"
             strokeWidth={1.5}
             stroke="currentColor"
-            className="w-5 h-5"
+            className={cn(
+              // Mobile: slightly larger SVG
+              "w-4 h-4 md:w-5 md:h-5"
+            )}
           >
             <path
               strokeLinecap="round"
@@ -76,7 +87,10 @@ export function BorderlessThemeToggle({ isStatic = false }: BorderlessThemeToggl
             viewBox="0 0 24 24"
             strokeWidth={1.5}
             stroke="currentColor"
-            className="w-5 h-5"
+            className={cn(
+              // Mobile: slightly larger SVG
+              "w-4 h-4 md:w-5 md:h-5"
+            )}
           >
             <path
               strokeLinecap="round"
