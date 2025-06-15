@@ -337,14 +337,31 @@ function processResult(result: ResultResponse): ProcessedResult {
   const decodedOutput = stdout ? Buffer.from(stdout, 'base64').toString() : '';
   const decodedError = stderr ? Buffer.from(stderr, 'base64').toString() : '';
   const decodedCompileOutput = compile_output ? Buffer.from(compile_output, 'base64').toString() : '';
+  const decodedMessage = message ? Buffer.from(message, 'base64').toString() : '';
 
   // Convert execution time to milliseconds (from seconds)
   const executionTime = time ? parseFloat(time) * 1000 : undefined;
 
+  let errorForUser: string | undefined;
+
+  switch (status.id) {
+    case STATUS_CODES.COMPILATION_ERROR:
+      errorForUser = decodedCompileOutput || 'Compilation Error: No output from compiler.';
+      break;
+    case STATUS_CODES.RUNTIME_ERROR:
+    case STATUS_CODES.TIME_LIMIT_EXCEEDED:
+    case STATUS_CODES.EXEC_FORMAT_ERROR:
+      errorForUser = decodedError || decodedMessage || status.description;
+      break;
+    case STATUS_CODES.INTERNAL_ERROR:
+      errorForUser = decodedMessage || decodedError || 'An internal error occurred.';
+      break;
+  }
+
   return {
     passed: status.id === STATUS_CODES.ACCEPTED,
     output: decodedOutput,
-    error: decodedError || undefined,
+    error: errorForUser,
     compilationOutput: decodedCompileOutput || undefined,
     statusDescription: status.description,
     statusId: status.id,
@@ -369,16 +386,17 @@ export function formatTestCode(
   input: any[],
   functionName: string
 ): string {
-  // Convert input to a string representation based on language
   const inputStr = JSON.stringify(input);
-  // For C++ and Java, we might need a comma-separated list of primitives
   const inputCommaSeparated = input.map(i => {
     if (typeof i === 'string') return `"${i}"`;
+    if (i === null) return 'null';
+    if (Array.isArray(i)) return `{${i.join(',')}}`; // For C-style arrays
     return i;
   }).join(', ');
   
   switch (language.toLowerCase()) {
     case 'javascript':
+      // Javascript driver is likely sufficient for now.
       return `
 ${code}
 
@@ -399,193 +417,138 @@ runTest();
     
     case 'python':
     case 'python3':
+      const pythonInputStr = inputStr.replace(/null/g, 'None');
       return `
 from typing import Optional, List
 import json
 import sys
+from collections import deque
 
-# Common data structure definitions
+# Definition for singly-linked list.
 class ListNode:
     def __init__(self, val=0, next=None):
         self.val = val
         self.next = next
-    
-    def __repr__(self):
-        return f"ListNode({self.val})"
 
+# Definition for a binary tree node.
 class TreeNode:
     def __init__(self, val=0, left=None, right=None):
         self.val = val
         self.left = left
         self.right = right
-    
-    def __repr__(self):
-        return f"TreeNode({self.val})"
 
-# Utility functions for data structure conversions
-def array_to_linked_list(arr):
-    """Convert array to linked list"""
+# Helper functions
+def create_linked_list(arr, pos=-1):
     if not arr:
         return None
-    
-    head = ListNode(arr[0])
-    current = head
-    for val in arr[1:]:
-        current.next = ListNode(val)
-        current = current.next
-    return head
+    nodes = [ListNode(val) for val in arr]
+    for i in range(len(nodes) - 1):
+        nodes[i].next = nodes[i+1]
+    if pos != -1 and pos < len(nodes):
+        nodes[-1].next = nodes[pos]
+    return nodes[0] if nodes else None
 
 def linked_list_to_array(head):
-    """Convert linked list to array"""
     if not head:
         return []
-    
-    result = []
-    current = head
-    while current:
-        result.append(current.val)
-        current = current.next
-    return result
+    arr = []
+    visited = set()
+    curr = head
+    while curr:
+        if id(curr) in visited:
+            break
+        visited.add(id(curr))
+        arr.append(curr.val)
+        curr = curr.next
+    return arr
 
 def array_to_binary_tree(arr):
-    """Convert array to binary tree (level order)"""
     if not arr or arr[0] is None:
         return None
-    
     root = TreeNode(arr[0])
-    queue = [root]
+    q = deque([root])
     i = 1
-    
-    while queue and i < len(arr):
-        node = queue.pop(0)
-        
-        # Left child
+    while q and i < len(arr):
+        node = q.popleft()
         if i < len(arr) and arr[i] is not None:
             node.left = TreeNode(arr[i])
-            queue.append(node.left)
+            q.append(node.left)
         i += 1
-        
-        # Right child
         if i < len(arr) and arr[i] is not None:
             node.right = TreeNode(arr[i])
-            queue.append(node.right)
+            q.append(node.right)
         i += 1
-    
     return root
 
 def binary_tree_to_array(root):
-    """Convert binary tree to array (level order)"""
     if not root:
         return []
-    
-    result = []
-    queue = [root]
-    
-    while queue:
-        node = queue.pop(0)
+    arr = []
+    q = deque([root])
+    while q:
+        node = q.popleft()
         if node:
-            result.append(node.val)
-            queue.append(node.left)
-            queue.append(node.right)
+            arr.append(node.val)
+            q.append(node.left)
+            q.append(node.right)
         else:
-            result.append(None)
-    
-    # Remove trailing None values
-    while result and result[-1] is None:
-        result.pop()
-    
-    return result
-
-def detect_data_structure_type(func_name, param_names):
-    """Detect what type of data structure based on function name and parameters"""
-    func_name_lower = func_name.lower()
-    
-    # Linked list indicators
-    if any(keyword in func_name_lower for keyword in ['list', 'reverse', 'merge', 'cycle', 'palindrome']):
-        if any(param in str(param_names).lower() for param in ['head', 'l1', 'l2', 'list']):
-            return 'linked_list'
-    
-    # Tree indicators
-    if any(keyword in func_name_lower for keyword in ['tree', 'binary', 'depth', 'path', 'ancestor']):
-        if any(param in str(param_names).lower() for param in ['root', 'tree', 'node']):
-            return 'binary_tree'
-    
-    # Default to array/primitive
-    return 'array'
+            arr.append(None)
+    while arr and arr[-1] is None:
+        arr.pop()
+    return arr
 
 ${code}
 
 # Test driver
 def run_test():
-    input_data = ${inputStr}
+    input_data = ${pythonInputStr}
     
     try:
-        # Detect function signature and data structure type
         import inspect
         func = globals().get('${functionName}')
+        if not func:
+          # Check if it's a class method
+          sol_class = globals().get('Solution')
+          if sol_class:
+            func = getattr(sol_class(), '${functionName}', None)
+        
         if not func:
             raise Exception(f"Function '${functionName}' not found")
         
         sig = inspect.signature(func)
-        param_names = list(sig.parameters.keys())
-        data_type = detect_data_structure_type('${functionName}', param_names)
-        
-        # Convert input based on detected type
-        if data_type == 'linked_list':
-            # Handle linked list conversion
-            converted_args = []
-            for i, arg in enumerate(input_data):
-                if i < len(param_names):
-                    param_name = param_names[i].lower()
-                    if any(keyword in param_name for keyword in ['head', 'l1', 'l2', 'list']):
-                        converted_args.append(array_to_linked_list(arg))
-                    else:
-                        converted_args.append(arg)
-                else:
-                    converted_args.append(arg)
-            
-            result = func(*converted_args)
-            
-            # Convert result back to array if it's a linked list
-            if isinstance(result, ListNode):
-                result = linked_list_to_array(result)
-            elif result is None and data_type == 'linked_list':
-                # For linked list problems, None should become empty array
-                result = []
-            
-        elif data_type == 'binary_tree':
-            # Handle binary tree conversion
-            converted_args = []
-            for i, arg in enumerate(input_data):
-                if i < len(param_names):
-                    param_name = param_names[i].lower()
-                    if any(keyword in param_name for keyword in ['root', 'tree', 'node']):
-                        converted_args.append(array_to_binary_tree(arg))
-                    else:
-                        converted_args.append(arg)
-                else:
-                    converted_args.append(arg)
-            
-            result = func(*converted_args)
-            
-            # Convert result back to array if it's a tree
-            if isinstance(result, TreeNode):
-                result = binary_tree_to_array(result)
-            elif result is None and data_type == 'binary_tree':
-                # For tree problems, None should become empty array
-                result = []
-            
+        param_names = [p for p in sig.parameters if p != 'self']
+
+        converted_args = []
+        func_name_lower = '${functionName}'.lower()
+
+        # Heuristic-based argument conversion
+        if 'cycle' in func_name_lower:
+            # The input contains the list and the pos for cycle creation
+            head = create_linked_list(input_data[0], input_data[1] if len(input_data) > 1 else -1)
+            # The function under test, however, should only take the head unless it explicitly asks for pos
+            if len(param_names) > 1 and 'pos' in param_names:
+              converted_args = [head, input_data[1] if len(input_data) > 1 else -1]
+            else:
+              converted_args = [head]
+        elif 'tree' in func_name_lower or any(p in ['root', 'treenode'] for p in param_names):
+            for arg in input_data:
+                converted_args.append(array_to_binary_tree(arg) if isinstance(arg, list) else arg)
+        elif 'list' in func_name_lower or any(p in ['head', 'listnode'] for p in param_names):
+             for arg in input_data:
+                converted_args.append(create_linked_list(arg) if isinstance(arg, list) else arg)
         else:
-            # Handle regular arrays and primitives
-            result = func(*input_data)
+            converted_args = input_data
+
+        result = func(*converted_args)
         
-        # Handle special result types
-        if isinstance(result, (list, tuple)):
-            # Check if it's a list of ListNodes (multiple linked lists)
-            if result and isinstance(result[0], ListNode):
-                result = [linked_list_to_array(node) for node in result]
+        # Result serialization
+        if isinstance(result, ListNode):
+            result = linked_list_to_array(result)
+        elif isinstance(result, TreeNode):
+            result = binary_tree_to_array(result)
+        elif result and isinstance(result, list) and len(result) > 0 and isinstance(result[0], ListNode):
+            result = [linked_list_to_array(node) for node in result]
         
-        # Output result
         print(json.dumps(result, default=str))
             
     except Exception as e:
@@ -598,158 +561,613 @@ run_test()
       `;
     
     case 'java':
-      // Extract class name from the user's code
-      const classMatch = code.match(/class\s+(\w+)/);
-      const className = classMatch ? classMatch[1] : 'Solution';
-      const isStaticMethod = code.includes(`static \w+ ${functionName}`);
-
-      const invocation = isStaticMethod
-        ? `${className}.${functionName}`
-        : `new ${className}().${functionName}`;
-
-      const mainBody = `
-        try {
-            // This is a simplified input handling. It assumes a single array argument.
-            // Future improvement: Handle multiple arguments of different types.
-            int[] testInput = {${inputCommaSeparated}};
-            
-            Object result = ${invocation}(testInput);
-            
-            if (result instanceof int[]) {
-                System.out.println(java.util.Arrays.toString((int[])result));
-            } else if (result instanceof Object[]) {
-                System.out.println(java.util.Arrays.toString((Object[])result));
-            } else {
-                System.out.println(result);
-            }
-            
-        } catch (Exception e) {
-            System.err.println("Error: " + e.getMessage());
-            e.printStackTrace();
-        }
-      `;
-
-      // Check if this is a linked list problem
-      const isLinkedListProblem = code.includes("ListNode") || functionName.toLowerCase().includes("list");
+      // 1. Sanitize user code
+      const importRegex = /^\s*import\s+[\w\.\*]+;/gm;
+      const userImports = code.match(importRegex) || [];
+      const codeWithoutImports = code.replace(importRegex, '').trim();
       
-      if (isLinkedListProblem) {
-        return `
-import java.util.*;
+      // Run checks on the original code before modification
+      const javaHasUserTreeNode = /class\s+TreeNode/.test(code);
+      const javaHasUserListNode = /class\s+ListNode\b/.test(code);
+      
+      // 2. Find the main solution class name with robust logic
+      let className = 'Solution'; // Default
+      const hasSolutionClass = /class\s+Solution\b/.test(codeWithoutImports);
 
-// Definition for singly-linked list
+      if (!hasSolutionClass) {
+          // If no "Solution" class, find the first class that isn't a known data structure.
+          const classMatches = [...codeWithoutImports.matchAll(/class\s+(\w+)/g)];
+          const nonDSClass = classMatches.find(m => m[1] !== 'TreeNode' && m[1] !== 'ListNode');
+          if (nonDSClass) {
+              className = nonDSClass[1];
+          } else if (classMatches.length > 0) {
+              // Fallback to the first class if only DS classes are found
+              className = classMatches[0][1];
+          }
+      }
+ 
+       // 3. The generic driver logic
+       let mainLogic = '';
+
+      // Find function signature in the user's code
+      const javaSignatureRegex = new RegExp(`(?:public|protected|private|static|\\s)*[\\w\\<\\>\\[\\]]+\\s+${functionName}\\s*\\(([^)]*)\\)`);
+      const javaMatch = codeWithoutImports.match(javaSignatureRegex);
+      let javaParamDataTypes: string[] = [];
+      
+      if (javaMatch && javaMatch[1]) {
+          const paramsStr = javaMatch[1];
+          if(paramsStr.trim() !== '') {
+              const params = paramsStr.split(',').map(p => p.trim());
+              javaParamDataTypes = params.map(p => {
+                  // More robustly extract just the type
+                  const typeMatch = p.match(/^([\w\.<>\[\]]+)/);
+                  return typeMatch ? typeMatch[1] : 'unknown';
+              });
+          }
+      }
+
+      // Build the driver logic based on parameter types
+       const javaArgs: string[] = [];
+       const javaArgSetup: string[] = [];
+       for (let i = 0; i < input.length; i++) {
+           const arg = input[i];
+           const varName = `arg${i}`;
+          const type = javaParamDataTypes[i] || 'unknown';
+
+           let argHandled = false;
+          if (type !== 'unknown') {
+              if (type === 'TreeNode') {
+                  const arr = (Array.isArray(arg) ? arg : []);
+                  const treeStr = arr.map(v => v === null ? 'null' : String(v)).join(',');
+                  javaArgSetup.push(`TreeNode ${varName} = stringToTreeNode("${treeStr}");`);
+                  javaArgs.push(varName);
+                  argHandled = true;
+              } else if (type === 'ListNode') {
+                   const arr = (Array.isArray(arg) ? arg : []);
+                   const listStr = `new int[]{${arr.join(',')}}`;
+                   javaArgSetup.push(`ListNode ${varName} = createLinkedList(${listStr});`);
+                   javaArgs.push(varName);
+                   argHandled = true;
+              } else if (type === 'char[]') {
+                  const arr = (Array.isArray(arg) ? arg as string[] : []);
+                  const arrStr = `new char[]{${arr.map(c => `'${c}'`).join(',')}}`;
+                  javaArgSetup.push(`char[] ${varName} = ${arrStr};`);
+                  javaArgs.push(varName);
+                  argHandled = true;
+              } else if (type === 'String[]') {
+                  const arr = (Array.isArray(arg) ? arg as string[] : []);
+                  const arrStr = `new String[]{${arr.map(s => `"${s.replace(/"/g, '\\"')}"`).join(',')}}`;
+                  javaArgSetup.push(`String[] ${varName} = ${arrStr};`);
+                  javaArgs.push(varName);
+                  argHandled = true;
+              } else if (type === 'int[][]') {
+                       const arr = (Array.isArray(arg) && arg.length > 0) ? arg as number[][] : [];
+                       const arrStr = `new int[][]{${arr.map(sub => `new int[]{${sub.join(',')}}`).join(',')}}`;
+                       javaArgSetup.push(`int[][] ${varName} = ${arrStr};`);
+                       javaArgs.push(varName);
+                       argHandled = true;
+               } else if (type === 'int[]') {
+                  const arrStr = `new int[]{${(Array.isArray(arg) ? arg as (number|null)[] : []).filter(n => n !== null).join(',')}}`;
+                   javaArgSetup.push(`int[] ${varName} = ${arrStr};`);
+                   javaArgs.push(varName);
+                   argHandled = true;
+               }
+          }
+          
+          // Fallback to value-based guessing if type parsing fails or for simple types
+           if (!argHandled) {
+              if (typeof arg === 'number') {
+                   javaArgs.push(String(arg));
+               } else if (typeof arg === 'string') {
+                   javaArgs.push(`"${String(arg).replace(/"/g, '\\"')}"`);
+               } else if (Array.isArray(arg)) { // Smart fallback for arrays
+                   if (arg.length > 0 && Array.isArray(arg[0])) {
+                       // Assumes int[][]
+                       const arr = arg as number[][];
+                       const arrStr = `new int[][]{${arr.map(sub => `new int[]{${sub.join(',')}}`).join(',')}}`;
+                       javaArgSetup.push(`int[][] ${varName} = ${arrStr};`);
+                       javaArgs.push(varName);
+                   } else {
+                       // Assumes int[]
+                       const arrStr = `new int[]{${(arg as (number|null)[]).filter(n => n !== null).join(',')}}`;
+                       javaArgSetup.push(`int[] ${varName} = ${arrStr};`);
+                       javaArgs.push(varName);
+                   }
+               }
+           }
+       }
+
+      if (javaArgs.length > 0 || javaParamDataTypes.length === 0) { // allow zero-param functions
+           mainLogic = `
+               ${javaArgSetup.join('\n')}
+               Object result = new ${className}().${functionName}(${javaArgs.join(', ')});
+               printResult(result);
+           `;
+       } else {
+           mainLogic = `System.out.println("Could not generate driver for this function signature.");`;
+       }
+
+  // 4. Assemble final Java file
+  const allImports = new Set([
+    'import java.util.*;',
+    'import java.io.*;',
+    ...userImports
+  ]);
+
+  return `
+${[...allImports].join('\n')}
+
+// Data structure definitions (guarded)
+${!javaHasUserListNode ? `
 class ListNode {
     int val;
     ListNode next;
-    ListNode() {}
-    ListNode(int val) { this.val = val; }
-    ListNode(int val, ListNode next) { this.val = val; this.next = next; }
-}
+    ListNode(int x) { val = x; next = null; }
+}` : ''}
+${!javaHasUserTreeNode ? `
+class TreeNode {
+    int val;
+    TreeNode left;
+    TreeNode right;
+    TreeNode(int x) { val = x; }
+}`: ''}
 
-${code}
+// Provided user code
+${codeWithoutImports}
 
 public class Main {
     public static void main(String[] args) {
-        ${mainBody}
+         try {
+             ${mainLogic}
+         } catch(Exception e) {
+              System.err.println("Error during execution: " + e.getMessage());
+              e.printStackTrace();
+         }
     }
-    
-    // Helper functions for linked list conversion
-    private static ListNode arrayToLinkedList(int[] arr) {
-        if (arr == null || arr.length == 0) return null;
-        ListNode head = new ListNode(arr[0]);
-        ListNode current = head;
-        for (int i = 1; i < arr.length; i++) {
-            current.next = new ListNode(arr[i]);
-            current = current.next;
+
+    // ========= Generic Result Printer =========
+    private static void printResult(Object result) {
+        if (result == null) {
+            System.out.println("null");
+        } else if (result instanceof TreeNode) {
+            System.out.println(treeNodeToString((TreeNode) result));
+        } else if (result instanceof ListNode) {
+            System.out.println(linkedListToString((ListNode) result));
+        } else if (result instanceof int[]) {
+            System.out.println(Arrays.toString((int[]) result).replace(" ", ""));
+        } else if (result instanceof int[][]) {
+            System.out.println(Arrays.deepToString((int[][]) result).replace(" ", ""));
+        } else {
+            System.out.println(result);
         }
-        return head;
+    }
+
+    // ========= Helper Functions for Java =========
+    public static int[] stringToIntegerArray(String input) {
+        if (input == null || input.isEmpty() || input.equals("[]")) return new int[0];
+        String[] parts = input.replace("[", "").replace("]", "").split(",");
+        int[] output = new int[parts.length];
+        for(int i = 0; i < parts.length; i++) {
+            String part = parts[i].trim();
+            if (!part.isEmpty()) {
+                output[i] = Integer.parseInt(part);
+            }
+        }
+        return output;
+    }
+
+    public static ListNode createLinkedList(int[] values) {
+        if (values == null || values.length == 0) return null;
+        ListNode dummy = new ListNode(0);
+        ListNode curr = dummy;
+        for (int val : values) {
+            curr.next = new ListNode(val);
+            curr = curr.next;
+        }
+        return dummy.next;
     }
     
-    private static int[] linkedListToArray(ListNode head) {
-        if (head == null) return new int[0];
+    public static String linkedListToString(ListNode head) {
+        if (head == null) return "null";
         List<Integer> list = new ArrayList<>();
-        ListNode current = head;
-        while (current != null) {
-            list.add(current.val);
-            current = current.next;
+        while(head != null) {
+            list.add(head.val);
+            head = head.next;
         }
-        int[] arr = new int[list.size()];
+        return Arrays.toString(list.toArray()).replace(" ", "");
+    }
+
+    public static ListNode createLinkedListWithCycle(int[] values, int pos) {
+        if (values == null || values.length == 0) return null;
+        ListNode dummy = new ListNode(0);
+        ListNode curr = dummy;
+        ListNode cycleNode = null;
+        for (int i=0; i<values.length; i++) {
+            curr.next = new ListNode(values[i]);
+            curr = curr.next;
+            if (pos == i) cycleNode = curr;
+        }
+        if (pos >= 0) curr.next = cycleNode;
+        return dummy.next;
+    }
+
+    public static TreeNode stringToTreeNode(String input) {
+        input = input.trim();
+        if (input.length() == 0 || input.equals("[]")) return null;
+        String[] parts = input.split(",");
+        if (parts.length == 0 || parts[0].trim().equals("null")) return null;
+        Queue<TreeNode> q = new LinkedList<>();
+        TreeNode root = new TreeNode(Integer.parseInt(parts[0].trim()));
+        q.add(root);
+        int i = 1;
+        while(!q.isEmpty() && i < parts.length) {
+            TreeNode node = q.poll();
+            if (i < parts.length && !parts[i].trim().equals("null")) {
+                node.left = new TreeNode(Integer.parseInt(parts[i].trim()));
+                q.add(node.left);
+            }
+            i++;
+            if (i < parts.length && !parts[i].trim().equals("null")) {
+                node.right = new TreeNode(Integer.parseInt(parts[i].trim()));
+                q.add(node.right);
+            }
+            i++;
+        }
+        return root;
+    }
+
+    public static String treeNodeToString(TreeNode root) {
+        if (root == null) return "null";
+        List<String> list = new ArrayList<>();
+        Queue<TreeNode> queue = new LinkedList<>();
+        queue.offer(root);
+
+        while (!queue.isEmpty()) {
+            TreeNode node = queue.poll();
+            if (node != null) {
+                list.add(String.valueOf(node.val));
+                queue.offer(node.left);
+                queue.offer(node.right);
+            } else {
+                list.add("null");
+            }
+        }
+
+        int lastNonNull = -1;
         for (int i = 0; i < list.size(); i++) {
-            arr[i] = list.get(i);
+            if (!list.get(i).equals("null")) {
+                lastNonNull = i;
+            }
         }
-        return arr;
+        if (lastNonNull == -1) return "null";
+
+        StringBuilder sb = new StringBuilder();
+        sb.append("[");
+        for (int i = 0; i <= lastNonNull; i++) {
+            sb.append(list.get(i));
+            if (i < lastNonNull) sb.append(",");
+        }
+        sb.append("]");
+        return sb.toString();
     }
 }
-        `;
-      } else {
-        return `
-import java.util.*;
-
-${code}
-
-public class Main {
-    public static void main(String[] args) {
-        ${mainBody}
-    }
-}
-        `;
-      }
+      `;
     
     case 'cpp':
     case 'c++':
-      const executionLogic = code.includes('class Solution')
-        ? `Solution solution; auto result = solution.${functionName}(testInput); print_output(result);`
-        : `auto result = ${functionName}(testInput); print_output(result);`;
+      // 1. Sanitize user code by extracting includes, usings, and struct/class definitions
+      const includeRegex = /^\s*#include\s*<.*?>/gm;
+      const usingRegex = /^\s*using\s+namespace\s+std;/gm;
+      const structClassRegex = /^\s*(?:class|struct)\s+\w+(?:\s*:\s*public\s+\w+)?\s*\{[\s\S]*?};/gm;
 
-      return `
+      const userIncludes = code.match(includeRegex) || [];
+      const userUsings = code.match(usingRegex) || [];
+      const userStructs = code.match(structClassRegex) || [];
+
+      const remainingCode = code
+        .replace(includeRegex, '')
+        .replace(usingRegex, '')
+        .replace(structClassRegex, '')
+        .trim();
+
+      // Check if user has defined these structs to avoid redefinition
+      const hasUserTreeNode = userStructs.some(s => s.includes('struct TreeNode'));
+      const hasUserListNode = userStructs.some(s => s.includes('struct ListNode'));
+      const userCodeIsClass = remainingCode.trim().startsWith('class Solution');
+      
+      const finalUserCode = userCodeIsClass ? remainingCode : `
+class Solution {
+public:
+${remainingCode}
+};`;
+      
+      // 3. Generate the main logic for the specific problem
+       let cppMainLogic = '';
+
+        // Generic handlers based on parsing the function signature
+        // 1. Find function signature
+        const cppSignatureRegex = new RegExp(`([\\w\\<\\>\\:\\*&\\s]+?)\\s+${functionName}\\s*\\(([^)]*)\\)`);
+        const cppMatch = code.match(cppSignatureRegex);
+        let cppParamDataTypes: string[] = [];
+
+        if (cppMatch && cppMatch[2]) {
+            const paramsStr = cppMatch[2];
+                if(paramsStr.trim() !== '') {
+                const params = paramsStr.split(',').map(p => p.trim());
+                // More robustly parse types, removing references and variable names
+                cppParamDataTypes = params.map(p => 
+                    p.replace(/&/g, '').replace(/\b\w+\s*$/, '').trim()
+                );
+            }
+        }
+        
+        // 2. Build the driver logic based on parameter types
+         const cppArgs: string[] = [];
+         const cppArgSetup: string[] = [];
+         for (let i = 0; i < input.length; i++) {
+             const arg = input[i];
+             const varName = `arg${i}`;
+            const type = cppParamDataTypes[i] || 'unknown';
+
+            let argHandled = false;
+            if (type !== 'unknown') {
+                if (type === 'TreeNode*') {
+                    const arrStr = JSON.stringify(Array.isArray(arg) ? arg : []);
+                    cppArgSetup.push(`TreeNode* ${varName} = stringToTreeNode(R"(${arrStr})");`);
+                    cppArgs.push(varName);
+                    argHandled = true;
+                } else if (type === 'ListNode*') {
+                     const arr = (Array.isArray(arg) ? arg : []);
+                     const arrStr = `{${arr.join(',')}}`;
+                     cppArgSetup.push(`vector<int> temp_vec_${varName} = ${arrStr};`);
+                     cppArgSetup.push(`ListNode* ${varName} = createLinkedListWithCycle(temp_vec_${varName}, -1);`);
+                     cppArgs.push(varName);
+                     argHandled = true;
+                } else if (type === 'vector<char>') {
+                    const arr = (Array.isArray(arg) ? arg as string[] : []);
+                    const arrStr = `{${arr.map(c => `'${c}'`).join(',')}}`;
+                    cppArgSetup.push(`vector<char> ${varName} = ${arrStr};`);
+                    cppArgs.push(varName);
+                    argHandled = true;
+                } else if (type === 'vector<string>') {
+                    const arr = (Array.isArray(arg) ? arg as string[] : []);
+                    const arrStr = `{${arr.map(s => `"${s.replace(/"/g, '\\"')}"`).join(',')}}`;
+                    cppArgSetup.push(`vector<string> ${varName} = ${arrStr};`);
+                    cppArgs.push(varName);
+                    argHandled = true;
+                } else if (type === 'vector<vector<int>>') {
+                        const arr = (Array.isArray(arg) && arg.length > 0) ? arg as number[][] : [];
+                        const arrStr = `{${arr.map(sub => `{${sub.join(',')}}`).join(',')}}`;
+                        cppArgSetup.push(`vector<vector<int>> ${varName} = ${arrStr};`);
+                        cppArgs.push(varName);
+                        argHandled = true;
+                } else if (type === 'vector<int>') {
+                        const arrStr = `{${(Array.isArray(arg) ? arg as number[] : []).join(',')}}`;
+                        cppArgSetup.push(`vector<int> ${varName} = ${arrStr};`);
+                        cppArgs.push(varName);
+                        argHandled = true;
+                } else if (type === 'string') {
+                    cppArgSetup.push(`string ${varName} = "${String(arg).replace(/"/g, '\\"')}";`);
+                    cppArgs.push(varName);
+                    argHandled = true;
+                }
+            }
+
+            // Fallback for simple types
+            if (!argHandled) {
+                if (typeof arg === 'number') {
+                    cppArgs.push(String(arg));
+                } else if (typeof arg === 'string') {
+                    // This will be used if type parsing failed but we get a string
+                    cppArgSetup.push(`string ${varName} = "${String(arg).replace(/"/g, '\\"')}";`);
+                    cppArgs.push(varName);
+                } else if (Array.isArray(arg)) { // Smart fallback for arrays
+                   if (arg.length > 0 && Array.isArray(arg[0])) {
+                        // Assumes vector<vector<int>>
+                        const arr = arg as number[][];
+                        const arrStr = `{${arr.map(sub => `{${sub.join(',')}}`).join(',')}}`;
+                        cppArgSetup.push(`vector<vector<int>> ${varName} = ${arrStr};`);
+                        cppArgs.push(varName);
+                    } else {
+                        // Assumes vector<int>
+                        const arrStr = `{${(arg as (number|null)[]).filter(n => n !== null).join(',')}}`;
+                        cppArgSetup.push(`vector<int> ${varName} = ${arrStr};`);
+                        cppArgs.push(varName);
+                    }
+                }
+            }
+        }
+
+        if (cppArgs.length > 0 || cppParamDataTypes.length === 0) {
+              cppMainLogic = `
+                  ${cppArgSetup.join('\n')}
+                  Solution sol;
+                  auto result = sol.${functionName}(${cppArgs.join(', ')});
+                  printResult(result);
+              `;
+          } else {
+              cppMainLogic = `
+                cout << "Could not generate driver for this function signature." << endl;
+              `;
+          }
+
+      // 4. Assemble the final C++ file
+       return `
 #include <iostream>
 #include <vector>
 #include <string>
-#include <stack>
 #include <queue>
 #include <algorithm>
-#include <climits>
+#include <sstream>
+#include <limits>
+#include <cctype>
 
-using namespace std;
+${userIncludes.join('\n')}
 
-// Overloaded function to print different types
-void print_output(int value) { cout << value; }
-void print_output(long value) { cout << value; }
-void print_output(long long value) { cout << value; }
-void print_output(double value) { cout << value; }
-void print_output(float value) { cout << value; }
-void print_output(bool value) { cout << (value ? "true" : "false"); }
-void print_output(const string& value) { cout << "\\"" << value << "\\""; }
-void print_output(char value) { cout << "'" << value << "'"; }
+${userUsings.length > 0 ? userUsings.join('\n') : 'using namespace std;'}
 
-template<typename T>
-void print_output(const vector<T>& vec) {
-    cout << "[";
-    for (size_t i = 0; i < vec.size(); ++i) {
-        print_output(vec[i]);
-        if (i < vec.size() - 1) {
-            cout << ",";
-        }
-    }
-    cout << "]";
-}
+// User-provided structs take precedence
+${userStructs.join('\n\n')}
 
-// Definition for singly-linked list (if needed)
+// Guarded struct definitions, only if not provided by user
+${!hasUserListNode ? `
+#ifndef LISTNODE_DEF
+#define LISTNODE_DEF
 struct ListNode {
     int val;
     ListNode *next;
-    ListNode() : val(0), next(nullptr) {}
-    ListNode(int x) : val(x), next(nullptr) {}
-    ListNode(int x, ListNode *next) : val(x), next(next) {}
+    ListNode(int x) : val(x), next(NULL) {}
 };
+#endif
+` : ''}
 
-${code}
+${!hasUserTreeNode ? `
+#ifndef TREENODE_DEF
+#define TREENODE_DEF
+struct TreeNode {
+    int val;
+    TreeNode *left;
+    TreeNode *right;
+    TreeNode(int x) : val(x), left(NULL), right(NULL) {}
+};
+#endif
+` : ''}
+
+// The user's functions wrapped in a class (or as is if already a class)
+${finalUserCode}
+
+// ========= Helper Functions for C++ =========
+TreeNode* stringToTreeNode(string input) {
+    if (input.length() <= 2) return nullptr;
+    input = input.substr(1, input.length() - 2);
+    if (input.empty()) return nullptr;
+
+    stringstream ss(input);
+    string item;
+    
+    getline(ss, item, ',');
+    if (item == "null") return nullptr;
+
+    TreeNode* root = new TreeNode(stoi(item));
+    queue<TreeNode*> q;
+    q.push(root);
+
+    while (!q.empty()) {
+        TreeNode* node = q.front();
+        q.pop();
+
+        if (getline(ss, item, ',')) {
+            item.erase(remove(item.begin(), item.end(), ' '), item.end());
+            if (item != "null") {
+                node->left = new TreeNode(stoi(item));
+                q.push(node->left);
+            }
+        }
+        if (getline(ss, item, ',')) {
+            item.erase(remove(item.begin(), item.end(), ' '), item.end());
+            if (item != "null") {
+                node->right = new TreeNode(stoi(item));
+                q.push(node->right);
+            }
+        }
+    }
+    return root;
+}
+
+string listNodeToString(ListNode* head) {
+    if (!head) return "null";
+    string result = "";
+    while(head) {
+        result += to_string(head->val) + ",";
+        head = head->next;
+    }
+    return "[" + result.substr(0, result.length() - 1) + "]";
+}
+
+string treeNodeToString(TreeNode* root) {
+    if (!root) return "null";
+
+    string output = "";
+    queue<TreeNode*> q;
+    q.push(root);
+
+    while(!q.empty()) {
+        TreeNode* node = q.front();
+        q.pop();
+
+        if (node) {
+            output += to_string(node->val) + ",";
+            q.push(node->left);
+            q.push(node->right);
+        } else {
+            output += "null,";
+        }
+    }
+
+    // Trim trailing nulls
+    size_t last_valid = output.find_last_not_of("null,");
+    if(string::npos != last_valid) {
+      // Find the end of the last valid number
+      size_t end_of_last_num = output.find(',', last_valid);
+      if (string::npos != end_of_last_num) {
+        output.resize(end_of_last_num);
+      }
+    }
+    
+    if (!output.empty() && output.back() == ',') {
+        output.pop_back();
+    }
+
+    return "[" + output + "]";
+}
+
+ListNode* createLinkedListWithCycle(vector<int>& values, int pos) {
+    if (values.empty()) return nullptr;
+    ListNode* head = new ListNode(values[0]);
+    ListNode* current = head;
+    ListNode* cycleNode = (pos == 0) ? head : nullptr;
+    for (size_t i = 1; i < values.size(); ++i) {
+        current->next = new ListNode(values[i]);
+        current = current->next;
+        if (pos == (int)i) cycleNode = current;
+    }
+    if (pos >= 0) current->next = cycleNode;
+    return head;
+}
+
+void printVector(const vector<int>& vec) {
+    cout << "[";
+    for (size_t i = 0; i < vec.size(); ++i) {
+        cout << vec[i] << (i < vec.size() - 1 ? "," : "");
+    }
+    cout << "]" << endl;
+}
+
+void printVectorOfVectors(const vector<vector<int>>& vec) {
+    cout << "[";
+    for (size_t i = 0; i < vec.size(); ++i) {
+        cout << "[";
+        for (size_t j = 0; j < vec[i].size(); ++j) {
+            cout << vec[i][j] << (j < vec[i].size() - 1 ? "," : "");
+        }
+        cout << "]" << (i < vec.size() - 1 ? "," : "");
+    }
+    cout << "]" << endl;
+}
+
+// ========= Generic Result Printer =========
+void printResult(int res) { cout << res << endl; }
+void printResult(bool res) { cout << (res ? "true" : "false") << endl; }
+void printResult(const std::string& res) { cout << res << endl; }
+void printResult(const std::vector<int>& vec) { printVector(vec); }
+void printResult(const std::vector<std::vector<int>>& vec) { printVectorOfVectors(vec); }
+void printResult(TreeNode* root) { cout << treeNodeToString(root) << endl; }
+void printResult(ListNode* head) { cout << listNodeToString(head) << endl; }
 
 int main() {
-    // Simplified input handling, assumes a single vector argument
-    vector<int> testInput = {${inputCommaSeparated}};
-    ${executionLogic}
-    cout << endl;
-    return 0;
+     string funcName = "${functionName}";
+     ${cppMainLogic}
+     return 0;
 }
         `;
     
