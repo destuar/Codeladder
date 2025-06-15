@@ -43,6 +43,7 @@ import { PlusCircle, Trash, Edit, RefreshCw, FileJson, Pencil, Trash2 } from 'lu
 import { cn } from '@/lib/utils';
 import { LoadingCard, LoadingSpinner, PageLoadingSpinner } from '@/components/ui/loading-spinner';
 import { validateAndParseProblemJSON, ValidationResult, ProblemJSONImport } from '../utils/problemJSONParser';
+import { Level, Topic } from '@/hooks/useLearningPath';
 
 // Local type for managing test cases in the form
 interface FormTestCase {
@@ -82,6 +83,9 @@ type NewProblemFormState = {
   estimatedTime?: number;
   slug?: string;
   collectionIds?: string[];
+  topicId?: string | null;
+  required?: boolean;
+  reqOrder?: number;
 };
 
 type EditProblemFormState = NewProblemFormState & {
@@ -242,6 +246,8 @@ export const ProblemCollectionAdmin = forwardRef<ProblemCollectionAdminRef, {}>(
 
   const [isLoadingCollections, setIsLoadingCollections] = useState(false);
   const [isLoadingProblems, setIsLoadingProblems] = useState(false);
+  const [isLoadingTopics, setIsLoadingTopics] = useState(false);
+  const [levels, setLevels] = useState<Level[]>([]);
   const [error, setError] = useState<string | null>(null);
 
   const [isAddProblemDialogOpen, setIsAddProblemDialogOpen] = useState(false);
@@ -260,6 +266,9 @@ export const ProblemCollectionAdmin = forwardRef<ProblemCollectionAdminRef, {}>(
     collectionIds: [],
     params: [],
     return_type: '',
+    topicId: null,
+    required: false,
+    reqOrder: undefined,
   });
   const [editProblemData, setEditProblemData] = useState<EditProblemFormState | null>(null);
 
@@ -301,9 +310,24 @@ export const ProblemCollectionAdmin = forwardRef<ProblemCollectionAdminRef, {}>(
     }
   }, [token]);
 
+  const fetchTopicsAndLevels = useCallback(async () => {
+    if (!token) return;
+    setIsLoadingTopics(true);
+    try {
+      const levelsData = await api.get('/learning/levels', token) as Level[];
+      setLevels(levelsData || []);
+    } catch (err) {
+      console.error('Error fetching learning path data:', err);
+      toast.error('Failed to fetch learning path data.');
+    } finally {
+      setIsLoadingTopics(false);
+    }
+  }, [token]);
+
   useEffect(() => {
     fetchCollections();
-  }, [fetchCollections]);
+    fetchTopicsAndLevels();
+  }, [fetchCollections, fetchTopicsAndLevels]);
 
   useEffect(() => {
     if (!token) return;
@@ -349,7 +373,7 @@ export const ProblemCollectionAdmin = forwardRef<ProblemCollectionAdminRef, {}>(
       toast.success("Problems refreshed");
             } catch (err) {
       toast.error("Failed to refresh problems");
-      } finally {
+    } finally {
       setIsLoadingProblems(false);
     }
   };
@@ -411,6 +435,11 @@ export const ProblemCollectionAdmin = forwardRef<ProblemCollectionAdminRef, {}>(
       if (name === 'problemType' && value === 'INFO' && prev.codeProblem) {
          const { codeProblem, ...rest } = prev;
         return { ...rest, problemType: value as ProblemType };
+      }
+
+      // If unsetting required, also unset reqOrder
+      if (name === 'required' && value === false) {
+        return { ...prev, [name]: value, reqOrder: undefined };
       }
 
       if (['language', 'timeLimit', 'memoryLimit', 'functionName', 'codeTemplate'].includes(name as string) && prev.problemType === 'CODING' && prev.codeProblem) {
@@ -515,6 +544,9 @@ export const ProblemCollectionAdmin = forwardRef<ProblemCollectionAdminRef, {}>(
       slug: newProblemData.slug,
       estimatedTime: newProblemData.estimatedTime,
       collectionIds: problemApiCollectionIds, // Use the processed collection IDs
+      topicId: newProblemData.topicId,
+      required: newProblemData.required,
+      reqOrder: newProblemData.required ? newProblemData.reqOrder : null,
       return_type: newProblemData.return_type,
       params: JSON.stringify(newProblemData.params || []),
       defaultLanguage: currentDefaultLanguage,
@@ -542,7 +574,8 @@ export const ProblemCollectionAdmin = forwardRef<ProblemCollectionAdminRef, {}>(
       setIsAddProblemDialogOpen(false);
       setNewProblemData({ 
         name: '', content: '', difficulty: 'EASY', problemType: 'INFO', 
-        params: [], return_type: '', collectionIds: [] 
+        params: [], return_type: '', collectionIds: [],
+        topicId: null, required: false, reqOrder: undefined 
       });
       setCurrentSupportedLanguages(JSON.parse(JSON.stringify(defaultSupportedLanguages)));
       setCurrentDefaultLanguage('python');
@@ -571,8 +604,6 @@ export const ProblemCollectionAdmin = forwardRef<ProblemCollectionAdminRef, {}>(
               return;
             }
         const problemDetails = problemDetailsFull as Problem;
-        // console.log("[ProblemCollectionAdmin] Fetched problemDetails:", problemDetails);
-        // console.log("[ProblemCollectionAdmin] Fetched problemDetails.codeProblem.params:", (problemDetails as any).codeProblem?.params);
 
         let formCodeProblem: FormCodeProblemState | undefined = undefined;
         let problemParams: FunctionParameter[] = [];
@@ -627,10 +658,9 @@ export const ProblemCollectionAdmin = forwardRef<ProblemCollectionAdminRef, {}>(
             // Get params and return_type from codeProblem
             problemParams = parseParams(codeProblemDetails.params);
             problemReturnType = codeProblemDetails.return_type;
-            // console.log("[ProblemCollectionAdmin] Parsed params from codeProblem:", problemParams);
         }
 
-        const finalEditData = {
+        const finalEditData: EditProblemFormState = {
             id: problemDetails.id,
             name: problemDetails.name || '',
             content: problemDetails.content || '',
@@ -639,6 +669,9 @@ export const ProblemCollectionAdmin = forwardRef<ProblemCollectionAdminRef, {}>(
             slug: problemDetails.slug || '',
             estimatedTime: problemDetails.estimatedTime,
             collectionIds: problemDetails.collectionIds || [],
+            topicId: problemDetails.topicId || null,
+            required: problemDetails.required || false,
+            reqOrder: problemDetails.reqOrder ?? undefined,
             codeProblem: formCodeProblem, 
             params: problemParams,
             return_type: problemReturnType,
@@ -669,7 +702,9 @@ export const ProblemCollectionAdmin = forwardRef<ProblemCollectionAdminRef, {}>(
       slug: editProblemData.slug,
       estimatedTime: editProblemData.estimatedTime,
       collectionIds: editProblemData.collectionIds,
-      // Pass these top-level fields
+      topicId: editProblemData.topicId,
+      required: editProblemData.required,
+      reqOrder: editProblemData.required ? editProblemData.reqOrder : null,
       return_type: editProblemData.return_type,
       params: editProblemData.params,
     };
@@ -863,9 +898,63 @@ export const ProblemCollectionAdmin = forwardRef<ProblemCollectionAdminRef, {}>(
         <Label htmlFor={`${formType}-estimatedTime`}>Estimated Time (minutes)</Label>
         <Input id={`${formType}-estimatedTime`} name="estimatedTime" type="number" value={currentData.estimatedTime || ''} onChange={(e) => handleProblemInputChange(e, formType)} />
             </div>
+
+            <div className="border-t pt-4 mt-4 space-y-4">
+              <h4 className="font-semibold text-base">Organizational Details</h4>
+              <div className="grid gap-2">
+                <Label htmlFor={`${formType}-topicId`}>Topic</Label>
+                <Select
+                  value={currentData.topicId || ''}
+                  onValueChange={(val) => handleProblemSelectChange('topicId', val === 'none' ? null : val, formType)}
+                  disabled={isLoadingTopics}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select a topic..." />
+                  </SelectTrigger>
+                  <SelectContent className="max-h-[300px] overflow-y-auto">
+                    <SelectItem value="none">None</SelectItem>
+                    {levels.map(level => (
+                      <React.Fragment key={level.id}>
+                        <p className="px-2 py-1.5 text-sm font-semibold text-muted-foreground">{level.name}</p>
+                        {(level.topics || []).map(topic => (
+                            <SelectItem key={topic.id} value={topic.id} className="pl-6">
+                              {topic.name}
+                            </SelectItem>
+                          ))}
+                      </React.Fragment>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              
+              <div className="flex items-center space-x-2 pt-2">
+                <Checkbox
+                  id={`${formType}-required`}
+                  checked={!!currentData.required}
+                  onCheckedChange={(checked) => handleProblemSelectChange('required', !!checked, formType)}
+                />
+                <Label htmlFor={`${formType}-required`} className="font-normal">
+                  Required Problem (within a topic)
+                </Label>
+              </div>
+
+              {currentData.required && (
+                <div className="grid gap-2 pl-6">
+                  <Label htmlFor={`${formType}-reqOrder`}>Required Order</Label>
+                  <Input
+                    id={`${formType}-reqOrder`}
+                    name="reqOrder"
+                    type="number"
+                    value={currentData.reqOrder ?? ''}
+                    onChange={(e) => handleProblemInputChange(e, formType)}
+                    placeholder="e.g., 1"
+                  />
+                </div>
+              )}
+            </div>
             
         {formType === 'edit' && (
-            <div className="grid gap-2">
+            <div className="grid gap-2 mt-4 pt-4 border-t">
             <Label htmlFor={`${formType}-collectionIds`}>Collections</Label>
             <div className="space-y-2 border rounded-md p-3 max-h-[150px] overflow-y-auto">
               {isLoadingCollections ? (
@@ -1425,6 +1514,3 @@ export const ProblemCollectionAdmin = forwardRef<ProblemCollectionAdminRef, {}>(
     </Card>
   );
 });
-
-// Ensure default export if this was the only export, or named export matches import
-// export default ProblemCollectionAdmin; // If it was default before
