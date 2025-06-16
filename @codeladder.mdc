@@ -174,6 +174,9 @@ flowchart TD
 - **Styling**: Tailwind CSS with shadcn/ui components
 - **State Management**: TanStack Query for server state, React hooks for local state
 - **Routing**: React Router DOM v7
+- **Animations**: Framer Motion for rich, fluid animations
+- **Drag & Drop**: @hello-pangea/dnd for interactive UI elements
+- **Notifications**: Sonner for toast notifications
 - **Code Editor**: Monaco Editor with syntax highlighting
 - **Forms**: React Hook Form with Zod validation
 - **Icons**: Tabler Icons, Lucide React, React Icons
@@ -181,8 +184,8 @@ flowchart TD
 ### **Backend Architecture**
 - **Runtime**: Node.js with Express framework
 - **Language**: TypeScript for type safety
-- **Database**: PostgreSQL with Prisma ORM
-- **Authentication**: JWT tokens with refresh token rotation
+- **Database**: PostgreSQL with Prisma ORM (and legacy Sequelize)
+- **Authentication**: JWT tokens with refresh token rotation, plus OAuth 2.0 (Google, GitHub) via Passport.js
 - **Security**: Helmet, CORS, rate limiting, bcrypt password hashing
 - **File Storage**: AWS S3 for image and asset management
 - **Logging**: Winston for structured logging
@@ -220,7 +223,7 @@ flowchart TD
 
 ## 🔐 Security Features
 
-- **Authentication**: JWT with secure refresh token rotation
+- **Authentication**: JWT with secure refresh token rotation and social logins (Google, GitHub)
 - **Authorization**: Role-based access control (USER, ADMIN, DEVELOPER)
 - **Input Validation**: Zod schemas for all API endpoints
 - **Rate Limiting**: API endpoint protection against abuse
@@ -248,18 +251,17 @@ flowchart TD
 git clone https://github.com/yourusername/codeladder.git
 cd codeladder
 
-# Install dependencies
+# Install dependencies (from root)
 npm install
-cd frontend && npm install
-cd ../backend && npm install
 
 # Start development servers
-docker-compose -f infra/docker/docker-compose.yml up
+# This will start frontend, backend, and all required services
+npm run dev
 ```
 
 ### **Environment Configuration**
-- **Backend**: Database URL, JWT secrets, AWS credentials, Judge0 API
-- **Frontend**: API URL, environment-specific configuration
+- **Backend**: `DATABASE_URL`, `JWT_SECRET`, `JWT_REFRESH_SECRET`, `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET`, `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_REGION`, `S3_BUCKET`, `JUDGE0_API_URL`
+- **Frontend**: `VITE_API_URL`
 - **Infrastructure**: Docker networking, port configuration
 
 ### **Deployment Pipeline**
@@ -274,12 +276,12 @@ docker-compose -f infra/docker/docker-compose.yml up
 
 ## 🎯 Key Differentiators
 
-1. **Mastery-Based Learning**: Focus on understanding over completion speed
-2. **Spaced Repetition Integration**: Scientific approach to knowledge retention
-3. **Multi-Format Problems**: Comprehensive learning through varied content types
-4. **Real Code Execution**: Practical programming practice with immediate feedback
-5. **Progressive Difficulty**: Adaptive learning path based on individual progress
-6. **Modern Tech Stack**: Built with current best practices and technologies
+1. **Structured Mastery-Based Learning**: A clear path from beginner to advanced, unlike the topic-based-only approach of competitors.
+2. **Integrated Spaced Repetition**: A core, built-in feature using a scientific algorithm to ensure long-term retention of concepts, a feature absent in platforms like LeetCode.
+3. **Advanced IDE Experience**: Utilizes Monaco Editor, the engine powering VS Code, for a superior coding environment with advanced features not found in standard text areas on other platforms.
+4. **Holistic Learning Approach**: Combines theoretical content (INFO problems), practical coding challenges, and quizzes for a well-rounded understanding.
+5. **Real Code Execution**: Practical programming practice with immediate feedback across 10+ languages powered by Judge0.
+6. **Modern & Performant Tech Stack**: Built with current best practices and technologies for a fast, responsive, and scalable user experience.
 
 ---
 
@@ -294,5 +296,5 @@ docker-compose -f infra/docker/docker-compose.yml up
 
 ---
 
-*Last Updated: January 2025*
-*Version: 2.0.0*
+*Last Updated: June 16, 2024*
+*Version: 2.1.0*

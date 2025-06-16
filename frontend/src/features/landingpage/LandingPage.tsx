@@ -6,6 +6,7 @@ import { ArrowRight, Code, Dumbbell, Layers, Trophy, CheckCircle, Star } from 'l
 import { GlowingEffect } from '@/components/ui/glowing-effect';
 import { cn } from '@/lib/utils';
 import { CompanyLogos } from './components/CompanyLogos';
+import { ComparisonTable } from './components/ComparisonTable';
 import { TypeAnimation } from 'react-type-animation';
 import { Pricing } from './components/Pricing';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
@@ -112,7 +113,7 @@ export default function LandingPage() {
   }, []);
 
   return (
-    <div className="min-h-[calc(100vh-4rem)] bg-transparent relative overflow-hidden font-mono flex flex-col">
+    <div className="min-h-[calc(100vh-4rem)] bg-transparent relative overflow-hidden font-sans flex flex-col">
       {/* Background pattern: Positioned to cover navbar area, z-0 */}
       <DottedBackground />
       
@@ -131,17 +132,17 @@ export default function LandingPage() {
       
       {/* Content Wrapper: Added relative z-10 */}
       <div className="flex-grow relative z-10">
-        {/* Large transparent logo backdrop - top-rightish */}
+        {/* Large transparent logo backdrop - top-rightish - fine-tuned */}
         <img
           src={standaloneLogoSrc}
           alt="" // Decorative image
-          className="absolute top-[12%] md:top-[12%] left-[200px] sm:left-[400px] md:left-[600px] lg:left-[900px] -translate-y-1/2 w-[1000px] h-[1000px] opacity-[0.03] pointer-events-none -z-1 select-none"
+          className="absolute top-[10%] md:top-[8%] left-[200px] sm:left-[400px] md:left-[600px] lg:left-[900px] -translate-y-1/2 w-[1000px] h-[1000px] opacity-[0.03] pointer-events-none -z-1 select-none"
         />
-        {/* Second large transparent logo backdrop - lower left */}
+        {/* Second large transparent logo backdrop - lower left - fine-tuned */}
         <img
           src={standaloneLogoSrc}
           alt="" // Decorative image
-          className="absolute top-[65%] md:top-[77%] left-[-700px] sm:left-[-600px] md:left-[-450px] -translate-y-1/2 w-[1000px] h-[1000px] opacity-[0.03] pointer-events-none -z-10 select-none"
+          className="absolute top-[87%] md:top-[82%] left-[-700px] sm:left-[-600px] md:left-[-450px] -translate-y-1/2 w-[1000px] h-[1000px] opacity-[0.03] pointer-events-none -z-10 select-none"
         />
 
         {/* 1. Hero Section */}
@@ -158,22 +159,19 @@ export default function LandingPage() {
 
               {/* Updated Heading */}
               <div className="relative z-10 flex flex-col items-center md:items-start">
-                <h1 className="text-3xl sm:text-4xl lg:text-5xl font-bold font-mono tracking-tight text-foreground leading-tight">
-                  Everything you need
-                  <br />
-                  to{" "}
+                <h1 className="text-3xl sm:text-4xl lg:text-5xl font-bold font-sans tracking-tight text-foreground leading-tight">
+                  Everything you need to{" "} <br />
                   <span className="bg-clip-text text-transparent bg-gradient-to-r from-[#5271FF] to-[#6B8EFF]">
                   land your next technical role
-                  </span>
-                  , all
+                  </span>{" "}
                   <br />
-                  in one place.
+                  — all in one place.
                 </h1>
               </div>
 
               {/* Subtitle */}
               <p className="relative z-10 text-lg lg:text-xl text-muted-foreground max-w-md lg:max-w-lg xl:max-w-xl">
-                Yes, it should be that simple.
+                Yes, it can be that simple. Experience the world's first all-in-one code-based learning platform, built for Software Engineers, Data Scientists, ML Engineers, and more.
               </p>
 
               {/* Login/Start buttons */}
@@ -236,7 +234,7 @@ export default function LandingPage() {
                     <AvatarFallback>SM</AvatarFallback>
                   </Avatar>
                   <Avatar className="h-8 w-8 ring-2 ring-background">
-                    <AvatarImage src="https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=64&h=64&fit=crop&crop=face&auto=format&q=80" alt="David K." />
+                    <AvatarImage src="https://api.dicebear.com/7.x/adventurer/svg?seed=David&backgroundColor=c0aede,d1d4f9,ffd5dc&skinColor=9e4a3a,d08b5b,edb98a,f8d25c&hair=short01,short02,short03&hairColor=2c1b18,724133,a55728" alt="David K." />
                     <AvatarFallback>DK</AvatarFallback>
                   </Avatar>
                   <Avatar className="h-8 w-8 ring-2 ring-background">
@@ -248,7 +246,7 @@ export default function LandingPage() {
                     <AvatarFallback>AR</AvatarFallback>
                   </Avatar>
                   <Avatar className="h-8 w-8 ring-2 ring-background">
-                    <AvatarImage src="https://api.dicebear.com/7.x/bottts-neutral/svg?seed=CodingPanda&backgroundColor=c0aede,d1d4f9,ffd5dc&primaryColor=2c1b18,724133" alt="🐼 PandaCoder" />
+                    <AvatarImage src="https://images.unsplash.com/photo-1564349683136-77e08dba1ef7?w=64&h=64&fit=crop&crop=face&auto=format&q=80" alt="🐼 PandaCoder" />
                     <AvatarFallback>🐼</AvatarFallback>
                   </Avatar>
                 </div>
@@ -261,12 +259,12 @@ export default function LandingPage() {
                 </div>
 
                 {/* Text - Grid Item */}
-                <p className="text-sm text-muted-foreground col-start-1 col-span-2 row-start-2 md:col-start-2 md:col-span-1 md:row-start-2 text-center md:text-left md:mt-1">
+                <p className="text-lg text-muted-foreground col-start-1 col-span-2 row-start-2 md:col-start-2 md:col-span-1 md:row-start-2 text-center md:text-left md:mt-1">
                   {isLoadingUserCount ? (
                     <LoadingSpinner size="md" />
                   ) : (
                     <>
-                      Join <span className="font-semibold text-foreground">{userCount?.toLocaleString() ?? '7,000+'}</span> others already landing offers.
+                      Join <span className="font-semibold text-foreground">{userCount?.toLocaleString() ?? '1,000+'}</span> others already landing offers.
                     </>
                   )}
                 </p>
@@ -276,9 +274,15 @@ export default function LandingPage() {
 
             {/* Right Column - Adjusted alignment, height, and top margin */}
             <div className="order-2 hidden md:flex justify-center items-start md:w-1/2 lg:w-2/5 mt-12 md:-mt-8">
-              {/* Scrolling code - Increased height, font, and left margin */}
-              <div className="flex flex-col h-[34rem] w-[30rem] overflow-hidden relative font-mono text-sm text-muted-foreground/50 ml-8">
-                  <div className="flex flex-col items-start space-y-1 animate-vertical-scroll"> {/* This div would get the animation class */}
+              {/* Scrolling code - Increased height, font, and left margin with fade effects */}
+              <div className="flex flex-col h-[34rem] w-[30rem] overflow-hidden relative font-sans text-lg text-muted-foreground/50 ml-8">
+                {/* Top fade overlay */}
+                <div className="absolute top-0 left-0 right-0 h-16 bg-gradient-to-b from-background to-transparent z-10 pointer-events-none"></div>
+                
+                {/* Bottom fade overlay */}
+                <div className="absolute bottom-0 left-0 right-0 h-16 bg-gradient-to-t from-background to-transparent z-10 pointer-events-none"></div>
+                
+                <div className="flex flex-col items-start space-y-1 animate-vertical-scroll"> {/* This div would get the animation class */}
                     {/* CODE BLOCK 1 (Original Content) */}
                     <span>{'# Binary Tree Max Depth'}</span>
                     <span>{'class TreeNode:'}</span>
@@ -365,6 +369,9 @@ export default function LandingPage() {
 
         {/* NEW: Feature Showcase Section */}
         <FeatureShowcase />
+
+        {/* Comparison Table Section */}
+        <ComparisonTable />
 
         {/* 3. Pricing Section */}
         <Pricing />
