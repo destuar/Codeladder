@@ -108,7 +108,7 @@ const StatusIcon = ({ status }: { status: boolean | 'partial' }) => {
 
 export function ComparisonTable() {
   return (
-    <div className="w-full">
+    <div className="w-full hidden md:block">
       {/* Sunken band container */}
       <div className="bg-gray-50/50 dark:bg-gray-950/70 border-y border-gray-200/50 dark:border-gray-800/60 shadow-inner relative min-h-[400px] flex items-center">
         {/* Inner shadow overlay for enhanced sunken effect */}

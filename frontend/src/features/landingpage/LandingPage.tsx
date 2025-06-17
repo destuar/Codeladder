@@ -160,7 +160,7 @@ export default function LandingPage() {
               {/* Updated Heading */}
               <div className="relative z-10 flex flex-col items-center md:items-start">
                 <h1 className="text-3xl sm:text-4xl lg:text-5xl font-bold font-sans tracking-tight text-foreground leading-tight">
-                  Everything you need to{" "} <br />
+                  Everything you need to <br />
                   <span className="bg-clip-text text-transparent bg-gradient-to-r from-[#5271FF] to-[#6B8EFF]">
                   land your next technical role
                   </span>{" "}
@@ -171,7 +171,7 @@ export default function LandingPage() {
 
               {/* Subtitle */}
               <p className="relative z-10 text-lg lg:text-xl text-muted-foreground max-w-md lg:max-w-lg xl:max-w-xl">
-                Yes, it can be that simple. Experience the world's first all-in-one code-based learning platform, built for Software Engineers, Data Scientists, ML Engineers, and more.
+                Yes, it can be that simple. Experience the first all-in-one code-based learning platform, built for Software Engineers.
               </p>
 
               {/* Login/Start buttons */}
