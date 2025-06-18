@@ -40,70 +40,51 @@ export function CompanyLogos() {
     offset: ["start 0.75", "center start"]
   });
 
-  // Updated createLogoTransforms for a single grid
-  const createLogoTransforms = (index: number) => {
-    const NUM_LOGOS = allLogos.length;
-    const ANIMATION_START_SCROLL_PROGRESS = 0.0; // Start animations from the beginning of scrollYProgress
-    const TOTAL_SCROLL_PROGRESS_FOR_ANIMATION_STARTS = 0.6; // Spread out logo animation start times over this portion of scrollYProgress
-    
-    // Calculate stagger ensuring it's valid even if NUM_LOGOS is 0 or 1 (though NUM_LOGOS is 10 here)
-    const STAGGER_PER_LOGO = NUM_LOGOS > 1 
-      ? TOTAL_SCROLL_PROGRESS_FOR_ANIMATION_STARTS / (NUM_LOGOS - 1)
-      : TOTAL_SCROLL_PROGRESS_FOR_ANIMATION_STARTS;
-      
-    const DURATION_OF_INDIVIDUAL_LOGO_ANIMATION_SCROLL = 0.2; // Each logo animates over this duration of scroll progress
 
-    const start = ANIMATION_START_SCROLL_PROGRESS + index * STAGGER_PER_LOGO;
-    const end = start + DURATION_OF_INDIVIDUAL_LOGO_ANIMATION_SCROLL;
-
-    // Clamp values to ensure they are within [0, 1] and start < end
-    const clampedStart = Math.max(0, Math.min(1 - 0.001, start)); // Ensure start is not 1
-    const clampedEnd = Math.max(clampedStart + 0.001, Math.min(1, end)); // Ensure end is > start and not > 1
-    
-    const inputRange = [clampedStart, clampedEnd];
-
-    const grayscale = useTransform(scrollYProgress, inputRange, [100, 0]);
-    const opacity = useTransform(scrollYProgress, inputRange, [0.5, 1]); // Start with a bit more opacity
-
-    const filter = useTransform(grayscale, value => `grayscale(${value}%)`);
-
-    return { filter, opacity };
-  };
 
   return (
-    <div ref={sectionRef} className="w-full py-10">
-      <div className="max-w-7xl mx-auto px-4 md:px-6 lg:px-8">
-        <div className="flex flex-col items-center">
-          <div className="mb-12 text-center pt-8">
-            <h3 className="mt-3 text-lg md:text-xl text-muted-foreground max-w-2xl lg:max-w-none mx-auto">
-              Learn interview questions from the largest technology companies
-            </h3>
-            <div className="h-0.5 w-16 bg-[#5b5bf7]/30 mx-auto"></div>
-          </div>
-          {/* Single grid for all logos - 4 cols on mobile, 5 on sm+ */}
-          <div className="grid grid-cols-4 sm:grid-cols-5 items-center justify-items-center gap-x-4 gap-y-6 sm:gap-x-8 sm:gap-y-4 md:gap-x-2 md:gap-y-16 lg:gap-x-4 w-full">
-            {allLogos.map((logo, index) => {
-              const { filter, opacity } = createLogoTransforms(index);
-              // Determine if this logo should be hidden on mobile
-              // We hide the 9th and 10th items (OpenAI and Airbnb which are now at index 8 and 9)
-              const isHiddenOnMobile = index === 8 || index === 9;
-              return (
-                <motion.img 
-                  key={`logo-${index}`}
-                  src={logo.src} 
-                  alt={`${logo.alt} logo`}
-                  className={cn(
-                    "w-auto",
-                    // Responsive height classes - base size increased for mobile
-                    logo.alt === 'Amazon' 
-                      ? "h-20 sm:h-16 md:h-20 lg:h-[7.5rem]"  // Mobile: h-20, sm: h-16, md: h-20, lg: h-[7.5rem]
-                      : "h-24 sm:h-20 md:h-24 lg:h-32",        // Mobile: h-24, sm: h-20, md: h-24, lg: h-32
-                    isHiddenOnMobile ? "hidden sm:block" : "block" // Hide specific logos on mobile
-                  )}
-                  style={{ filter, opacity }}
-                />
-              );
-            })}
+    <div className="w-full">
+      {/* Sunken band container */}
+      <div className="bg-gray-50/50 dark:bg-gray-950/70 border-y border-gray-200/50 dark:border-gray-800/60 shadow-inner relative min-h-[400px] flex items-center">
+        {/* Inner shadow overlay for enhanced sunken effect */}
+        <div className="absolute inset-0 shadow-[inset_0_4px_8px_rgba(0,0,0,0.06),inset_0_-4px_8px_rgba(0,0,0,0.06)] dark:shadow-[inset_0_6px_12px_rgba(0,0,0,0.25),inset_0_-6px_12px_rgba(0,0,0,0.25),inset_0_2px_4px_rgba(0,0,0,0.3)]"></div>
+        
+        <div ref={sectionRef} className="relative z-10 w-full py-12">
+          <div className="max-w-7xl mx-auto px-4 md:px-6 lg:px-8">
+            <div className="flex flex-col items-center">
+              <div className="mb-12 text-center pt-8">
+                <h2 className="mt-3 text-2xl sm:text-3xl lg:text-4xl font-bold font-sans tracking-tight text-foreground leading-tight max-w-4xl mx-auto">
+                  With CodeLadder, you'll know what to expect.
+                </h2>
+                <p className="mt-4 text-lg lg:text-xl text-muted-foreground max-w-3xl mx-auto">
+                  Access insider interview questions from the largest companies
+                </p>
+                <div className="h-0.5 w-16 bg-[#5271FF] mx-auto mt-6"></div>
+              </div>
+              {/* Single grid for all logos - 4 cols on mobile, 5 on sm+ */}
+              <div className="grid grid-cols-4 sm:grid-cols-5 items-center justify-items-center gap-x-4 gap-y-6 sm:gap-x-8 sm:gap-y-4 md:gap-x-2 md:gap-y-16 lg:gap-x-4 w-full">
+                {allLogos.map((logo, index) => {
+                  // Determine if this logo should be hidden on mobile
+                  // We hide the 9th and 10th items (OpenAI and Airbnb which are now at index 8 and 9)
+                  const isHiddenOnMobile = index === 8 || index === 9;
+                  return (
+                    <motion.img 
+                      key={`logo-${index}`}
+                      src={logo.src} 
+                      alt={`${logo.alt} logo`}
+                      className={cn(
+                        "w-auto",
+                        // Responsive height classes - base size increased for mobile
+                        logo.alt === 'Amazon' 
+                          ? "h-20 sm:h-16 md:h-20 lg:h-[7.5rem]"  // Mobile: h-20, sm: h-16, md: h-20, lg: h-[7.5rem]
+                          : "h-24 sm:h-20 md:h-24 lg:h-32",        // Mobile: h-24, sm: h-20, md: h-24, lg: h-32
+                        isHiddenOnMobile ? "hidden sm:block" : "block" // Hide specific logos on mobile
+                      )}
+                    />
+                  );
+                })}
+              </div>
+            </div>
           </div>
         </div>
       </div>

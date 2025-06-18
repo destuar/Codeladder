@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo, useEffect } from "react";
+import { useState, useCallback, useMemo, useEffect, forwardRef, useImperativeHandle } from "react";
 import { Button } from "@/components/ui/button";
 import { Play, Send } from "lucide-react";
 import { useTestRunner } from './useTestRunner';
@@ -24,10 +24,15 @@ interface TestRunnerProps {
   isCompleted?: boolean;
 }
 
+export interface TestRunnerRef {
+  handleRunTests: () => void;
+  handleSubmitSolution: () => void;
+}
+
 /**
  * Component for running and displaying test results
  */
-export function TestRunner({ 
+export const TestRunner = forwardRef<TestRunnerRef, TestRunnerProps>(({ 
   code, 
   officialTestCases,
   problemId, 
@@ -39,7 +44,7 @@ export function TestRunner({
   functionParams,
   onSubmissionComplete,
   isCompleted = false
-}: TestRunnerProps) {
+}, ref) => {
   const [activeTab, setActiveTab] = useState("testcase");
   const [selectedTestCase, setSelectedTestCase] = useState<number | null>(0);
   
@@ -174,6 +179,11 @@ export function TestRunner({
     }
   };
 
+  useImperativeHandle(ref, () => ({
+    handleRunTests,
+    handleSubmitSolution,
+  }));
+
   return (
     <div className="flex flex-col h-full overflow-hidden rounded-md dark:border-transparent border border-border">
       <Tabs value={activeTab} onValueChange={setActiveTab} className="flex flex-col h-full">
@@ -184,30 +194,6 @@ export function TestRunner({
           </TabsList>
         </div>
         
-        {/* Hidden buttons for click events */}
-        <div className="hidden">
-          <Button 
-            onClick={handleRunTests} 
-            disabled={isRunning}
-            className="gap-2"
-            size="sm"
-            variant="ghost"
-            data-testrunner-run-button
-          >
-            Run Tests
-          </Button>
-
-          <Button 
-            onClick={handleSubmitSolution} 
-            disabled={isRunning}
-            className="gap-2"
-            size="sm"
-            data-testrunner-submit-button
-          >
-            Submit Solution
-          </Button>
-        </div>
-
         {/* Both tabs share identical structure and CSS classes */}
         <div className="flex-1 flex flex-col overflow-hidden" style={{ minHeight: 0 }}>
           {activeTab === "testcase" ? (
@@ -233,4 +219,4 @@ export function TestRunner({
       </Tabs>
     </div>
   );
-} 
+}); 

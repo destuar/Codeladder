@@ -1,0 +1,300 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
+# CodeLadder Platform Documentation
+
+## 🎯 Project Overview
+
+**CodeLadder** is a comprehensive learning platform focused on Data Structures & Algorithms (DSA) using a **Mastery-Based Learning Model**. The platform features progressive levels, each focusing on core DSA topics, with integrated spaced repetition to enhance long-term retention.
+
+### 🏗️ Architecture
+
+```mermaid
+graph TB
+    A[Frontend - React/TypeScript] --> B[Backend - Express/Node.js]
+    B --> C[PostgreSQL Database]
+    B --> D[Judge0 Code Execution]
+    B --> E[AWS S3 Storage]
+    F[Docker Compose] --> A
+    F --> B
+    F --> C
+    F --> D
+```
+
+---
+
+## 🚀 Main Features
+
+### 1. **Mastery-Based Learning System**
+- **Progressive Levels**: Structured learning path through difficulty levels (I, L3, L4, etc.)
+- **Topic-Based Organization**: Each level contains focused topics with curated problems
+- **Adaptive Progression**: Users advance based on mastery, not time
+- **Completion Tracking**: Comprehensive progress monitoring across all levels
+
+### 2. **Multi-Format Problem Types**
+- **📚 INFO Problems**: Theoretical content and conceptual explanations
+- **💻 CODING Problems**: Interactive coding challenges with real-time execution
+- **📄 STANDALONE_INFO**: Independent informational pages
+- **🎯 QUIZ Problems**: Multiple-choice assessments and knowledge checks
+
+### 3. **Advanced Code Execution Engine**
+- **Judge0 Integration**: Secure, isolated code execution environment
+- **Multi-Language Support**: JavaScript, Python, Java, C++, and more
+- **Real-time Feedback**: Instant test case validation and performance metrics
+- **Custom Test Cases**: Comprehensive problem validation with hidden test cases
+- **Code Templates**: Language-specific starter code for each problem
+
+### 4. **Spaced Repetition System**
+- **Intelligent Scheduling**: Algorithm-based review scheduling for completed problems
+- **Retention Optimization**: Strategic review intervals to combat forgetting curve
+- **Performance Tracking**: Review success rates and difficulty adjustments
+- **Flexible Options**: Easy, standard, and difficult review modes
+- **Smart Categorization**: Due, overdue, and upcoming review organization
+
+### 5. **Collections & Problem Organization**
+- **Curated Collections**: Themed problem sets (e.g., "Array Fundamentals", "Dynamic Programming")
+- **Flexible Assignment**: Problems can belong to multiple collections
+- **Custom Categorization**: Admin-configurable problem groupings
+- **Progress Tracking**: Collection-level completion monitoring
+
+### 6. **Comprehensive Assessment System**
+- **Adaptive Quizzes**: Multiple-choice questions with intelligent difficulty adjustment
+- **Mixed Assessments**: Combination of coding and theoretical evaluations
+- **Instant Feedback**: Real-time scoring and detailed explanations
+- **Progress Analytics**: Performance tracking across different assessment types
+
+### 7. **Admin Management Suite**
+- **Problem Management**: Full CRUD operations for all problem types
+- **User Administration**: User role management and progress oversight
+- **Content Creation**: Rich text editor with markdown support
+- **Analytics Dashboard**: Comprehensive platform usage and performance metrics
+
+### 8. **User Experience Features**
+- **Responsive Design**: Mobile-first, adaptive UI across all devices
+- **Dark/Light Themes**: Customizable interface preferences
+- **Monaco Editor**: Advanced code editing with syntax highlighting
+- **Real-time Collaboration**: Shared problem-solving capabilities
+- **Social Learning**: User profiles, leaderboards, and community features
+
+---
+
+## 🔄 Core Workflows
+
+### **Learning Workflow**
+```mermaid
+flowchart TD
+    A[User Registration] --> B[Level Assessment]
+    B --> C[Topic Selection]
+    C --> D[Problem Attempt]
+    D --> E{Problem Type?}
+    E -->|INFO| F[Read Content]
+    E -->|CODING| G[Write & Execute Code]
+    E -->|QUIZ| H[Answer Questions]
+    F --> I[Mark Complete]
+    G --> J{Tests Pass?}
+    H --> K{Correct Answer?}
+    J -->|Yes| I
+    J -->|No| L[Review Feedback]
+    K -->|Yes| I
+    K -->|No| L
+    L --> D
+    I --> M[Add to Spaced Repetition]
+    M --> N[Progress to Next Problem]
+    N --> O{Topic Complete?}
+    O -->|No| C
+    O -->|Yes| P[Level Assessment]
+    P --> Q{Level Complete?}
+    Q -->|No| C
+    Q -->|Yes| R[Advance to Next Level]
+```
+
+### **Spaced Repetition Workflow**
+```mermaid
+flowchart TD
+    A[Problem Completed] --> B[Add to SR Queue]
+    B --> C[Calculate Initial Review Date]
+    C --> D[Schedule Review]
+    D --> E[Review Due Notification]
+    E --> F[User Performs Review]
+    F --> G{Review Success?}
+    G -->|Easy| H[Increase Interval Significantly]
+    G -->|Good| I[Increase Interval Moderately]
+    G -->|Hard| J[Slight Interval Increase]
+    G -->|Forgot| K[Reset to Short Interval]
+    H --> L[Schedule Next Review]
+    I --> L
+    J --> L
+    K --> L
+    L --> D
+```
+
+### **Code Execution Workflow**
+```mermaid
+flowchart TD
+    A[User Submits Code] --> B[Validate Input]
+    B --> C[Send to Judge0]
+    C --> D[Execute Against Test Cases]
+    D --> E[Collect Results]
+    E --> F{All Tests Pass?}
+    F -->|Yes| G[Mark Problem Complete]
+    F -->|No| H[Show Failed Test Cases]
+    G --> I[Update Progress]
+    H --> J[Provide Feedback]
+    I --> K[Add to Spaced Repetition]
+    J --> L[Allow Retry]
+```
+
+### **Assessment Workflow**
+```mermaid
+flowchart TD
+    A[Start Assessment] --> B[Load Questions]
+    B --> C[Display Question]
+    C --> D[User Submits Answer]
+    D --> E{Question Type?}
+    E -->|Multiple Choice| F[Validate Selection]
+    E -->|Coding| G[Execute Code]
+    F --> H[Store Response]
+    G --> H
+    H --> I{More Questions?}
+    I -->|Yes| C
+    I -->|No| J[Calculate Score]
+    J --> K[Show Results]
+    K --> L[Update Progress]
+```
+
+---
+
+## 🛠️ Technical Stack
+
+### **Frontend Architecture**
+- **Framework**: React 18 with TypeScript
+- **Build Tool**: Vite for fast development and optimized builds
+- **Styling**: Tailwind CSS with shadcn/ui components
+- **State Management**: TanStack Query for server state, React hooks for local state
+- **Routing**: React Router DOM v7
+- **Animations**: Framer Motion for rich, fluid animations
+- **Drag & Drop**: @hello-pangea/dnd for interactive UI elements
+- **Notifications**: Sonner for toast notifications
+- **Code Editor**: Monaco Editor with syntax highlighting
+- **Forms**: React Hook Form with Zod validation
+- **Icons**: Tabler Icons, Lucide React, React Icons
+
+### **Backend Architecture**
+- **Runtime**: Node.js with Express framework
+- **Language**: TypeScript for type safety
+- **Database**: PostgreSQL with Prisma ORM (and legacy Sequelize)
+- **Authentication**: JWT tokens with refresh token rotation, plus OAuth 2.0 (Google, GitHub) via Passport.js
+- **Security**: Helmet, CORS, rate limiting, bcrypt password hashing
+- **File Storage**: AWS S3 for image and asset management
+- **Logging**: Winston for structured logging
+- **Scheduling**: Node-cron for background tasks
+
+### **Infrastructure & DevOps**
+- **Containerization**: Docker with multi-stage builds
+- **Orchestration**: Docker Compose for local development
+- **CI/CD**: Jenkins with automated testing and deployment
+- **Cloud Provider**: AWS (EC2, RDS, S3)
+- **Code Execution**: Judge0 API for secure code evaluation
+
+---
+
+## 📊 Data Models
+
+### **Core Entities**
+- **User**: Authentication, profiles, progress tracking
+- **Level**: Learning progression structure
+- **Topic**: Subject matter organization within levels
+- **Problem**: Multi-format learning content (INFO, CODING, QUIZ)
+- **Collection**: Curated problem groupings
+- **Progress**: User advancement tracking
+- **Submission**: Code execution history
+- **Quiz/Assessment**: Evaluation system
+- **SpacedRepetitionItem**: Review scheduling and tracking
+
+### **Key Relationships**
+- Users have Progress across multiple Topics and Problems
+- Problems belong to Topics and can be in multiple Collections
+- Submissions track user attempts at Coding Problems
+- SpacedRepetitionItems schedule reviews for completed Problems
+
+---
+
+## 🔐 Security Features
+
+- **Authentication**: JWT with secure refresh token rotation and social logins (Google, GitHub)
+- **Authorization**: Role-based access control (USER, ADMIN, DEVELOPER)
+- **Input Validation**: Zod schemas for all API endpoints
+- **Rate Limiting**: API endpoint protection against abuse
+- **Secure Headers**: Helmet.js for security headers
+- **CORS Configuration**: Controlled cross-origin resource sharing
+- **Code Execution Isolation**: Judge0 sandboxing for user code
+
+---
+
+## 📈 Analytics & Monitoring
+
+- **User Progress**: Completion rates, time spent, success metrics
+- **Problem Analytics**: Difficulty analysis, success rates, common errors
+- **Spaced Repetition Metrics**: Review completion, retention rates
+- **Performance Monitoring**: API response times, error rates
+- **Usage Patterns**: Popular topics, peak usage times
+
+---
+
+## 🚀 Development & Deployment
+
+### **Development Setup**
+```bash
+# Clone repository
+git clone https://github.com/yourusername/codeladder.git
+cd codeladder
+
+# Install dependencies (from root)
+npm install
+
+# Start development servers
+# This will start frontend, backend, and all required services
+npm run dev
+```
+
+### **Environment Configuration**
+- **Backend**: `DATABASE_URL`, `JWT_SECRET`, `JWT_REFRESH_SECRET`, `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET`, `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_REGION`, `S3_BUCKET`, `JUDGE0_API_URL`
+- **Frontend**: `VITE_API_URL`
+- **Infrastructure**: Docker networking, port configuration
+
+### **Deployment Pipeline**
+1. Code pushed to repository
+2. Jenkins triggers automated build
+3. Tests executed across frontend and backend
+4. Docker images built and tagged
+5. Deployment to AWS infrastructure
+6. Health checks and monitoring activation
+
+---
+
+## 🎯 Key Differentiators
+
+1. **Structured Mastery-Based Learning**: A clear path from beginner to advanced, unlike the topic-based-only approach of competitors.
+2. **Integrated Spaced Repetition**: A core, built-in feature using a scientific algorithm to ensure long-term retention of concepts, a feature absent in platforms like LeetCode.
+3. **Advanced IDE Experience**: Utilizes Monaco Editor, the engine powering VS Code, for a superior coding environment with advanced features not found in standard text areas on other platforms.
+4. **Holistic Learning Approach**: Combines theoretical content (INFO problems), practical coding challenges, and quizzes for a well-rounded understanding.
+5. **Real Code Execution**: Practical programming practice with immediate feedback across 10+ languages powered by Judge0.
+6. **Modern & Performant Tech Stack**: Built with current best practices and technologies for a fast, responsive, and scalable user experience.
+
+---
+
+## 📚 Documentation Links
+
+- [Frontend Documentation](mdc:frontend/README.md)
+- [Backend API Documentation](mdc:backend/README.md)
+- [Spaced Repetition System](mdc:backend/src/routes/README.md)
+- [Infrastructure Setup](mdc:infra/README.md)
+- [Environment Variables](mdc:docs/environment-variables.md)
+- [Judge0 Integration](mdc:docs/judge0.md)
+
+---
+
+*Last Updated: June 16, 2024*
+*Version: 2.1.0*

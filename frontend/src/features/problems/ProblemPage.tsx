@@ -16,6 +16,7 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { LoadingCard, PageLoadingSpinner } from '@/components/ui/loading-spinner';
 import { logger } from '@/lib/logger';
+import { cn } from '@/lib/utils';
 
 // Custom hook to only use spaced repetition when needed
 function useConditionalSpacedRepetition(enabled: boolean) {
@@ -322,7 +323,11 @@ const ProblemPage: React.FC = () => {
 
   // Conditional Rendering based on Problem Type - Reverted to original structure
   return (
-    <div className="min-h-[calc(100vh-4rem)] flex flex-col"> {/* Original top-level div */}
+    <div className={cn(
+      "flex flex-col",
+      // Mobile: full height without subtracting space for nav
+      "min-h-screen md:min-h-[calc(100vh-4rem)]"
+    )}> {/* Modified top-level div */}
       <ErrorBoundary>
         <div className="flex-1"> {/* Original main content wrapper */}
           {problem.problemType === 'CODING' ? (

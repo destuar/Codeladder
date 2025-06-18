@@ -224,7 +224,7 @@ export function Navigation() {
                   </DialogHeader>
                   <div className="flex flex-col space-y-4">
                     {/* Top Row: Conditional based on login status */}
-                    {!user ? (
+                    {!user && (
                       <div className="flex items-center gap-4">
                         <DialogClose asChild>
                           <Link to="/login" className="text-base font-medium text-foreground">
@@ -239,18 +239,10 @@ export function Navigation() {
                           </Link>
                         </DialogClose>
                       </div>
-                    ) : (
-                      <div className="flex items-center">
-                        <DialogClose asChild>
-                          <span onClick={logout} className="text-base font-medium text-muted-foreground hover:text-foreground cursor-pointer">
-                            Logout
-                          </span>
-                        </DialogClose>
-                      </div>
                     )}
 
                     {/* Separator */}
-                    <hr className="border-divider" />
+                    {!user && <hr className="border-divider" />}
 
                     {/* Navigation Links */}
                     {user ? (
@@ -305,12 +297,19 @@ export function Navigation() {
                       </Link>
                     </DialogClose>
                     <hr className="border-divider" />
-                    {/* User/Auth Controls (Main List - Only Profile) */}
+                    {/* User/Auth Controls (Main List - Profile and Logout) */}
                     {user && (
                       <DialogClose asChild>
                         <Link to="/profile" className="text-base font-medium text-muted-foreground hover:text-foreground">
                           Profile
                         </Link>
+                      </DialogClose>
+                    )}
+                    {user && (
+                      <DialogClose asChild>
+                        <span onClick={logout} className="text-base font-medium text-muted-foreground hover:text-foreground cursor-pointer">
+                          Logout
+                        </span>
                       </DialogClose>
                     )}
                     {user && canAccessAdmin && (
